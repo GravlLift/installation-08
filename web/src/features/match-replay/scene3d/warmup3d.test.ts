@@ -4,44 +4,44 @@ import type { EffectComposer } from 'three/addons/postprocessing/EffectComposer.
 import type { Avatar } from './avatar3d'
 import { Outline3d } from './outline3d'
 import * as THREE from 'three'
-import { avecCamouflage, avecObjetsVisibles, prechauffer3d, texturesDe } from './warmup3d'
+import { withCamouflage, withVisibleObjects, warmUp3d, texturesOf } from './warmup3d'
 
 it('restores visibility and culling even if the render fails', () => {
   const parent = new THREE.Group()
-  const enfant = new THREE.Group()
-  parent.add(enfant)
+  const child = new THREE.Group()
+  parent.add(child)
   parent.visible = false
-  enfant.visible = false
-  enfant.frustumCulled = false
-  expect(() => avecObjetsVisibles([parent, enfant], () => {
-    expect(parent.visible && enfant.visible).toBe(true)
-    expect(parent.frustumCulled || enfant.frustumCulled).toBe(false)
-    throw new Error('rendu')
-  })).toThrow('rendu')
-  expect([parent.visible, enfant.visible, parent.frustumCulled, enfant.frustumCulled]).toEqual([false, false, true, false])
+  child.visible = false
+  child.frustumCulled = false
+  expect(() => withVisibleObjects([parent, child], () => {
+    expect(parent.visible && child.visible).toBe(true)
+    expect(parent.frustumCulled || child.frustumCulled).toBe(false)
+    throw new Error('render')
+  })).toThrow('render')
+  expect([parent.visible, child.visible, parent.frustumCulled, child.frustumCulled]).toEqual([false, false, true, false])
 })
 
-describe('texturesDe', () => {
+describe('texturesOf', () => {
   it('walks standard maps and painted armor uniforms, with no duplicates', () => {
-    const racine = new THREE.Group()
+    const root = new THREE.Group()
     const map = new THREE.Texture()
     const normalMap = new THREE.Texture()
     const standard = new THREE.MeshStandardMaterial({ map, normalMap })
-    racine.add(new THREE.Mesh(new THREE.BoxGeometry(), standard))
+    root.add(new THREE.Mesh(new THREE.BoxGeometry(), standard))
     // Two meshes sharing the material: the texture counts only once.
-    racine.add(new THREE.Mesh(new THREE.BoxGeometry(), standard))
+    root.add(new THREE.Mesh(new THREE.BoxGeometry(), standard))
 
     const asg = new THREE.Texture()
     const gradients = new THREE.Texture()
-    const peinture = new THREE.MeshStandardMaterial()
-    peinture.userData.armorUniforms = {
+    const painted = new THREE.MeshStandardMaterial()
+    painted.userData.armorUniforms = {
       uArmorAsg: { value: asg },
       uArmorGradients: { value: gradients },
       uPaint: { value: new Float32Array(4) },
     }
-    racine.add(new THREE.Mesh(new THREE.BoxGeometry(), peinture))
+    root.add(new THREE.Mesh(new THREE.BoxGeometry(), painted))
 
-    const textures = texturesDe([racine])
+    const textures = texturesOf([root])
     expect(textures).toContain(map)
     expect(textures).toContain(normalMap)
     expect(textures).toContain(asg)
@@ -51,22 +51,22 @@ describe('texturesDe', () => {
   })
 
   it('walks shader material uniforms', () => {
-    const racine = new THREE.Group()
+    const root = new THREE.Group()
     const texture = new THREE.Texture()
-    const shader = new THREE.ShaderMaterial({ uniforms: { uImage: { value: texture }, uEchelle: { value: 1 } } })
-    racine.add(new THREE.Mesh(new THREE.BoxGeometry(), shader))
-    expect(texturesDe([racine])).toEqual([texture])
+    const shader = new THREE.ShaderMaterial({ uniforms: { uImage: { value: texture }, uScale: { value: 1 } } })
+    root.add(new THREE.Mesh(new THREE.BoxGeometry(), shader))
+    expect(texturesOf([root])).toEqual([texture])
   })
 })
 
 it('cloaks the real materials and restores their state even if the render fails', () => {
   const a = new THREE.MeshStandardMaterial({ opacity: 0.7, depthWrite: false })
   const b = new THREE.MeshStandardMaterial({ transparent: true, opacity: 0.3 })
-  expect(() => avecCamouflage([[a, b]], () => {
+  expect(() => withCamouflage([[a, b]], () => {
     expect(a.transparent && b.transparent).toBe(true)
     expect(a.opacity).toBeCloseTo(0.54)
-    throw new Error('rendu')
-  })).toThrow('rendu')
+    throw new Error('render')
+  })).toThrow('render')
   expect([a.transparent, a.opacity, a.depthWrite]).toEqual([false, 0.7, false])
   expect([b.transparent, b.opacity, b.depthWrite]).toEqual([true, 0.3, true])
 })
@@ -76,33 +76,33 @@ it('restores the target and the shadows after a compositor failure', async () =>
   const root = new THREE.Group()
   const material = new THREE.MeshStandardMaterial()
   scene.add(root)
-  const cible = new THREE.WebGLRenderTarget()
-  const lecture = new THREE.WebGLRenderTarget()
-  let active: THREE.WebGLRenderTarget | null = cible
+  const target = new THREE.WebGLRenderTarget()
+  const readBuffer = new THREE.WebGLRenderTarget()
+  let active: THREE.WebGLRenderTarget | null = target
   const renderer = {
     getRenderTarget: () => active,
     setRenderTarget: (v: THREE.WebGLRenderTarget | null) => { active = v },
     compileAsync: async () => {}, initTexture: () => {}, shadowMap: { needsUpdate: false },
   } as unknown as THREE.WebGLRenderer
   const outline = new Outline3d(new THREE.PerspectiveCamera())
-  let appels = 0
-  const composer = { readBuffer: lecture, render: () => {
-    appels++
-    if (appels === 2) {
+  let calls = 0
+  const composer = { readBuffer, render: () => {
+    calls++
+    if (calls === 2) {
       expect(material.transparent).toBe(true)
-      throw new Error('rendu')
+      throw new Error('render')
     }
   } } as unknown as EffectComposer
-  const avertir = vi.spyOn(console, 'warn').mockImplementation(() => {})
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
   try {
-    await prechauffer3d(renderer, scene, new THREE.PerspectiveCamera(), {
+    await warmUp3d(renderer, scene, new THREE.PerspectiveCamera(), {
       roots: [root], detaches: [], composer, outline,
       avatars: [{ group: root, spartan: { materials: [material] } } as unknown as Avatar],
     })
-    expect(appels).toBe(2)
-    expect(active).toBe(cible)
+    expect(calls).toBe(2)
+    expect(active).toBe(target)
     expect(renderer.shadowMap.needsUpdate).toBe(false)
     expect(material.transparent).toBe(false)
     expect(outline.subjectsOf()).toEqual([])
-  } finally { avertir.mockRestore(); outline.dispose(); cible.dispose(); lecture.dispose() }
+  } finally { warn.mockRestore(); outline.dispose(); target.dispose(); readBuffer.dispose() }
 })

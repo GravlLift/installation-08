@@ -3,15 +3,15 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { HeldWeapon3d } from './heldWeapon3d'
 import { filmPosture } from './posturesFilm3d'
 import { weaponModelKey } from './weaponModels3d'
-import type { ChangementArme } from './firstPersonActions3d'
+import type { WeaponSwitch } from './firstPersonActions3d'
 
-export interface IntervalleSprint { t0: number; t1: number }
+export interface SprintInterval { t0: number; t1: number }
 
-export function preparerEvenementsPremierePersonne(doc: ReplayDocumentReady, held: (slot: number, frame: number) => HeldWeapon3d | null) {
+export function prepareFirstPersonEvents(doc: ReplayDocumentReady, held: (slot: number, frame: number) => HeldWeapon3d | null) {
   const grenades = new Map<number, number[]>()
-  const changes = new Map<number, ChangementArme[]>()
-  const sprints = new Map<number, IntervalleSprint[]>()
-  const slides = new Map<number, IntervalleSprint[]>()
+  const changes = new Map<number, WeaponSwitch[]>()
+  const sprints = new Map<number, SprintInterval[]>()
+  const slides = new Map<number, SprintInterval[]>()
   const candidates = new Map<number, Set<number>>()
   for (const g of doc.grenades) {
     const list = grenades.get(g.slot) ?? []
@@ -34,11 +34,11 @@ export function preparerEvenementsPremierePersonne(doc: ReplayDocumentReady, hel
   for (const list of [doc.loadouts, doc.inventory, doc.weaponChanges, doc.drawnWeapons]) for (const r of list) candidate(r.slot, r.t)
   for (const l of doc.ammoReads) if (l.src === 'delta') { candidate(l.slot, l.t); candidate(l.slot, l.t + 1) }
   for (const [slot, times] of candidates) {
-    const list: ChangementArme[] = []
+    const list: WeaponSwitch[] = []
     for (const t of [...times].sort((a, b) => a - b)) {
-      const avant = held(slot, t - 1), apres = held(slot, t)
-      if (avant && apres && avant.id !== apres.id) {
-        list.push({ frame: t, avant: weaponModelKey(avant.id), apres: weaponModelKey(apres.id) })
+      const before = held(slot, t - 1), after = held(slot, t)
+      if (before && after && before.id !== after.id) {
+        list.push({ frame: t, before: weaponModelKey(before.id), after: weaponModelKey(after.id) })
       }
     }
     changes.set(slot, list)
@@ -46,5 +46,5 @@ export function preparerEvenementsPremierePersonne(doc: ReplayDocumentReady, hel
   for (const list of grenades.values()) list.sort((a, b) => a - b)
   for (const list of sprints.values()) list.sort((a, b) => a.t0 - b.t0)
   for (const list of slides.values()) list.sort((a, b) => a.t0 - b.t0)
-  return { grenades, changements: changes, sprints, slides }
+  return { grenades, weaponSwitches: changes, sprints, slides }
 }

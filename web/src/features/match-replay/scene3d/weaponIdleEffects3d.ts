@@ -35,7 +35,7 @@ import { reloadEpisodesBySlot } from './filmActions3d'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { heldWeaponAt } from './heldWeapon3d'
 import { IndexField, type FetchJson } from './indexField3d'
-import { dureeAttendue, finNaturelle, type EpisodeRechargement } from './firstPersonReload3d'
+import { expectedDuration, naturalEnd, type ReloadEpisode } from './firstPersonReload3d'
 import {
   effectScales,
   magazineFraction,
@@ -390,7 +390,7 @@ interface SlotTimeline {
   /** The film's magazine readings and the holder's shots, by weapon slot, sorted by ms. */
   magazines: Map<number, MagazineEvent[]>
   /** The reload episodes, with the weapon slot in hand at their start. */
-  episodes: { ep: EpisodeRechargement; w: number | null }[]
+  episodes: { ep: ReloadEpisode; w: number | null }[]
 }
 
 const ANCHOR = new THREE.Matrix4()
@@ -615,7 +615,7 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
    * holder's shots, and its reloads as the first-person rig plays them (`clipS`: the clip lengths of the
    * weapon in hand). A staged reload (`reload_enter` and a round clip, no `reload_full`: the Heatwave,
    * Cindershot) puts one round in each time a round clip completes: at the next stage, the last one only
-   * when the episode's closing message ends it naturally (`finNaturelle`, the rig's own test), or at the
+   * when the episode's closing message ends it naturally (`naturalEnd`, the rig's own test), or at the
    * round's expected end when no message follows; a shot or a swap stops it. A one-clip reload fills the
    * magazine at the end of its clip (the empty one when the magazine was empty), if nothing stopped it.
    */
@@ -623,27 +623,27 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
     const doc = this.ctx.doc
     const out = (line.magazines.get(w) ?? []).filter((e) => e.ms <= atMs)
     for (const { ep, w: held } of line.episodes) {
-      const stages = ep.etapes
+      const stages = ep.stages
       const start = stages[0].t
       if (held !== w || frameToMs(start, doc) > atMs) continue
       const stops = Math.min(firstAfter(line.shots, start), firstAfter(line.changes, start))
-      const roundS = ep.vide
+      const roundS = ep.empty
         ? clipS('reload_continue_empty') ?? clipS('reload_continue_full')
         : clipS('reload_continue_full') ?? clipS('reload_continue_empty')
       if (clipS('reload_full') === null && clipS('reload_enter') !== null && roundS !== null && roundS > 0) {
         const round = { durationSeconds: roundS }
         const last = stages.length - 1
-        const closes = stages[last].coupe
+        const closes = stages[last].cut
         const rounds = closes ? last - 1 : last
         for (let i = 1; i <= rounds; i++) {
           const done = i < last
-            ? i + 1 === last && closes && !finNaturelle(stages, round, fps) ? null : stages[i + 1].t
-            : stages[i].t + dureeAttendue(stages, i, round, fps) * fps
+            ? i + 1 === last && closes && !naturalEnd(stages, round, fps) ? null : stages[i + 1].t
+            : stages[i].t + expectedDuration(stages, i, round, fps) * fps
           if (done !== null && done < stops) out.push({ ms: frameToMs(done, doc), kind: 'round' })
         }
         continue
       }
-      const s = ep.vide ? clipS('reload_empty') ?? clipS('reload_full') : clipS('reload_full') ?? clipS('reload_empty')
+      const s = ep.empty ? clipS('reload_empty') ?? clipS('reload_full') : clipS('reload_full') ?? clipS('reload_empty')
       if (s !== null && s > 0 && start + s * fps < stops) out.push({ ms: frameToMs(start, doc) + s * 1000, kind: 'full' })
     }
     return out.sort((a, b) => a.ms - b.ms)
@@ -658,8 +658,8 @@ export class WeaponIdleEffects3dLayer implements ActionLayer3d {
       return l
     }
     for (const [slot, eps] of reloadEpisodesBySlot(doc)) {
-      line(slot).reloads = eps.map((e) => ({ start: e.etapes[0].t, lastStage: e.etapes[e.etapes.length - 1].t }))
-      line(slot).episodes = eps.map((ep) => ({ ep, w: weaponInHand(doc, slot, ep.etapes[0].t)?.weaponSlot ?? null }))
+      line(slot).reloads = eps.map((e) => ({ start: e.stages[0].t, lastStage: e.stages[e.stages.length - 1].t }))
+      line(slot).episodes = eps.map((ep) => ({ ep, w: weaponInHand(doc, slot, ep.stages[0].t)?.weaponSlot ?? null }))
     }
     const magazine = (slot: number, w: number) => {
       const m = line(slot).magazines

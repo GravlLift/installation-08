@@ -14,72 +14,72 @@
  * Hydra's stages come every 0.42 s, half its 0.83 s round clip: a stage's clip is fitted to the time the
  * film gives it.
  *
- * Messages are grouped into an EPISODE: groups of messages less than ECART_ETAPES_S apart, starting at a
+ * Messages are grouped into an EPISODE: groups of messages less than STAGE_GAP_S apart, starting at a
  * reload start (`reloadStarts`). A magazine weapon plays its one clip from the episode's start, so the
  * extra messages of an episode no longer restart it.
  */
-import type { ClipPremierePersonne } from './premierePersonne3d'
+import type { FirstPersonClip } from './firstPersonRig3d'
 
-/** One stage of a reload: its first message, and whether it holds only repeated messages (`cuts`). */
-export interface EtapeRechargement {
+/** One stage of a reload: its first message, and whether it holds only repeated messages (`cut`). */
+export interface ReloadStage {
   t: number
-  coupe: boolean
+  cut: boolean
 }
 
 /** A reload episode of one life: its stages, the first one the reload start, in frames. */
-export interface EpisodeRechargement {
-  etapes: readonly EtapeRechargement[]
+export interface ReloadEpisode {
+  stages: readonly ReloadStage[]
   /** The magazine was empty when the reload started (`magazineAtReload`); null when the film does not say. */
-  vide: boolean | null
+  empty: boolean | null
 }
 
 /** Messages within this many seconds of a stage's first message belong to that stage (measured: 16 to 34 ms). */
-const PAIRE_S = 0.1
+const PAIR_WINDOW_S = 0.1
 /** A gap longer than this ends an episode (measured stages: 0.37 to 0.70 s apart). */
-const ECART_ETAPES_S = 1
+const STAGE_GAP_S = 1
 
 /**
- * episodesRechargement groups a life's reload starts and cuts (frames, sorted) into episodes. An episode
- * begins at a start; a cut more than ECART_ETAPES_S after the last stage belongs to no episode.
+ * reloadEpisodes groups a life's reload starts and cuts (frames, sorted) into episodes. An episode
+ * begins at a start; a cut more than STAGE_GAP_S after the last stage belongs to no episode.
  */
-export function episodesRechargement(
-  debuts: readonly number[],
-  coupures: readonly number[],
+export function reloadEpisodes(
+  starts: readonly number[],
+  cuts: readonly number[],
   fps: number,
-  vide: (debut: number) => boolean | null = () => null,
-): EpisodeRechargement[] {
-  const messages = [...debuts.map((t) => ({ t, coupe: false })), ...coupures.map((t) => ({ t, coupe: true }))]
+  isEmpty: (start: number) => boolean | null = () => null,
+): ReloadEpisode[] {
+  const messages = [...starts.map((t) => ({ t, cut: false })), ...cuts.map((t) => ({ t, cut: true }))]
     .sort((a, b) => a.t - b.t)
-  const out: EpisodeRechargement[] = []
-  let etapes: EtapeRechargement[] | null = null
+  const out: ReloadEpisode[] = []
+  let stages: ReloadStage[] | null = null
   for (const m of messages) {
-    const derniere = etapes?.at(-1)
-    if (etapes && derniere && m.t - derniere.t <= PAIRE_S * fps) {
-      derniere.coupe &&= m.coupe
+    const last = stages?.at(-1)
+    if (stages && last && m.t - last.t <= PAIR_WINDOW_S * fps) {
+      last.cut &&= m.cut
       continue
     }
-    if (etapes && derniere && m.t - derniere.t <= ECART_ETAPES_S * fps) {
-      etapes.push({ t: m.t, coupe: m.coupe })
+    if (stages && last && m.t - last.t <= STAGE_GAP_S * fps) {
+      stages.push({ t: m.t, cut: m.cut })
       continue
     }
-    etapes = null
-    if (m.coupe) continue
-    etapes = [{ t: m.t, coupe: false }]
-    out.push({ etapes, vide: vide(m.t) })
+    stages = null
+    if (m.cut) continue
+    stages = [{ t: m.t, cut: false }]
+    out.push({ stages, empty: isEmpty(m.t) })
   }
   return out
 }
 
 /** The rig's reload clips: one clip, or a staged sequence. */
-export interface ClipsRechargement {
-  plein: ClipPremierePersonne | null
-  vide: ClipPremierePersonne | null
-  entree: ClipPremierePersonne | null
-  boucle: ClipPremierePersonne | null
-  boucleVide: ClipPremierePersonne | null
-  sortie: ClipPremierePersonne | null
+export interface ReloadClips {
+  full: FirstPersonClip | null
+  empty: FirstPersonClip | null
+  enter: FirstPersonClip | null
+  loop: FirstPersonClip | null
+  loopEmpty: FirstPersonClip | null
+  exit: FirstPersonClip | null
   /** The rig's vent clips (`vent_enter`, `vent_loop`, `vent_exit`), for a heat weapon with no reload clip. */
-  vent?: ClipsVent | null
+  vent?: VentClips | null
 }
 
 /**
@@ -88,70 +88,70 @@ export interface ClipsRechargement {
  * 2026-11-15): their reload input vents the heat, and the film writes that as the same `weapon_reload`
  * message (match 05dfe4e9, TasteThePainbow's Ravager: two messages at 7:56.8 and 7:57.4, no shot after).
  */
-export interface ClipsVent {
-  entree: ClipPremierePersonne
-  boucle: ClipPremierePersonne
-  sortie: ClipPremierePersonne | null
+export interface VentClips {
+  enter: FirstPersonClip
+  loop: FirstPersonClip
+  exit: FirstPersonClip | null
 }
 
 /** The reload clip at a frame: its time, its weight, and the frame from which the reload must still be valid. */
-export interface PhaseRechargement {
-  clip: ClipPremierePersonne
-  temps: number
+export interface ReloadPhase {
+  clip: FirstPersonClip
+  time: number
   /** null: the caller's usual fades apply (a one-clip reload). */
-  poids: number | null
-  depuis: number
+  weight: number | null
+  since: number
 }
 
 /** The fade at the very start and the very end of a reload, in seconds. */
-const FONDU_S = 0.1
+const FADE_S = 0.1
 /** A last stage cut before this share of the expected round time was interrupted: no closing clip. */
-const PART_FIN_NATURELLE = 0.75
+const NATURAL_END_SHARE = 0.75
 
 /** The time `t` held inside the clip (a stage longer than its clip holds the last pose). */
-function dans(clip: ClipPremierePersonne, t: number): number {
+function clampToClip(clip: FirstPersonClip, t: number): number {
   return Math.min(Math.max(0, t), clip.durationSeconds * 0.999)
 }
 
 /** The last episode that started at or before `frame`. */
-function episodeA(episodes: readonly EpisodeRechargement[], frame: number): EpisodeRechargement | null {
+function episodeAt(episodes: readonly ReloadEpisode[], frame: number): ReloadEpisode | null {
   let lo = 0
   let hi = episodes.length
   while (lo < hi) {
     const mid = (lo + hi) >> 1
-    if (episodes[mid].etapes[0].t <= frame) lo = mid + 1
+    if (episodes[mid].stages[0].t <= frame) lo = mid + 1
     else hi = mid
   }
   return lo > 0 ? episodes[lo - 1] : null
 }
 
 /**
- * phaseRechargement: the reload clip of `episodes` at `frame`, or null. `tir`: the last shot at or before
- * the frame (a shot after the reload starts ends it; after its last stage, ends the closing clip). `depuis`:
+ * reloadPhase: the reload clip of `episodes` at `frame`, or null. `shot`: the last shot at or before
+ * the frame (a shot after the reload starts ends it; after its last stage, ends the closing clip). `since`:
  * the last weapon change (a reload before it belongs to the weapon put away). The caller still checks that
- * the reload is valid from `PhaseRechargement.depuis` to the frame (no death, swap or cut in between).
+ * the reload is valid from `ReloadPhase.since` to the frame (no death, swap or cut in between).
  */
-export function phaseRechargement(
-  clips: ClipsRechargement,
-  episodes: readonly EpisodeRechargement[],
+export function reloadPhase(
+  clips: ReloadClips,
+  episodes: readonly ReloadEpisode[],
   frame: number,
   fps: number,
-  tir: number,
-  depuis: number,
-): PhaseRechargement | null {
-  const ep = episodeA(episodes, frame)
+  shot: number,
+  since: number,
+): ReloadPhase | null {
+  const ep = episodeAt(episodes, frame)
   if (!ep || fps <= 0) return null
-  const debut = ep.etapes[0].t
-  if (debut < depuis) return null
-  if (!clips.plein && !clips.vide && !clips.entree && clips.vent) return phaseVent(clips.vent, ep, frame, fps, tir)
-  const boucle = ep.vide ? clips.boucleVide ?? clips.boucle : clips.boucle ?? clips.boucleVide
-  if (!clips.entree || !boucle || boucle.durationSeconds <= 0) {
-    const clip = (ep.vide ? clips.vide ?? clips.plein : clips.plein ?? clips.vide) ?? clips.entree
-    const temps = (frame - debut) / fps
-    if (!clip || tir > debut || temps >= clip.durationSeconds) return null
-    return { clip, temps, poids: null, depuis: debut }
+  const start = ep.stages[0].t
+  if (start < since) return null
+  if (!clips.full && !clips.empty && !clips.enter && clips.vent) return ventPhase(clips.vent, ep, frame, fps, shot)
+  const loop = ep.empty ? clips.loopEmpty ?? clips.loop : clips.loop ?? clips.loopEmpty
+  if (!clips.enter || !loop || loop.durationSeconds <= 0) {
+    const clip = (ep.empty ? clips.empty ?? clips.full : clips.full ?? clips.empty) ?? clips.enter
+    const time = (frame - start) / fps
+    if (!clip || shot > start || time >= clip.durationSeconds) return null
+    return { clip, time, weight: null, since: start }
   }
-  return phaseEtagee(clips.entree, boucle, clips.sortie, ep.etapes, frame, fps, tir)
+  return stagedPhase(clips.enter, loop, clips.exit, ep.stages, frame, fps, shot)
 }
 
 /**
@@ -159,75 +159,75 @@ export function phaseRechargement(
  * episode's last message and one full loop (the game's own clip lengths, from its animation tags), then
  * the exit clip. A shot after the vent starts ends it.
  */
-function phaseVent(vent: ClipsVent, ep: EpisodeRechargement, frame: number, fps: number, tir: number): PhaseRechargement | null {
-  const debut = ep.etapes[0].t
-  if (tir > debut) return null
-  const t = (frame - debut) / fps
-  const entree = vent.entree.durationSeconds
-  if (t < entree) return { clip: vent.entree, temps: dans(vent.entree, t), poids: Math.min(1, t / FONDU_S), depuis: debut }
-  const finBoucle = Math.max((ep.etapes[ep.etapes.length - 1].t - debut) / fps, entree + vent.boucle.durationSeconds)
-  if (t < finBoucle) {
-    const d = vent.boucle.durationSeconds
-    return { clip: vent.boucle, temps: d > 0 ? dans(vent.boucle, (t - entree) % d) : 0, poids: 1, depuis: debut }
+function ventPhase(vent: VentClips, ep: ReloadEpisode, frame: number, fps: number, shot: number): ReloadPhase | null {
+  const start = ep.stages[0].t
+  if (shot > start) return null
+  const t = (frame - start) / fps
+  const enter = vent.enter.durationSeconds
+  if (t < enter) return { clip: vent.enter, time: clampToClip(vent.enter, t), weight: Math.min(1, t / FADE_S), since: start }
+  const loopEnd = Math.max((ep.stages[ep.stages.length - 1].t - start) / fps, enter + vent.loop.durationSeconds)
+  if (t < loopEnd) {
+    const d = vent.loop.durationSeconds
+    return { clip: vent.loop, time: d > 0 ? clampToClip(vent.loop, (t - enter) % d) : 0, weight: 1, since: start }
   }
-  const sortie = vent.sortie
-  const u = t - finBoucle
-  if (!sortie || u >= sortie.durationSeconds) return null
-  return { clip: sortie, temps: dans(sortie, u), poids: Math.min(1, (sortie.durationSeconds - u) / FONDU_S), depuis: debut }
+  const exit = vent.exit
+  const u = t - loopEnd
+  if (!exit || u >= exit.durationSeconds) return null
+  return { clip: exit, time: clampToClip(exit, u), weight: Math.min(1, (exit.durationSeconds - u) / FADE_S), since: start }
 }
 
 /** A staged reload: the enter clip, one round clip per stage fitted to the stage, then the closing clip. */
-function phaseEtagee(
-  entree: ClipPremierePersonne,
-  boucle: ClipPremierePersonne,
-  sortie: ClipPremierePersonne | null,
-  etapes: readonly EtapeRechargement[],
+function stagedPhase(
+  enter: FirstPersonClip,
+  loop: FirstPersonClip,
+  exit: FirstPersonClip | null,
+  stages: readonly ReloadStage[],
   frame: number,
   fps: number,
-  tir: number,
-): PhaseRechargement | null {
-  const debut = etapes[0].t
+  shot: number,
+): ReloadPhase | null {
+  const start = stages[0].t
   // A shot during the reload ends it; a shot after its last stage ends the closing clip.
-  if (tir > debut) return null
+  if (shot > start) return null
   let i = 0
-  while (i + 1 < etapes.length && etapes[i + 1].t <= frame) i++
-  const derniere = etapes.length - 1
-  const etape = etapes[i]
-  const suivante = i < derniere ? etapes[i + 1].t : null
-  const depuisEtape = (frame - etape.t) / fps
+  while (i + 1 < stages.length && stages[i + 1].t <= frame) i++
+  const last = stages.length - 1
+  const stage = stages[i]
+  const next = i < last ? stages[i + 1].t : null
+  const sinceStage = (frame - stage.t) / fps
   if (i === 0) {
-    if (suivante === null && depuisEtape >= entree.durationSeconds) return null
-    const sortieDeFin = suivante === null ? (entree.durationSeconds - depuisEtape) / FONDU_S : 1
-    return { clip: entree, temps: dans(entree, depuisEtape), poids: Math.min(1, depuisEtape / FONDU_S, sortieDeFin), depuis: debut }
+    if (next === null && sinceStage >= enter.durationSeconds) return null
+    const endFade = next === null ? (enter.durationSeconds - sinceStage) / FADE_S : 1
+    return { clip: enter, time: clampToClip(enter, sinceStage), weight: Math.min(1, sinceStage / FADE_S, endFade), since: start }
   }
-  if (i === derniere && etape.coupe) {
-    if (!sortie || !finNaturelle(etapes, boucle, fps) || depuisEtape >= sortie.durationSeconds) return null
-    return { clip: sortie, temps: depuisEtape, poids: Math.min(1, (sortie.durationSeconds - depuisEtape) / FONDU_S), depuis: etape.t }
+  if (i === last && stage.cut) {
+    if (!exit || !naturalEnd(stages, loop, fps) || sinceStage >= exit.durationSeconds) return null
+    return { clip: exit, time: sinceStage, weight: Math.min(1, (exit.durationSeconds - sinceStage) / FADE_S), since: stage.t }
   }
   // A round cut short by the episode's last message keeps the episode's pace: only a stage the film
   // completes is fitted to its time.
-  const coupee = i + 1 === derniere && etapes[derniere].coupe && !finNaturelle(etapes, boucle, fps)
-  const duree = suivante !== null && !coupee ? (suivante - etape.t) / fps : dureeAttendue(etapes, i, boucle, fps)
-  const cadence = Math.max(1, boucle.durationSeconds / duree)
-  const temps = depuisEtape * cadence
-  if (suivante === null && temps >= boucle.durationSeconds) return null
-  const sortieDeFin = suivante === null ? (boucle.durationSeconds - temps) / cadence / FONDU_S : 1
-  return { clip: boucle, temps: dans(boucle, temps), poids: Math.min(1, sortieDeFin), depuis: etape.t }
+  const wasCut = i + 1 === last && stages[last].cut && !naturalEnd(stages, loop, fps)
+  const duration = next !== null && !wasCut ? (next - stage.t) / fps : expectedDuration(stages, i, loop, fps)
+  const rate = Math.max(1, loop.durationSeconds / duration)
+  const time = sinceStage * rate
+  if (next === null && time >= loop.durationSeconds) return null
+  const endFade = next === null ? (loop.durationSeconds - time) / rate / FADE_S : 1
+  return { clip: loop, time: clampToClip(loop, time), weight: Math.min(1, endFade), since: stage.t }
 }
 
 /** The time one round takes in this episode: the previous round's, else the round clip's (the staged reload sounds read it too). */
-export function dureeAttendue(etapes: readonly EtapeRechargement[], i: number, boucle: Pick<ClipPremierePersonne, 'durationSeconds'>, fps: number): number {
-  return i >= 2 ? (etapes[i].t - etapes[i - 1].t) / fps : boucle.durationSeconds
+export function expectedDuration(stages: readonly ReloadStage[], i: number, loop: Pick<FirstPersonClip, 'durationSeconds'>, fps: number): number {
+  return i >= 2 ? (stages[i].t - stages[i - 1].t) / fps : loop.durationSeconds
 }
 
 /**
- * finNaturelle: the last stage (repeated messages) closes the reload rather than cutting it: at least one
+ * naturalEnd: the last stage (repeated messages) closes the reload rather than cutting it: at least one
  * round went in, and the last round lasted most of the expected round time (a cut 0.13 s into a 0.53 s
  * round is an interruption).
  */
-export function finNaturelle(etapes: readonly EtapeRechargement[], boucle: Pick<ClipPremierePersonne, 'durationSeconds'>, fps: number): boolean {
-  const n = etapes.length - 1
+export function naturalEnd(stages: readonly ReloadStage[], loop: Pick<FirstPersonClip, 'durationSeconds'>, fps: number): boolean {
+  const n = stages.length - 1
   if (n < 2) return false
-  const derniere = (etapes[n].t - etapes[n - 1].t) / fps
-  return derniere >= PART_FIN_NATURELLE * Math.min(boucle.durationSeconds, dureeAttendue(etapes, n - 1, boucle, fps))
+  const last = (stages[n].t - stages[n - 1].t) / fps
+  return last >= NATURAL_END_SHARE * Math.min(loop.durationSeconds, expectedDuration(stages, n - 1, loop, fps))
 }

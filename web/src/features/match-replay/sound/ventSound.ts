@@ -5,7 +5,7 @@
  * THE SOURCE IS THE FILM'S `weapon_reload` MESSAGE, the same one the reloads read: the game vents
  * a heat weapon's (Stalker, Plasma Pistol, Pulse Carbine, Ravager) heat on that input, and the
  * film writes it the same way. The messages are grouped into episodes the way the first-person
- * vent does (`episodesRechargement`): the enter from the episode's first message, the loop held
+ * vent does (`reloadEpisodes`): the enter from the episode's first message, the loop held
  * until the later of the episode's last message and one full loop, then the exit (`phaseVent`,
  * `firstPersonReload3d.ts`). A weapon with no vent in the library (every weapon that
  * reloads, the melee weapons, anything the extraction did not reach) stays silent, without a
@@ -30,7 +30,7 @@ import { currentLifeOf } from '../../../lib/replay/rosterLogic'
 import { weaponInHand } from '../model/weaponInHand'
 import { reloadReadings } from '../model/reloadStarts'
 import { covers } from '../model/replaySpans'
-import { episodesRechargement, type EpisodeRechargement } from '../scene3d/firstPersonReload3d'
+import { reloadEpisodes, type ReloadEpisode } from '../scene3d/firstPersonReload3d'
 import { weaponTagOf, type ReloadClip, type VentLibrary } from './reloadManifest'
 import { factsBySlot, firstAt, trackIdentity, type SlotFacts } from './reloadSound'
 import type { ReplaySoundEvent } from './replaySoundVariants'
@@ -47,7 +47,7 @@ export function ventSoundEvents(doc: ReplayDocumentReady, library: VentLibrary |
     const f = facts.get(slot)
     if (!f) continue
     const framesOf = (ms: readonly number[]) => ms.map((t) => msToFrames(t, doc))
-    const episodes = episodesRechargement(framesOf(r.starts), framesOf(r.cuts), fps)
+    const episodes = reloadEpisodes(framesOf(r.starts), framesOf(r.cuts), fps)
     for (let i = 0; i < episodes.length; i++) {
       out.push(...oneVent(doc, library, slot, f, episodes[i], episodes[i + 1] ?? null, followed))
     }
@@ -61,11 +61,11 @@ function oneVent(
   library: VentLibrary,
   slot: number,
   f: SlotFacts,
-  ep: EpisodeRechargement,
-  next: EpisodeRechargement | null,
+  ep: ReloadEpisode,
+  next: ReloadEpisode | null,
   followed: string | null,
 ): ReplaySoundEvent[] {
-  const start = ep.etapes[0].t
+  const start = ep.stages[0].t
   const held = weaponInHand(doc, slot, start)
   const tag = held ? weaponTagOf(held.id) : null
   const life = currentLifeOf(doc, slot, start)
@@ -74,10 +74,10 @@ function oneVent(
   const startMs = frameToMs(start, doc)
   // The loop is held until the later of the episode's last message and one full loop: the
   // timing of `phaseVent`, in ms.
-  const loopEndMs = Math.max(frameToMs(ep.etapes[ep.etapes.length - 1].t, doc), startMs + vent.enter.durationMs + vent.loop.durationMs)
+  const loopEndMs = Math.max(frameToMs(ep.stages[ep.stages.length - 1].t, doc), startMs + vent.enter.durationMs + vent.loop.durationMs)
   const endMs = Math.min(
     frameToMs(trackWindow(life).end, doc),
-    next ? frameToMs(next.etapes[0].t, doc) : Infinity,
+    next ? frameToMs(next.stages[0].t, doc) : Infinity,
     firstAt(f.shots, startMs, false),
     firstAt(f.changes, startMs, false),
     f.hands.find((h) => h.ms > startMs && h.d !== held.weaponSlot)?.ms ?? Infinity,

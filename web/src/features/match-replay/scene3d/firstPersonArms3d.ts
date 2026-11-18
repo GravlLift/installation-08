@@ -10,10 +10,10 @@ import { darkMetalFallback } from './fallbackMetal3d'
 import { fetchMesh } from './meshFetch'
 import { rawMaps } from './armorLibrary3d'
 import { ARMURE_NEUTRE, RUGOSITE_ARMURE_NEUTRE } from './armorMaterial3d'
-import { nouvellePosePremierePersonne, posePremierePersonne, type EvenementsPremierePersonne } from './firstPersonActions3d'
-import { clipDuRig, ROTATION_RIG_CAMERA, tempsDuClip, urlRig, type ClipPremierePersonne, type IndexPremierePersonne, type MarqueurEffetRig, type RigPremierePersonne } from './premierePersonne3d'
+import { newFirstPersonPose, firstPersonPose, type FirstPersonFrameEvents } from './firstPersonActions3d'
+import { clipOfRig, ROTATION_RIG_CAMERA, clipTime, rigUrl, type FirstPersonClip, type FirstPersonIndex, type RigEffectMarker, type FirstPersonRig } from './firstPersonRig3d'
 import { rigGripOf, type ViewGrip } from './viewGrip3d'
-import { ArmPieces3d, type BrasIndex } from './armPieces3d'
+import { ArmPieces3d, type ArmIndex } from './armPieces3d'
 import { muzzleWorldPose, muzzlePose, muzzlePoseCamera, muzzleLocalPose, type MuzzleLocal } from './muzzleRig3d'
 import type { Dress, SpartanArmory } from './armory3d'
 import { RigPreparation3d } from './rigPreparation3d'
@@ -22,7 +22,7 @@ import { assignPlayerProbe } from './playerProbe3d'
 import { RigDressing3d } from './rigDressing3d'
 import { RigPaint3d } from './rigPaint3d'
 import type { Recoil } from './recoil3d'
-import { pivotDuRecul, poserReculRig } from './firstPersonRecoil3d'
+import { recoilPivot, applyRigRecoil } from './firstPersonRecoil3d'
 import { fpCableStart } from './grapple3d_logic'
 import { CamouflageRig3d } from './camouflageRig3d'
 import { withKtx2 } from './ktx2Textures3d'
@@ -36,59 +36,59 @@ type StMuzzle = {
   point?: THREE.Vector3
   localAxis?: THREE.Vector3
 }
-type Entree = { materiaux: THREE.Material[]; root: THREE.Object3D; mixer: THREE.AnimationMixer; rig: RigPremierePersonne; actions: Map<string, THREE.AnimationAction>; listeActions: THREE.AnimationAction[]; clip: ClipPremierePersonne; muzzle?: StMuzzle; pivot: THREE.Vector3 | null; mainGauche: THREE.Object3D | null } | null
+type Entry = { materials: THREE.Material[]; root: THREE.Object3D; mixer: THREE.AnimationMixer; rig: FirstPersonRig; actions: Map<string, THREE.AnimationAction>; actionList: THREE.AnimationAction[]; clip: FirstPersonClip; muzzle?: StMuzzle; pivot: THREE.Vector3 | null; leftHand: THREE.Object3D | null } | null
 
 // The vertical field (degrees) the grips and the rig's muzzle were tuned at: the holder
 // counter-scales to this field (viewmodelScale) to keep its projection.
 const VIEWMODEL_FOV = 55
-const AXE_AVANT = new THREE.Vector3(0, 0, -1)
-// Shared scratch values: `placer` runs every rendered frame, no per-frame allocation.
-const BAC_DEPLACEMENT = new THREE.Vector3()
-const BAC_ROULIS = new THREE.Quaternion()
-// Scratch values for `boucheVue` and `mesurerBouche`: no shot or frame allocates.
-const BAC_BOCHE_VUE = new THREE.Vector3()
-const BAC_ORIGINE = new THREE.Vector3()
-const BAC_IDENTITE = new THREE.Quaternion()
-const BAC_AXE_RIG = new THREE.Vector3()
-const BAC_MARQUEUR = new THREE.Matrix4()
+const FORWARD_AXIS = new THREE.Vector3(0, 0, -1)
+// Shared scratch values: `place` runs every rendered frame, no per-frame allocation.
+const SCRATCH_OFFSET = new THREE.Vector3()
+const SCRATCH_ROLL = new THREE.Quaternion()
+// Scratch values for `muzzleView` and `measureMuzzle`: no shot or frame allocates.
+const SCRATCH_MUZZLE_VIEW = new THREE.Vector3()
+const SCRATCH_ORIGIN = new THREE.Vector3()
+const SCRATCH_IDENTITY = new THREE.Quaternion()
+const SCRATCH_RIG_AXIS = new THREE.Vector3()
+const SCRATCH_MARKER = new THREE.Matrix4()
 const MARKER_QUAT = new THREE.Quaternion()
 
 /**
- * appliquerTenueRig: applies the rig's tuned grip (viewGrip3d) to the rig support's position and
+ * applyRigGrip: applies the rig's tuned grip (viewGrip3d) to the rig support's position and
  * orientation (camera frame, before the rig's rotation): x to the right (+X), y up (+Y), z away
  * from the eye (-Z); the offset is rotated by the camera's quaternion (given here, before roll)
  * to stay glued to the aim regardless of orientation; `roll` rotates around the aim axis (a
  * right multiplication of the support's rotation). A null grip changes nothing.
  */
-export function appliquerTenueRig(position: THREE.Vector3, quaternion: THREE.Quaternion, tenue: ViewGrip): void {
-  if (tenue.x || tenue.y || tenue.z) {
-    position.add(BAC_DEPLACEMENT.set(tenue.x, tenue.y, -tenue.z).applyQuaternion(quaternion))
+export function applyRigGrip(position: THREE.Vector3, quaternion: THREE.Quaternion, grip: ViewGrip): void {
+  if (grip.x || grip.y || grip.z) {
+    position.add(SCRATCH_OFFSET.set(grip.x, grip.y, -grip.z).applyQuaternion(quaternion))
   }
-  if (tenue.roll) {
-    quaternion.multiply(BAC_ROULIS.setFromAxisAngle(AXE_AVANT, tenue.roll))
+  if (grip.roll) {
+    quaternion.multiply(SCRATCH_ROLL.setFromAxisAngle(FORWARD_AXIS, grip.roll))
   }
 }
 
 /**
- * estMateriauPeint : a raw (unbaked) rig material the view paints, arm or weapon. The library
+ * isPaintedMaterial : a raw (unbaked) rig material the view paints, arm or weapon. The library
  * writes the weapon's styled hard surfaces raw too, marked `rigWeapon`, so the held gun takes
  * its player's weapon coating.
  */
-export function estMateriauPeint(materiau: THREE.Material): materiau is THREE.MeshStandardMaterial {
-  return materiau instanceof THREE.MeshStandardMaterial && !!materiau.userData.surfaceBrute && !materiau.map
+export function isPaintedMaterial(material: THREE.Material): material is THREE.MeshStandardMaterial {
+  return material instanceof THREE.MeshStandardMaterial && !!material.userData.surfaceBrute && !material.map
 }
 
-/** estMateriauBras : a raw rig material of the arms (not the weapon's, `rigWeapon`). */
-export function estMateriauBras(materiau: THREE.Material): materiau is THREE.MeshStandardMaterial {
-  return estMateriauPeint(materiau) && !materiau.userData.rigWeapon
+/** isArmMaterial : a raw rig material of the arms (not the weapon's, `rigWeapon`). */
+export function isArmMaterial(material: THREE.Material): material is THREE.MeshStandardMaterial {
+  return isPaintedMaterial(material) && !material.userData.rigWeapon
 }
 
-export function peindreMateriauBras(materiau: THREE.Material, habit: Dress | null): boolean {
-  return !!habit && estMateriauBras(materiau) && !!materiau.userData.style && !!materiau.userData.armorMaps
+export function paintArmMaterial(material: THREE.Material, outfit: Dress | null): boolean {
+  return !!outfit && isArmMaterial(material) && !!material.userData.style && !!material.userData.armorMaps
 }
 
-export function memePeinture(fichier: string, precedent: string | null, habit: Dress | null, ancien: Dress | null): boolean {
-  return fichier === precedent && habit === ancien
+export function samePaint(file: string, previousFile: string | null, outfit: Dress | null, previousOutfit: Dress | null): boolean {
+  return file === previousFile && outfit === previousOutfit
 }
 
 /**
@@ -99,161 +99,161 @@ export function memePeinture(fichier: string, precedent: string | null, habit: D
  */
 export class FirstPersonArms3d {
   /** The holder carries the camera (position, orientation, and counter-scale to the field). */
-  private readonly porteur = new THREE.Group()
+  private readonly holder = new THREE.Group()
   /** The rig support: carries the tuned grip and the rig's rotation, on top of the counter-scale. */
   private readonly support = new THREE.Group()
-  private readonly dossier: string
+  private readonly folder: string
   private readonly gate?: LoadGate
-  private readonly entrees = new Map<string, Entree>()
-  /** In-flight rig loads (null in `entrees`), each with its gate flag. */
-  private readonly chargements = new Map<string, { p: Promise<void>; gate: boolean }>()
+  private readonly entries = new Map<string, Entry>()
+  /** In-flight rig loads (null in `entries`), each with its gate flag. */
+  private readonly loads = new Map<string, { p: Promise<void>; gate: boolean }>()
   private readonly abort = new AbortController()
-  private readonly armes = new Map<string, RigPremierePersonne>()
-  /** The weapon model key, by rig file (the weapon paints from its coating, `cleArmeDe`). */
-  private readonly fichiersArmes = new Map<string, string>()
+  private readonly weapons = new Map<string, FirstPersonRig>()
+  /** The weapon model key, by rig file (the weapon paints from its coating, `weaponKeyForRig`). */
+  private readonly weaponFiles = new Map<string, string>()
   /** The idle-effect markers of each weapon's rig (the index's `effectMarkers`), by weapon key. */
-  private readonly marqueursEffets = new Map<string, readonly MarqueurEffetRig[]>()
+  private readonly effectMarkers = new Map<string, readonly RigEffectMarker[]>()
   /** The bones the markers hang on, found once per loaded rig root. */
-  private readonly osEffets = new WeakMap<THREE.Object3D, Map<string, THREE.Object3D | null>>()
+  private readonly effectBones = new WeakMap<THREE.Object3D, Map<string, THREE.Object3D | null>>()
   private visible: THREE.Object3D | null = null
-  private readonly mainMonde = new THREE.Vector3()
-  private cleVisible: string | null = null
-  /** Why the last `ancreEffet` failed (review: the idle effects console hook), null when it succeeded. */
+  private readonly handWorld = new THREE.Vector3()
+  private visibleKey: string | null = null
+  /** Why the last `effectAnchor` failed (review: the idle effects console hook), null when it succeeded. */
   anchorMiss: string | null = null
-  private armurerie: SpartanArmory | null = null
+  private armory: SpartanArmory | null = null
   private xuid: string | null = null
   private readonly preparation: RigPreparation3d
-  private readonly peinture: RigPaint3d
+  private readonly paint: RigPaint3d
   /** The map's baked light, grafted onto the armor's painted copies. */
   private readonly baked?: BakedLight | null
   /** The closest environment probe to a point (null: reflections off). */
   private readonly probeAt?: (position: THREE.Vector3) => THREE.Texture | null
-  private readonly habillage: RigDressing3d
-  private readonly clesPrechargees = new Set<string>()
+  private readonly dressing: RigDressing3d
+  private readonly preloadedKeys = new Set<string>()
   /** The deferred preload is armed: set once the load gate is idle (the loading screen is gone). */
-  private prechargeArme = false
-  private readonly indexPieces: Promise<BrasIndex | null>
-  private readonly chargeurPieces: ArmPieces3d
+  private preloadArmed = false
+  private readonly pieceIndex: Promise<ArmIndex | null>
+  private readonly pieceLoader: ArmPieces3d
   private indexReady = false
-  private readonly pose = nouvellePosePremierePersonne()
+  private readonly pose = newFirstPersonPose()
   /** The followed player's active camo on the visible rig (`camouflageRig3d`). */
   private readonly camouflage = new CamouflageRig3d()
   /** The renderer's KTX2 loader (ktx2Textures3d); null = load PNG only (older cache). */
   private readonly ktx2: KTX2Loader | null
 
-  constructor(scene: THREE.Scene, dossier: string, gate?: LoadGate, baked?: BakedLight | null, probeAt?: (position: THREE.Vector3) => THREE.Texture | null, ktx2: KTX2Loader | null = null) {
-    this.dossier = dossier
+  constructor(scene: THREE.Scene, folder: string, gate?: LoadGate, baked?: BakedLight | null, probeAt?: (position: THREE.Vector3) => THREE.Texture | null, ktx2: KTX2Loader | null = null) {
+    this.folder = folder
     this.gate = gate
     this.baked = baked
     this.probeAt = probeAt
     this.ktx2 = ktx2
-    scene.add(this.porteur)
-    this.porteur.add(this.support)
-    this.indexPieces = (async () => {
+    scene.add(this.holder)
+    this.holder.add(this.support)
+    this.pieceIndex = (async () => {
       try {
-        const r = await api.getResponse(`${dossier}/bras.json`, { signal: this.abort.signal })
-        return (await r.json()) as BrasIndex
+        const r = await api.getResponse(`${folder}/bras.json`, { signal: this.abort.signal })
+        return (await r.json()) as ArmIndex
       } catch (error: unknown) {
         if (!this.abort.signal.aborted) console.warn('3D replay: arm catalog unavailable', error)
         return null
       }
     })()
-    this.gate?.track(this.indexPieces)
-    this.chargeurPieces = new ArmPieces3d(dossier, this.abort.signal, this.ktx2)
+    this.gate?.track(this.pieceIndex)
+    this.pieceLoader = new ArmPieces3d(folder, this.abort.signal, this.ktx2)
     this.preparation = new RigPreparation3d({
-      fichiersCharges: () => [...this.entrees.entries()].filter(([, entree]) => entree).map(([fichier]) => fichier),
-      materiauxDe: (fichier) => this.entrees.get(fichier)?.materiaux ?? [],
-      indexPieces: () => this.indexPieces,
-      piece: (fichier) => this.chargeurPieces.piece(fichier),
-      armurerie: () => this.armurerie,
+      loadedFiles: () => [...this.entries.entries()].filter(([, entry]) => entry).map(([file]) => file),
+      materialsFor: (file) => this.entries.get(file)?.materials ?? [],
+      armIndex: () => this.pieceIndex,
+      piece: (file) => this.pieceLoader.piece(file),
+      armory: () => this.armory,
       xuid: () => this.xuid,
-      cleArmeDe: (fichier) => this.fichiersArmes.get(fichier) ?? null,
+      weaponKeyFor: (file) => this.weaponFiles.get(file) ?? null,
     })
-    this.peinture = new RigPaint3d({
+    this.paint = new RigPaint3d({
       xuid: () => this.xuid,
-      armurerie: () => this.armurerie,
+      armory: () => this.armory,
       preparation: this.preparation,
-      cleArmeDe: (fichier) => this.fichiersArmes.get(fichier) ?? null,
+      weaponKeyFor: (file) => this.weaponFiles.get(file) ?? null,
       gate: this.gate,
       baked: this.baked ?? null,
     })
-    this.habillage = new RigDressing3d({
-      indexPieces: this.indexPieces,
-      chargeur: this.chargeurPieces,
+    this.dressing = new RigDressing3d({
+      pieceIndex: this.pieceIndex,
+      loader: this.pieceLoader,
       signal: this.abort.signal,
       xuid: () => this.xuid,
-      armurerie: () => this.armurerie,
-      materiauSource: (m) => this.peinture.materiauSource(m),
-      invaliderPeinture: (fichier) => this.peinture.invalider(fichier),
-      termine: (fichier, racine) => this.peinture.actualiser(fichier, racine),
+      armory: () => this.armory,
+      sourceMaterial: (m) => this.paint.sourceMaterial(m),
+      invalidatePaint: (file) => this.paint.invalidate(file),
+      done: (file, root) => this.paint.refresh(file, root),
       gate: this.gate,
     })
   }
 
-  async charger(): Promise<void> {
+  async load(): Promise<void> {
     try {
-      const reponse = await api.getResponse(`${this.dossier}/index.json`, { signal: this.abort.signal })
-      const index = await reponse.json() as IndexPremierePersonne
+      const response = await api.getResponse(`${this.folder}/index.json`, { signal: this.abort.signal })
+      const index = await response.json() as FirstPersonIndex
       const rigs = new Map(index.rigs.map((rig) => [rig.file, rig]))
-      for (const arme of index.weapons) {
-        const rig = rigs.get(arme.file)
+      for (const weapon of index.weapons) {
+        const rig = rigs.get(weapon.file)
         if (rig) {
-          this.armes.set(arme.weapon.toLowerCase(), rig)
-          this.fichiersArmes.set(rig.file, arme.weapon.toLowerCase())
-          if (arme.effectMarkers?.length) this.marqueursEffets.set(arme.weapon.toLowerCase(), arme.effectMarkers)
+          this.weapons.set(weapon.weapon.toLowerCase(), rig)
+          this.weaponFiles.set(rig.file, weapon.weapon.toLowerCase())
+          if (weapon.effectMarkers?.length) this.effectMarkers.set(weapon.weapon.toLowerCase(), weapon.effectMarkers)
         }
       }
     } catch (error) {
       if (!this.abort.signal.aborted) console.warn('3D replay: first-person index unavailable', error)
     }
     this.indexReady = true
-    this.lancerPrecharge()
+    this.startPreload()
   }
 
   /**
-   * precharger: record the model keys `cles` whose rigs should be preloaded. Recording does not
-   * start a download; the downloads begin only once the preload is armed (`demarrerPrecharge`),
+   * preload: record the model keys `keys` whose rigs should be preloaded. Recording does not
+   * start a download; the downloads begin only once the preload is armed (`armPreload`),
    * so the eager preload does not compete with the gated loads for the loading screen.
    */
-  precharger(cles: readonly string[]): void {
-    for (const cle of cles) this.clesPrechargees.add(cle)
-    this.lancerPrecharge()
+  preload(keys: readonly string[]): void {
+    for (const key of keys) this.preloadedKeys.add(key)
+    this.startPreload()
   }
 
-  /** demarrerPrecharge: arm the deferred preload; start it now if the index is already ready. Called when the load gate goes idle. */
-  demarrerPrecharge(): void {
-    this.prechargeArme = true
-    this.lancerPrecharge()
+  /** armPreload: arm the deferred preload; start it now if the index is already ready. Called when the load gate goes idle. */
+  armPreload(): void {
+    this.preloadArmed = true
+    this.startPreload()
   }
 
-  /** lancerPrecharge: start the recorded rig loads once armed and the index is ready, once. */
-  private lancerPrecharge(): void {
-    if (!this.prechargeArme || !this.indexReady) return
-    for (const cle of this.clesPrechargees) this.chargerRigDe(cle)
-    this.clesPrechargees.clear()
+  /** startPreload: start the recorded rig loads once armed and the index is ready, once. */
+  private startPreload(): void {
+    if (!this.preloadArmed || !this.indexReady) return
+    for (const key of this.preloadedKeys) this.loadRigFor(key)
+    this.preloadedKeys.clear()
   }
 
-  private chargerRigDe(cle: string): void {
-    const rig = this.armes.get(cle)
-    if (!rig || this.entrees.has(rig.file)) return
-    this.chargerRig(rig)
+  private loadRigFor(key: string): void {
+    const rig = this.weapons.get(key)
+    if (!rig || this.entries.has(rig.file)) return
+    this.loadRig(rig)
   }
 
-  suivre(armurerie: SpartanArmory | null, xuid: string | null): void {
-    const change = this.armurerie !== armurerie || this.xuid !== xuid
+  follow(armory: SpartanArmory | null, xuid: string | null): void {
+    const change = this.armory !== armory || this.xuid !== xuid
     if (change) {
-      this.peinture.changerJoueur()
-      this.habillage.changerJoueur()
+      this.paint.changePlayer()
+      this.dressing.changePlayer()
     }
-    this.armurerie = armurerie
+    this.armory = armory
     this.xuid = xuid
-    if (change) this.preparation.changerJoueur()
-    if (xuid && armurerie && !armurerie.pending(xuid)) this.preparerRig()
+    if (change) this.preparation.changePlayer()
+    if (xuid && armory && !armory.pending(xuid)) this.prepareRig()
   }
 
   /**
-   * montrer poses the rig for weapon `cleArme` at the frame (`evenements`) under the camera, then
-   * this frame's recoil `recul` (`firstPersonRecoil3d`) around the grip, or the measured
+   * show poses the rig for weapon `weaponKey` at the frame (`events`) under the camera, then
+   * this frame's recoil `recoil` (`firstPersonRecoil3d`) around the grip, or the measured
    * muzzle when the index gives no weapon pose. False without a loaded rig — and only without a
    * loaded rig: dressing of the pieces and ongoing painting apply to the rig AS IT ARRIVES (a
    * delayed coating never erases the previous one), so the rig shows exactly as it is at this
@@ -261,220 +261,220 @@ export class FirstPersonArms3d {
    * strength of the player's active camouflage (0 visible, 1 full), which also hides their arms
    * and weapon.
    */
-  montrer(camera: THREE.PerspectiveCamera, cleArme: string | null, evenements: EvenementsPremierePersonne, recul: Recoil | null, camo = 0): boolean {
-    this.cacher()
-    const rig = cleArme && this.armes.get(cleArme)
+  show(camera: THREE.PerspectiveCamera, weaponKey: string | null, events: FirstPersonFrameEvents, recoil: Recoil | null, camo = 0): boolean {
+    this.hide()
+    const rig = weaponKey && this.weapons.get(weaponKey)
     if (!rig) return false
     // The visible rig holds the loading screen (the first frame shows one): gated.
-    this.chargerRig(rig, true)
-    const entree = this.entrees.get(rig.file)
-    if (!entree) return false
-    this.habillage.actualiser(rig.file, entree.root)
-    this.peinture.actualiser(rig.file, entree.root)
-    entree.root.visible = true
-    this.visible = entree.root
-    this.cleVisible = cleArme
-    this.camouflage.apply(entree.root, camo)
-    const pose = posePremierePersonne(entree.rig, evenements, this.pose)
-    for (let i = 0; i < entree.listeActions.length; i++) entree.listeActions[i].weight = 0
-    const idle = entree.actions.get(entree.clip.name)!
-    const base = pose.base && entree.actions.get(pose.base.name)
-    const tir = pose.tir && entree.actions.get(pose.tir.name)
-    const poidsTir = tir ? pose.poidsTir : 0
-    const tirRemplace = !!tir && !pose.tir?.overlay && pose.tir?.type !== 'overlay' && pose.tir?.type !== 'replacement'
-    const poidsBase = base ? pose.poidsBase * (tirRemplace ? 1 - poidsTir : 1) : 0
-    idle.time = tempsDuClip(entree.clip, evenements.frame, evenements.fps)
-    idle.weight = (pose.base?.type === 'replacement' || pose.base?.type === 'overlay' || pose.base?.overlay ? 1 : 1 - poidsBase) * (tirRemplace ? 1 - poidsTir : 1)
-    if (base) { base.time = pose.tempsBase; base.weight = poidsBase }
-    if (tir) { tir.time = pose.tempsTir; tir.weight = poidsTir }
-    entree.mixer.update(0)
-    poserReculRig(entree.root, recul, entree.pivot ?? entree.muzzle?.muzzle ?? BAC_ORIGINE)
-    this.placer(camera)
+    this.loadRig(rig, true)
+    const entry = this.entries.get(rig.file)
+    if (!entry) return false
+    this.dressing.refresh(rig.file, entry.root)
+    this.paint.refresh(rig.file, entry.root)
+    entry.root.visible = true
+    this.visible = entry.root
+    this.visibleKey = weaponKey
+    this.camouflage.apply(entry.root, camo)
+    const pose = firstPersonPose(entry.rig, events, this.pose)
+    for (let i = 0; i < entry.actionList.length; i++) entry.actionList[i].weight = 0
+    const idle = entry.actions.get(entry.clip.name)!
+    const base = pose.base && entry.actions.get(pose.base.name)
+    const fire = pose.fire && entry.actions.get(pose.fire.name)
+    const fireWeight = fire ? pose.fireWeight : 0
+    const fireReplaces = !!fire && !pose.fire?.overlay && pose.fire?.type !== 'overlay' && pose.fire?.type !== 'replacement'
+    const baseWeight = base ? pose.baseWeight * (fireReplaces ? 1 - fireWeight : 1) : 0
+    idle.time = clipTime(entry.clip, events.frame, events.fps)
+    idle.weight = (pose.base?.type === 'replacement' || pose.base?.type === 'overlay' || pose.base?.overlay ? 1 : 1 - baseWeight) * (fireReplaces ? 1 - fireWeight : 1)
+    if (base) { base.time = pose.baseTime; base.weight = baseWeight }
+    if (fire) { fire.time = pose.fireTime; fire.weight = fireWeight }
+    entry.mixer.update(0)
+    applyRigRecoil(entry.root, recoil, entry.pivot ?? entry.muzzle?.muzzle ?? SCRATCH_ORIGIN)
+    this.place(camera)
     return true
   }
 
   /**
-   * placer poses the rig under the camera: the holder copies the camera and counter-scales to it
+   * place poses the rig under the camera: the holder copies the camera and counter-scales to it
    * (`viewmodelScale`) in the camera's plane, the support carries the tuned grip on top of that.
    * The weapon thus keeps its projected size tuned at `VIEWMODEL_FOV` for any camera field; depth
    * (the holder's z) is not scaled: the distance to the eye follows the field, which is intended.
    * Grip offsets, applied in the scaled frame, keep their projection.
    */
-  placer(camera: THREE.PerspectiveCamera): void {
+  place(camera: THREE.PerspectiveCamera): void {
     camera.updateWorldMatrix(true, false)
-    camera.getWorldPosition(this.porteur.position)
-    camera.getWorldQuaternion(this.porteur.quaternion)
-    const echelle = viewmodelScale(camera.fov, VIEWMODEL_FOV)
-    this.porteur.scale.set(echelle, echelle, 1)
+    camera.getWorldPosition(this.holder.position)
+    camera.getWorldQuaternion(this.holder.quaternion)
+    const scale = viewmodelScale(camera.fov, VIEWMODEL_FOV)
+    this.holder.scale.set(scale, scale, 1)
     this.support.position.set(0, 0, 0)
     this.support.quaternion.identity()
-    appliquerTenueRig(this.support.position, this.support.quaternion, rigGripOf(this.cleVisible))
+    applyRigGrip(this.support.position, this.support.quaternion, rigGripOf(this.visibleKey))
     this.support.quaternion.multiply(ROTATION_RIG_CAMERA)
     // The arm armor picks up the map's environment where the player stands (null probe: reflections off).
     if (this.probeAt) {
-      const sonde = this.probeAt(this.porteur.position)
-      for (const m of this.peinture.materiauxPeints()) assignPlayerProbe(m, sonde)
+      const probe = this.probeAt(this.holder.position)
+      for (const m of this.paint.paintedMaterials()) assignPlayerProbe(m, probe)
     }
   }
 
   /**
-   * rigCharge: is weapon `cleArme`'s rig known to the index (so it will load)? False without a
+   * rigLoaded: is weapon `weaponKey`'s rig known to the index (so it will load)? False without a
    * loaded index or for a weapon with no rig: the shot then follows the static model, not the rig.
    */
-  rigCharge(cleArme: string | null): boolean {
-    return !!(cleArme && this.armes.get(cleArme))
+  rigLoaded(weaponKey: string | null): boolean {
+    return !!(weaponKey && this.weapons.get(weaponKey))
   }
 
   /**
-   * cleRigDe: the weapon model key of the rig with file `fichier`, null without a loaded index
-   * (preloading requests these keys for the followed player, `preparerJoueur`).
+   * weaponKeyForRig: the weapon model key of the rig with file `file`, null without a loaded index
+   * (preloading requests these keys for the followed player, `preparePlayer`).
    */
-  cleRigDe(fichier: string): string | null {
-    return this.fichiersArmes.get(fichier) ?? null
+  weaponKeyForRig(file: string): string | null {
+    return this.weaponFiles.get(file) ?? null
   }
 
   /**
-   * preparerJoueur: player `xuid` is followed in first person — starts dressing the pieces and
+   * preparePlayer: player `xuid` is followed in first person — starts dressing the pieces and
    * painting EVERY loaded rig (the one held and the others, so weapon switches find their
    * coating ready instead of falling back to the static model). Prewarming does the same work
    * on the loading screen for every player.
    */
-  preparerJoueur(xuid: string): void {
-    this.suivre(this.armurerie, xuid)
-    this.preparerRig()
+  preparePlayer(xuid: string): void {
+    this.follow(this.armory, xuid)
+    this.prepareRig()
   }
 
   /**
-   * boucheVue: the held rig's muzzle, in CAMERA frame (x right, y up, -z forward), composed the
-   * way `placer` poses the holder for a camera fixed at the origin. False without a loaded rig
-   * for `cleArme` (the weapon has no rig, or it isn't loaded yet: the shot uses the static
+   * muzzleView: the held rig's muzzle, in CAMERA frame (x right, y up, -z forward), composed the
+   * way `place` poses the holder for a camera fixed at the origin. False without a loaded rig
+   * for `weaponKey` (the weapon has no rig, or it isn't loaded yet: the shot uses the static
    * model). `out` is filled in, allocating nothing.
    */
-  boucheVue(cleArme: string | null, out: THREE.Vector3): boolean {
-    const rig = cleArme ? this.armes.get(cleArme) : null
-    const entree = rig ? this.entrees.get(rig.file) : null
-    const st = entree?.muzzle
-    if (!rig || !entree || !st) return false
-    out.copy(muzzlePoseCamera(st, rigGripOf(cleArme), BAC_BOCHE_VUE))
-    // The holder is counter-scaled in the camera's plane (`placer`): the drawn muzzle follows.
-    out.x *= this.porteur.scale.x
-    out.y *= this.porteur.scale.y
+  muzzleView(weaponKey: string | null, out: THREE.Vector3): boolean {
+    const rig = weaponKey ? this.weapons.get(weaponKey) : null
+    const entry = rig ? this.entries.get(rig.file) : null
+    const st = entry?.muzzle
+    if (!rig || !entry || !st) return false
+    out.copy(muzzlePoseCamera(st, rigGripOf(weaponKey), SCRATCH_MUZZLE_VIEW))
+    // The holder is counter-scaled in the camera's plane (`place`): the drawn muzzle follows.
+    out.x *= this.holder.scale.x
+    out.y *= this.holder.scale.y
     return true
   }
 
   /**
-   * boucheMonde: the visible rig's muzzle in WORLD space, read at the rendered frame (the local
-   * holder's world matrix is refreshed), for a rig posed by `montrer`. `pos`: the muzzle, `axe`:
+   * muzzleWorld: the visible rig's muzzle in WORLD space, read at the rendered frame (the local
+   * holder's world matrix is refreshed), for a rig posed by `show`. `pos`: the muzzle, `axis`:
    * the unit muzzle direction, in world space. False without a visible rig or a measured muzzle.
    * No shot or frame allocates.
    */
-  boucheMonde(pos: THREE.Vector3, axe: THREE.Vector3): boolean {
-    const rig = this.cleVisible ? this.armes.get(this.cleVisible) : null
-    const st = rig ? this.entrees.get(rig.file)?.muzzle : null
+  muzzleWorld(pos: THREE.Vector3, axis: THREE.Vector3): boolean {
+    const rig = this.visibleKey ? this.weapons.get(this.visibleKey) : null
+    const st = rig ? this.entries.get(rig.file)?.muzzle : null
     if (!this.visible || !st?.localHolder || !st.point || !st.localAxis) return false
-    muzzleWorldPose(st.localHolder, st.point, st.localAxis, pos, axe)
+    muzzleWorldPose(st.localHolder, st.point, st.localAxis, pos, axis)
     return true
   }
 
   /**
-   * mainGaucheMonde: where a first-person grapple cable leaves, in WORLD space at the rendered
+   * leftHandWorld: where a first-person grapple cable leaves, in WORLD space at the rendered
    * frame (`grapple3d_logic.fpCableStart`): the left hand bone of the visible rig, otherwise the
-   * estimated left hand carried by the camera the holder copies (`placer`). Allocates nothing.
+   * estimated left hand carried by the camera the holder copies (`place`). Allocates nothing.
    */
-  mainGaucheMonde(out: THREE.Vector3): THREE.Vector3 {
-    const rig = this.visible && this.cleVisible ? this.armes.get(this.cleVisible) : null
-    const main = rig ? this.entrees.get(rig.file)?.mainGauche ?? null : null
-    if (main) {
-      main.updateWorldMatrix(true, false)
-      main.getWorldPosition(this.mainMonde)
+  leftHandWorld(out: THREE.Vector3): THREE.Vector3 {
+    const rig = this.visible && this.visibleKey ? this.weapons.get(this.visibleKey) : null
+    const hand = rig ? this.entries.get(rig.file)?.leftHand ?? null : null
+    if (hand) {
+      hand.updateWorldMatrix(true, false)
+      hand.getWorldPosition(this.handWorld)
     }
-    return fpCableStart(this.porteur.position, this.porteur.quaternion, main ? this.mainMonde : null, out)
+    return fpCableStart(this.holder.position, this.holder.quaternion, hand ? this.handWorld : null, out)
   }
 
   /**
-   * osMonde: the world matrix of bone `nom` of the visible rig at the rendered frame, written in
+   * boneWorld: the world matrix of bone `name` of the visible rig at the rendered frame, written in
    * `out`; false without a visible rig or when it has no bone of that name (the arms rig carries the
    * arms and hands, not the body).
    */
-  osMonde(nom: string, out: THREE.Matrix4): boolean {
+  boneWorld(name: string, out: THREE.Matrix4): boolean {
     if (!this.visible) return false
-    const os = this.visible.getObjectByName(nom)
-    if (!os) return false
-    os.updateWorldMatrix(true, false)
-    out.copy(os.matrixWorld)
+    const bone = this.visible.getObjectByName(name)
+    if (!bone) return false
+    bone.updateWorldMatrix(true, false)
+    out.copy(bone.matrixWorld)
     return true
   }
 
   /**
-   * ancreEffet: the WORLD frame of the idle-effect marker `marqueur` of weapon `cle` on the visible
+   * effectAnchor: the WORLD frame of the idle-effect marker `marker` of weapon `key` on the visible
    * rig, at the rendered frame: its bone's world matrix, then the marker's offset and rotation in that
    * bone's frame. `instance`: which instance of the marker, in the index's order (the Heatwave's vent marker
    * sits on both fins). False when that weapon's rig is not the one shown, or lacks the marker or its bone.
    */
-  ancreEffet(cle: string, marqueur: string, out: THREE.Matrix4, instance = 0): boolean {
+  effectAnchor(key: string, marker: string, out: THREE.Matrix4, instance = 0): boolean {
     this.anchorMiss = null
-    if (!this.visible || this.cleVisible !== cle) {
-      this.anchorMiss = `rig shown: ${this.visible ? this.cleVisible : 'none'}`
+    if (!this.visible || this.visibleKey !== key) {
+      this.anchorMiss = `rig shown: ${this.visible ? this.visibleKey : 'none'}`
       return false
     }
-    const m = this.marqueursEffets.get(cle)?.filter((x) => x.marker === marqueur)[instance]
+    const m = this.effectMarkers.get(key)?.filter((x) => x.marker === marker)[instance]
     if (!m) {
-      this.anchorMiss = `no marker ${marqueur} #${instance} on rig ${cle} (${this.marqueursEffets.get(cle)?.length ?? 0} markers)`
+      this.anchorMiss = `no marker ${marker} #${instance} on rig ${key} (${this.effectMarkers.get(key)?.length ?? 0} markers)`
       return false
     }
-    let os = this.osEffets.get(this.visible)
-    if (!os) this.osEffets.set(this.visible, (os = new Map()))
-    if (!os.has(m.bone)) os.set(m.bone, this.visible.getObjectByName(m.bone) ?? null)
-    const bone = os.get(m.bone)
+    let bones = this.effectBones.get(this.visible)
+    if (!bones) this.effectBones.set(this.visible, (bones = new Map()))
+    if (!bones.has(m.bone)) bones.set(m.bone, this.visible.getObjectByName(m.bone) ?? null)
+    const bone = bones.get(m.bone)
     if (!bone) {
-      this.anchorMiss = `no bone ${m.bone} on rig ${cle}`
+      this.anchorMiss = `no bone ${m.bone} on rig ${key}`
       return false
     }
     bone.updateWorldMatrix(true, false)
     const q = m.rotation
-    BAC_MARQUEUR.makeRotationFromQuaternion(q ? MARKER_QUAT.set(q[0], q[1], q[2], q[3]) : MARKER_QUAT.identity())
-    out.copy(bone.matrixWorld).multiply(BAC_MARQUEUR.setPosition(m.position[0], m.position[1], m.position[2]))
+    SCRATCH_MARKER.makeRotationFromQuaternion(q ? MARKER_QUAT.set(q[0], q[1], q[2], q[3]) : MARKER_QUAT.identity())
+    out.copy(bone.matrixWorld).multiply(SCRATCH_MARKER.setPosition(m.position[0], m.position[1], m.position[2]))
     return true
   }
 
-  /** dureeClip: the length (s) of the clip the rig of weapon `cle` plays for `action`, null without one. */
-  dureeClip(cle: string, action: string): number | null {
-    const rig = this.armes.get(cle)
-    return rig ? clipDuRig(rig, action)?.durationSeconds ?? null : null
+  /** clipDuration: the length (s) of the clip the rig of weapon `key` plays for `action`, null without one. */
+  clipDuration(key: string, action: string): number | null {
+    const rig = this.weapons.get(key)
+    return rig ? clipOfRig(rig, action)?.durationSeconds ?? null : null
   }
 
-  cacher(): void {
+  hide(): void {
     if (this.visible) this.visible.visible = false
     this.visible = null
-    this.cleVisible = null
+    this.visibleKey = null
   }
 
-  /** preparerRig: prepares each loaded rig for prewarming, pieces then painting. */
-  preparerRig(): void {
-    if (this.xuid && this.armurerie?.pending(this.xuid)) return
-    for (const [fichier, entree] of this.entrees) {
-      if (!entree) continue
-      this.habillage.actualiser(fichier, entree.root)
-      if (!this.habillage.enCours(fichier)) this.peinture.actualiser(fichier, entree.root)
+  /** prepareRig: prepares each loaded rig for prewarming, pieces then painting. */
+  prepareRig(): void {
+    if (this.xuid && this.armory?.pending(this.xuid)) return
+    for (const [file, entry] of this.entries) {
+      if (!entry) continue
+      this.dressing.refresh(file, entry.root)
+      if (!this.dressing.busy(file)) this.paint.refresh(file, entry.root)
     }
   }
 
-  /** racinesChargees: the roots of loaded rigs (attached to the scene), for prewarming's texture walk. */
-  racinesChargees(): THREE.Object3D[] {
-    return [...this.entrees.values()].filter((e): e is NonNullable<Entree> => !!e).map((e) => e.root)
+  /** loadedRoots: the roots of loaded rigs (attached to the scene), for prewarming's texture walk. */
+  loadedRoots(): THREE.Object3D[] {
+    return [...this.entries.values()].filter((e): e is NonNullable<Entry> => !!e).map((e) => e.root)
   }
 
   dispose(): void {
-    this.peinture.changerJoueur()
-    this.habillage.changerJoueur()
+    this.paint.changePlayer()
+    this.dressing.changePlayer()
     this.abort.abort()
-    this.chargeurPieces.dispose()
-    this.porteur.removeFromParent()
-    for (const entree of this.entrees.values()) if (entree) this.liberer(entree.root)
-    this.entrees.clear()
+    this.pieceLoader.dispose()
+    this.holder.removeFromParent()
+    for (const entry of this.entries.values()) if (entry) this.release(entry.root)
+    this.entries.clear()
   }
 
-  private liberer(root: THREE.Object3D): void {
+  private release(root: THREE.Object3D): void {
     root.traverse((object) => {
       if (!(object instanceof THREE.Mesh)) return
       object.geometry.dispose()
@@ -486,72 +486,72 @@ export class FirstPersonArms3d {
   }
 
   /**
-   * mesurerBouche: measures the rig's muzzle and barrel axis ONCE (holder frame), at the idle
-   * pose: the rig poses the holder at a fixed origin (`placer` on a camera at the origin), poses
+   * measureMuzzle: measures the rig's muzzle and barrel axis ONCE (holder frame), at the idle
+   * pose: the rig poses the holder at a fixed origin (`place` on a camera at the origin), poses
    * idle at t=0 (actions blend at their resting weight), and `muzzlePose` reads the weapon
    * meshes' vertices in the holder's space. Without an index axis, the barrel points away from
    * the eye.
    */
-  private mesurerBouche(entree: NonNullable<Entree>): void {
+  private measureMuzzle(entry: NonNullable<Entry>): void {
     const support = this.support
-    support.position.copy(BAC_ORIGINE)
-    support.quaternion.copy(BAC_IDENTITE)
-    const idle = entree.actions.get(entree.clip.name)
-    for (let i = 0; i < entree.listeActions.length; i++) entree.listeActions[i].weight = 0
+    support.position.copy(SCRATCH_ORIGIN)
+    support.quaternion.copy(SCRATCH_IDENTITY)
+    const idle = entry.actions.get(entry.clip.name)
+    for (let i = 0; i < entry.actionList.length; i++) entry.actionList[i].weight = 0
     if (idle) {
       idle.time = 0
       idle.weight = 1
     }
-    entree.mixer.update(0)
-    const idleWeapon = entree.rig.idleWeapon
-    const axeRig = idleWeapon ? BAC_AXE_RIG.set(idleWeapon.forward[0], idleWeapon.forward[1], idleWeapon.forward[2]) : null
+    entry.mixer.update(0)
+    const idleWeapon = entry.rig.idleWeapon
+    const rigAxis = idleWeapon ? SCRATCH_RIG_AXIS.set(idleWeapon.forward[0], idleWeapon.forward[1], idleWeapon.forward[2]) : null
     const st: StMuzzle = { muzzle: new THREE.Vector3(), axis: new THREE.Vector3() }
-    if (!muzzlePose(entree.root, support, (m) => estMateriauBras(this.peinture.materiauSource(m)), axeRig, st)) return
+    if (!muzzlePose(entry.root, support, (m) => isArmMaterial(this.paint.sourceMaterial(m)), rigAxis, st)) return
     // The same muzzle in its holder's LOCAL frame: this one follows the animated rig, posed per frame.
-    const locale: MuzzleLocal = { localHolder: entree.root, point: new THREE.Vector3(), axis: new THREE.Vector3() }
-    if (muzzleLocalPose(entree.root, support, (m) => estMateriauBras(this.peinture.materiauSource(m)), axeRig, locale)) {
-      st.localHolder = locale.localHolder
-      st.point = locale.point
-      st.localAxis = locale.axis
+    const local: MuzzleLocal = { localHolder: entry.root, point: new THREE.Vector3(), axis: new THREE.Vector3() }
+    if (muzzleLocalPose(entry.root, support, (m) => isArmMaterial(this.paint.sourceMaterial(m)), rigAxis, local)) {
+      st.localHolder = local.localHolder
+      st.point = local.point
+      st.localAxis = local.axis
     }
-    entree.muzzle = st
+    entry.muzzle = st
   }
 
   /**
    * Load the rig `rig`, once per file. `gate`: the load holds the loading screen
    * (`gate.idle`) — true for the visible rig (the first frame shows one), false for the
-   * eagerly preloaded rigs (`precharger`), which load without blocking playback. If an
+   * eagerly preloaded rigs (`preload`), which load without blocking playback. If an
    * ungated load is already in flight and a gated one is requested, it is promoted to gated.
    */
-  private chargerRig(rig: RigPremierePersonne, gate = false): void {
-    if (this.entrees.get(rig.file)) return
-    const enCours = this.chargements.get(rig.file)
-    if (enCours) {
-      if (gate && !enCours.gate) { enCours.gate = true; this.gate?.track(enCours.p) }
+  private loadRig(rig: FirstPersonRig, gate = false): void {
+    if (this.entries.get(rig.file)) return
+    const inProgress = this.loads.get(rig.file)
+    if (inProgress) {
+      if (gate && !inProgress.gate) { inProgress.gate = true; this.gate?.track(inProgress.p) }
       return
     }
-    this.entrees.set(rig.file, null)
-    const chargement = (async () => {
+    this.entries.set(rig.file, null)
+    const loading = (async () => {
       try {
-        const clip = clipDuRig(rig, 'idle')
+        const clip = clipOfRig(rig, 'idle')
         if (!clip) throw new Error('missing idle clip')
-        const chemin = urlRig(this.dossier, rig.file)
-        const buffer = await fetchMesh(chemin, () => {}, this.abort.signal)
-        const gltf = await withKtx2(new GLTFLoader(), this.ktx2).parseAsync(buffer, `${API_BASE_URL}${this.dossier}/`)
+        const path = rigUrl(this.folder, rig.file)
+        const buffer = await fetchMesh(path, () => {}, this.abort.signal)
+        const gltf = await withKtx2(new GLTFLoader(), this.ktx2).parseAsync(buffer, `${API_BASE_URL}${this.folder}/`)
         const animation = gltf.animations.find((a) => a.name === clip.name)
         if (!animation) {
-          this.liberer(gltf.scene)
+          this.release(gltf.scene)
           throw new Error('missing idle animation')
         }
         if (this.abort.signal.aborted) {
-          this.liberer(gltf.scene)
+          this.release(gltf.scene)
           return
         }
         gltf.scene.traverse((object) => {
           if (!(object instanceof THREE.Mesh)) return
           if (object instanceof THREE.SkinnedMesh) object.frustumCulled = false
           for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
-            if (!estMateriauPeint(material)) {
+            if (!isPaintedMaterial(material)) {
               darkMetalFallback(material)
               continue
             }
@@ -559,10 +559,10 @@ export class FirstPersonArms3d {
             material.roughness = RUGOSITE_ARMURE_NEUTRE
           }
         })
-        await rawMaps(gltf.scene, gltf.parser, (m) => estMateriauPeint(m) && !!m.userData.style)
+        await rawMaps(gltf.scene, gltf.parser, (m) => isPaintedMaterial(m) && !!m.userData.style)
           .catch((error: unknown) => console.warn('3D replay: arm masks unavailable', error))
         if (this.abort.signal.aborted) {
-          this.liberer(gltf.scene)
+          this.release(gltf.scene)
           return
         }
         animation.duration = clip.durationSeconds
@@ -577,31 +577,31 @@ export class FirstPersonArms3d {
           action.play()
           actions.set(meta.name, action)
         }
-        const listeActions = [...actions.values()]
+        const actionList = [...actions.values()]
         gltf.scene.visible = false
         this.support.add(gltf.scene)
-        const entree: NonNullable<Entree> = { root: gltf.scene, mixer, clip, rig, actions, listeActions, materiaux: [], pivot: pivotDuRecul(rig.idleWeapon), mainGauche: gltf.scene.getObjectByName('b_l_hand') ?? null }
-        this.entrees.set(rig.file, entree)
+        const entry: NonNullable<Entry> = { root: gltf.scene, mixer, clip, rig, actions, actionList, materials: [], pivot: recoilPivot(rig.idleWeapon), leftHand: gltf.scene.getObjectByName('b_l_hand') ?? null }
+        this.entries.set(rig.file, entry)
         // The weapon muzzle, once, at the idle pose: the rig is at rest, its resting position.
-        this.mesurerBouche(entree)
-        const materiaux: THREE.Material[] = []
+        this.measureMuzzle(entry)
+        const materials: THREE.Material[] = []
         gltf.scene.traverse((object) => {
           if (!(object instanceof THREE.Mesh)) return
           for (const m of Array.isArray(object.material) ? object.material : [object.material]) {
-            if (estMateriauPeint(m) && m.userData.style && !materiaux.includes(m)) materiaux.push(m)
+            if (isPaintedMaterial(m) && m.userData.style && !materials.includes(m)) materials.push(m)
           }
         })
-        entree.materiaux = materiaux
-        this.preparation.rigCharge(rig.file)
-        if (this.xuid && this.armurerie && !this.armurerie.pending(this.xuid)) this.preparerRig()
+        entry.materials = materials
+        this.preparation.rigLoaded(rig.file)
+        if (this.xuid && this.armory && !this.armory.pending(this.xuid)) this.prepareRig()
       } catch (error) {
         if (!this.abort.signal.aborted) console.warn('3D replay: first-person rig unavailable', rig.file, error)
       } finally {
-        this.chargements.delete(rig.file)
+        this.loads.delete(rig.file)
       }
     })()
-    this.chargements.set(rig.file, { p: chargement, gate })
-    if (gate) this.gate?.track(chargement)
-    void chargement
+    this.loads.set(rig.file, { p: loading, gate })
+    if (gate) this.gate?.track(loading)
+    void loading
   }
 }

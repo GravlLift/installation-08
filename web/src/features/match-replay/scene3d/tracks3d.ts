@@ -16,7 +16,7 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { covers } from '../model/replaySpans'
 import { fineLifePoints } from './fineTracks3d'
 import { bracketAt, gaitAt, lifeDistances, type Gait } from './gait3d'
-import { DUREE_ENTREE_OEIL, DUREE_SORTIE_OEIL, dropOeil, fusionnerIntervallees, SANS_INTERVALLE, type IntervalleOeil } from './eye3d'
+import { EYE_IN_DURATION, EYE_OUT_DURATION, eyeDrop, mergeIntervals, NO_INTERVALS, type EyeInterval } from './eye3d'
 import { filmPosture } from './posturesFilm3d'
 import { NO_SHIELD_FX, shieldFxAt, shieldSamplesOf, type ShieldFx, type ShieldSamples } from './shields3d'
 
@@ -140,20 +140,20 @@ export function buildTracks3d(doc: ReplayDocumentReady): Tracks3d {
     (crouchBySlot.get(life.slot) ?? []).some((s) => covers(s.interval, f) && f !== s.end)
   // The eye drops crouched as in a slide: the union of the slot's two postures, merged once per
   // document, then read by binary search (`eye3d`).
-  const eyeBySlot = new Map<number, IntervalleOeil[]>()
+  const eyeBySlot = new Map<number, EyeInterval[]>()
   for (const s of doc.stances) {
     if (s.kind !== 'crouch' && s.kind !== 'slide') continue
     const film = filmPosture(s, doc)
     const list = eyeBySlot.get(s.slot) ?? []
     // The millisecond end is exclusive; without milliseconds, the end frame is inclusive.
-    list.push({ t0: film.t0, fin: film.end ?? film.t1 + 1 })
+    list.push({ t0: film.t0, end: film.end ?? film.t1 + 1 })
     eyeBySlot.set(s.slot, list)
   }
-  for (const [slot, list] of eyeBySlot) eyeBySlot.set(slot, fusionnerIntervallees(list))
-  const eyeEntry = DUREE_ENTREE_OEIL * fps
-  const eyeExit = DUREE_SORTIE_OEIL * fps
-  const eyeDrop = (slot: number, f: number) =>
-    dropOeil(eyeBySlot.get(slot) ?? SANS_INTERVALLE, f, eyeEntry, eyeExit)
+  for (const [slot, list] of eyeBySlot) eyeBySlot.set(slot, mergeIntervals(list))
+  const eyeEntry = EYE_IN_DURATION * fps
+  const eyeExit = EYE_OUT_DURATION * fps
+  const eyeDropFor = (slot: number, f: number) =>
+    eyeDrop(eyeBySlot.get(slot) ?? NO_INTERVALS, f, eyeEntry, eyeExit)
 
   const players = [...lives.keys()].map((xuid) => {
     const r = roster.get(xuid)
@@ -165,13 +165,13 @@ export function buildTracks3d(doc: ReplayDocumentReady): Tracks3d {
     players,
     sample(xuid, f) {
       for (const life of lives.get(xuid) ?? []) {
-        if (covers(life, f)) return sampleLife(life, f, crouching(life, f), eyeDrop(life.slot, f))
+        if (covers(life, f)) return sampleLife(life, f, crouching(life, f), eyeDropFor(life.slot, f))
       }
       return null
     },
     sampleSlot(slot, f) {
       for (const life of bySlot.get(slot) ?? []) {
-        if (covers(life, f)) return sampleLife(life, f, crouching(life, f), eyeDrop(life.slot, f))
+        if (covers(life, f)) return sampleLife(life, f, crouching(life, f), eyeDropFor(life.slot, f))
       }
       return null
     },

@@ -25,7 +25,7 @@ import { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
 import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 import { framesPerSecond, frameToMs } from '@/lib/replay/replayLogic'
 import { FirstPersonArms3d } from './firstPersonArms3d'
-import { dossierPremierePersonne } from './premierePersonne3d'
+import { firstPersonFolder } from './firstPersonRig3d'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { Export3dSetup, ExportTag3d, Replay3DExportSource } from '../export/replay3dExportStore'
 import type { Action3dInputs } from './action3dInputs'
@@ -50,7 +50,7 @@ import { GpuTimer } from './gpuTimer3d'
 import { BACK_FACE_NAME } from './backFaces3d'
 import { batchCulling, batchLayer, type LayerBatches } from './layerBatch3d'
 import { drawnBy } from './surfaceProbe3d'
-import { prechauffer3d } from './warmup3d'
+import { warmUp3d } from './warmup3d'
 import { serialize } from './serialiser3d'
 import { now, measureDuration, timedSync } from './perf3d'
 import { probeSurface, type SurfaceProbe } from './surfaceProbe3d'
@@ -103,7 +103,7 @@ export class ReplayScene3d implements Replay3DExportSource {
    */
   readonly warmUp = serialize(async () => {
     try {
-      await prechauffer3d(this.renderer, this.scene, this.camera, { roots: [...Array.from(this.avatars.values(), (a) => a.group), ...(this.bras?.racinesChargees() ?? [])], detaches: this.weaponModels?.loadedSources() ?? [], composer: this.post.composer, avatars: [...this.avatars.values()], outline: this.post.outline })
+      await warmUp3d(this.renderer, this.scene, this.camera, { roots: [...Array.from(this.avatars.values(), (a) => a.group), ...(this.arms?.loadedRoots() ?? [])], detaches: this.weaponModels?.loadedSources() ?? [], composer: this.post.composer, avatars: [...this.avatars.values()], outline: this.post.outline })
     } catch (error) { console.warn('3D replay: prewarming unavailable', error) }
   })
   /** The posed map: session-cached (`sessionAssetCache3d`) by its served path, not owned by this scene. */
@@ -134,9 +134,9 @@ export class ReplayScene3d implements Replay3DExportSource {
   private readonly exportScene: ReplayExportScene3d
   private readonly cameraPlacement: ReplayCamera3d
   private action: ActionScene3d | null = null
-  private bras: FirstPersonArms3d | null = null
-  /** The first-person prep (`bras.preparerJoueur`) already started for the followed player. */
-  private brasJoueurPrêt: string | null = null
+  private arms: FirstPersonArms3d | null = null
+  /** The first-person prep (`arms.preparePlayer`) already started for the followed player. */
+  private armsPlayerReady: string | null = null
   /** The hidden corpse copies have been fronted (`prepCorpses`); they are otherwise made lazily per death. */
   private corpsesPrepped = false
   private doc: ReplayDocumentReady | null = null
@@ -150,7 +150,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   private feetDrop = 0
   private playTop = 0
   players: readonly { xuid: string; name: string }[] = []
-  readonly profil = newProfile()
+  readonly profile = newProfile()
   /** The console's performance knobs (perfToggles3d), read at each frame. */
   private readonly knobs: PerfToggles = { ...PERF_TOGGLES_DEFAULT }
   private knobRatio: number | null = null
@@ -201,7 +201,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       get lastFrame() { return self.lastFrame },
       applyPov: (xuid) => this.applyPov(xuid), applyMode: (mode) => this.applyMode(mode),
       placeAvatars: (frame) => this.placeAvatars(frame), placeCamera: (frame, dt) => this.cameraPlacement.placeCamera(frame, dt),
-      placeFirstPerson: (frame) => { this.placerLunette(frame); this.bras?.placer(this.camera) },
+      placeFirstPerson: (frame) => { this.placeScope(frame); this.arms?.place(this.camera) },
       retagTags: () => this.retagTags(),
       setSkyClock: (seconds) => { if (this.ciel) setCloudClock(this.ciel, seconds) },
       setGlowClock: (seconds) => this.animateGlow(seconds),
@@ -300,40 +300,40 @@ export class ReplayScene3d implements Replay3DExportSource {
       armurerie: () => this.armory,
       drawnWeapon: (xuid) => drawnWeapon(this.avatars.get(xuid)),
       firstPersonSlot: (f) => (this.mode === 'fp' && this.povXuid ? tracks.sample(this.povXuid, f)?.slot ?? null : null),
-      rigMuzzle: (held, out) => this.bras?.boucheVue(held, out) ?? false,
-      rigMuzzleWorld: (pos, axe) => this.bras?.boucheMonde(pos, axe) ?? false, firstPersonLeftHand: (out) => this.bras?.mainGaucheMonde(out) ?? null,
+      rigMuzzle: (held, out) => this.arms?.muzzleView(held, out) ?? false,
+      rigMuzzleWorld: (pos, axe) => this.arms?.muzzleWorld(pos, axe) ?? false, firstPersonLeftHand: (out) => this.arms?.leftHandWorld(out) ?? null,
       scopeMounted: () => this.scopeView.mounted,
       attachBone: (slot, node, out) => {
         const d = this.drawnSlots.get(slot)
-        return d ? attachBoneOf(this.avatars.get(d.xuid), node, d.firstPerson, this.bras ? (name, m) => this.bras?.osMonde(name, m) ?? false : null, out) : 'none'
+        return d ? attachBoneOf(this.avatars.get(d.xuid), node, d.firstPerson, this.arms ? (name, m) => this.arms?.boneWorld(name, m) ?? false : null, out) : 'none'
       },
       weaponLibrary: () => this.weaponModels?.base ?? null,
-      firstPersonEffectAnchor: (key, marker, out, instance) => this.bras?.ancreEffet(key, marker, out, instance) ?? false,
-      firstPersonAnchorMiss: () => (this.bras ? this.bras.anchorMiss : 'no first-person arms'),
-      weaponClipSeconds: (key, action) => this.bras?.dureeClip(key, action) ?? null,
+      firstPersonEffectAnchor: (key, marker, out, instance) => this.arms?.effectAnchor(key, marker, out, instance) ?? false,
+      firstPersonAnchorMiss: () => (this.arms ? this.arms.anchorMiss : 'no first-person arms'),
+      weaponClipSeconds: (key, action) => this.arms?.clipDuration(key, action) ?? null,
       flashes: this.lighting.flashes, baked: this.model?.baked ?? null, probeAt: (p) => this.lighting.probeAt(p),
     })
-    this.prechargerRigs()
+    this.preloadRigs()
   }
 
-  /** prechargerRigs: record the weapons the match carries for the first-person preload (no download yet). */
-  private prechargerRigs() { if (this.doc) this.bras?.precharger(clesRigsRejeu(this.doc)) }
+  /** preloadRigs: record the weapons the match carries for the first-person preload (no download yet). */
+  private preloadRigs() { if (this.doc) this.arms?.preload(clesRigsRejeu(this.doc)) }
 
   /** startRigPreload: arm the recorded first-person preload; called once the load gate is idle so it starts after the first frame. */
-  startRigPreload(): void { this.bras?.demarrerPrecharge() }
+  startRigPreload(): void { this.arms?.armPreload() }
 
   /**
-   * prechaufferJoueur: starts the first-person prep (piece loads, then the arm paint) for EVERY
+   * warmUpPlayer: starts the first-person prep (piece loads, then the arm paint) for EVERY
    * weapon rig the followed player carries during the film, not only the one in hand, so a
    * weapon switch finds its coat ready instead of dropping the arms to the static gun for the
    * whole compute. Runs once after the first frame is on screen; a followed-player change is
-   * picked up by placeAvatars (the brasJoueurPrêt guard).
+   * picked up by placeAvatars (the armsPlayerReady guard).
    */
-  prechaufferJoueur(): void {
-    const bras = this.bras
+  warmUpPlayer(): void {
+    const arms = this.arms
     const xuid = this.povXuid
-    if (!bras || !xuid) return
-    bras.preparerJoueur(xuid)
+    if (!arms || !xuid) return
+    arms.preparePlayer(xuid)
   }
 
   /**
@@ -344,11 +344,11 @@ export class ReplayScene3d implements Replay3DExportSource {
   setWeaponModels(models: WeaponModels | null): void {
     for (const a of this.avatars.values()) wearSpartan(a, null)
     this.weaponModels = models
-    this.bras?.dispose()
-    this.bras = models ? new FirstPersonArms3d(this.scene, dossierPremierePersonne(models.base), models.gate, this.model?.baked ?? null, (p) => this.lighting.probeAt(p), this.textureLoader) : null
-    if (this.bras) { const loading = this.bras.charger(); void (models?.gate?.track(loading) ?? loading) }
-    this.brasJoueurPrêt = null
-    this.prechargerRigs()
+    this.arms?.dispose()
+    this.arms = models ? new FirstPersonArms3d(this.scene, firstPersonFolder(models.base), models.gate, this.model?.baked ?? null, (p) => this.lighting.probeAt(p), this.textureLoader) : null
+    if (this.arms) { const loading = this.arms.load(); void (models?.gate?.track(loading) ?? loading) }
+    this.armsPlayerReady = null
+    this.preloadRigs()
     this.prepareAvatars()
   }
 
@@ -502,8 +502,8 @@ export class ReplayScene3d implements Replay3DExportSource {
       timedSync('prime-avatars', () => this.placeAvatars(frame))
       timedSync('prime-camera', () => {
         this.cameraPlacement.placeCamera(frame)
-        this.placerLunette(frame)
-        this.bras?.placer(this.camera)
+        this.placeScope(frame)
+        this.arms?.place(this.camera)
       })
       timedSync('prime-retag', () => this.retagTags())
       timedSync('prime-action', () => this.action?.update(frame))
@@ -532,7 +532,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.lastFrame = frame
     this.animateGlow((frame * this.frameMs) / 1000)
     let status: PovStatus = 'none'
-    const p = this.profil
+    const p = this.profile
     let t = performance.now(); this.renderer.info.reset()
     const knobs = this.applyKnobs()
     this.post.resetCosts()
@@ -542,8 +542,8 @@ export class ReplayScene3d implements Replay3DExportSource {
       this.placeAvatars(frame)
       t = markStep(p, 0, t)
       status = this.cameraPlacement.placeCamera(frame)
-      this.placerLunette(frame)
-      this.bras?.placer(this.camera)
+      this.placeScope(frame)
+      this.arms?.place(this.camera)
       this.retagTags() // tags must measure from the camera now placed, not the previous frame's
       t = markStep(p, 1, t)
       this.action?.update(frame)
@@ -635,7 +635,7 @@ export class ReplayScene3d implements Replay3DExportSource {
 
   /** notePassCosts copies what each pass drew this frame into the profile (the shadow updates out of the scene pass). */
   private notePassCosts(minimap: { calls: number; triangles: number }): void {
-    const passes = this.profil.passes
+    const passes = this.profile.passes
     const shadow = this.lighting.split.cost
     for (const name of PASS_NAMES) {
       const cost = this.post.costs[name]
@@ -667,7 +667,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (xuid === this.povXuid) return
     this.povXuid = xuid
     this.originAboveFloor = xuid && this.tracks ? measureOriginAboveFloor(this.tracks.allPoints(xuid), this.model, this.raycaster) : 0
-    this.brasJoueurPrêt = null
+    this.armsPlayerReady = null
   }
 
   /** applyMode changes camera. The free camera starts from the current view, pulled behind the followed player and turned to it: a fixed point above him put it in the roof as soon as he was inside. */
@@ -726,7 +726,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   private placeAvatars(f: number): void {
     const tracks = this.tracks as Tracks3d
     this.inView = null
-    this.bras?.cacher()
+    this.arms?.hide()
     this.post.outline.begin()
     this.topPlayers.length = 0
     this.topDead.length = 0
@@ -748,22 +748,22 @@ export class ReplayScene3d implements Replay3DExportSource {
       const feet = rider ?? feetOf(s as PlayerState3d, this.originAboveFloor)
       const h = rider ? this.action?.riderHeadingAt(p.xuid, f) ?? s?.h ?? 0 : s?.h ?? 0
       this.buildAvatar(p.xuid, a)
-      const pose = { h, p: rider ? 0 : s?.p ?? 0, crouch: s?.crouch ?? false, dropOeil: s?.dropOeil ?? 0, mix: this.action?.motion(p.xuid, f, rider !== null, a.mix) ?? null } // aboard: no roll, no locomotion
+      const pose = { h, p: rider ? 0 : s?.p ?? 0, crouch: s?.crouch ?? false, eyeDrop: s?.dropOeil ?? 0, mix: this.action?.motion(p.xuid, f, rider !== null, a.mix) ?? null } // aboard: no roll, no locomotion
       placeBody(a, feet, pose, firstPerson, this.lighting.probeAt(feet))
       if (s) this.drawnSlots.set(s.slot, { xuid: p.xuid, firstPerson })
       const held = s && this.action ? this.action.heldWeapon(s.slot, f) : null
-      if (firstPerson) this.bras?.suivre(this.armory, this.povXuid)
+      if (firstPerson) this.arms?.follow(this.armory, this.povXuid)
       const fx = this.action?.bodyFx(p.xuid, f) ?? null // the camo fades his own first-person arms and weapon too
-      if (firstPerson && !rider && p.xuid === this.povXuid && this.brasJoueurPrêt !== p.xuid) {
-        this.brasJoueurPrêt = p.xuid
-        this.bras?.preparerJoueur(p.xuid)
+      if (firstPerson && !rider && p.xuid === this.povXuid && this.armsPlayerReady !== p.xuid) {
+        this.armsPlayerReady = p.xuid
+        this.arms?.preparePlayer(p.xuid)
       }
-      const rigVisible = firstPerson && !rider && !!s && !!this.action && !!this.bras?.montrer(this.camera, held?.key ?? null, this.action.evenementsPremierePersonne(p.xuid, s.slot, f, this.fps), held?.recoil ?? null, fx?.equip.camo ?? 0)
-      const modelArme = rigVisible ? null : held?.model ?? null
-      const cleArme = held?.key ? weaponModelKey(held.key) : null
-      if (modelArme && cleArme && this.armory) void this.armory.peindreArme(p.xuid, cleArme, modelArme)
-      const coatArme = modelArme && cleArme ? (this.armory?.coatArme(p.xuid, cleArme, modelArme) ?? null) : null
-      showWeapon(a, held, modelArme, firstPerson ? viewGripOf(held?.key ?? null) : null, coatArme)
+      const rigVisible = firstPerson && !rider && !!s && !!this.action && !!this.arms?.show(this.camera, held?.key ?? null, this.action.firstPersonFrameEvents(p.xuid, s.slot, f, this.fps), held?.recoil ?? null, fx?.equip.camo ?? 0)
+      const weaponModel = rigVisible ? null : held?.model ?? null
+      const weaponKey = held?.key ? weaponModelKey(held.key) : null
+      if (weaponModel && weaponKey && this.armory) void this.armory.paintWeapon(p.xuid, weaponKey, weaponModel)
+      const weaponCoat = weaponModel && weaponKey ? (this.armory?.weaponCoat(p.xuid, weaponKey, weaponModel) ?? null) : null
+      showWeapon(a, held, weaponModel, firstPerson ? viewGripOf(held?.key ?? null) : null, weaponCoat)
       showBodyFx(a, fx)
       if (fx && !firstPerson) this.post.outline.add(a.group, fx) // team outline: every visible player, self excepted in first person
       if (firstPerson) this.inView = held?.key ? { key: held.key, name: held.name, rig: rigVisible } : null
@@ -797,20 +797,20 @@ export class ReplayScene3d implements Replay3DExportSource {
     return s ? feetOf(s, this.feetDrop) : null
   }
 
-  /** placerLunette adjusts the first-person zoom's field (`scopeView3d`) and takes the arms off screen when the optic sight is mounted; out of first person, the base field returns. */
-  private placerLunette(f: number): void {
+  /** placeScope adjusts the first-person zoom's field (`scopeView3d`) and takes the arms off screen when the optic sight is mounted; out of first person, the base field returns. */
+  private placeScope(f: number): void {
     const doc = this.doc
     if (this.mode !== 'fp' || !this.povXuid || !doc) {
       this.scopeView.reset(this.camera)
       return
     }
-    const cle = this.inView?.key ?? null
-    const spec = scopeOf(cle, cle ? labelKeyOf(doc, cle) : null)
+    const key = this.inView?.key ?? null
+    const spec = scopeOf(key, key ? labelKeyOf(doc, key) : null)
     // The same resolution the HUD uses (`magsForWeapon`): the index's own zoom when it carries one,
     // else the hand table. The Shock Rifle and both Bandits carry [1] in the index, so reading the
     // raw values left the camera unzoomed while the HUD showed 1.6x / 2.5x.
-    const mags = magsForWeapon(cle, cle ? this.weaponModels?.reticles.magnifications(cle) ?? null : null)
-    if (this.scopeView.apply(this.camera, doc, this.povXuid, f, spec, mags)) this.bras?.cacher()
+    const mags = magsForWeapon(key, key ? this.weaponModels?.reticles.magnifications(key) ?? null : null)
+    if (this.scopeView.apply(this.camera, doc, this.povXuid, f, spec, mags)) this.arms?.hide()
   }
 
   /** mapRoots: the posed map's root and its layer's. */

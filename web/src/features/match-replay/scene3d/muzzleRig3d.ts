@@ -17,7 +17,7 @@
  */
 import * as THREE from 'three'
 
-import { ROTATION_RIG_CAMERA } from './premierePersonne3d'
+import { ROTATION_RIG_CAMERA } from './firstPersonRig3d'
 import type { ViewGrip } from './viewGrip3d'
 
 // The front slice of the barrel whose vertex center makes the muzzle (u, ~3 cm, like MUZZLE_SLICE).

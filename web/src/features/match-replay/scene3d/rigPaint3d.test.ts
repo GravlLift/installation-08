@@ -10,48 +10,48 @@ import { RigPaint3d } from './rigPaint3d'
 const tick = () => new Promise<void>((r) => setTimeout(r, 0))
 
 /** A paintable arm material (raw masks and style) on a mesh of the rig's root. */
-function brasRig(): { root: THREE.Group; materiau: THREE.MeshStandardMaterial } {
-  const materiau = new THREE.MeshStandardMaterial()
-  materiau.userData.surfaceBrute = {}
-  materiau.userData.style = {}
-  const maillage = new THREE.Mesh(new THREE.BoxGeometry(), materiau)
+function armRig(): { root: THREE.Group; material: THREE.MeshStandardMaterial } {
+  const material = new THREE.MeshStandardMaterial()
+  material.userData.surfaceBrute = {}
+  material.userData.style = {}
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(), material)
   const root = new THREE.Group()
-  root.add(maillage)
-  return { root, materiau }
+  root.add(mesh)
+  return { root, material }
 }
 
 /** A material's coating, with no texture (null masks). */
-function coatDe(materiau: THREE.Material): Coat {
-  const peinture = {
+function coatFor(material: THREE.Material): Coat {
+  const paint = {
     maps: { asg: null, mask0: null, mask1: null },
     paint: { data: new Float32Array(4), globals: [0, 0, 0, 0] as [number, number, number, number], offset: [0, 0] as [number, number] },
     gradients: { value: null } as unknown as THREE.IUniform<THREE.Texture>,
   }
-  return new Map([[materiau, peinture]])
+  return new Map([[material, paint]])
 }
 
 /** The player's armory: the outfit and the paint computation (one promise per call). */
-function armurerieDe(habit: Dress | null) {
-  let resoudreIntérieur: (coat: Coat | null) => void = () => {}
-  const peindreBras = vi.fn(() => new Promise<Coat | null>((r) => { resoudreIntérieur = r }))
-  const armurerie = { dress: () => habit, peindreBras } as unknown as SpartanArmory
+function armoryFor(outfit: Dress | null) {
+  let resolveInner: (coat: Coat | null) => void = () => {}
+  const paintArms = vi.fn(() => new Promise<Coat | null>((r) => { resolveInner = r }))
+  const armory = { dress: () => outfit, paintArms } as unknown as SpartanArmory
   return {
-    armurerie,
-    peindreBras,
-    resoudre: (coat: Coat | null) => resoudreIntérieur(coat),
+    armory,
+    paintArms,
+    resolve: (coat: Coat | null) => resolveInner(coat),
   }
 }
 
-function preparationDe(coat: Coat | null): RigPreparation3d {
+function preparationFor(coat: Coat | null): RigPreparation3d {
   return { coat: () => coat } as unknown as RigPreparation3d
 }
 
-function peintureDe(_root: THREE.Object3D, armurerie: SpartanArmory, preparation: RigPreparation3d, cleArmeDe: (fichier: string) => string | null = () => null): RigPaint3d {
+function paintFor(_root: THREE.Object3D, armory: SpartanArmory, preparation: RigPreparation3d, weaponKeyFor: (file: string) => string | null = () => null): RigPaint3d {
   return new RigPaint3d({
     xuid: () => '1',
-    armurerie: () => armurerie,
+    armory: () => armory,
     preparation,
-    cleArmeDe,
+    weaponKeyFor,
   })
 }
 
@@ -59,67 +59,67 @@ describe('RigPaint3d', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
   it('keeps each copy, invalidates only one rig, and restores both on a player change', () => {
-    const a = brasRig(), b = brasRig()
-    const armurerie = armurerieDe({} as Dress)
-    const coats = new Map([['a', coatDe(a.materiau)], ['b', coatDe(b.materiau)]])
-    const peinture = peintureDe(a.root, armurerie.armurerie, { coat: (f: string) => coats.get(f) } as unknown as RigPreparation3d)
-    peinture.actualiser('a', a.root)
-    const copieA = (a.root.children[0] as THREE.Mesh).material as THREE.Material
-    const disposeA = vi.spyOn(copieA, 'dispose')
-    peinture.actualiser('b', b.root)
-    const copieB = (b.root.children[0] as THREE.Mesh).material as THREE.Material
-    const disposeB = vi.spyOn(copieB, 'dispose')
-    expect(peinture.materiauSource(copieA)).toBe(a.materiau)
-    expect(peinture.materiauSource(copieB)).toBe(b.materiau)
+    const a = armRig(), b = armRig()
+    const armory = armoryFor({} as Dress)
+    const coats = new Map([['a', coatFor(a.material)], ['b', coatFor(b.material)]])
+    const paint = paintFor(a.root, armory.armory, { coat: (f: string) => coats.get(f) } as unknown as RigPreparation3d)
+    paint.refresh('a', a.root)
+    const copyA = (a.root.children[0] as THREE.Mesh).material as THREE.Material
+    const disposeA = vi.spyOn(copyA, 'dispose')
+    paint.refresh('b', b.root)
+    const copyB = (b.root.children[0] as THREE.Mesh).material as THREE.Material
+    const disposeB = vi.spyOn(copyB, 'dispose')
+    expect(paint.sourceMaterial(copyA)).toBe(a.material)
+    expect(paint.sourceMaterial(copyB)).toBe(b.material)
     expect(disposeA).not.toHaveBeenCalled()
-    peinture.actualiser('a', a.root)
-    expect(peinture.enCours('a')).toBe(false)
-    expect(armurerie.peindreBras).not.toHaveBeenCalled()
-    peinture.invalider('a')
-    peinture.actualiser('a', a.root)
+    paint.refresh('a', a.root)
+    expect(paint.busy('a')).toBe(false)
+    expect(armory.paintArms).not.toHaveBeenCalled()
+    paint.invalidate('a')
+    paint.refresh('a', a.root)
     expect(disposeA).toHaveBeenCalledOnce()
     expect(disposeB).not.toHaveBeenCalled()
-    expect((b.root.children[0] as THREE.Mesh).material).toBe(copieB)
-    peinture.changerJoueur()
+    expect((b.root.children[0] as THREE.Mesh).material).toBe(copyB)
+    paint.changePlayer()
     expect(disposeB).toHaveBeenCalledOnce()
-    expect((a.root.children[0] as THREE.Mesh).material).toBe(a.materiau)
-    expect((b.root.children[0] as THREE.Mesh).material).toBe(b.materiau)
+    expect((a.root.children[0] as THREE.Mesh).material).toBe(a.material)
+    expect((b.root.children[0] as THREE.Mesh).material).toBe(b.material)
   })
 
   it('rejects a prepared coating that does not cover the rig\'s pieces', async () => {
-    const a = brasRig(), piece = brasRig(), b = brasRig()
+    const a = armRig(), piece = armRig(), b = armRig()
     a.root.add(piece.root.children[0])
-    const armurerie = armurerieDe({} as Dress)
-    const coats = new Map([['a', coatDe(a.materiau)], ['b', coatDe(b.materiau)]])
-    const preparation = { coat: (f: string) => coats.get(f), abandonner: vi.fn() } as unknown as RigPreparation3d
-    const peinture = peintureDe(a.root, armurerie.armurerie, preparation, () => 'cle-a')
-    peinture.actualiser('a', a.root)
-    peinture.actualiser('b', b.root)
-    expect(peinture.enCours('a')).toBe(true)
-    expect(peinture.enCours('b')).toBe(false)
-    expect(armurerie.peindreBras).toHaveBeenCalledWith('1', expect.anything(), [a.materiau, piece.materiau], 'cle-a')
-    armurerie.resoudre(new Map([...coatDe(a.materiau), ...coatDe(piece.materiau)]))
+    const armory = armoryFor({} as Dress)
+    const coats = new Map([['a', coatFor(a.material)], ['b', coatFor(b.material)]])
+    const preparation = { coat: (f: string) => coats.get(f), abandon: vi.fn() } as unknown as RigPreparation3d
+    const paint = paintFor(a.root, armory.armory, preparation, () => 'key-a')
+    paint.refresh('a', a.root)
+    paint.refresh('b', b.root)
+    expect(paint.busy('a')).toBe(true)
+    expect(paint.busy('b')).toBe(false)
+    expect(armory.paintArms).toHaveBeenCalledWith('1', expect.anything(), [a.material, piece.material], 'key-a')
+    armory.resolve(new Map([...coatFor(a.material), ...coatFor(piece.material)]))
     await tick()
-    expect(peinture.materiauSource((a.root.children[1] as THREE.Mesh).material as THREE.Material)).toBe(piece.materiau)
+    expect(paint.sourceMaterial((a.root.children[1] as THREE.Mesh).material as THREE.Material)).toBe(piece.material)
   })
 
   it('abandons an invalidated paint without interrupting another rig', async () => {
-    const a = brasRig(), b = brasRig(), piece = brasRig()
-    const attente: Array<(coat: Coat | null) => void> = []
-    const armurerie = { dress: () => habit, peindreBras: () => new Promise<Coat | null>((r) => attente.push(r)) } as unknown as SpartanArmory
-    const habit = {} as Dress
-    const peinture = peintureDe(a.root, armurerie, preparationDe(null))
-    peinture.actualiser('a', a.root)
-    peinture.actualiser('b', b.root)
+    const a = armRig(), b = armRig(), piece = armRig()
+    const pending: Array<(coat: Coat | null) => void> = []
+    const armory = { dress: () => outfit, paintArms: () => new Promise<Coat | null>((r) => pending.push(r)) } as unknown as SpartanArmory
+    const outfit = {} as Dress
+    const paint = paintFor(a.root, armory, preparationFor(null))
+    paint.refresh('a', a.root)
+    paint.refresh('b', b.root)
     a.root.add(piece.root.children[0]) // the piece lands while the coat is in flight
-    peinture.invalider('a')
-    attente[0](coatDe(a.materiau)) // computed on the undressed rig: it no longer covers
-    attente[1](coatDe(b.materiau))
+    paint.invalidate('a')
+    pending[0](coatFor(a.material)) // computed on the undressed rig: it no longer covers
+    pending[1](coatFor(b.material))
     await tick()
-    expect((a.root.children[0] as THREE.Mesh).material).toBe(a.materiau)
-    expect((b.root.children[0] as THREE.Mesh).material).not.toBe(b.materiau)
-    expect(peinture.enCours('a')).toBe(false)
-    expect(peinture.enCours('b')).toBe(false)
+    expect((a.root.children[0] as THREE.Mesh).material).toBe(a.material)
+    expect((b.root.children[0] as THREE.Mesh).material).not.toBe(b.material)
+    expect(paint.busy('a')).toBe(false)
+    expect(paint.busy('b')).toBe(false)
   })
 
   it('scope then reload of a coated weapon: the weapon is never shown uncoated', async () => {
@@ -127,189 +127,189 @@ describe('RigPaint3d', () => {
     // invalidation starts a repaint. The scope is left (the rig shown again) while the repaint
     // is in flight: no frame shows the weapon with its neutral material. The fresh coat lands
     // on the dressed rig and replaces the kept copies.
-    const { root, materiau } = brasRig()
-    const arme = new THREE.MeshStandardMaterial()
-    arme.userData.surfaceBrute = {}
-    arme.userData.style = {}
-    arme.userData.rigWeapon = true
-    const maillageArme = new THREE.Mesh(new THREE.BoxGeometry(), arme)
-    root.add(maillageArme)
-    const armurerie = armurerieDe({} as Dress)
-    const peinture = peintureDe(root, armurerie.armurerie, preparationDe(null))
-    peinture.actualiser('rig1', root)
-    armurerie.resoudre(new Map([...coatDe(materiau), ...coatDe(arme)]))
+    const { root, material } = armRig()
+    const weapon = new THREE.MeshStandardMaterial()
+    weapon.userData.surfaceBrute = {}
+    weapon.userData.style = {}
+    weapon.userData.rigWeapon = true
+    const weaponMesh = new THREE.Mesh(new THREE.BoxGeometry(), weapon)
+    root.add(weaponMesh)
+    const armory = armoryFor({} as Dress)
+    const paint = paintFor(root, armory.armory, preparationFor(null))
+    paint.refresh('rig1', root)
+    armory.resolve(new Map([...coatFor(material), ...coatFor(weapon)]))
     await tick()
-    expect(peinture.enCours('rig1')).toBe(false)
-    const copieArme = maillageArme.material as THREE.Material
-    expect(copieArme).not.toBe(arme)
-    const disposeCopieArme = vi.spyOn(copieArme, 'dispose')
+    expect(paint.busy('rig1')).toBe(false)
+    const weaponCopy = weaponMesh.material as THREE.Material
+    expect(weaponCopy).not.toBe(weapon)
+    const disposeWeaponCopy = vi.spyOn(weaponCopy, 'dispose')
     // Scope: the rig is hidden. While hidden, the late piece lands: invalidation + repaint.
     root.visible = false
-    const piece = brasRig()
+    const piece = armRig()
     root.add(piece.root.children[0])
-    peinture.invalider('rig1')
-    peinture.actualiser('rig1', root) // `termine`, on the piece landing
-    expect(peinture.enCours('rig1')).toBe(true)
+    paint.invalidate('rig1')
+    paint.refresh('rig1', root) // `done`, on the piece landing
+    expect(paint.busy('rig1')).toBe(true)
     // Scope left, the rig is shown again, the repaint is still in flight: the weapon keeps its
     // painted copy (before the fix it was the neutral material here).
     root.visible = true
-    expect(maillageArme.material).toBe(copieArme)
-    expect(disposeCopieArme).not.toHaveBeenCalled()
+    expect(weaponMesh.material).toBe(weaponCopy)
+    expect(disposeWeaponCopy).not.toHaveBeenCalled()
     // The fresh coat, computed on the dressed rig, lands and replaces the kept copies.
-    armurerie.resoudre(new Map([...coatDe(materiau), ...coatDe(arme), ...coatDe(piece.materiau)]))
+    armory.resolve(new Map([...coatFor(material), ...coatFor(weapon), ...coatFor(piece.material)]))
     await tick()
-    expect(peinture.enCours('rig1')).toBe(false)
-    expect(maillageArme.material).not.toBe(arme)
-    expect(maillageArme.material).not.toBe(copieArme)
-    expect((root.children[2] as THREE.Mesh).material).not.toBe(piece.materiau)
-    expect(disposeCopieArme).toHaveBeenCalledOnce()
-    peinture.changerJoueur()
+    expect(paint.busy('rig1')).toBe(false)
+    expect(weaponMesh.material).not.toBe(weapon)
+    expect(weaponMesh.material).not.toBe(weaponCopy)
+    expect((root.children[2] as THREE.Mesh).material).not.toBe(piece.material)
+    expect(disposeWeaponCopy).toHaveBeenCalledOnce()
+    paint.changePlayer()
   })
 
   it('applies the prepared coating with no wait, and keeps the (file, outfit) pair', () => {
-    const { root, materiau } = brasRig()
-    const armurerie = armurerieDe({} as Dress)
-    const peinture = peintureDe(root, armurerie.armurerie, preparationDe(coatDe(materiau)))
-    peinture.actualiser('rig1', root)
-    const copie = (root.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial
-    expect(copie).not.toBe(materiau)
-    expect(peinture.materiauSource(copie)).toBe(materiau)
-    expect(peinture.enCours()).toBe(false)
-    peinture.actualiser('rig1', root)
-    expect((root.children[0] as THREE.Mesh).material).toBe(copie)
-    peinture.changerJoueur()
-    expect((root.children[0] as THREE.Mesh).material).toBe(materiau)
+    const { root, material } = armRig()
+    const armory = armoryFor({} as Dress)
+    const paint = paintFor(root, armory.armory, preparationFor(coatFor(material)))
+    paint.refresh('rig1', root)
+    const copy = (root.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial
+    expect(copy).not.toBe(material)
+    expect(paint.sourceMaterial(copy)).toBe(material)
+    expect(paint.busy()).toBe(false)
+    paint.refresh('rig1', root)
+    expect((root.children[0] as THREE.Mesh).material).toBe(copy)
+    paint.changePlayer()
+    expect((root.children[0] as THREE.Mesh).material).toBe(material)
   })
 
   it('paints nothing with no outfit, and stays waiting on the background paint', () => {
-    const { root, materiau } = brasRig()
-    const sans = peintureDe(root, armurerieDe(null).armurerie, preparationDe(null))
-    sans.actualiser('rig1', root)
-    expect((root.children[0] as THREE.Mesh).material).toBe(materiau)
-    expect(sans.enCours()).toBe(false)
+    const { root, material } = armRig()
+    const without = paintFor(root, armoryFor(null).armory, preparationFor(null))
+    without.refresh('rig1', root)
+    expect((root.children[0] as THREE.Mesh).material).toBe(material)
+    expect(without.busy()).toBe(false)
 
-    const armurerie = armurerieDe({} as Dress)
-    const peinture = peintureDe(root, armurerie.armurerie, preparationDe(null))
-    peinture.actualiser('rig1', root)
-    expect(peinture.enCours()).toBe(true)
-    expect((root.children[0] as THREE.Mesh).material).toBe(materiau)
-    expect(armurerie.peindreBras).toHaveBeenCalledTimes(1)
+    const armory = armoryFor({} as Dress)
+    const paint = paintFor(root, armory.armory, preparationFor(null))
+    paint.refresh('rig1', root)
+    expect(paint.busy()).toBe(true)
+    expect((root.children[0] as THREE.Mesh).material).toBe(material)
+    expect(armory.paintArms).toHaveBeenCalledTimes(1)
   })
 
   it('applies the background paint on arrival, abandoned if the player changes first', async () => {
-    const { root, materiau } = brasRig()
-    const armurerie = armurerieDe({} as Dress)
-    const peinture = peintureDe(root, armurerie.armurerie, preparationDe(null))
-    peinture.actualiser('rig1', root)
-    armurerie.resoudre(coatDe(materiau))
+    const { root, material } = armRig()
+    const armory = armoryFor({} as Dress)
+    const paint = paintFor(root, armory.armory, preparationFor(null))
+    paint.refresh('rig1', root)
+    armory.resolve(coatFor(material))
     await tick()
-    expect(peinture.enCours()).toBe(false)
-    expect((root.children[0] as THREE.Mesh).material).not.toBe(materiau)
+    expect(paint.busy()).toBe(false)
+    expect((root.children[0] as THREE.Mesh).material).not.toBe(material)
 
-    const retard = brasRig()
-    const armurerie2 = armurerieDe({} as Dress)
-    const peinture2 = peintureDe(retard.root, armurerie2.armurerie, preparationDe(null))
-    peinture2.actualiser('rig1', retard.root)
-    peinture2.changerJoueur()
-    armurerie2.resoudre(coatDe(retard.materiau))
+    const delayed = armRig()
+    const armory2 = armoryFor({} as Dress)
+    const paint2 = paintFor(delayed.root, armory2.armory, preparationFor(null))
+    paint2.refresh('rig1', delayed.root)
+    paint2.changePlayer()
+    armory2.resolve(coatFor(delayed.material))
     await tick()
-    expect(peinture2.enCours()).toBe(false)
-    expect((retard.root.children[0] as THREE.Mesh).material).toBe(retard.materiau)
+    expect(paint2.busy()).toBe(false)
+    expect((delayed.root.children[0] as THREE.Mesh).material).toBe(delayed.material)
   })
 
   it('does not reject a coating computed on an already-dressed rig when a piece lands late', async () => {
-    // The arm piece lands while the coat is still computing: `invalider` drops the in-flight coat,
-    // `actualiser` recomputes it once on the dressed rig. Before the fix the fresh coat was
-    // discarded because the rig was already registered as computed (enCours false), so the arms
+    // The arm piece lands while the coat is still computing: `invalidate` drops the in-flight coat,
+    // `refresh` recomputes it once on the dressed rig. Before the fix the fresh coat was
+    // discarded because the rig was already registered as computed (busy false), so the arms
     // kept their neutral material until the next repaint — the first-person arms vanishing on
     // coat-ready, and again on every weapon switch while a coat was still loading.
-    const { root, materiau } = brasRig()
-    const piece = brasRig()
+    const { root, material } = armRig()
+    const piece = armRig()
     root.add(piece.root.children[0]) // the piece lands while the coat is in flight
-    const armurerie = armurerieDe({} as Dress)
-    const peinture = peintureDe(root, armurerie.armurerie, preparationDe(null))
-    peinture.actualiser('rig1', root)
-    expect(peinture.enCours('rig1')).toBe(true)
+    const armory = armoryFor({} as Dress)
+    const paint = paintFor(root, armory.armory, preparationFor(null))
+    paint.refresh('rig1', root)
+    expect(paint.busy('rig1')).toBe(true)
     // The coat was computed on the UNDRESSED rig and then invalidated: it must not land.
-    armurerie.resoudre(coatDe(materiau))
+    armory.resolve(coatFor(material))
     await tick()
-    expect((root.children[0] as THREE.Mesh).material).toBe(materiau)
-    expect(peinture.enCours('rig1')).toBe(false)
+    expect((root.children[0] as THREE.Mesh).material).toBe(material)
+    expect(paint.busy('rig1')).toBe(false)
     // The repaint, computed on the dressed rig, lands and is kept.
-    const armurerie2 = armurerieDe({} as Dress)
-    const peinture2 = peintureDe(root, armurerie2.armurerie, preparationDe(null))
-    peinture2.actualiser('rig1', root)
-    expect(peinture2.enCours('rig1')).toBe(true)
-    armurerie2.resoudre(new Map([...coatDe(materiau), ...coatDe(piece.materiau)]))
+    const armory2 = armoryFor({} as Dress)
+    const paint2 = paintFor(root, armory2.armory, preparationFor(null))
+    paint2.refresh('rig1', root)
+    expect(paint2.busy('rig1')).toBe(true)
+    armory2.resolve(new Map([...coatFor(material), ...coatFor(piece.material)]))
     await tick()
-    expect(peinture2.enCours('rig1')).toBe(false)
-    expect((root.children[0] as THREE.Mesh).material).not.toBe(materiau)
-    expect((root.children[1] as THREE.Mesh).material).not.toBe(piece.materiau)
+    expect(paint2.busy('rig1')).toBe(false)
+    expect((root.children[0] as THREE.Mesh).material).not.toBe(material)
+    expect((root.children[1] as THREE.Mesh).material).not.toBe(piece.material)
   })
 
   it('keeps the applied coating on a rig while the new outfit\'s paint is computed', async () => {
     // A weapon switch to an unpainted rig computes its coat in the background: the LAST coat is
     // never replaced by a pending compute (the scene shows the rig painted, never gun-only), and
     // the new coat lands when it arrives.
-    const a = brasRig(), b = brasRig()
-    const armurerie = armurerieDe({} as Dress)
-    const peinture = peintureDe(a.root, armurerie.armurerie, preparationDe(null))
-    peinture.actualiser('a', a.root)
-    armurerie.resoudre(coatDe(a.materiau))
+    const a = armRig(), b = armRig()
+    const armory = armoryFor({} as Dress)
+    const paint = paintFor(a.root, armory.armory, preparationFor(null))
+    paint.refresh('a', a.root)
+    armory.resolve(coatFor(a.material))
     await tick()
-    const copieA = (a.root.children[0] as THREE.Mesh).material as THREE.Material
-    peinture.actualiser('b', b.root) // the switch: b's coat is computed in the background
-    expect((b.root.children[0] as THREE.Mesh).material).toBe(b.materiau)
-    expect((a.root.children[0] as THREE.Mesh).material).toBe(copieA)
-    expect(peinture.enCours('a')).toBe(false)
-    expect(peinture.enCours('b')).toBe(true)
-    armurerie.resoudre(coatDe(b.materiau))
+    const copyA = (a.root.children[0] as THREE.Mesh).material as THREE.Material
+    paint.refresh('b', b.root) // the switch: b's coat is computed in the background
+    expect((b.root.children[0] as THREE.Mesh).material).toBe(b.material)
+    expect((a.root.children[0] as THREE.Mesh).material).toBe(copyA)
+    expect(paint.busy('a')).toBe(false)
+    expect(paint.busy('b')).toBe(true)
+    armory.resolve(coatFor(b.material))
     await tick()
-    expect((a.root.children[0] as THREE.Mesh).material).toBe(copieA)
-    expect((b.root.children[0] as THREE.Mesh).material).not.toBe(b.materiau)
-    peinture.changerJoueur()
+    expect((a.root.children[0] as THREE.Mesh).material).toBe(copyA)
+    expect((b.root.children[0] as THREE.Mesh).material).not.toBe(b.material)
+    paint.changePlayer()
   })
 
-  it('abandons a prepared coating that became stale, on the next actualiser', async () => {
+  it('abandons a prepared coating that became stale, on the next refresh', async () => {
     // The prepared coat was computed on the undressed rig, so it does NOT include the piece's
     // material (which arrived since). The coat is therefore a subset of the rig's paintable
-    // materials: `actualiser` must drop it and recalculate on the dressed rig.
-    const { root, materiau } = brasRig()
-    const piece = brasRig()
+    // materials: `refresh` must drop it and recalculate on the dressed rig.
+    const { root, material } = armRig()
+    const piece = armRig()
     root.add(piece.root.children[0])
     // The stale coat: only the original material (computed before the piece landed).
-    const obsolète = coatDe(materiau)
-    const coats = new Map([['rig1', obsolète]])
+    const stale = coatFor(material)
+    const coats = new Map([['rig1', stale]])
     const preparation = { coat: (f: string) => coats.get(f) ?? null } as unknown as RigPreparation3d
-    const abandonner = vi.fn(() => { coats.delete('rig1') })
-    ;(preparation as { abandonner: unknown }).abandonner = abandonner
-    const armurerie = armurerieDe({} as Dress)
-    const peinture = peintureDe(root, armurerie.armurerie, preparation)
-    peinture.actualiser('rig1', root)
-    expect(abandonner).toHaveBeenCalledWith('rig1')
-    expect(peinture.enCours('rig1')).toBe(true)
+    const abandon = vi.fn(() => { coats.delete('rig1') })
+    ;(preparation as { abandon: unknown }).abandon = abandon
+    const armory = armoryFor({} as Dress)
+    const paint = paintFor(root, armory.armory, preparation)
+    paint.refresh('rig1', root)
+    expect(abandon).toHaveBeenCalledWith('rig1')
+    expect(paint.busy('rig1')).toBe(true)
     // The fresh coat, computed on the dressed rig, lands and is kept.
-    armurerie.resoudre(new Map([...coatDe(materiau), ...coatDe(piece.materiau)]))
+    armory.resolve(new Map([...coatFor(material), ...coatFor(piece.material)]))
     await tick()
-    expect(peinture.enCours('rig1')).toBe(false)
-    expect((root.children[0] as THREE.Mesh).material).not.toBe(materiau)
-    expect((root.children[1] as THREE.Mesh).material).not.toBe(piece.materiau)
+    expect(paint.busy('rig1')).toBe(false)
+    expect((root.children[0] as THREE.Mesh).material).not.toBe(material)
+    expect((root.children[1] as THREE.Mesh).material).not.toBe(piece.material)
   })
 
-  it('invalider forces a repaint on the next actualiser', async () => {
-    const { root, materiau } = brasRig()
-    const armurerie = armurerieDe({} as Dress)
-    const peinture = peintureDe(root, armurerie.armurerie, preparationDe(null))
-    peinture.actualiser('rig1', root)
-    expect(armurerie.peindreBras).toHaveBeenCalledTimes(1)
-    armurerie.resoudre(coatDe(materiau))
+  it('invalidate forces a repaint on the next refresh', async () => {
+    const { root, material } = armRig()
+    const armory = armoryFor({} as Dress)
+    const paint = paintFor(root, armory.armory, preparationFor(null))
+    paint.refresh('rig1', root)
+    expect(armory.paintArms).toHaveBeenCalledTimes(1)
+    armory.resolve(coatFor(material))
     await tick()
-    const copie = (root.children[0] as THREE.Mesh).material
-    peinture.invalider('rig1')
-    peinture.actualiser('rig1', root)
-    expect(armurerie.peindreBras).toHaveBeenCalledTimes(2)
-    armurerie.resoudre(coatDe(materiau))
+    const copy = (root.children[0] as THREE.Mesh).material
+    paint.invalidate('rig1')
+    paint.refresh('rig1', root)
+    expect(armory.paintArms).toHaveBeenCalledTimes(2)
+    armory.resolve(coatFor(material))
     await tick()
-    expect((root.children[0] as THREE.Mesh).material).not.toBe(copie)
+    expect((root.children[0] as THREE.Mesh).material).not.toBe(copy)
   })
 })

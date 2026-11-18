@@ -3,37 +3,37 @@ import { describe, expect, it, vi } from 'vitest'
 import * as THREE from 'three'
 import type { Dress } from './armory3d'
 import { verticalFovOf, viewmodelScale } from '../model/fovLogic'
-import { FirstPersonArms3d, estMateriauBras, estMateriauPeint, memePeinture, peindreMateriauBras } from './firstPersonArms3d'
+import { FirstPersonArms3d, isArmMaterial, isPaintedMaterial, samePaint, paintArmMaterial } from './firstPersonArms3d'
 import { LoadGate } from './loadGate3d'
-import type { EvenementsPremierePersonne } from './firstPersonActions3d'
-import type { RigPremierePersonne } from './premierePersonne3d'
+import type { FirstPersonFrameEvents } from './firstPersonActions3d'
+import type { FirstPersonRig } from './firstPersonRig3d'
 
 // A rig download that never settles: a rig left mid-load stays in-flight, which the gate test needs.
 const { fetchMesh } = vi.hoisted(() => ({ fetchMesh: vi.fn(() => new Promise<void>(() => {})) }))
 vi.mock('./meshFetch', () => ({ fetchMesh }))
 
-describe('estMateriauBras', () => {
+describe('isArmMaterial', () => {
   it('recognizes the raw surface without picking up the weapon\'s materials', () => {
-    const bras = new THREE.MeshStandardMaterial()
-    bras.userData.surfaceBrute = { asg: 0 }
-    expect(estMateriauBras(bras)).toBe(true)
-    const arme = new THREE.MeshStandardMaterial()
-    expect(estMateriauBras(arme)).toBe(false)
-    bras.map = new THREE.Texture()
-    expect(estMateriauBras(bras)).toBe(false)
-    expect(estMateriauBras(new THREE.MeshBasicMaterial())).toBe(false)
+    const arm = new THREE.MeshStandardMaterial()
+    arm.userData.surfaceBrute = { asg: 0 }
+    expect(isArmMaterial(arm)).toBe(true)
+    const weapon = new THREE.MeshStandardMaterial()
+    expect(isArmMaterial(weapon)).toBe(false)
+    arm.map = new THREE.Texture()
+    expect(isArmMaterial(arm)).toBe(false)
+    expect(isArmMaterial(new THREE.MeshBasicMaterial())).toBe(false)
   })
 
   it('a raw rig weapon material (rigWeapon) is painted but is not an arm', () => {
-    const arme = new THREE.MeshStandardMaterial()
-    arme.userData.surfaceBrute = { asg: 0 }
-    arme.userData.rigWeapon = true
-    expect(estMateriauPeint(arme)).toBe(true)
-    expect(estMateriauBras(arme)).toBe(false)
-    const bras = new THREE.MeshStandardMaterial()
-    bras.userData.surfaceBrute = { asg: 0 }
-    expect(estMateriauPeint(bras)).toBe(true)
-    expect(estMateriauBras(bras)).toBe(true)
+    const weapon = new THREE.MeshStandardMaterial()
+    weapon.userData.surfaceBrute = { asg: 0 }
+    weapon.userData.rigWeapon = true
+    expect(isPaintedMaterial(weapon)).toBe(true)
+    expect(isArmMaterial(weapon)).toBe(false)
+    const arm = new THREE.MeshStandardMaterial()
+    arm.userData.surfaceBrute = { asg: 0 }
+    expect(isPaintedMaterial(arm)).toBe(true)
+    expect(isArmMaterial(arm)).toBe(true)
   })
 })
 
@@ -43,203 +43,203 @@ describe('counter-scaling the holder to the camera field', () => {
     // The arm catalog is unreachable in tests: silence the fallback warning.
     const silence = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const scene = new THREE.Scene()
-    const bras = new FirstPersonArms3d(scene, '/premiere-personne')
-    const porteur = scene.children[0]
+    const arms = new FirstPersonArms3d(scene, '/first-person')
+    const holder = scene.children[0]
     const camera = new THREE.PerspectiveCamera(55, 16 / 9)
-    bras.placer(camera)
-    expect(porteur.scale.x).toBe(1)
-    expect(porteur.scale.y).toBe(1)
-    expect(porteur.scale.z).toBe(1)
+    arms.place(camera)
+    expect(holder.scale.x).toBe(1)
+    expect(holder.scale.y).toBe(1)
+    expect(holder.scale.z).toBe(1)
     const large = verticalFovOf(120)
     camera.fov = large
-    bras.placer(camera)
-    const echelle = viewmodelScale(large, 55)
-    expect(porteur.scale.x).toBeCloseTo(echelle, 6)
-    expect(porteur.scale.y).toBeCloseTo(echelle, 6)
-    expect(porteur.scale.z).toBe(1)
-    bras.dispose()
+    arms.place(camera)
+    const scale = viewmodelScale(large, 55)
+    expect(holder.scale.x).toBeCloseTo(scale, 6)
+    expect(holder.scale.y).toBeCloseTo(scale, 6)
+    expect(holder.scale.z).toBe(1)
+    arms.dispose()
     silence.mockRestore()
   })
 })
 
-describe('racinesChargees', () => {
+describe('loadedRoots', () => {
   it('returns the roots of loaded rigs, empty with no rig loaded', () => {
     // The arm catalog is unreachable in tests: silence the fallback warning.
     const silence = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const scene = new THREE.Scene()
-    const bras = new FirstPersonArms3d(scene, '/premiere-personne')
-    expect(bras.racinesChargees()).toEqual([])
-    bras.dispose()
+    const arms = new FirstPersonArms3d(scene, '/first-person')
+    expect(arms.loadedRoots()).toEqual([])
+    arms.dispose()
     silence.mockRestore()
   })
 
   it('prepares every loaded rig and waits for each one\'s pieces before painting', () => {
     const silence = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const bras = new FirstPersonArms3d(new THREE.Scene(), '/premiere-personne')
-    const interne = bras as unknown as {
-      entrees: Map<string, { root: THREE.Object3D } | null>
-      habillage: { actualiser: (f: string, r: THREE.Object3D) => void; enCours: (f: string) => boolean }
-      peinture: { actualiser: (f: string, r: THREE.Object3D) => void }
+    const arms = new FirstPersonArms3d(new THREE.Scene(), '/first-person')
+    const internal = arms as unknown as {
+      entries: Map<string, { root: THREE.Object3D } | null>
+      dressing: { refresh: (f: string, r: THREE.Object3D) => void; busy: (f: string) => boolean }
+      paint: { refresh: (f: string, r: THREE.Object3D) => void }
     }
     const a = new THREE.Group(), b = new THREE.Group()
-    interne.entrees.set('a', { root: a })
-    interne.entrees.set('b', { root: b })
-    const habiller = vi.spyOn(interne.habillage, 'actualiser').mockImplementation(() => {})
-    vi.spyOn(interne.habillage, 'enCours').mockImplementation((f) => f === 'b')
-    const peindre = vi.spyOn(interne.peinture, 'actualiser').mockImplementation(() => {})
-    bras.preparerRig()
-    expect(habiller).toHaveBeenCalledTimes(2)
-    expect(peindre).toHaveBeenCalledOnce()
-    expect(peindre).toHaveBeenCalledWith('a', a)
-    interne.entrees.clear()
-    bras.dispose()
+    internal.entries.set('a', { root: a })
+    internal.entries.set('b', { root: b })
+    const dress = vi.spyOn(internal.dressing, 'refresh').mockImplementation(() => {})
+    vi.spyOn(internal.dressing, 'busy').mockImplementation((f) => f === 'b')
+    const paint = vi.spyOn(internal.paint, 'refresh').mockImplementation(() => {})
+    arms.prepareRig()
+    expect(dress).toHaveBeenCalledTimes(2)
+    expect(paint).toHaveBeenCalledOnce()
+    expect(paint).toHaveBeenCalledWith('a', a)
+    internal.entries.clear()
+    arms.dispose()
     silence.mockRestore()
   })
 })
 
-describe("montrer: the rig shows exactly as it is, never falling back to the static model while painting is pending", () => {
-  /** A null frame: `montrer` only reads the camera and the rig. */
-  const evenements = {
-    rechargements: [], coups: [], tirs: [], grenades: [], changements: [], sprints: [],
-    slides: [], accroupis: [], sauts: [], escalades: [], usages: [], frame: 0, fps: 30,
-    rechargementValide: () => false,
-  } as unknown as EvenementsPremierePersonne
+describe("show: the rig shows exactly as it is, never falling back to the static model while painting is pending", () => {
+  /** A null frame: `show` only reads the camera and the rig. */
+  const events = {
+    reloads: [], strikes: [], shots: [], grenades: [], weaponSwitches: [], sprints: [],
+    slides: [], crouches: [], jumps: [], climbs: [], usages: [], frame: 0, fps: 30,
+    reloadValid: () => false,
+  } as unknown as FirstPersonFrameEvents
 
   /** The loaded rig: a root with an arm material and a playable idle clip. */
-  function rigCharge(fichier: string, bras: FirstPersonArms3d): THREE.Group {
-    const materiau = new THREE.MeshStandardMaterial()
-    materiau.userData.surfaceBrute = {}
-    const racine = new THREE.Group()
-    racine.add(new THREE.Mesh(new THREE.BoxGeometry(), materiau))
+  function setupLoadedRig(file: string, arms: FirstPersonArms3d): THREE.Group {
+    const material = new THREE.MeshStandardMaterial()
+    material.userData.surfaceBrute = {}
+    const root = new THREE.Group()
+    root.add(new THREE.Mesh(new THREE.BoxGeometry(), material))
     const clip = {
       name: 'idle', action: 'idle', variant: 0, type: 'base', overlay: false,
       frameCount: 60, frameRate: 30, durationSeconds: 2,
     }
-    const rig = { file: fichier, bones: 1, triangles: 1, bytes: 1, clips: [clip], actions: [{ action: 'idle', variant: 0, clip: 'idle' }], missingActions: [] } as unknown as RigPremierePersonne
+    const rig = { file, bones: 1, triangles: 1, bytes: 1, clips: [clip], actions: [{ action: 'idle', variant: 0, clip: 'idle' }], missingActions: [] } as unknown as FirstPersonRig
     const idle = { time: 0, weight: 1 }
-    const interne = bras as unknown as {
-      entrees: Map<string, unknown>
-      armes: Map<string, unknown>
-      fichiersArmes: Map<string, string>
-      habillage: { actualiser: (f: string, r: THREE.Object3D) => void; enCours: (f?: string) => boolean }
-      peinture: { actualiser: (f: string, r: THREE.Object3D) => void; enCours: (f?: string) => boolean }
+    const internal = arms as unknown as {
+      entries: Map<string, unknown>
+      weapons: Map<string, unknown>
+      weaponFiles: Map<string, string>
+      dressing: { refresh: (f: string, r: THREE.Object3D) => void; busy: (f?: string) => boolean }
+      paint: { refresh: (f: string, r: THREE.Object3D) => void; busy: (f?: string) => boolean }
       xuid: string | null
-      armurerie: { pending: (x: string) => boolean; regions: (x: string) => unknown; dress: (x: string) => unknown } | null
+      armory: { pending: (x: string) => boolean; regions: (x: string) => unknown; dress: (x: string) => unknown } | null
     }
-    interne.entrees.set(fichier, { root: racine, materiaux: [materiau], mixer: { update: () => {} }, rig, actions: new Map([[clip.name, idle]]), listeActions: [idle], clip })
-    interne.armes.set('arme', rig)
-    interne.fichiersArmes.set(fichier, 'arme')
-    return racine
+    internal.entries.set(file, { root, materials: [material], mixer: { update: () => {} }, rig, actions: new Map([[clip.name, idle]]), actionList: [idle], clip })
+    internal.weapons.set('weapon', rig)
+    internal.weaponFiles.set(file, 'weapon')
+    return root
   }
 
-  function brasDeScene(): { bras: FirstPersonArms3d; interne: { habillage: { enCours: (f?: string) => boolean }; peinture: { enCours: (f?: string) => boolean }; xuid: string | null; armurerie: { pending: (x: string) => boolean; regions: (x: string) => unknown; dress: (x: string) => unknown } | null } } {
+  function armsScene(): { arms: FirstPersonArms3d; internal: { dressing: { busy: (f?: string) => boolean }; paint: { busy: (f?: string) => boolean }; xuid: string | null; armory: { pending: (x: string) => boolean; regions: (x: string) => unknown; dress: (x: string) => unknown } | null } } {
     const silence = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const bras = new FirstPersonArms3d(new THREE.Scene(), '/premiere-personne')
-    const interne = bras as unknown as ReturnType<typeof brasDeScene>['interne']
-    ;(bras as unknown as { dispose: () => void }).dispose = () => { silence.mockRestore() }
-    return { bras, interne }
+    const arms = new FirstPersonArms3d(new THREE.Scene(), '/first-person')
+    const internal = arms as unknown as ReturnType<typeof armsScene>['internal']
+    ;(arms as unknown as { dispose: () => void }).dispose = () => { silence.mockRestore() }
+    return { arms, internal }
   }
 
   it('shows the rig (true) while painting is in progress, with the coating applied', () => {
-    const { bras, interne } = brasDeScene()
-    const racine = rigCharge('a.glb', bras)
+    const { arms, internal } = armsScene()
+    const root = setupLoadedRig('a.glb', arms)
     const camera = new THREE.PerspectiveCamera(55, 16 / 9)
-    interne.peinture.enCours = () => true
-    expect(bras.montrer(camera, 'arme', evenements, null)).toBe(true)
-    expect(racine.visible).toBe(true)
+    internal.paint.busy = () => true
+    expect(arms.show(camera, 'weapon', events, null)).toBe(true)
+    expect(root.visible).toBe(true)
   })
 
   it('shows the rig (true) while pieces are in progress, with the default embedded arms', () => {
-    const { bras, interne } = brasDeScene()
-    const racine = rigCharge('a.glb', bras)
+    const { arms, internal } = armsScene()
+    const root = setupLoadedRig('a.glb', arms)
     const camera = new THREE.PerspectiveCamera(55, 16 / 9)
-    interne.habillage.enCours = () => true
-    expect(bras.montrer(camera, 'arme', evenements, null)).toBe(true)
-    expect(racine.visible).toBe(true)
+    internal.dressing.busy = () => true
+    expect(arms.show(camera, 'weapon', events, null)).toBe(true)
+    expect(root.visible).toBe(true)
   })
 
   it('shows the rig (true) with no armor loaded, without waiting on the armory', () => {
-    const { bras, interne } = brasDeScene()
-    rigCharge('a.glb', bras)
+    const { arms, internal } = armsScene()
+    setupLoadedRig('a.glb', arms)
     const camera = new THREE.PerspectiveCamera(55, 16 / 9)
-    interne.xuid = '1'
-    interne.armurerie = { pending: () => true, regions: () => null, dress: () => null }
-    expect(bras.montrer(camera, 'arme', evenements, null)).toBe(true)
+    internal.xuid = '1'
+    internal.armory = { pending: () => true, regions: () => null, dress: () => null }
+    expect(arms.show(camera, 'weapon', events, null)).toBe(true)
   })
 })
 
 describe('gate: first-person rig loading', () => {
-  const evenements = {
-    rechargements: [], coups: [], tirs: [], grenades: [], changements: [], sprints: [],
-    slides: [], accroupis: [], sauts: [], escalades: [], usages: [], frame: 0, fps: 30,
-    rechargementValide: () => false,
-  } as unknown as EvenementsPremierePersonne
+  const events = {
+    reloads: [], strikes: [], shots: [], grenades: [], weaponSwitches: [], sprints: [],
+    slides: [], crouches: [], jumps: [], climbs: [], usages: [], frame: 0, fps: 30,
+    reloadValid: () => false,
+  } as unknown as FirstPersonFrameEvents
 
-  function brasArme(gate: LoadGate): { bras: FirstPersonArms3d; interne: { armes: Map<string, unknown>; fichiersArmes: Map<string, string>; indexReady: boolean } } {
-    const bras = new FirstPersonArms3d(new THREE.Scene(), '/premiere-personne', gate)
+  function armsWithWeapon(gate: LoadGate): { arms: FirstPersonArms3d; internal: { weapons: Map<string, unknown>; weaponFiles: Map<string, string>; indexReady: boolean } } {
+    const arms = new FirstPersonArms3d(new THREE.Scene(), '/first-person', gate)
     const clip = {
       name: 'idle', action: 'idle', variant: 0, type: 'base', overlay: false,
       frameCount: 60, frameRate: 30, durationSeconds: 2,
     }
-    const rig = { file: 'a.glb', bones: 1, triangles: 1, bytes: 1, clips: [clip], actions: [{ action: 'idle', variant: 0, clip: 'idle' }], missingActions: [] } as unknown as RigPremierePersonne
-    const interne = bras as unknown as { armes: Map<string, unknown>; fichiersArmes: Map<string, string>; indexReady: boolean }
-    interne.armes.set('arme', rig)
-    interne.fichiersArmes.set('a.glb', 'arme')
-    interne.indexReady = true
-    return { bras, interne }
+    const rig = { file: 'a.glb', bones: 1, triangles: 1, bytes: 1, clips: [clip], actions: [{ action: 'idle', variant: 0, clip: 'idle' }], missingActions: [] } as unknown as FirstPersonRig
+    const internal = arms as unknown as { weapons: Map<string, unknown>; weaponFiles: Map<string, string>; indexReady: boolean }
+    internal.weapons.set('weapon', rig)
+    internal.weaponFiles.set('a.glb', 'weapon')
+    internal.indexReady = true
+    return { arms, internal }
   }
 
   it('does not start the preload until it is armed (the gate idle)', () => {
     const silence = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const gate = new LoadGate()
-    const { bras } = brasArme(gate)
+    const { arms } = armsWithWeapon(gate)
     fetchMesh.mockClear()
     // Recording the preload starts no download...
-    bras.precharger(['arme'])
+    arms.preload(['weapon'])
     expect(fetchMesh).not.toHaveBeenCalled()
     // ...until the gate-idle trigger arms it.
-    bras.demarrerPrecharge()
+    arms.armPreload()
     expect(fetchMesh).toHaveBeenCalledTimes(1)
-    bras.dispose()
+    arms.dispose()
     silence.mockRestore()
   })
 
   it('shows a rig gated, even if the preload only recorded it', () => {
     const silence = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const gate = new LoadGate()
-    const { bras } = brasArme(gate)
-    bras.precharger(['arme'])
+    const { arms } = armsWithWeapon(gate)
+    arms.preload(['weapon'])
     // The constructor already tracks the bras.json index load, so measure the rig's delta.
     const base = gate.pending
     // Showing the rig loads it, gated.
     const camera = new THREE.PerspectiveCamera(55, 16 / 9)
-    expect(bras.montrer(camera, 'arme', evenements, null)).toBe(false)
+    expect(arms.show(camera, 'weapon', events, null)).toBe(false)
     expect(gate.pending - base).toBe(1)
-    bras.dispose()
+    arms.dispose()
     silence.mockRestore()
   })
 })
 
 describe('arm painting', () => {
   it('keeps the fallback with no outfit, style, or masks, and excludes weapons', () => {
-    const bras = new THREE.MeshStandardMaterial()
-    const habit = {} as Dress
-    bras.userData.surfaceBrute = {}
-    expect(peindreMateriauBras(bras, habit)).toBe(false)
-    bras.userData.style = {}
-    expect(peindreMateriauBras(bras, habit)).toBe(false)
-    bras.userData.armorMaps = {}
-    expect(peindreMateriauBras(bras, null)).toBe(false)
-    expect(peindreMateriauBras(bras, habit)).toBe(true)
-    bras.map = new THREE.Texture()
-    expect(peindreMateriauBras(bras, habit)).toBe(false)
+    const arm = new THREE.MeshStandardMaterial()
+    const outfit = {} as Dress
+    arm.userData.surfaceBrute = {}
+    expect(paintArmMaterial(arm, outfit)).toBe(false)
+    arm.userData.style = {}
+    expect(paintArmMaterial(arm, outfit)).toBe(false)
+    arm.userData.armorMaps = {}
+    expect(paintArmMaterial(arm, null)).toBe(false)
+    expect(paintArmMaterial(arm, outfit)).toBe(true)
+    arm.map = new THREE.Texture()
+    expect(paintArmMaterial(arm, outfit)).toBe(false)
   })
 
   it('identifies the cache by file and outfit identity', () => {
-    const habit = {} as Dress
-    expect(memePeinture('a', 'a', habit, habit)).toBe(true)
-    expect(memePeinture('a', 'b', habit, habit)).toBe(false)
-    expect(memePeinture('a', 'a', habit, {} as Dress)).toBe(false)
-    expect(memePeinture('a', 'a', null, habit)).toBe(false)
+    const outfit = {} as Dress
+    expect(samePaint('a', 'a', outfit, outfit)).toBe(true)
+    expect(samePaint('a', 'b', outfit, outfit)).toBe(false)
+    expect(samePaint('a', 'a', outfit, {} as Dress)).toBe(false)
+    expect(samePaint('a', 'a', null, outfit)).toBe(false)
   })
 })
