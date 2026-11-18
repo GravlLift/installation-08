@@ -93,7 +93,7 @@ describe('a shared match link to a match this install does not have', () => {
     await flush()
 
     expect(screen.getByTestId('match-not-fetched')).toBeInTheDocument()
-    expect(screen.getByText(ID)).toBeInTheDocument()
+    expect(screen.getAllByText(ID)).toHaveLength(2)
     fireEvent.click(screen.getByRole('button', { name: 'Fetch this match' }))
     await flush()
     expect(calls.filter((c) => c.method === 'POST' && c.url === `/api/matches/${ID}/fetch`)).toHaveLength(1)
