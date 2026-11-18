@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.0-test.22
+
+Changes since 0.1.0-test.21.
+
+- The main menu credits the projects the app builds on in its bottom-left corner: LevelUp (JGtm), OpenSpartan (Den Delimarsky), Ekur (The Halo Archive) and SPNKr (Andy Curtis), with a link to the full credits. The links open in your browser.
+- Nine more sounds are now built from your Halo install instead of shipping with the app: active camo ending, the shroud screen's deploy, the grappling hook (three takes), the repulsor (three takes) and the equipment pickup. They are rebuilt once on the next start.
+- The app no longer ships the eight French end-of-match and round-over voice lines, which it never played.
+
 ## 0.1.0-test.21
 
 Changes since 0.1.0-test.20.
