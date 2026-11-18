@@ -102,7 +102,7 @@ type Stats struct {
 	Encoded, Kept int
 	// Aligned counts the encoded images resampled to multiple-of-4 sides (blockAligned).
 	Aligned int
-	ByClass       map[Class]*ClassStats
+	ByClass map[Class]*ClassStats
 	// GPURGBA8 is the GPU memory the images take uploaded as RGBA8 with a full mip chain (the
 	// viewer's PNG path); GPUBlock the same images as 16-byte 4x4 blocks with a full mip chain
 	// (BC7, what the KTX2 images transcode to on desktop).

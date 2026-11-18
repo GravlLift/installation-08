@@ -21,14 +21,18 @@ package main
 // harmless enqueue when something is missing.
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
+	"github.com/llampwall/infinite-theater-3d/internal/texcompress"
 	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
 )
 
@@ -165,6 +169,9 @@ func runServeStartup(jobs interface {
 		}
 	}
 	renameStaleCoatingLibraries(root.Dir())
+	if !skipCoatingLibs {
+		realignLibraries(root.Dir(), ready)
+	}
 	ms, err := root.ListMatches()
 	if err != nil {
 		slog.Warn("list matches for startup builds", "err", err)
@@ -188,6 +195,45 @@ func renameStaleCoatingLibraries(dataDir string) {
 		moveCoatingLibraryAsideIfStale(dataDir, module)
 	}
 }
+
+// coatingLibraryDirs are the data folders of the three coating libraries.
+var coatingLibraryDirs = map[string]string{
+	meshjobs.JobWeapons:       "weapons",
+	meshjobs.JobFirstPerson:   "first-person",
+	meshjobs.JobSpartanPieces: "spartan-pieces",
+}
+
+// realignLibraries upgrades, in the background, each coating library that is ready (built,
+// not stale, so no build of it is queued to race the walk) and was written before the encoder
+// block-aligned its KTX2 images: texcompress.RealignDir rewrites only the misaligned files (the
+// first-person library built on 2026-11-17 held a 256x126 map and 1x1 placeholders, which
+// Direct3D 11 refuses to upload) and leaves a marker so later startups skip the folder. A stale
+// library is moved aside and rebuilt by today's encoder, aligned already.
+func realignLibraries(dataDir string, ready func(string) bool) {
+	var dirs []string
+	for _, module := range coatingLibraryModules {
+		if ready(module) {
+			dirs = append(dirs, filepath.Join(dataDir, coatingLibraryDirs[module]))
+		}
+	}
+	if len(dirs) == 0 {
+		return
+	}
+	inBackground(func() {
+		for _, dir := range dirs {
+			t0 := time.Now()
+			n, err := texcompress.RealignDir(context.Background(), dir, texcompress.Options{Workers: 1})
+			if err != nil {
+				slog.Warn("library textures realign", "dir", dir, "rewritten", n, "err", err)
+			} else if n > 0 {
+				slog.Info("library textures realigned", "dir", dir, "rewritten", n, "took", time.Since(t0).Round(time.Millisecond).String())
+			}
+		}
+	})
+}
+
+// inBackground runs f on its own goroutine (the package's tests run it in the caller).
+var inBackground = func(f func()) { go f() }
 
 // coatingLibraryModules are the three libraries that read the Ekur export, in the order the
 // startup enqueues them.

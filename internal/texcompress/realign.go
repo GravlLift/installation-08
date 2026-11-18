@@ -8,13 +8,19 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"io"
+	"io/fs"
 	"math"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
+
+	"github.com/llampwall/infinite-theater-3d/internal/basisu"
 )
 
 // WHY BLOCK ALIGNMENT. The viewer transcodes every KTX2 image to a 4x4-block GPU format (BC7 on
@@ -81,6 +87,121 @@ func ktx2Size(data []byte) (int, int, bool) {
 		return 0, 0, false
 	}
 	return int(binary.LittleEndian.Uint32(data[20:])), int(binary.LittleEndian.Uint32(data[24:])), true
+}
+
+// ktx2Class reads a KTX2 file's class from its data format descriptor: an sRGB transfer function
+// is a color image, anything else is data. A standalone KTX2 does not record whether it was
+// encoded as a normal map; data is the safe reading (the same codec, without the encoder's
+// normal-map weighting).
+func ktx2Class(data []byte) Class {
+	if len(data) < 52 {
+		return ClassData
+	}
+	dfd := int(binary.LittleEndian.Uint32(data[48:]))
+	// The DFD's total size (4), the basic block's header (8), then color model, primaries and
+	// the transfer function.
+	if t := dfd + 4 + 8 + 2; dfd > 0 && t < len(data) && data[t] == 2 {
+		return ClassColor
+	}
+	return ClassData
+}
+
+// RealignKTX2File is RealignFile for a standalone KTX2 file (a library's externalized image):
+// when its sides are not multiples of 4 it is decoded, resampled (blockAligned), re-encoded with
+// its class's preset and written in place under a temporary name, then renamed. It reports
+// whether it rewrote the file; an aligned file, or one that is not KTX2, is left untouched.
+func RealignKTX2File(path string, o Options) (bool, error) {
+	data, err := os.ReadFile(path) //nolint:gosec // library file path, set by the caller
+	if err != nil {
+		return false, err
+	}
+	w, h, ok := ktx2Size(data)
+	if !ok || (w%4 == 0 && h%4 == 0) {
+		return false, nil
+	}
+	img, err := basisu.Decode(data, 0)
+	if err != nil {
+		return false, fmt.Errorf("texcompress: %s: %w", path, err)
+	}
+	aligned, _ := blockAligned(img)
+	preset := o.Preset
+	if preset == nil {
+		preset = Preset
+	}
+	out, err := basisu.Encode(aligned, preset(ktx2Class(data)))
+	if err != nil {
+		return false, fmt.Errorf("texcompress: %s: %w", path, err)
+	}
+	tmp := path + ".realign.tmp"
+	if err := os.WriteFile(tmp, out, 0o644); err != nil { //nolint:gosec // library file
+		return false, err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return false, err
+	}
+	return true, nil
+}
+
+// RealignedMarker is the file RealignDir leaves in a folder it has fully checked: a later call
+// skips the folder. A library rebuilt by today's encoder is aligned already, and a rebuild
+// moves the old folder (and its marker) aside, so the new one is checked once, cheaply.
+const RealignedMarker = ".ktx2-block-aligned"
+
+// RealignDir is the upgrade of a library folder written before the encoder aligned its images
+// (the weapon, first-person and Spartan piece libraries): every GLB (RealignFile) and standalone
+// KTX2 (RealignKTX2File) under `dir` with an image whose sides are not multiples of 4 is
+// realigned in place. It returns the files rewritten. A folder holding the marker, or absent, is
+// skipped; the marker is written only when every file was checked without error.
+func RealignDir(ctx context.Context, dir string, o Options) (int, error) {
+	if _, err := os.Stat(filepath.Join(dir, RealignedMarker)); err == nil {
+		return 0, nil
+	}
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return 0, nil
+	}
+	rewritten := 0
+	var firstErr error
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if cerr := ctx.Err(); cerr != nil {
+			return cerr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		var did bool
+		var ferr error
+		switch strings.ToLower(filepath.Ext(path)) {
+		case ".ktx2":
+			did, ferr = RealignKTX2File(path, o)
+		case ".glb":
+			var st Stats
+			st, ferr = RealignFile(ctx, path, nil, o)
+			did = st.Aligned > 0
+			if errors.Is(ferr, ErrNotGLB) {
+				ferr = nil // not a model (a stray or partial file): nothing to align
+			}
+		default:
+			return nil
+		}
+		if ferr != nil && firstErr == nil {
+			firstErr = ferr
+		}
+		if did {
+			rewritten++
+		}
+		return nil
+	})
+	if err == nil {
+		err = firstErr
+	}
+	if err != nil {
+		return rewritten, err
+	}
+	return rewritten, os.WriteFile(filepath.Join(dir, RealignedMarker), []byte("every KTX2 image here has sides that are multiples of 4\n"), 0o644) //nolint:gosec // marker
 }
 
 // RealignFile brings the KTX2 images of the GLB at `path` whose sides are not multiples of 4 to

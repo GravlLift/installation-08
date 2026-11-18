@@ -30,6 +30,9 @@ func TestMain(m *testing.M) {
 		main()
 		os.Exit(0)
 	}
+	// The startup's library realign runs in the caller here: in the background it could write
+	// into a test's temporary folder while the test removes it.
+	inBackground = func(f func()) { f() }
 	os.Exit(m.Run())
 }
 

@@ -196,3 +196,60 @@ func TestRealignFile(t *testing.T) {
 		t.Error("second pass rewrote the file")
 	}
 }
+
+// TestRealignDir — a library folder: a misaligned standalone KTX2 (a 1x1 color placeholder and a
+// 256x126 data map, as the first-person library held on 2026-11-18) is re-encoded block-aligned
+// with its class kept; an aligned one and a non-model file are left alone; the marker is written
+// and a second pass skips the folder.
+func TestRealignDir(t *testing.T) {
+	dir := t.TempDir()
+	sub := filepath.Join(dir, "rigs")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name string, w, h int, c Class) []byte {
+		data, err := basisu.Encode(fill(w, h, func(x, y int) color.NRGBA { return color.NRGBA{uint8(x), uint8(y), 7, 255} }), Preset(c))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(sub, name), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	write("one.ktx2", 1, 1, ClassColor)
+	write("wide.ktx2", 256, 126, ClassData)
+	even := write("even.ktx2", 8, 8, ClassColor)
+	if err := os.WriteFile(filepath.Join(dir, "broken.glb"), []byte("not a model"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	n, err := RealignDir(context.Background(), dir, Options{Workers: 1})
+	if err != nil || n != 2 {
+		t.Fatalf("rewrote %d (%v), want 2", n, err)
+	}
+	for name, want := range map[string][2]int{"one.ktx2": {4, 4}, "wide.ktx2": {256, 128}, "even.ktx2": {8, 8}} {
+		data, _ := os.ReadFile(filepath.Join(sub, name))
+		if w, h, ok := ktx2Size(data); !ok || w != want[0] || h != want[1] {
+			t.Errorf("%s: %dx%d (%v), want %v", name, w, h, ok, want)
+		}
+	}
+	if one, _ := os.ReadFile(filepath.Join(sub, "one.ktx2")); ktx2Class(one) != ClassColor {
+		t.Error("the color placeholder lost its sRGB class")
+	}
+	if wide, _ := os.ReadFile(filepath.Join(sub, "wide.ktx2")); ktx2Class(wide) != ClassData {
+		t.Error("the data map was re-encoded as color")
+	}
+	if got, _ := os.ReadFile(filepath.Join(sub, "even.ktx2")); !bytes.Equal(got, even) {
+		t.Error("an aligned file was rewritten")
+	}
+	if _, err := os.Stat(filepath.Join(dir, RealignedMarker)); err != nil {
+		t.Fatalf("marker: %v", err)
+	}
+	write("late.ktx2", 6, 6, ClassColor) // added after the marker: the folder is not walked again
+	if n, err := RealignDir(context.Background(), dir, Options{}); err != nil || n != 0 {
+		t.Errorf("second pass rewrote %d (%v)", n, err)
+	}
+	if n, err := RealignDir(context.Background(), filepath.Join(dir, "absent"), Options{}); err != nil || n != 0 {
+		t.Errorf("absent folder: %d, %v", n, err)
+	}
+}
