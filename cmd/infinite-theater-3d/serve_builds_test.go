@@ -25,6 +25,10 @@ func TestBuildLabels(t *testing.T) {
 		"variant:zzz":    "Forge layer",
 		"moda":           "Test Map map",
 		"modz":           "modz",
+		"abc":            "Test Map map",
+		meshjobs.JobKey("moda", meshjobs.QualityHigh):        "Test Map map (HQ)",
+		meshjobs.JobKey("variant:abc", meshjobs.QualityHigh): "Test Map Forge layer (HQ)",
+		meshjobs.JobKey("weapons", meshjobs.QualityHigh):     "Weapons (HQ)",
 	} {
 		if got := l.label(key); got != want {
 			t.Errorf("label(%q) = %q, want %q", key, got, want)

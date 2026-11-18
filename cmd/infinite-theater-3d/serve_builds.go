@@ -46,7 +46,20 @@ func (l *buildLabeler) stored() []store.Match {
 // label names one build key: a library by name, "variant:<match>" as "<map> Forge layer", a
 // map module as "<map> map" (the name of any stored match on that module), anything else as
 // the key itself.
+//
+// A High build's key carries the quality suffix (meshjobs.JobKey); it is named like its
+// Standard key with " (HQ)" after it, never shown raw. A bare match ID (a build keyed by its
+// match) is named by that match's map.
 func (l *buildLabeler) label(key string) string {
+	base, q := meshjobs.SplitQuality(key)
+	name := l.baseLabel(base)
+	if q == meshjobs.QualityHigh {
+		name += " (HQ)"
+	}
+	return name
+}
+
+func (l *buildLabeler) baseLabel(key string) string {
 	if s, ok := libraryLabels[key]; ok {
 		return s
 	}
@@ -59,7 +72,7 @@ func (l *buildLabeler) label(key string) string {
 		return "Forge layer"
 	}
 	for _, m := range l.stored() {
-		if m.MapModule == key && m.MapName != "" {
+		if (m.MapModule == key || m.MatchID == key) && m.MapName != "" {
 			return m.MapName + " map"
 		}
 	}
