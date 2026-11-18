@@ -27,6 +27,9 @@ export const HOME_CREDITS: readonly Credit[] = [
 /** The full credits: README's Credits section on GitHub. */
 export const FULL_CREDITS_URL = 'https://github.com/llampwall/infinite-theater-3d#credits'
 
+/** The author's GitHub profile, linked from the corner's last line. */
+export const MAKER_URL = 'https://github.com/llampwall'
+
 export function HomeCredits() {
   return (
     <nav className="bc-home-credits" aria-label="Credits">
@@ -43,6 +46,9 @@ export function HomeCredits() {
       </ul>
       <a className="bc-credits-more" href={FULL_CREDITS_URL} target="_blank" rel="noopener noreferrer">
         More in NOTICE
+      </a>
+      <a className="bc-credits-maker" href={MAKER_URL} target="_blank" rel="noopener noreferrer">
+        Made by Jordan Hewitt
       </a>
     </nav>
   )

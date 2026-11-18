@@ -144,7 +144,8 @@ body.bc-has-optimize-bar .bc-stage, body.bc-has-optimize-bar .bc-player { top: v
 .bc-credit-project { font-family: var(--display); font-stretch: 75%; font-size: 14px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink); text-decoration: none; transition: color 120ms; }
 .bc-credit-author { font-size: 12px; letter-spacing: 0.06em; color: var(--ink-dim); }
 .bc-credits-more { display: inline-block; margin-top: 6px; font-family: var(--display); font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--ink-faint); text-decoration: none; transition: color 120ms; }
-.bc-credit-project:hover, .bc-credit-project:focus-visible, .bc-credits-more:hover, .bc-credits-more:focus-visible { color: var(--air); }
+.bc-credits-maker { display: block; margin-top: 10px; font-size: 12px; letter-spacing: 0.06em; color: var(--ink-dim); text-decoration: none; transition: color 120ms; }
+.bc-credit-project:hover, .bc-credit-project:focus-visible, .bc-credits-more:hover, .bc-credits-more:focus-visible, .bc-credits-maker:hover, .bc-credits-maker:focus-visible { color: var(--air); }
 .bc-progress { height: 8px; margin-top: 14px; background: var(--studio-700); clip-path: polygon(0 0, 100% 0, calc(100% - 6px) 100%, 0 100%); }
 .bc-progress-fill { height: 100%; background: linear-gradient(90deg, var(--air-deep), var(--air)); transition: width 400ms ease; }
 .bc-firstrun-step { margin-top: 10px; font-family: var(--display); font-stretch: 75%; font-size: 17px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
