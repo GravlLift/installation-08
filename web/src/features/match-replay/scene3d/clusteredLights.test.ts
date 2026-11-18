@@ -32,7 +32,32 @@ describe('lamp grid', () => {
 })
 
 import { packAtlas } from './bakedLight'
-import { appendLampData } from './clusteredLights'
+import { appendLampData, fitLampGrid, LAMP_CELL_SIZE } from './clusteredLights'
+
+describe('fitLampGrid', () => {
+  const at = (x: number, y: number, z: number): PlacedLight => ({ ...lamp(0, 15), position: new THREE.Vector3(x, y, z) })
+  // A large map's lamps (Bazaar: 235): at 2 m cells, their box needs more atlas rows than
+  // WebGL2 guarantees.
+  const spread = Array.from({ length: 235 }, (_, i) => at((i * 37) % 600, ((i * 11) % 6) * 10, (i * 53) % 600))
+
+  it('keeps 2 m cells when they fit', () => {
+    expect(fitLampGrid([lamp(0, 2)], 1024, 0)?.size).toBe(LAMP_CELL_SIZE)
+  })
+  it('coarsens the cells until the tables fit, and the atlas then takes them', () => {
+    const grid = fitLampGrid(spread, 1024, 0)
+    expect(grid).not.toBeNull()
+    expect(grid!.size).toBeGreaterThan(LAMP_CELL_SIZE)
+    const atlas = packAtlas([])
+    expect(() => appendLampData(atlas, grid!, spread)).not.toThrow()
+    expect(atlas.irradiance.image.height).toBeLessThanOrEqual(2048)
+    expect(cellLamps(grid!, spread[7].position)).toContain(7)
+    atlas.irradiance.dispose()
+  })
+  it('answers null when even the coarsest cells do not fit, and with no lamp', () => {
+    expect(fitLampGrid(spread, 1024, 1024 * 2048 - 10)).toBeNull() // the probes fill the atlas
+    expect(fitLampGrid([], 1024, 0)).toBeNull()
+  })
+})
 
 it('files cells and indices into a shared float atlas', () => {
   const lamps = [lamp(0, 2)]

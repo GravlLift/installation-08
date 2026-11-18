@@ -40,18 +40,26 @@ function intersects(lamp: PlacedLight, min: THREE.Vector3, size: number): boolea
   return distance <= lamp.range * lamp.range
 }
 
+/** The grid's origin and cell counts: every lamp's sphere, in cells of `size`. */
+function gridBounds(lamps: readonly PlacedLight[], size: number): { min: THREE.Vector3; dims: THREE.Vector3 } {
+  const min = new THREE.Vector3(Infinity, Infinity, Infinity)
+  const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity)
+  for (const lamp of lamps) {
+    min.min(lamp.position.clone().addScalar(-lamp.range))
+    max.max(lamp.position.clone().addScalar(lamp.range))
+  }
+  min.divideScalar(size).floor().multiplyScalar(size)
+  const dims = max.sub(min).divideScalar(size).ceil().max(new THREE.Vector3(1, 1, 1))
+  return { min, dims }
+}
+
 /** Builds the lists of spheres touching each cell and counts the entries dropped. */
 export function buildLampGrid(lamps: readonly PlacedLight[], size = LAMP_CELL_SIZE): LampGrid {
   const grid: LampGrid = { min: new THREE.Vector3(), size, dims: new THREE.Vector3(), cells: [], indices: [], overflow: 0, maxBeforeCap: 0 }
   if (!lamps.length) return grid
-  const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity)
-  grid.min.set(Infinity, Infinity, Infinity)
-  for (const lamp of lamps) {
-    grid.min.min(lamp.position.clone().addScalar(-lamp.range))
-    max.max(lamp.position.clone().addScalar(lamp.range))
-  }
-  grid.min.divideScalar(size).floor().multiplyScalar(size)
-  grid.dims.copy(max.sub(grid.min).divideScalar(size)).ceil().max(new THREE.Vector3(1, 1, 1))
+  const bounds = gridBounds(lamps, size)
+  grid.min.copy(bounds.min)
+  grid.dims.copy(bounds.dims)
   const { x: nx, y: ny, z: nz } = grid.dims
   grid.cells = Array.from({ length: nx * ny * nz }, () => [])
   for (let i = 0; i < lamps.length; i++) {
@@ -77,6 +85,39 @@ export function buildLampGrid(lamps: readonly PlacedLight[], size = LAMP_CELL_SI
   return grid
 }
 
+/** The tallest atlas WebGL2 guarantees (its minimum MAX_TEXTURE_SIZE), and the float-index limit. */
+const ATLAS_MAX_HEIGHT = 2048
+const ATLAS_MAX_TEXELS = 16777216
+/** The coarsest cell fitLampGrid tries before leaving the lamps out. */
+export const LAMP_CELL_MAX = 64
+
+/** The atlas texels a grid's tables and records take after the probes. */
+function lampTexels(grid: LampGrid, lampCount: number): number {
+  return grid.cells.length + Math.ceil(grid.indices.length / 4) + lampCount * 3
+}
+
+/**
+ * fitLampGrid: the finest lamp grid (LAMP_CELL_SIZE, then doubling) whose tables fit in the
+ * atlas after its `base` probe texels at `width` texels a row; null when even LAMP_CELL_MAX
+ * cells do not. A large map's lamps spread over a box of 2 m cells could need more rows than
+ * WebGL2 guarantees (Bazaar, 235 lamps, 2026-11-18: the map did not load at all); a coarser cell
+ * lists more lamps per cell, of which the shader keeps the strongest MAX_CELL_LAMPS. The cell
+ * count is checked before a grid is built, so an oversized one is never allocated.
+ */
+export function fitLampGrid(lamps: readonly PlacedLight[], width: number, base: number): LampGrid | null {
+  if (!lamps.length || width <= 0) return null
+  const rows = (texels: number) => Math.ceil(texels / width)
+  for (let size = LAMP_CELL_SIZE; size <= LAMP_CELL_MAX; size *= 2) {
+    const { dims } = gridBounds(lamps, size)
+    const cells = dims.x * dims.y * dims.z
+    if (rows(base + cells + lamps.length * 3) > ATLAS_MAX_HEIGHT) continue
+    const grid = buildLampGrid(lamps, size)
+    const end = base + lampTexels(grid, lamps.length)
+    if (rows(end) <= ATLAS_MAX_HEIGHT && end < ATLAS_MAX_TEXELS) return grid
+  }
+  return null
+}
+
 /** Returns the indices of the cell containing a world point. */
 export function cellLamps(grid: LampGrid, point: THREE.Vector3): number[] {
   const p = point.clone().sub(grid.min).divideScalar(grid.size).floor()
@@ -93,7 +134,7 @@ export function appendLampData(atlas: import('./bakedLight').BakedAtlas, grid: L
   const records = list + Math.ceil(grid.indices.length / 4)
   const end = records + lamps.length * 3
   const height = Math.ceil(end / image.width)
-  if (height > 2048 || end >= 16777216) throw new Error('Lamp atlas too large for WebGL2')
+  if (height > ATLAS_MAX_HEIGHT || end >= ATLAS_MAX_TEXELS) throw new Error('Lamp atlas too large for WebGL2')
   const data = new Float32Array(image.width * height * 4)
   for (let i = 0; i < image.data.length; i++) data[i] = THREE.DataUtils.fromHalfFloat(image.data[i])
   let offset = 0

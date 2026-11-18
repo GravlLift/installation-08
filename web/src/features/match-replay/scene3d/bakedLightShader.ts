@@ -10,7 +10,7 @@
  * with no recompile, and light every grafted material, the map as much as the Spartans.
  */
 import * as THREE from 'three'
-import { appendLampData, buildLampGrid } from './clusteredLights'
+import { appendLampData, buildLampGrid, fitLampGrid, LAMP_CELL_MAX, LAMP_CELL_SIZE } from './clusteredLights'
 import { LAMP_APPLY, LAMP_HEAD } from './clusteredLightShader'
 import type { PlacedLight } from './placedLights'
 
@@ -189,8 +189,15 @@ export class BakedLight {
   private readonly hasLamps: boolean
 
   constructor(regions: readonly BakedRegion[], atlas: BakedAtlas, intensity: number, lamps: readonly PlacedLight[] = []) {
-    const grid = buildLampGrid(lamps)
-    const offsets = lamps.length ? appendLampData(atlas, grid, lamps) : null
+    const probes = atlas.irradiance.image as unknown as { width: number; height: number }
+    const fitted = fitLampGrid(lamps, probes.width, probes.width * probes.height)
+    if (lamps.length && !fitted) {
+      console.warn(`3D replay: ${lamps.length} map lamps do not fit the light atlas at ${LAMP_CELL_MAX} m cells; drawn without them`)
+    } else if (fitted && fitted.size !== LAMP_CELL_SIZE) {
+      console.info(`3D replay: lamp grid coarsened to ${fitted.size} m cells to fit the light atlas (${lamps.length} lamps)`)
+    }
+    const grid = fitted ?? buildLampGrid([])
+    const offsets = fitted ? appendLampData(atlas, fitted, lamps) : null
     this.hasLamps = offsets !== null
     // Highest priority first: the shader stops once they cover everything.
     this.regions = [...regions].sort((a, b) => b.priority - a.priority).slice(0, MAX_REGIONS)
