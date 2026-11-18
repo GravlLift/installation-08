@@ -395,15 +395,15 @@ function pointInstants(
   endMs: number,
   doc: ReplayDocumentReady,
 ): number[] | null {
-  const serie = (timeline?.teams ?? []).find((t) => t.teamId === owner)?.total
-  if (!serie || serie.length === 0) return null
+  const series = (timeline?.teams ?? []).find((t) => t.teamId === owner)?.total
+  if (!series || series.length === 0) return null
   const out: number[] = []
-  let precedent = 0
-  for (const marche of serie) {
-    const monte = marche.v > precedent
-    precedent = marche.v
-    if (!monte) continue
-    const ms = frameToMs(marche.t, doc)
+  let previous = 0
+  for (const step of series) {
+    const rising = step.v > previous
+    previous = step.v
+    if (!rising) continue
+    const ms = frameToMs(step.t, doc)
     if (ms >= startMs && ms <= endMs) out.push(ms)
   }
   return out

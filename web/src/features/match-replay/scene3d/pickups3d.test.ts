@@ -314,7 +314,7 @@ describe('Pickups3dLayer', () => {
     docOverrides: DocOverrides = {},
     floor: Pick<Ground, 'floorY'> = FLAT_FLOOR,
     ink: THREE.Color = new THREE.Color(0xff8c1a),
-    armory: ActionContext['armurerie'] = () => null,
+    armory: ActionContext['armory'] = () => null,
   ): { layer: Pickups3dLayer; counts: () => number[]; root: THREE.Group } {
     const root = new THREE.Group()
     const doc = {
@@ -346,7 +346,7 @@ describe('Pickups3dLayer', () => {
       grenadeModel: () => null,
       spartanModel: () => null,
       dressOf: () => null,
-      armurerie: armory,
+      armory,
       drawnWeapon: () => null,
       firstPersonSlot: () => null,
       flashes: new FlashLights(new THREE.Scene()),

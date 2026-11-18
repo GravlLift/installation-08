@@ -78,7 +78,7 @@ export interface ActionContext {
    * the pad, rack and ground weapons, `armory3d.paintObject`/`objectCoat`); null until it is posed
    * (the action layers may be built before the armor query answers).
    */
-  armurerie?: () => SpartanArmory | null
+  armory?: () => SpartanArmory | null
   /**
    * The weapon the scene draws in player `xuid`'s hand at the placed frame (`avatar3d.drawnWeapon`),
    * null without a drawn weapon: the muzzle flash is placed at the end of its own barrel.

@@ -427,7 +427,7 @@ export class Pickups3dLayer implements ActionLayer3d {
   private shownGround: GroundSpot[] = []
   /** The model keys this layer has already asked to paint (one request per model key, armory-side and layer-side). */
   private readonly paintRequested = new Set<string>()
-  /** The painted map-item model per source model (its default-style coat, `armurerie.objectCoat`); null while the coat is pending. */
+  /** The painted map-item model per source model (its default-style coat, `armory.objectCoat`); null while the coat is pending. */
   private readonly painted = new Map<THREE.Object3D, THREE.Object3D | null>()
   /** The painted copies (owned by this layer, with their painted materials). */
   private readonly paintedModels: THREE.Object3D[] = []
@@ -452,12 +452,12 @@ export class Pickups3dLayer implements ActionLayer3d {
 
   /**
    * paintedObject — the painted form of a loaded map-item `model` (its default-style coat, one per
-   * model key, `armurerie.objectCoat`); the bare model while the coat is pending. A map item is
+   * model key, `armory.objectCoat`); the bare model while the coat is pending. A map item is
    * painted before its glow copy, so the glow keeps the paint's shader hooks. Equipment objects
    * and a scene with no weapon library stay bare.
    */
   private paintedObject(id: string, model: THREE.Object3D): THREE.Object3D {
-    const armory = this.ctx.armurerie?.()
+    const armory = this.ctx.armory?.()
     const key = weaponModelKey(id)
     const coat = armory && key ? armory.objectCoat(key, model) : null
     if (!coat) return model
@@ -505,7 +505,7 @@ export class Pickups3dLayer implements ActionLayer3d {
    * once). An equipment object (no model key) or a scene with no weapon library: nothing.
    */
   private prepareObject(id: string): void {
-    const armory = this.ctx.armurerie?.()
+    const armory = this.ctx.armory?.()
     const key = weaponModelKey(id)
     if (!armory || !key) return
     if (this.paintRequested.has(key)) return

@@ -211,7 +211,7 @@ export function padIconRefFor(weapon: string, labels: PadLabels, titleSlug: stri
  * the request from the canonical register — never a hard-coded weapon table on the web
  * side), NOT THE HANDLING (`class`): it isolates exactly what a pad distributes and what an
  * opponent has an interest in picking up (S7 Sniper, Shock Rifle, SPNKr, Skewer, Cindershot,
- * Hydra, Épée, Marteau, Needler, Sentinel Beam) and leaves out the CQS48 Bulldog
+ * Hydra, Energy Sword, Gravity Hammer, Needler, Sentinel Beam) and leaves out the CQS48 Bulldog
  * (`shotgun`) and the starting arsenal. Measured: 17.4% of the published objects, but 65.3%
  * of the OBSERVED pickups — a picked-up weapon is almost two times out of three a weapon
  * that counts.

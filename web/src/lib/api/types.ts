@@ -2299,7 +2299,7 @@ export type EmpriseMapColumn = components['schemas']['EmpriseMapColumn']
 export type EmpriseEquipmentFamily = components['schemas']['EmpriseEquipmentFamily']
 export type TimeseriesLivesNearTeammate = components['schemas']['TimeseriesLivesNearTeammate']
 
-// ─── Sprint 54-C : Compare joueur vs joueur ───────────────────────────────────
+// ─── Sprint 54-C : Compare player vs player ───────────────────────────────────
 
 export interface NormalizedPlayerStats {
   xuid: string
