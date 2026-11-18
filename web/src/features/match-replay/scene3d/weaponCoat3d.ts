@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * weaponCoat3d.ts — A WEAPON'S PAINT FOR A PLAYER: the same core as armor's
- * (`armorCoat3d.paintMaterials`), on the weapon model's painted materials
+ * (`armorCoat3d.paintedMaterials`), on the weapon model's painted materials
  * (raw masks in `userData.armorMaps`, style in `userData.style`, loaded by
  * `weaponModels3d`), with the WEAPON LIBRARY's table and coatings
  * (`ArmorLibrary` over the served folder: the same file contract, `coatings.json`,
  * `coating-<key>.json`, `swatch-<id>.png`), with no visor.
  *
- * Named fallbacks, reported ONCE to the console (`reportArme`): unreadable table (all neutral),
+ * Named fallbacks, reported ONCE to the console (`reportWeaponCoat`): unreadable table (all neutral),
  * coating absent from the library (each list's default style), gradient not loaded
  * (neutral), and those of `armorCoating3d`.
  *
