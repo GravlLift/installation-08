@@ -23,7 +23,9 @@ if (uBakedOn > 0.5) {
       if (lampI >= lampCount) break;
       int lampIndexOffset = lampStart + lampI;
       vec4 lampIndices = lampTexel(uLampOffsets.y + lampIndexOffset / 4);
-      int lampIndex = int(lampIndices[lampIndexOffset % 4]);
+      // The component by a mask, not lampIndices[i]: Direct3D's compiler under ANGLE reads a
+      // vec4 indexed at run time as "potentially uninitialized" (warning X4000, every lit program).
+      int lampIndex = int(dot(lampIndices, vec4(equal(ivec4(lampIndexOffset % 4), ivec4(0, 1, 2, 3)))));
       vec4 lampPosition = lampTexel(uLampOffsets.z + lampIndex * 3);
       vec4 lampColor = lampTexel(uLampOffsets.z + lampIndex * 3 + 1);
       vec4 lampDirection = lampTexel(uLampOffsets.z + lampIndex * 3 + 2);
