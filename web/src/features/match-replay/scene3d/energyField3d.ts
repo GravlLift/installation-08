@@ -19,6 +19,7 @@ import * as THREE from 'three'
 import type { Coat } from './armorCoat3d'
 import { ZONES } from './armorCoating3d'
 import { VEC4_PER_SLOT } from './armorMaterial3d'
+import { cloneMaterial } from './cloneMaterial3d'
 
 /** The alpha blend mode the reader writes as `extras.melange` (`himap.MelangeAlpha`). */
 const MELANGE_ALPHA = 3
@@ -84,7 +85,7 @@ export function energyTintOf(coat: Coat, filter: (m: THREE.Material) => boolean 
 
 /** energyCopy: a copy of the energized material `m` lit in the weapon's tint. */
 export function energyCopy(m: THREE.MeshStandardMaterial, tint: EnergyTint): THREE.MeshStandardMaterial {
-  const copy = m.clone()
+  const copy = cloneMaterial(m)
   copy.emissive.setRGB(tint.color[0], tint.color[1], tint.color[2])
   copy.emissiveIntensity = tint.intensity
   return copy

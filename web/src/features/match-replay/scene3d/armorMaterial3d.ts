@@ -23,6 +23,7 @@
 import * as THREE from 'three'
 
 import { ZONES, type CoatingSwatch, type MaterialPaint, type PaintNote } from './armorCoating3d'
+import { cloneMaterial } from './cloneMaterial3d'
 
 /** Swatch slots: seven zones then the grime. */
 export const PAINT_SLOTS = ZONES + 1
@@ -182,7 +183,7 @@ export interface ArmorPaintInput {
  * no texture (masks and gradients belong to the library).
  */
 export function armorMaterial(base: THREE.MeshStandardMaterial, input: ArmorPaintInput): THREE.MeshStandardMaterial {
-  const m = base.clone()
+  const m = cloneMaterial(base)
   m.color.set(1, 1, 1)
   m.map = null
   const { maps, paint } = input

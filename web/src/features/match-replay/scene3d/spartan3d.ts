@@ -23,6 +23,7 @@ import { spartanClipsOf } from './clips3d'
 import { ClipRig } from './clipSample3d'
 import { rigSpartan, type SpartanRig } from './pose3d'
 import { dressSpartan } from './spartanArmor3d'
+import { cloneMaterial } from './cloneMaterial3d'
 
 export interface SpartanCopy {
   source: THREE.Object3D
@@ -79,7 +80,7 @@ const DEFAULT_ARMOR_TEAM_SHARE = 0.3
  * any light, with no dependence on the model's base color.
  */
 function tinted(m: THREE.Material, tint: THREE.Color): THREE.Material {
-  const c = m.clone()
+  const c = cloneMaterial(m)
   if (c instanceof THREE.MeshStandardMaterial) {
     c.map = null
     c.color.setScalar(ARMURE_NEUTRE).lerp(tint, DEFAULT_ARMOR_TEAM_SHARE)
@@ -94,7 +95,7 @@ function tinted(m: THREE.Material, tint: THREE.Color): THREE.Material {
  * not paint), a plain copy.
  */
 function paintMaterial(m: THREE.Material, paint: CoatPaint | undefined): THREE.Material {
-  if (!paint || !(m instanceof THREE.MeshStandardMaterial)) return m.clone()
+  if (!paint || !(m instanceof THREE.MeshStandardMaterial)) return cloneMaterial(m)
   return armorMaterial(m, paint)
 }
 
