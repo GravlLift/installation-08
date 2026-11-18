@@ -148,9 +148,14 @@ func ResolveForgeTarget(key string, names []string, v *mapvar.Variant, levelsDir
 		return mapmesh.Target{}, notBuildable("Forge canvas %s not installed", canvas)
 	}
 	anchors := variantAnchors(v)
+	if len(anchors) == 0 {
+		// A variant with no objective (free-for-all Slayer, an aim trainer): its placed objects
+		// are the map, so their positions frame the canvas and choose its played bsp.
+		anchors = objectPositions(v)
+	}
 	frame, ok := himap.BoiteDesAncres(anchors, himap.MargeCadreAncres)
 	if !ok {
-		return mapmesh.Target{}, notBuildable("variant %s places no objective: no anchor to frame its canvas", key)
+		return mapmesh.Target{}, notBuildable("variant %s places no objective and no object: nothing to frame its canvas", key)
 	}
 	return mapmesh.Target{Key: key, Module: module, MapModule: module, Names: names, Anchors: anchors, Frame: frame, MayBeEmpty: true}, nil
 }
@@ -161,6 +166,20 @@ func variantAnchors(v *mapvar.Variant) [][3]float64 {
 	seen := map[[3]float64]bool{}
 	var out [][3]float64
 	for _, o := range v.Objectives() {
+		a := [3]float64{o.Pos.X, o.Pos.Y, o.Pos.Z}
+		if !seen[a] {
+			seen[a] = true
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// objectPositions returns the world positions of every object the variant places, deduplicated.
+func objectPositions(v *mapvar.Variant) [][3]float64 {
+	seen := map[[3]float64]bool{}
+	var out [][3]float64
+	for _, o := range v.Objects {
 		a := [3]float64{o.Pos.X, o.Pos.Y, o.Pos.Z}
 		if !seen[a] {
 			seen[a] = true

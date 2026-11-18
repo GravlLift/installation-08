@@ -67,8 +67,20 @@ func TestResolveForgeTarget(t *testing.T) {
 		t.Error("a level_id that names no canvas resolved")
 	}
 	v.LevelID = 1437677928
-	v.Objects = v.Objects[2:]
+	// No objective (free-for-all, an aim trainer): the placed objects frame the canvas.
+	v.Objects = []mapvar.Object{{Pos: mapvar.Vec3{X: 1, Y: 2, Z: 0}}, {Pos: mapvar.Vec3{X: 30, Y: -4, Z: 5}}, {Pos: mapvar.Vec3{X: 1, Y: 2, Z: 0}}}
+	target, err = ResolveForgeTarget("asset", nil, v, levels)
+	if err != nil {
+		t.Fatalf("a variant without objectives: %v", err)
+	}
+	if len(target.Anchors) != 2 {
+		t.Errorf("anchors %v, want the two distinct object positions", target.Anchors)
+	}
+	if want := [4]float64{1 - m, -4 - m, 30 + m, 2 + m}; target.Frame != want {
+		t.Errorf("frame %v, want %v", target.Frame, want)
+	}
+	v.Objects = nil
 	if _, err := ResolveForgeTarget("asset", nil, v, levels); err == nil {
-		t.Error("a variant without objectives resolved")
+		t.Error("a variant without objectives or objects resolved")
 	}
 }
