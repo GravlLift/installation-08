@@ -177,6 +177,23 @@ describe('useMeshBuild', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
+  it('asks nothing until it has a match id, then checks that match', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ state: 'ready', moduleKey: 'mod-e' }))
+    const { result, rerender } = renderHook(({ id }) => useMeshBuild(id, 1000), { initialProps: { id: '' } })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000)
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(result.current.phase).toEqual({ phase: 'checking' })
+
+    rerender({ id: 'match-5' })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/matches/match-5/mesh/state')
+    expect(result.current.phase).toEqual({ phase: 'ready', moduleKey: 'mod-e' })
+  })
+
   it('re-checks state at the new quality when the quality switches', async () => {
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ state: 'ready', moduleKey: 'mod-g' })) // standard check

@@ -100,12 +100,15 @@ export function useMeshBuild(
   useEffect(() => {
     const controller = new AbortController()
     setPhase({ phase: 'checking' })
+    // No match yet (the pre-game passes '' until its document asks for a build): nothing to
+    // check. Asking anyway sends GET /api/matches//mesh/state, a 404 on every pre-game.
+    if (!matchId) return () => controller.abort()
     void (async () => {
       try {
         const body = await fetchMeshState(matchId, controller.signal, quality)
         if (controller.signal.aborted) return
         const checked = phaseOfMeshState(body)
-        if (matchId && autoBuildRef.current && canStartBuild(checked)) {
+        if (autoBuildRef.current && canStartBuild(checked)) {
           setPhase({ phase: 'queued', moduleKey: moduleKeyOf(checked) })
           const started = await requestMeshBuild(matchId, controller.signal, quality)
           if (controller.signal.aborted) return
