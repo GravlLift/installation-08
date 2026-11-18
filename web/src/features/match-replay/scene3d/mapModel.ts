@@ -20,7 +20,7 @@ import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 import { acceleratedRaycast, computeBoundsTree } from 'three-mesh-bvh'
 
 import { buildBackFaces } from './backFaces3d'
-import { deserializeBVHCache, serializeBVHCache } from './bvhCache'
+import { bvhCacheBytes, deserializeBVHCache, MAX_BVH_SIDECAR_BYTES, serializeBVHCache } from './bvhCache'
 import { intensiteSoleil, lireCiel, sunColorOf } from './ciel3d'
 import { GlowAnimator, readGlowAnim } from './glowAnimation3d'
 import { loadBakedLight, type BakedLight } from './bakedLightShader'
@@ -653,7 +653,12 @@ async function indexSurfaces({ scene, groups, owned, glowAnimation }: Prepared, 
     measureDuration(`${label}:bvh-see-through`, seeThroughMs)
     // Deferred: `serializeBVHCache` walks every tree in `bvh` again: left as a thunk, run by the
     // caller once the scene is shown, not here on the cold load's critical path.
-    if (bvh.length > 0) bvhUpload = () => serializeBVHCache(bvh)
+    // A sidecar over the server's cap is refused: none is packed (see `bvhCacheBytes`).
+    if (bvh.length > 0) {
+      const bytes = bvhCacheBytes(bvh)
+      if (bytes <= MAX_BVH_SIDECAR_BYTES) bvhUpload = () => serializeBVHCache(bvh)
+      else console.info(`3D replay: ${label} ray index ${(bytes / 1048576).toFixed(0)} MiB, over the sidecar cap: not stored`)
+    }
   }
   onStep('index', bvh.length, bvh.length)
   timedSync(`${label}:bounds`, () => {

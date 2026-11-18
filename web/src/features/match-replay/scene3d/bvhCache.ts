@@ -65,38 +65,64 @@ function buildOptionsEqual(a: Record<string, unknown>, b: Record<string, unknown
 }
 
 /**
+ * The largest sidecar the server stores (`maxBVHSidecarBytes`, cmd/infinite-theater-3d/serve_bvh.go):
+ * a bigger one is refused, so packing and sending it only costs memory. Keep the two in step.
+ */
+export const MAX_BVH_SIDECAR_BYTES = 256 * 1024 * 1024
+
+/** The buffers `MeshBVH.serialize` exposes for `geometry`, by reference (nothing is copied). */
+function serializedOf(geometry: THREE.BufferGeometry): SerializedBVHData {
+  const bvh = geometry.boundsTree
+  if (!bvh) throw new Error('bvhCache: geometry has no bounds tree to serialize')
+  return MeshBVH.serialize(bvh, { cloneBuffers: false }) as unknown as SerializedBVHData
+}
+
+/**
+ * bvhCacheBytes is the payload size `serializeBVHCache` would write for `geometries` (the JSON
+ * header aside), measured on the trees' own buffers without copying any. Breaker's index is about
+ * 0.7 GB: over `MAX_BVH_SIDECAR_BYTES`, its pack and upload were refused on every load while their
+ * copies pushed the page into the renderer's memory limit (2026-11-18).
+ */
+export function bvhCacheBytes(geometries: readonly THREE.BufferGeometry[]): number {
+  let bytes = 0
+  for (const geometry of geometries) {
+    const data = serializedOf(geometry)
+    for (const root of data.roots) bytes += root.byteLength
+    bytes += (data.index?.byteLength ?? 0) + (data.indirectBuffer?.byteLength ?? 0)
+  }
+  return bytes
+}
+
+/**
  * serializeBVHCache packs the bounds trees of `geometries` (each must already carry one, from
  * `computeBoundsTree`) into one binary file, in the given order. The order is the cache key's
  * other half: `deserializeBVHCache` matches each entry back to `geometries[i]` by position, never
  * by identity, so the caller must traverse the GLB the same deterministic way both times (as
- * `indexSurfaces` does).
+ * `indexSurfaces` does). Each tree buffer is copied once, straight into the file.
  */
 export function serializeBVHCache(geometries: readonly THREE.BufferGeometry[]): ArrayBuffer {
-  const parts: ArrayBuffer[] = []
+  const parts: Uint8Array[] = []
   const geomHeaders: GeometryHeader[] = []
   let offset = 0
-  const push = (buf: ArrayBuffer): BufferSpan => {
-    const span = { offset, length: buf.byteLength }
-    parts.push(buf)
-    offset += buf.byteLength
+  const push = (bytes: Uint8Array): BufferSpan => {
+    const span = { offset, length: bytes.byteLength }
+    parts.push(bytes)
+    offset += bytes.byteLength
     return span
   }
   for (const geometry of geometries) {
-    const bvh = geometry.boundsTree
-    if (!bvh) throw new Error('bvhCache: geometry has no bounds tree to serialize')
-    const data = MeshBVH.serialize(bvh, { cloneBuffers: false }) as unknown as SerializedBVHData
+    const data = serializedOf(geometry)
     const position = geometry.getAttribute('position')
     const indexAttr = geometry.getIndex()
-    const roots = data.roots.map((root) => push(root))
+    const roots = data.roots.map((root) => push(new Uint8Array(root)))
     let indexSpan: BufferSpan | null = null
     let indexBytesPerElement = 0
     if (data.index) {
       const view = data.index
-      const buf = view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength) as ArrayBuffer
-      indexSpan = push(buf)
+      indexSpan = push(new Uint8Array(view.buffer, view.byteOffset, view.byteLength))
       indexBytesPerElement = view.BYTES_PER_ELEMENT
     }
-    const indirectSpan = data.indirectBuffer ? push(data.indirectBuffer) : null
+    const indirectSpan = data.indirectBuffer ? push(new Uint8Array(data.indirectBuffer)) : null
     geomHeaders.push({
       vertexCount: position ? position.count : 0,
       indexCount: indexAttr ? indexAttr.count : 0,
@@ -118,7 +144,7 @@ export function serializeBVHCache(geometries: readonly THREE.BufferGeometry[]): 
   out.set(headerBytes, 4)
   let at = 4 + headerBytes.byteLength
   for (const part of parts) {
-    out.set(new Uint8Array(part), at)
+    out.set(part, at)
     at += part.byteLength
   }
   return out.buffer

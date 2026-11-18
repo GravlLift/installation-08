@@ -7,7 +7,7 @@ import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh'
 
-import { BVH_BUILD_OPTIONS, deserializeBVHCache, serializeBVHCache } from './bvhCache'
+import { BVH_BUILD_OPTIONS, bvhCacheBytes, deserializeBVHCache, serializeBVHCache } from './bvhCache'
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree
@@ -88,6 +88,19 @@ describe('serializeBVHCache / deserializeBVHCache', () => {
 
     original.disposeBoundsTree()
     restored.disposeBoundsTree?.()
+  })
+
+  it('measures the payload it writes without packing it (bvhCacheBytes)', () => {
+    const a = quadGeometry()
+    const b = quadGeometry()
+    a.computeBoundsTree(BVH_BUILD_OPTIONS)
+    b.computeBoundsTree(BVH_BUILD_OPTIONS)
+    const packed = serializeBVHCache([a, b])
+    const headerLen = new DataView(packed).getUint32(0, true)
+    expect(bvhCacheBytes([a, b])).toBe(packed.byteLength - 4 - headerLen)
+    expect(bvhCacheBytes([a, b])).toBeGreaterThan(0)
+    a.disposeBoundsTree()
+    b.disposeBoundsTree()
   })
 
   it('refuses a geometry-count mismatch, touching nothing', () => {
