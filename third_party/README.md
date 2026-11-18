@@ -71,6 +71,17 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
   and placed objects, layered materials and height blend, cut-out materials, baked light
   probes and lamps, sun and sky, terrain heightfields, weapons, armor pieces (117 new files,
   15 modified). New dependency: `github.com/woozymasta/bcn` v0.7.0.
+  - `himap/maillage_monde.go` (`dansCadreVista`, `rayonVista`, LOCAL-CHANGE): the build's
+    frame crop keeps, beyond the instances touching the played rectangle, the far geometry a
+    3D viewer sees on the horizon (the map's mountains, named in structures outside the played
+    frame): instances whose AABB sits beyond `rayonVista` of the frame center, `4x` the longest
+    frame side, floored at 300 units. Selected after a distance census of `sgh_interlock`: the
+    mountain family holds 1,776,518 triangles at 700–2000 units, all `decor`, while every other
+    structure's outside-frame geometry stays within 300 units.
+    `go run ./cmd/infinite-theater-3d build-mesh` uses it (`CadreMaillage` call sites); the 2D
+    background build keeps `dansCadre`.
+  - `go.sum` gained the missing entries for its own dependencies (bcn, x/sys); it still
+    builds through the root module's `files-reader` replace, as before.
   - `himap/arsenal_roster.go` (new, LOCAL-CHANGE): `Arsenal.RosterArmes` enumerates every
     weapon's `weap` GlobalID in the installed modules (the weapon-settings group does not
     exist in the game; the `weap` tags themselves are the roster). It reads the unexported

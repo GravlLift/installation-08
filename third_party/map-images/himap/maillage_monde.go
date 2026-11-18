@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 )
 
 // MaillageMonde est la geometrie d'une carte en repere monde, en deux groupes : la STRUCTURE
@@ -126,7 +127,7 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 	}
 	defer func() { _ = idx.Close() }()
 	out := &MaillageMonde{BSP: bsp.GlobalID}
-	bsp, out.HorsCadre = bsp.dansCadre(opts.CadreMaillage)
+	bsp, out.HorsCadre = bsp.dansCadreVista(opts.CadreMaillage)
 	ajoute := func(m *Mesh, in Instance, estDecor, horsPasse bool) {
 		g := &out.Structure
 		if horsPasse {
@@ -154,7 +155,7 @@ func CollecteMaillageMonde(ctx context.Context, opts OptionsCuisson) (*MaillageM
 		if !estNomme(autre.GlobalID, nommes) {
 			continue
 		}
-		autre, _ = autre.dansCadre(opts.CadreMaillage)
+		autre, _ = autre.dansCadreVista(opts.CadreMaillage)
 		ParcourtInstances(ctx, idx, autre, ajoute)
 	}
 	out.posePlacements(ctx, idx, opts)
@@ -329,6 +330,53 @@ func (b BSPInstances) dansCadre(cadre [4]float64) (BSPInstances, int) {
 	ecartees := len(b.Instances) - len(gardees)
 	b.Instances = gardees
 	return b, ecartees
+}
+
+// dansCadreVista [LOCAL-CHANGE] rend le bsp reduit aux instances que la vue 3D garde : celles de
+// `dansCadre` (boite monde touchant le rectangle) PLUS le lointain que le joueur voit a
+// l'horizon (les montagnes de la carte, posees dans les structures nommees loin de la zone
+// jouee et ecartees par `dansCadre`) : les instances dont la boite est au-dela du rayon du
+// lointain (`rayonVista`) du centre du rectangle. Le cadre vide garde tout (meme convention).
+func (b BSPInstances) dansCadreVista(cadre [4]float64) (BSPInstances, int) {
+	if cadre[2] <= cadre[0] || cadre[3] <= cadre[1] {
+		return b, 0
+	}
+	centre := [3]float64{(cadre[0] + cadre[2]) / 2, (cadre[1] + cadre[3]) / 2, 0}
+	rayon := rayonVista(cadre)
+	gardees := make([]Instance, 0, len(b.Instances))
+	for _, in := range b.Instances {
+		touche := in.AABBMax[0] >= cadre[0] && in.AABBMin[0] <= cadre[2] &&
+			in.AABBMax[1] >= cadre[1] && in.AABBMin[1] <= cadre[3]
+		if !touche {
+			d2 := 0.0
+			for k := 0; k < 3; k++ {
+				c := centre[k]
+				if c < in.AABBMin[k] {
+					c = in.AABBMin[k]
+				}
+				if c > in.AABBMax[k] {
+					c = in.AABBMax[k]
+				}
+				d := c - centre[k]
+				d2 += d * d
+			}
+			if math.Sqrt(d2) <= rayon {
+				continue
+			}
+		}
+		gardees = append(gardees, in)
+	}
+	ecartees := len(b.Instances) - len(gardees)
+	b.Instances = gardees
+	return b, ecartees
+}
+
+// rayonVista [LOCAL-CHANGE] : au-dela de ce rayon du centre du cadre, on garde les instances
+// comme lointain de la vue. Quatre fois le plus grand cote du cadre, plancher a 300 unites :
+// le lointain d'une carte est vu de loin, dans son LOD le plus grossier.
+func rayonVista(cadre [4]float64) float64 {
+	cote := max(cadre[2]-cadre[0], cadre[3]-cadre[1])
+	return max(300, 4*cote)
 }
 
 func dansBoite(p, lo, hi [3]float64) bool {
