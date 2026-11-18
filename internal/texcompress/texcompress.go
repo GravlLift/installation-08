@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -547,9 +548,14 @@ func compress(ctx context.Context, r io.ReaderAt, size int64, w io.Writer, o Opt
 // image that fails to decode or encode fails the pass: a build must not publish a GLB whose
 // texture silently went missing.
 func encodeAll(ctx context.Context, r io.ReaderAt, binOff int64, views []view, jobs []job, preset func(Class) basisu.Options, o Options, store blobs) ([]result, error) {
+	// Every logical CPU, each worker on its own OS thread at below-normal priority: the encoder
+	// is single-threaded per image, so the pool is all the parallelism there is. Half the CPUs
+	// (the old default) left a 14-core/20-thread machine with idle cores through a 5 minute
+	// High pass; the lower priority is what keeps the game, the viewer and the desktop
+	// responsive instead of the smaller pool.
 	workers := o.Workers
 	if workers <= 0 {
-		workers = max(1, runtime.NumCPU()/2)
+		workers = max(1, runtime.NumCPU())
 	}
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -566,6 +572,10 @@ func encodeAll(ctx context.Context, r io.ReaderAt, binOff int64, views []view, j
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+			// Locked and never unlocked: the thread ends with this goroutine, so its lowered
+			// priority never passes to other goroutines (HTTP handlers) through the thread pool.
+			runtime.LockOSThread()
+			lowerThreadPriority()
 			for k := range next {
 				jb := jobs[k]
 				v := views[jb.view]
@@ -606,8 +616,15 @@ func encodeAll(ctx context.Context, r io.ReaderAt, binOff int64, views []view, j
 			}
 		}()
 	}
+	// Largest images first, so the pass does not end on one big texture encoding alone while
+	// every other worker sits idle.
+	order := make([]int, len(jobs))
+	for k := range order {
+		order[k] = k
+	}
+	sort.SliceStable(order, func(a, b int) bool { return views[jobs[order[a]].view].n > views[jobs[order[b]].view].n })
 feed:
-	for k := range jobs {
+	for _, k := range order {
 		select {
 		case next <- k:
 		case <-ctx.Done():
