@@ -16,6 +16,7 @@ import (
 	"unicode"
 
 	"github.com/llampwall/infinite-theater-3d/internal/build"
+	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 )
 
@@ -34,6 +35,38 @@ type listSummary struct {
 	Outcome      string  `json:"outcome,omitempty"`
 	ScoreMine    *int    `json:"scoreMine,omitempty"`
 	ScoreTheirs  *int    `json:"scoreTheirs,omitempty"`
+	// ReadyStandard / ReadyHigh: the match's map mesh and (when it has a map variant) its
+	// variant layer are on disk in the current build format at that quality, so opening it at
+	// that quality loads without a build. Maps build only when a match is opened, so the list
+	// marks which ones are ready, per quality (each quality is its own build).
+	ReadyStandard bool `json:"readyStandard"`
+	ReadyHigh     bool `json:"readyHigh"`
+}
+
+// markMapsReady sets ReadyStandard and ReadyHigh on each row through ready (the build runner's
+// own readiness check). Each distinct map mesh is checked once per quality.
+func markMapsReady(rows []listSummary, ready func(string) bool, hasVariant func(id string) bool) {
+	meshes := map[string]bool{}
+	readyAt := func(row listSummary, quality meshjobs.Quality) bool {
+		key := meshKeyOf(row.Match)
+		if key == "" {
+			return false
+		}
+		meshKey := meshjobs.JobKey(key, quality)
+		ok, seen := meshes[meshKey]
+		if !seen {
+			ok = ready(meshKey)
+			meshes[meshKey] = ok
+		}
+		if ok && hasVariant(row.MatchID) {
+			ok = ready(meshjobs.JobKey(variantPrefix+row.MatchID, quality))
+		}
+		return ok
+	}
+	for i := range rows {
+		rows[i].ReadyStandard = readyAt(rows[i], meshjobs.QualityStandard)
+		rows[i].ReadyHigh = readyAt(rows[i], meshjobs.QualityHigh)
+	}
 }
 
 // matchlistEntry is one match's derived list fields plus the score and outcome the context

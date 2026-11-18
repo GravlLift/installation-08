@@ -51,12 +51,32 @@ function navigate(path: string): void {
   window.location.hash = path
 }
 
+/** A stored match's map-ready marks: STD and HQ, lit when the map is built at that quality (it
+ *  loads at once), dim when opening it at that quality starts a build. Maps build only when a
+ *  match is opened, so these say which matches are ready. */
+function ReadyMarks({ match }: { match: MatchSummary }) {
+  const mark = (label: string, quality: string, ready: boolean | undefined) => (
+    <span
+      className={'bc-ready' + (ready ? ' on' : '')}
+      title={ready ? `${quality} quality: built, loads at once` : `${quality} quality: not built yet, builds when opened`}
+    >
+      {label}
+    </span>
+  )
+  return (
+    <span className="bc-ready-marks">
+      {mark('STD', 'Standard', match.readyStandard)}
+      {mark('HQ', 'High', match.readyHigh)}
+    </span>
+  )
+}
+
 /** The one list's rows as FocusList items: the row's text and its right side (the score, or
  *  the fetch state for a not-stored row). */
 function listItemOf(
   row: MatchRow,
   phaseOf: (matchId: string) => import('./useMatchFetchQueue').FetchRowPhase,
-): { id: string; name: string; sub: string; aside: ReactNode } {
+): { id: string; name: string; sub: string; aside: ReactNode; marks?: ReactNode } {
   if (row.kind === 'stored') {
     const m = row.match
     const name = cleanMapName(m.mapName || m.mapModule || m.matchId)
@@ -68,6 +88,7 @@ function listItemOf(
       id: m.matchId,
       name,
       sub,
+      marks: <ReadyMarks match={m} />,
       aside: aside ? (
         <div className="bc-result">
           <span className="bc-result-score">{aside.score}</span>
@@ -289,6 +310,10 @@ export function MatchSelectScreen() {
         : matches.phase === 'unreachable'
           ? 'Server not reachable'
           : `${stored.length} match${stored.length === 1 ? '' : 'es'} stored`}
+    </span>,
+    // The legend of the rows' map-ready marks.
+    <span key="ready-legend">
+      <span className="bc-ready on">STD</span> <span className="bc-ready on">HQ</span> map built, loads at once
     </span>,
   ]
   const recentLabel = searched ? listCaption(searched) : 'recent matches'

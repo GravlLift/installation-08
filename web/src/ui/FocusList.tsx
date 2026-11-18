@@ -13,7 +13,8 @@ import { useFocusList } from './useFocusList'
 export interface FocusListProps {
   /** One entry per row; the row's text comes from `name` and `sub`. */
   /** id is the row's stable key when names can repeat (two matches on one map). */
-  items: { id?: string; name: string; sub?: string; aside?: ReactNode }[]
+  /** marks: small badges shown after the name (the match list's map-ready marks). */
+  items: { id?: string; name: string; sub?: string; aside?: ReactNode; marks?: ReactNode }[]
   /** Selects the focused row (Enter or a click). */
   onSelect?: (index: number) => void
   /** Back action on Escape, when given. */
@@ -59,7 +60,10 @@ export function FocusList(props: FocusListProps) {
           onClick={() => onClick(i)}
         >
           <div>
-            <div className="bc-name">{item.name}</div>
+            <div className="bc-name">
+              {item.name}
+              {item.marks}
+            </div>
             {item.sub ? <div className="bc-sub">{item.sub}</div> : null}
           </div>
           {item.aside}

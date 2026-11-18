@@ -19,6 +19,7 @@ import (
 
 	"github.com/llampwall/infinite-theater-3d/internal/haloapi"
 	"github.com/llampwall/infinite-theater-3d/internal/haloauth"
+	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 )
 
@@ -240,4 +241,30 @@ func TestRemoteMatchesCarryMapAssetAndImage(t *testing.T) {
 	}
 	raw, _ := json.Marshal(rows[0])
 	t.Logf("example remote entry: %s", raw)
+}
+
+// TestMarkMapsReady — a row is ready at a quality when its map mesh is ready at that quality and,
+// for a match with a map variant, its variant layer is ready at that quality too; a shared mesh
+// is checked once per quality.
+func TestMarkMapsReady(t *testing.T) {
+	rows := []listSummary{
+		{Match: store.Match{MatchID: "aaaa", MapModule: "moda"}}, // Standard mesh ready, no variant
+		{Match: store.Match{MatchID: "bbbb", MapModule: "moda"}}, // Standard mesh ready, variant not built
+		{Match: store.Match{MatchID: "cccc", MapModule: "modb"}}, // only the High mesh built
+		{Match: store.Match{MatchID: "dddd", MapModule: "moda"}}, // Standard mesh and variant ready
+	}
+	high := func(k string) string { return meshjobs.JobKey(k, meshjobs.QualityHigh) }
+	ready := map[string]bool{"moda": true, "variant:dddd": true, high("modb"): true}
+	checks := map[string]int{}
+	markMapsReady(rows, func(m string) bool { checks[m]++; return ready[m] },
+		func(id string) bool { return id == "bbbb" || id == "dddd" })
+	want := map[string][2]bool{"aaaa": {true, false}, "bbbb": {false, false}, "cccc": {false, true}, "dddd": {true, false}}
+	for _, r := range rows {
+		if got := [2]bool{r.ReadyStandard, r.ReadyHigh}; got != want[r.MatchID] {
+			t.Errorf("%s: [standard high] = %v, want %v", r.MatchID, got, want[r.MatchID])
+		}
+	}
+	if checks["moda"] != 1 || checks[high("moda")] != 1 {
+		t.Errorf("moda checked %d/%d times (standard/high), want once each", checks["moda"], checks[high("moda")])
+	}
 }

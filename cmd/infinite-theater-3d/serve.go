@@ -331,7 +331,10 @@ func (h serverHandlers) handleMatches(w http.ResponseWriter, r *http.Request) {
 	if ms == nil {
 		ms = []store.Match{}
 	}
-	writeJSON(w, http.StatusOK, matchlistEnriched(h.root, ms, h.matchlistAccountName(), h.listCache))
+	rows := matchlistEnriched(h.root, ms, h.matchlistAccountName(), h.listCache)
+	markMapsReady(rows, func(module string) bool { return jobModuleReady(h.root, module) },
+		func(id string) bool { return hasMatchMvar(h.root, id) })
+	writeJSON(w, http.StatusOK, rows)
 }
 
 // matchlistAccountName is the signed-in account's gamertag ("" when none is known): the

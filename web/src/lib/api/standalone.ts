@@ -30,6 +30,10 @@ export interface MatchSummary {
   outcome?: string
   scoreMine?: number
   scoreTheirs?: number
+  /** The map (and its variant layer) is built at Standard / High quality: opening the match at
+   *  that quality loads without a build. Absent from an older server. */
+  readyStandard?: boolean
+  readyHigh?: boolean
 }
 
 /** The JSON body of a 404 from `/mesh.glb` when the map's mesh has not been built. */
