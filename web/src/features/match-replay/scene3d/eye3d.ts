@@ -12,30 +12,30 @@
 import { CROUCH_DROP } from './body3d'
 
 /** Fade time (seconds) of the drop when crouching or a slide starts. */
-export const DUREE_ENTREE_OEIL = 0.2
+export const EYE_IN_DURATION = 0.2
 /** Time (seconds) for the eye to return to standing height once the last span ends. */
-export const DUREE_SORTIE_OEIL = 0.25
+export const EYE_OUT_DURATION = 0.25
 
-/** A merged drop span: [t0, fin) in frames, the end exclusive. */
-export interface IntervalleOeil {
+/** A merged drop span: [t0, end) in frames, the end exclusive. */
+export interface EyeInterval {
   t0: number
-  fin: number
+  end: number
 }
 
-/** No span: the shared empty list (no allocation per `dropOeil` call). */
-export const SANS_INTERVALLE: readonly IntervalleOeil[] = []
+/** No span: the shared empty list (no allocation per `eyeDrop` call). */
+export const NO_INTERVALS: readonly EyeInterval[] = []
 
 /**
- * fusionnerIntervallees sorts and merges the half-open spans [t0, fin): ones that touch or
+ * mergeIntervals sorts and merges the half-open spans [t0, end): ones that touch or
  * overlap become one, without changing the union's bounds.
  */
-export function fusionnerIntervallees(liste: readonly IntervalleOeil[]): IntervalleOeil[] {
-  const sorted = [...liste].sort((a, b) => a.t0 - b.t0)
-  const merged: IntervalleOeil[] = []
+export function mergeIntervals(list: readonly EyeInterval[]): EyeInterval[] {
+  const sorted = [...list].sort((a, b) => a.t0 - b.t0)
+  const merged: EyeInterval[] = []
   for (const it of sorted) {
     const last = merged[merged.length - 1]
-    if (last && it.t0 <= last.fin) {
-      if (it.fin > last.fin) last.fin = it.fin
+    if (last && it.t0 <= last.end) {
+      if (it.end > last.end) last.end = it.end
     } else merged.push({ ...it })
   }
   return merged
@@ -48,19 +48,19 @@ function smoothstep(u: number): number {
 }
 
 /**
- * dropOeil: the eye's drop in world units at fractional frame `f` — 0 standing, CROUCH_DROP fully
- * crouched or in a slide. Fades over `entree` frames on entry, `sortie` on exit; for a span
+ * eyeDrop: the eye's drop in world units at fractional frame `f` — 0 standing, CROUCH_DROP fully
+ * crouched or in a slide. Fades over `enter` frames on entry, `exit` on exit; for a span
  * shorter than the fade, the drop is the entry fade capped by the exit fade (never a jump, never
- * past what the entry reached). `intervallees`: the slot's merged, sorted spans
- * (`fusionnerIntervallees`).
+ * past what the entry reached). `intervals`: the slot's merged, sorted spans
+ * (`mergeIntervals`).
  */
-export function dropOeil(intervallees: readonly IntervalleOeil[], f: number, entree: number, sortie: number): number {
-  if (intervallees.length === 0) return 0
+export function eyeDrop(intervals: readonly EyeInterval[], f: number, enter: number, exit: number): number {
+  if (intervals.length === 0) return 0
   // The last span started (t0 <= f); after it, nothing has entered yet.
-  let lo = 0, hi = intervallees.length
+  let lo = 0, hi = intervals.length
   while (lo < hi) {
     const m = (lo + hi) >> 1
-    if (intervallees[m].t0 <= f) lo = m + 1
+    if (intervals[m].t0 <= f) lo = m + 1
     else hi = m
   }
   const high = lo - 1
@@ -69,14 +69,14 @@ export function dropOeil(intervallees: readonly IntervalleOeil[], f: number, ent
   lo = 0; hi = high + 1
   while (lo < hi) {
     const m = (lo + hi) >> 1
-    if (intervallees[m].fin > f - sortie) hi = m
+    if (intervals[m].end > f - exit) hi = m
     else lo = m + 1
   }
   let max = 0
   for (let i = lo; i <= high; i++) {
-    const it = intervallees[i]
-    const fadeIn = smoothstep((f - it.t0) / entree)
-    const fadeOut = 1 - smoothstep((f - it.fin) / sortie)
+    const it = intervals[i]
+    const fadeIn = smoothstep((f - it.t0) / enter)
+    const fadeOut = 1 - smoothstep((f - it.end) / exit)
     const v = fadeIn < fadeOut ? fadeIn : fadeOut
     if (v > max) max = v
   }

@@ -7,7 +7,7 @@ import { magazineAtReload } from '../model/reloadMagazine'
 import { reloadReadings } from '../model/reloadStarts'
 
 import type { Span } from './clipSelect3d'
-import { episodesRechargement, type EpisodeRechargement } from './firstPersonReload3d'
+import { reloadEpisodes, type ReloadEpisode } from './firstPersonReload3d'
 import type { Tracks3d } from './tracks3d'
 
 export function actionsParSlot(doc: ReplayDocumentReady, kind: string): Map<number, number[]> {
@@ -37,11 +37,11 @@ export function rechargementsParSlot(doc: ReplayDocumentReady): { debuts: Map<nu
 }
 
 /**
- * episodesRechargementParSlot: each life's reload episodes (`episodesRechargement`) on the frame grid,
+ * episodesRechargementParSlot: each life's reload episodes (`reloadEpisodes`) on the frame grid,
  * each marked with whether the in-hand magazine was empty at its start (`magazineAtReload`).
  */
-export function episodesRechargementParSlot(doc: ReplayDocumentReady): Map<number, EpisodeRechargement[]> {
-  const out = new Map<number, EpisodeRechargement[]>()
+export function episodesRechargementParSlot(doc: ReplayDocumentReady): Map<number, ReloadEpisode[]> {
+  const out = new Map<number, ReloadEpisode[]>()
   const fps = framesPerSecond(doc)
   for (const [slot, r] of reloadReadings(doc)) {
     const byFrame = new Map(r.starts.map((ms) => [msToFrames(ms, doc), ms]))
@@ -50,7 +50,7 @@ export function episodesRechargementParSlot(doc: ReplayDocumentReady): Map<numbe
       const remaining = ms === undefined ? null : magazineAtReload(doc, slot, ms, r.starts)
       return remaining === null ? null : remaining === 0
     }
-    const episodes = episodesRechargement([...byFrame.keys()], r.cuts.map((ms) => msToFrames(ms, doc)), fps, isEmpty)
+    const episodes = reloadEpisodes([...byFrame.keys()], r.cuts.map((ms) => msToFrames(ms, doc)), fps, isEmpty)
     if (episodes.length > 0) out.set(slot, episodes)
   }
   return out

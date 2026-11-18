@@ -22,33 +22,33 @@ import { recoilRotation } from './recoilPose3d'
 export const FP_RECOIL_GAIN = 1.5
 
 // Shared scratch values: the pose is rebuilt every rendered frame, with no allocation.
-const BAC_RECUL = newRecoil()
-const BAC_TOUR = new THREE.Quaternion()
-const BAC_PIVOT = new THREE.Vector3()
+const SCRATCH_RECOIL = newRecoil()
+const SCRATCH_ROTATION = new THREE.Quaternion()
+const SCRATCH_PIVOT = new THREE.Vector3()
 
 /**
- * pivotDuRecul: the recoil's pivot in the rig's frame, the weapon's root at idle
+ * recoilPivot: the recoil's pivot in the rig's frame, the weapon's root at idle
  * (`idleWeapon.position`); null with no weapon pose in the index.
  */
-export function pivotDuRecul(idleWeapon: { position: readonly [number, number, number] } | undefined): THREE.Vector3 | null {
+export function recoilPivot(idleWeapon: { position: readonly [number, number, number] } | undefined): THREE.Vector3 | null {
   return idleWeapon ? new THREE.Vector3(idleWeapon.position[0], idleWeapon.position[1], idleWeapon.position[2]) : null
 }
 
 /**
- * poserReculRig recomposes rig root `racine` from rest: offset `recul` (null or zero: rest),
+ * applyRigRecoil recomposes rig root `root` from rest: offset `recoil` (null or zero: rest),
  * `back` and `pitch` multiplied by `FP_RECOIL_GAIN`, rotated around `pivot` (rig frame) then
  * pulled back along forward: x' = R (x - p) + p - back X.
  */
-export function poserReculRig(racine: THREE.Object3D, recul: Recoil | null, pivot: THREE.Vector3): void {
-  racine.position.set(0, 0, 0)
-  racine.quaternion.identity()
-  if (!recoilActive(recul)) return
-  BAC_RECUL.back = recul.back * FP_RECOIL_GAIN
-  BAC_RECUL.pitch = recul.pitch * FP_RECOIL_GAIN
-  BAC_RECUL.yaw = recul.yaw
-  BAC_RECUL.roll = recul.roll
-  const tour = recoilRotation(BAC_RECUL, BAC_TOUR)
-  racine.quaternion.copy(tour)
-  racine.position.copy(pivot).sub(BAC_PIVOT.copy(pivot).applyQuaternion(tour))
-  racine.position.x -= BAC_RECUL.back
+export function applyRigRecoil(root: THREE.Object3D, recoil: Recoil | null, pivot: THREE.Vector3): void {
+  root.position.set(0, 0, 0)
+  root.quaternion.identity()
+  if (!recoilActive(recoil)) return
+  SCRATCH_RECOIL.back = recoil.back * FP_RECOIL_GAIN
+  SCRATCH_RECOIL.pitch = recoil.pitch * FP_RECOIL_GAIN
+  SCRATCH_RECOIL.yaw = recoil.yaw
+  SCRATCH_RECOIL.roll = recoil.roll
+  const rotation = recoilRotation(SCRATCH_RECOIL, SCRATCH_ROTATION)
+  root.quaternion.copy(rotation)
+  root.position.copy(pivot).sub(SCRATCH_PIVOT.copy(pivot).applyQuaternion(rotation))
+  root.position.x -= SCRATCH_RECOIL.back
 }

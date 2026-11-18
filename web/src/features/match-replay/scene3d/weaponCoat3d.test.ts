@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CoatingFile, CoatingTable } from './armorCoating3d'
 import { LAYER_BYTES } from './armorGradients3d'
 import { ArmorLibrary, type ArmorLibraryIO } from './armorLibrary3d'
-import { construirePeintureArme, reportArme } from './weaponCoat3d'
+import { buildWeaponCoat, reportWeaponCoat } from './weaponCoat3d'
 
 const SWATCH = {
   index: 0, gradient_scale: [1, 1] as [number, number], roughness: 4, roughness_white: 0.3, roughness_black: 0.5, metallic: 0.2, emissive: 0,
@@ -64,11 +64,11 @@ beforeEach(() => {
 })
 afterEach(() => vi.restoreAllMocks())
 
-describe('construirePeintureArme', () => {
+describe('buildWeaponCoat', () => {
   it('styleKey null (no coating for this weapon): the default style of each list, no fallback named', async () => {
     const { io, fetchJson } = fakeIO()
     const m = paintedMaterial()
-    const { coat, issues } = await construirePeintureArme([m], null, new ArmorLibrary('/armes', io))
+    const { coat, issues } = await buildWeaponCoat([m], null, new ArmorLibrary('/weapons', io))
     expect(issues).toEqual([])
     // The list's default style has no gradient: zone on, no layer (-1), its own top color.
     expect(Array.from(coat.get(m)!.paint.data.slice(0, 2))).toEqual([1, -1])
@@ -80,7 +80,7 @@ describe('construirePeintureArme', () => {
   it('paints the weapon coating\'s materials, gradients loaded', async () => {
     const { io, loadSwatch } = fakeIO()
     const m = paintedMaterial()
-    const { coat, issues } = await construirePeintureArme([m], '2c5251bc', new ArmorLibrary('/armes', io))
+    const { coat, issues } = await buildWeaponCoat([m], '2c5251bc', new ArmorLibrary('/weapons', io))
     expect(issues).toEqual([])
     expect(coat.size).toBe(1)
     const paint = coat.get(m)!
@@ -93,7 +93,7 @@ describe('construirePeintureArme', () => {
   it('coating absent: each list\'s default style, the gap named', async () => {
     const { io } = fakeIO()
     const m = paintedMaterial()
-    const { coat, issues } = await construirePeintureArme([m], '00000000', new ArmorLibrary('/armes', io))
+    const { coat, issues } = await buildWeaponCoat([m], '00000000', new ArmorLibrary('/weapons', io))
     expect(issues).toEqual([{ kind: 'coating_unknown', what: '00000000', count: 1 }])
     // The list's default style has no gradient: zone lit, layer absent (-1).
     expect(Array.from(coat.get(m)!.paint.data.slice(0, 2))).toEqual([1, -1])
@@ -101,20 +101,20 @@ describe('construirePeintureArme', () => {
 
   it('unreadable table: all neutral, named once per material', async () => {
     const { io } = fakeIO(new Set(['coatings.json']))
-    const { coat, issues } = await construirePeintureArme([paintedMaterial(), paintedMaterial()], '2c5251bc', new ArmorLibrary('/armes', io))
+    const { coat, issues } = await buildWeaponCoat([paintedMaterial(), paintedMaterial()], '2c5251bc', new ArmorLibrary('/weapons', io))
     expect(issues).toEqual([{ kind: 'coatings_unavailable', what: '', count: 1 }])
     expect(coat.size).toBe(2)
     expect([...coat.values()].every((p) => p.paint.data[0] === 0)).toBe(true)
   })
 })
 
-describe('reportArme', () => {
+describe('reportWeaponCoat', () => {
   it('reports the paint once: info with no fallback, warning otherwise', () => {
-    reportArme('1', '11111111', new Map(), [])
+    reportWeaponCoat('1', '11111111', new Map(), [])
     expect(console.info).toHaveBeenCalledTimes(1)
     expect(console.info).toHaveBeenCalledWith('3D replay: weapon 1 (11111111): 0 materials painted, 0 fallbacks', [])
     expect(console.warn).not.toHaveBeenCalled()
-    reportArme('1', '22222222', new Map(), [{ kind: 'coating_unknown', what: '2c5251bc', count: 2 }])
+    reportWeaponCoat('1', '22222222', new Map(), [{ kind: 'coating_unknown', what: '2c5251bc', count: 2 }])
     expect(console.warn).toHaveBeenCalledTimes(1)
     expect(console.warn).toHaveBeenCalledWith('3D replay: weapon 1 (22222222): 0 materials painted, 1 fallbacks', ['coating_unknown 2c5251bc ×2'])
   })

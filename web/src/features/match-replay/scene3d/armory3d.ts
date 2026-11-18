@@ -16,7 +16,7 @@
  *
  * A player's weapons are also painted (`weaponCoat3d`, against the weapon library,
  * `weaponsPath` from the constructor): the model held in third person is painted
- * (`peindreArme`/`coatArme`), the first-person rig in `peindreBras` (materials whose list is
+ * (`paintWeapon`/`weaponCoat`), the first-person rig in `paintArms` (materials whose list is
  * not in the armor table are the weapon's own).
  */
 import * as THREE from 'three'
@@ -24,11 +24,11 @@ import type { LoadGate } from './loadGate3d'
 
 import type { ReplaySpartan, SpartanArmorManifest, WeaponCoating } from '@/lib/replay/spartanArmor'
 
-import { buildCoat, construirePeintureMateriaux, reportCoat, type Coat } from './armorCoat3d'
+import { buildCoat, buildMaterialsCoat, reportCoat, type Coat } from './armorCoat3d'
 import type { MaterialStyle } from './armorCoating3d'
 import { ArmorLibrary, type ArmorLibraryIO } from './armorLibrary3d'
 import { planOutfit, type ArmorIndex, type ArmorPose, type OutfitIssue, type PlannedAttachment, type PlannedPiece } from './armorPlan3d'
-import { construirePeintureArme, reportArme } from './weaponCoat3d'
+import { buildWeaponCoat, reportWeaponCoat } from './weaponCoat3d'
 
 /** A placed accessory: at its marker instance, child of bone `bone`, then at its offset. */
 export interface OutfitRigid {
@@ -91,19 +91,19 @@ export class SpartanArmory {
    * `players`: the match players' armor; `weaponsPath`: the weapon library's served folder
    * (weapon coatings are read against it); `weaponIO`: that library's network (replaced in
    * tests); `ownsLibrary` (default true): false when `library` is shared across matches (the
-   * caller releases it itself, through the session cache). `libraryArme` (optional): a
+   * caller releases it itself, through the session cache). `weaponLibraryArg` (optional): a
    * pre-built weapon-coating library, session-cached and shared across matches by its caller
    * (`Replay3DView.tsx`, keyed by `weaponsPath`) — never disposed here. Without one, this
    * armory builds and owns its own (the old behavior: one per match, thrown away with it).
    */
-  constructor(library: ArmorLibrary, players: readonly ReplaySpartan[], gate?: LoadGate, weaponsPath: string | null = null, weaponIO?: ArmorLibraryIO, ownsLibrary = true, libraryArme?: ArmorLibrary) {
+  constructor(library: ArmorLibrary, players: readonly ReplaySpartan[], gate?: LoadGate, weaponsPath: string | null = null, weaponIO?: ArmorLibraryIO, ownsLibrary = true, weaponLibraryArg?: ArmorLibrary) {
     this.library = library
     this.gate = gate
     this.weaponsPath = weaponsPath
     this.weaponIO = weaponIO
     this.ownsLibrary = ownsLibrary
-    this.weaponLibrary = libraryArme ?? null
-    this.ownsWeaponLibrary = libraryArme === undefined
+    this.weaponLibrary = weaponLibraryArg ?? null
+    this.ownsWeaponLibrary = weaponLibraryArg === undefined
     for (const p of players) {
       if (!p.xuid) continue
       if (p.status === 'armor' && p.manifest) this.manifests.set(p.xuid, p.manifest)
@@ -141,26 +141,26 @@ export class SpartanArmory {
   pending(xuid: string): boolean { return this.dresses.get(xuid) === PENDING }
 
   /**
-   * peindreBras paints the player's arm materials from their armor coating, as his
+   * paintArms paints the player's arm materials from their armor coating, as his
    * third-person Spartan is painted. Prosthetic limbs included: their pieces carry their own style
    * list (`a7d83e8c`), which a coating rarely names (3 of the 824 armor coatings), so they wear that
    * list's default style (`a7d83e8c_42c9679f`: warm gray and bronze metal, grime and scratches)
-   * unless the player's coating names it, the game's rule for every list. `cleArme`: the key
+   * unless the player's coating names it, the game's rule for every list. `weaponKey`: the key
    * of the rig's weapon model, when the weapon is painted there with its own coating
    * (`weaponCoat3d`, weapon library).
    */
-  async peindreBras(xuid: string, habit: Dress, materiaux: readonly THREE.Material[], cleArme: string | null = null): Promise<Coat | null> {
+  async paintArms(xuid: string, outfit: Dress, materials: readonly THREE.Material[], weaponKey: string | null = null): Promise<Coat | null> {
     const manifest = this.manifests.get(xuid)
-    if (!manifest || this.dress(xuid) !== habit || this.disposed) return null
-    const { armure: armor, arme: weapon } = await this.splitWeaponMaterials([...materiaux], cleArme)
-    const { coat } = await construirePeintureMateriaux(armor, manifest, this.library)
+    if (!manifest || this.dress(xuid) !== outfit || this.disposed) return null
+    const { armor, weapon } = await this.splitWeaponMaterials([...materials], weaponKey)
+    const { coat } = await buildMaterialsCoat(armor, manifest, this.library)
     if (this.disposed) return null
     const paint = new Map(coat)
     if (weapon.length > 0) {
       const weaponLib = this.weaponLibrary ?? this.ownWeaponLibrary()
-      const entry = this.weaponCoatings.get(xuid)?.find((e) => e.model_key === cleArme) ?? null
+      const entry = this.weaponCoatings.get(xuid)?.find((e) => e.model_key === weaponKey) ?? null
       if (weaponLib) {
-        const { coat: weaponCoat } = await construirePeintureArme(weapon, entry?.style_key || null, weaponLib)
+        const { coat: weaponCoat } = await buildWeaponCoat(weapon, entry?.style_key || null, weaponLib)
         for (const [m, p] of weaponCoat) paint.set(m, p)
       }
     }
@@ -168,12 +168,12 @@ export class SpartanArmory {
   }
 
   /**
-   * peindreObjet prepares in the background the default-style paint of a MAP object's weapon model (a pad or
+   * paintObject prepares in the background the default-style paint of a MAP object's weapon model (a pad or
    * rack item, a ground weapon): no player coat applies to it, so its style key is null (the
    * default style of each of its style lists). One coat per model key: ten pads of the same weapon
    * paint once. null without the weapon library (all neutral).
    */
-  peindreObjet(modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
+  paintObject(modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
     let p = this.objectsPending.get(modelKey)
     if (!p) {
       p = this.paintObjectAsync(modelKey, model).catch((error: unknown) => {
@@ -186,21 +186,21 @@ export class SpartanArmory {
   }
 
   /**
-   * coatObjet: the default-style paint of the map object model `modelKey`, ready and covering its
+   * objectCoat: the default-style paint of the map object model `modelKey`, ready and covering its
    * painted materials; null while pending, or without the weapon library.
    */
-  coatObjet(modelKey: string, model: THREE.Object3D): Coat | null {
+  objectCoat(modelKey: string, model: THREE.Object3D): Coat | null {
     const coat = this.objectsCache.get(modelKey)
     if (coat == null) return null
     return weaponMaterialsOf(model).every((m) => coat.has(m)) ? coat : null
   }
 
   /**
-   * peindreArme prepares in the background the paint of weapon `modelKey` for player `xuid`, on
+   * paintWeapon prepares in the background the paint of weapon `modelKey` for player `xuid`, on
    * the model's painted materials: their coating, or without a coating read for this weapon the
    * default style of each list; null without the weapon library (all neutral).
    */
-  peindreArme(xuid: string, modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
+  paintWeapon(xuid: string, modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
     const key = `${xuid}:${modelKey}`
     let p = this.weaponsPending.get(key)
     if (!p) {
@@ -213,8 +213,8 @@ export class SpartanArmory {
     return p
   }
 
-  /** coatArme: weapon `modelKey`'s paint, ready and covering the model; null while pending. */
-  coatArme(xuid: string, modelKey: string, model: THREE.Object3D): Coat | null {
+  /** weaponCoat: weapon `modelKey`'s paint, ready and covering the model; null while pending. */
+  weaponCoat(xuid: string, modelKey: string, model: THREE.Object3D): Coat | null {
     const coat = this.weaponsCache.get(`${xuid}:${modelKey}`)
     if (coat == null) return null
     return weaponMaterialsOf(model).every((m) => coat.has(m)) ? coat : null
@@ -250,15 +250,15 @@ export class SpartanArmory {
   }
 
   /** splitWeaponMaterials separates armor materials (listed in the armor table) from weapon materials. */
-  private async splitWeaponMaterials(toPaint: THREE.Material[], cleArme: string | null): Promise<{ armure: THREE.Material[]; arme: THREE.Material[] }> {
-    if (!cleArme || !this.weaponsPath) return { armure: toPaint, arme: [] }
+  private async splitWeaponMaterials(toPaint: THREE.Material[], weaponKey: string | null): Promise<{ armor: THREE.Material[]; weapon: THREE.Material[] }> {
+    if (!weaponKey || !this.weaponsPath) return { armor: toPaint, weapon: [] }
     const table = await this.library.coatings()
     const weapon: THREE.Material[] = []
     if (table) for (const m of toPaint) {
       const style = m.userData.style as MaterialStyle | undefined
       if (style && table.default_styles[style.stylelist] === undefined) weapon.push(m)
     }
-    return { armure: toPaint.filter((m) => !weapon.includes(m)), arme: weapon }
+    return { armor: toPaint.filter((m) => !weapon.includes(m)), weapon }
   }
 
   private async paintWeaponAsync(xuid: string, modelKey: string, model: THREE.Object3D): Promise<Coat | null> {
@@ -271,9 +271,9 @@ export class SpartanArmory {
     }
     // Without a coating entry for this weapon (a weapon with no core: Fuel Rod, Skewer, Energy
     // Sword), the default style of each list (`weaponCoat3d`).
-    const { coat, issues } = await construirePeintureArme(weaponMaterialsOf(model), entry?.style_key || null, weaponLib)
+    const { coat, issues } = await buildWeaponCoat(weaponMaterialsOf(model), entry?.style_key || null, weaponLib)
     if (this.disposed) return null
-    reportArme(xuid, modelKey, coat, issues)
+    reportWeaponCoat(xuid, modelKey, coat, issues)
     this.weaponsCache.set(key, coat)
     return coat
   }
@@ -285,9 +285,9 @@ export class SpartanArmory {
       return null
     }
     // A map item wears the default style of each of its style lists: no player coat applies to it.
-    const { coat, issues } = await construirePeintureArme(weaponMaterialsOf(model), null, weaponLib)
+    const { coat, issues } = await buildWeaponCoat(weaponMaterialsOf(model), null, weaponLib)
     if (this.disposed) return null
-    reportArme('map', modelKey, coat, issues)
+    reportWeaponCoat('map', modelKey, coat, issues)
     this.objectsCache.set(modelKey, coat)
     return coat
   }

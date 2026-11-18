@@ -4,21 +4,21 @@ import * as THREE from 'three'
 import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 import nyexc from './testdata/nyexc-arms.json'
 import { fetchMesh } from './meshFetch'
-import { ArmPieces3d, lierPiece, planBras, type BrasIndex, type BrasPiece } from './armPieces3d'
+import { ArmPieces3d, attachPiece, armPlan, type ArmIndex, type ArmPiece } from './armPieces3d'
 
 vi.mock('./meshFetch', () => ({ fetchMesh: vi.fn() }))
 
-function indexPieces(pieces: BrasPiece[], defaults: Record<string, string>): BrasIndex {
+function indexPieces(pieces: ArmPiece[], defaults: Record<string, string>): ArmIndex {
   return { schema: 2, skeleton: { bones: ['a', 'b'] }, pieces, default: defaults, failures: [] }
 }
 
-function piece(key: string, region: string, permutation: string): BrasPiece {
+function piece(key: string, region: string, permutation: string): ArmPiece {
   return { key, region, permutation, file: `piece-${key}.glb`, triangles: 1, bbox: { min: [0,0,0], max: [1,1,1] }, bytes: 1 }
 }
 
-describe('planBras', () => {
+describe('armPlan', () => {
   it('selects Nyexc’s live prosthetic arm pieces', () => {
-    const pieces = planBras(nyexc.catalog, nyexc.player.regions)
+    const pieces = armPlan(nyexc.catalog, nyexc.player.regions)
     expect(pieces).toHaveLength(8)
     expect(pieces.map((p) => p.key)).toContain('3f91af6a-16a12dd4')
     expect(pieces.map((p) => p.key)).toContain('62059329-16a12dd4')
@@ -31,7 +31,7 @@ describe('planBras', () => {
       { r1: 'd' },
     )
     const regions = [{ region_key: 'r1', permutation_key: 'p1' }]
-    const plan = planBras(idx, regions)
+    const plan = armPlan(idx, regions)
     expect(plan.map((p) => p.key)).toEqual(['r1-p1'])
   })
 
@@ -41,7 +41,7 @@ describe('planBras', () => {
       { r1: 'd' },
     )
     const regions = [{ region_key: 'r1', permutation_key: 'inconnue' }]
-    const plan = planBras(idx, regions)
+    const plan = armPlan(idx, regions)
     expect(plan.map((p) => p.key)).toEqual(['r1-d'])
   })
 
@@ -51,7 +51,7 @@ describe('planBras', () => {
       { r1: 'x', r2: 'd' },
     )
     const regions = [{ region_key: 'r1', permutation_key: 'y' }]
-    const plan = planBras(idx, regions)
+    const plan = armPlan(idx, regions)
     expect(plan.map((p) => p.region)).toEqual(['r2'])
   })
 
@@ -60,7 +60,7 @@ describe('planBras', () => {
       [piece('r1-d', 'r1', 'd'), piece('r2-d', 'r2', 'd')],
       { r1: 'd', r2: 'd' },
     )
-    const plan = planBras(idx, null)
+    const plan = armPlan(idx, null)
     expect(plan.map((p) => p.key).sort()).toEqual(['r1-d', 'r2-d'])
   })
 
@@ -70,12 +70,12 @@ describe('planBras', () => {
       { r1: 'd' },
     )
     const regions = [{ region_key: 'hors', permutation_key: 'x' }, { region_key: 'r1', permutation_key: 'p1' }]
-    const plan = planBras(idx, regions)
+    const plan = armPlan(idx, regions)
     expect(plan.map((p) => p.region)).toEqual(['r1'])
   })
 })
 
-describe('lierPiece', () => {
+describe('attachPiece', () => {
   function pieceTest(boneNames: string[]): THREE.Object3D {
     const scene = new THREE.Group()
     const bones = boneNames.map((n) => { const b = new THREE.Bone(); b.name = n; return b })
@@ -101,7 +101,7 @@ describe('lierPiece', () => {
     const pieceScene = pieceTest(['a', 'b'])
     const rig = rigTest(['b', 'x', 'a'])
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const result = lierPiece(pieceScene, rig)
+    const result = attachPiece(pieceScene, rig)
     expect(result).toHaveLength(1)
     const rigBones = result[0].skeleton.bones
     expect(rigBones[0].name).toBe('a')
@@ -114,7 +114,7 @@ describe('lierPiece', () => {
     const pieceScene = pieceTest(['a', 'b'])
     const rig = rigTest(['x'])
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const result = lierPiece(pieceScene, rig)
+    const result = attachPiece(pieceScene, rig)
     expect(result).toHaveLength(0)
   })
 })

@@ -459,7 +459,7 @@ export class Pickups3dLayer implements ActionLayer3d {
   private paintedObject(id: string, model: THREE.Object3D): THREE.Object3D {
     const armory = this.ctx.armurerie?.()
     const key = weaponModelKey(id)
-    const coat = armory && key ? armory.coatObjet(key, model) : null
+    const coat = armory && key ? armory.objectCoat(key, model) : null
     if (!coat) return model
     const cache = this.painted.get(model)
     if (cache) return cache
@@ -512,7 +512,7 @@ export class Pickups3dLayer implements ActionLayer3d {
     const model = this.ctx.weaponModel(id)
     if (!model) return
     this.paintRequested.add(key)
-    void armory.peindreObjet(key, model)
+    void armory.paintObject(key, model)
   }
 
   private paintPads(frame: number, ink: Readonly<Record<PadFamily, string>>): void {

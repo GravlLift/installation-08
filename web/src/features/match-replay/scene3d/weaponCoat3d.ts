@@ -24,13 +24,13 @@ import { paintMaterials, type Coat, type CoatIssue, type CoatSource } from './ar
 import type { PaintNote } from './armorCoating3d'
 
 /**
- * construirePeintureArme paints the player weapon's `materiaux` materials: `styleKey` null —
+ * buildWeaponCoat paints the player weapon's `materials` materials: `styleKey` null —
  * the player wears no coating for this weapon (each list's default style, with no named
  * fallback); `styleKey` read — its key's coating, or each material's list default style if it
  * is absent from the library.
  */
-export async function construirePeintureArme(
-  materiaux: readonly THREE.Material[],
+export async function buildWeaponCoat(
+  materials: readonly THREE.Material[],
   styleKey: string | null,
   lib: CoatSource,
 ): Promise<{ coat: Coat; issues: CoatIssue[] }> {
@@ -45,12 +45,12 @@ export async function construirePeintureArme(
   const coating = table && styleKey ? await lib.coating(styleKey) : null
   if (!table) note('coatings_unavailable', '')
   else if (!coating && styleKey) note('coating_unknown', styleKey)
-  const coat = await paintMaterials(materiaux, table, { coating, visor: null }, lib, note)
+  const coat = await paintMaterials(materials, table, { coating, visor: null }, lib, note)
   return { coat, issues: [...counts.values()] }
 }
 
-/** reportArme logs a player weapon's paint once: coating and each counted fallback. */
-export function reportArme(xuid: string, modelKey: string, coat: Coat, issues: readonly CoatIssue[]): void {
+/** reportWeaponCoat logs a player weapon's paint once: coating and each counted fallback. */
+export function reportWeaponCoat(xuid: string, modelKey: string, coat: Coat, issues: readonly CoatIssue[]): void {
   const log = issues.length > 0 ? console.warn : console.info
   log(`3D replay: weapon ${xuid} (${modelKey}): ${coat.size} materials painted, ${issues.length} fallbacks`,
     issues.map((i) => `${i.kind} ${i.what} ×${i.count}`),

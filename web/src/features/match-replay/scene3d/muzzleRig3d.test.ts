@@ -3,8 +3,8 @@ import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 
 import { muzzlePose, muzzlePoseCamera, muzzleLocalPose, muzzleWorldPose, type MuzzleLocal } from './muzzleRig3d'
-import { appliquerTenueRig } from './firstPersonArms3d'
-import { ROTATION_RIG_CAMERA } from './premierePersonne3d'
+import { applyRigGrip } from './firstPersonArms3d'
+import { ROTATION_RIG_CAMERA } from './firstPersonRig3d'
 import type { ViewGrip } from './viewGrip3d'
 
 const ZERO: ViewGrip = { x: 0, y: 0, z: 0, roll: 0 }
@@ -108,12 +108,12 @@ describe('muzzlePoseCamera', () => {
     expect(out.z - zero.z).toBeCloseTo(0, 6)
   })
 
-  it('with a nonzero roll, the muzzle matches the point placed by appliquerTenueRig × ROTATION_RIG_CAMERA', () => {
+  it('with a nonzero roll, the muzzle matches the point placed by applyRigGrip × ROTATION_RIG_CAMERA', () => {
     const st = { muzzle: new THREE.Vector3(0.5, 0, 0), axis: new THREE.Vector3(1, 0, 0) }
     const grip: ViewGrip = { x: 0.1, y: -0.05, z: 0.2, roll: 0.35 }
     const out = muzzlePoseCamera(st, grip, new THREE.Vector3())
     const obj = new THREE.Object3D()
-    appliquerTenueRig(obj.position, obj.quaternion, grip)
+    applyRigGrip(obj.position, obj.quaternion, grip)
     obj.quaternion.multiply(ROTATION_RIG_CAMERA)
     obj.updateMatrix()
     const expected = st.muzzle.clone().applyMatrix4(obj.matrix)
