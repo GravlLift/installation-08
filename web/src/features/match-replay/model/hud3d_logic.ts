@@ -121,11 +121,13 @@ export function readHud(source: ReturnType<typeof prepareHud>, frame: number, lo
   const keyframe = inHand != null ? inventory?.state.am?.[inHand] : undefined
   // The `ammoReads` axis tracks the magazine per shot; the inventory keyframe stands in without it.
   const fine = inHand != null ? ammoAt(source.ammo.get(ammoKey(slot, inHand)), now) : null
-  // Before any read of the life (a fresh spawn that has not fired yet), the weapon's spawn ammo as
-  // the film measures it (`spawnAmmo`): past information, so it outranks an upcoming keyframe.
-  const spawn = !fine && held && !(inventory && inventory.age >= 0) ? spawnAmmoAt(source.spawnAmmo, state.life, frame, held) : null
+  // While nothing has moved a field of the birth weapon (a fresh spawn that has not fired yet; a
+  // refill tops up the reserve and keeps the magazine), the weapon's spawn ammo as the film measures
+  // it (`spawnAmmo`): past information, so it outranks an upcoming keyframe, and it fills the field
+  // a read leaves out (a refill's read carries the reserve only).
+  const spawn = held && !(inventory && inventory.age >= 0) ? spawnAmmoAt(source.spawnAmmo, state.life, frame, held) : null
   const ammo = fine
-    ? { ...keyframe, mag: fine.mag ?? keyframe?.mag, res: fine.res ?? keyframe?.res }
+    ? { ...keyframe, mag: fine.mag ?? spawn?.mag ?? keyframe?.mag, res: fine.res ?? spawn?.res ?? keyframe?.res }
     : spawn ? { ...keyframe, mag: spawn.mag ?? keyframe?.mag, res: spawn.res ?? keyframe?.res } : keyframe
   const box = grenadeBoxAt(doc, slot, frame, inventory)
   const grenades = box ? grenadesCarriedFrom(box.g, doc.grenadeLabels, locale) : []

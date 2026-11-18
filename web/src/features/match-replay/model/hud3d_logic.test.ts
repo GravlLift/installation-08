@@ -202,6 +202,51 @@ describe('HUD 3D display', () => {
       expect(hud?.weaponId).toBe('0xAAAA1111')
       expect(hud?.ammo?.mag).toBeUndefined()
     })
+
+    // A pickup no weapon change saw carries no emplacement; the game rule places it.
+    it('ends only the refilled reserve when the player walks over a weapon he already carries', () => {
+      const doc = switchDoc({
+        pickups: [{ t: 2420, slot: 530, class: 0, kind: 'weapon', w: '6acdc44d' }],
+        drawnWeapons: [{ t: 2450, slot: 530, d: 1 }, { t: 2550, slot: 530, d: 0 }],
+      })
+      const source = prepareHud(doc, 'A', [])
+      expect(readHud(source, 2410, 'en')?.ammo).toMatchObject({ mag: 15, res: 45 })
+      expect(readHud(source, 2500, 'en')?.ammo).toMatchObject({ mag: 12, res: 36 })
+      // The refill tops up the reserve and keeps the magazine: the spawn magazine stays, the
+      // reserve is unknown without the refill's read.
+      const refilled = readHud(source, 2600, 'en')?.ammo
+      expect(refilled?.mag).toBe(15)
+      expect(refilled?.res).toBeUndefined()
+    })
+
+    it('completes a refill read, which carries the reserve only, with the spawn magazine', () => {
+      const doc = switchDoc({
+        pickups: [{ t: 2420, slot: 530, class: 0, kind: 'weapon', w: '6acdc44d' }],
+        ammoReads: [{ t: 2420, ms: 79860, slot: 530, w: 0, res: 60, src: 'delta' }],
+      })
+      expect(readHud(prepareHud(doc, 'A', []), 2500, 'en')?.ammo).toMatchObject({ mag: 15, res: 60 })
+    })
+
+    it('ends the in-hand weapon a new weapon replaces, and keeps the holstered one', () => {
+      const doc = switchDoc({
+        pickups: [{ t: 2420, slot: 530, class: 0, kind: 'weapon', w: 'aaaa1111' }],
+        drawnWeapons: [{ t: 2450, slot: 530, d: 1 }, { t: 2550, slot: 530, d: 0 }],
+      })
+      const source = prepareHud(doc, 'A', [])
+      expect(readHud(source, 2500, 'en')?.ammo).toMatchObject({ mag: 12, res: 36 })
+      expect(readHud(source, 2600, 'en')?.ammo?.mag).toBeUndefined()
+    })
+
+    it('keeps the carried weapon when a new weapon fills the empty emplacement', () => {
+      const doc = switchDoc({
+        loadouts: [
+          { t: 100, slot: 520, w: ['0x6ACDC44D', '0x2B1824D5'], src: 'birth', k: [0, 1] },
+          { t: 2376, slot: 530, w: ['0x6ACDC44D'], src: 'birth', k: [0] },
+        ],
+        pickups: [{ t: 2420, slot: 530, class: 0, kind: 'weapon', w: 'aaaa1111' }],
+      })
+      expect(readHud(prepareHud(doc, 'A', []), 2500, 'en')?.ammo).toMatchObject({ mag: 15, res: 45 })
+    })
   })
 })
 
