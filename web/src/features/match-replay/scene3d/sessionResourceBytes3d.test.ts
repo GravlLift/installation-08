@@ -86,7 +86,7 @@ describe('surfaceModelBytes', () => {
     const arrayTexture = new THREE.DataArrayTexture(null, 256, 256, 4)
     const params = new THREE.DataTexture(new Float32Array(4), 1, 1)
     const material = new THREE.MeshStandardMaterial()
-    material.userData = { textures: [arrayTexture, params], couchesFusionnees: true }
+    material.userData = { textures: [arrayTexture, params], layersMerged: true }
     const root = new THREE.Group()
     root.add(new THREE.Mesh(geometry, material))
     expect(surfaceModelBytes(root)).toBe(geometryBytes(geometry) + textureBytes(arrayTexture) + textureBytes(params))

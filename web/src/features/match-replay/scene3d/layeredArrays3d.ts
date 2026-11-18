@@ -25,9 +25,7 @@ import { LAYER_COMPOSE, LAYER_INJECTIONS, LAYER_ROWS, LAYER_VERTEX_HEAD } from '
 import { GLOW_TEXEL, HEAD_TEXEL, ROW_TEXELS, SLOT_TEXEL, type PlannedArray } from './layeredPlan3d'
 
 /** The `userData` key that flags a merged material (probe copies included, which share it). */
-// NOTE: value kept as 'couchesFusionnees' (French) because sessionResourceBytes3d.test.ts, outside
-// this group's file list, asserts this exact literal; do not rename without updating that test too.
-const MERGED_KEY = 'couchesFusionnees'
+const MERGED_KEY = 'layersMerged'
 
 /**
  * The `userData` key that flags a map whose image, copied into a texture array, is held by no
