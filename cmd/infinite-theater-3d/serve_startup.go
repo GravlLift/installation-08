@@ -3,22 +3,19 @@
 package main
 
 // serve_startup.go — the serve startup step: when a game install is found, every one-time
-// build the viewer needs is enqueued in the mesh jobs runner right away, in a fixed order.
+// library the viewer needs is enqueued in the mesh jobs runner right away, in a fixed order.
 //
 // A one-time build is built once, in the background, when `serve` starts, and kept in the
 // data folder: the weapon icon set, the weapon model library, the first-person library,
-// the announcer sounds, and, for every match in the store, that match's map mesh and variant layer (each distinct
-// map module once). The readiness of a build is the runner's own ready callback, so a build
+// the announcer sounds. The readiness of a build is the runner's own ready callback, so a build
 // whose output is already on disk is never queued. The step never blocks startup: it only
 // appends to the runner's queue and logs one line saying what it queued. When no install
 // can be found it logs once and queues nothing.
 //
-// A match fetched while the server runs is enqueued where the server learns about it: the
-// remote fetch route (`runRemoteFetch`), right after the fetch saves it. A match added by
-// the CLI `import` or `fetch` while the server is not running has no queue to join; the
-// next `serve` startup picks it up. The web request routes (mesh build, variant build,
-// weapons build, first-person build) stay as they were: they report state and remain a
-// harmless enqueue when something is missing.
+// Map meshes and variant layers are never built ahead: a match's map and layer are built when
+// the match is opened (the pre-game's mesh build and the viewer's variant check). Building every
+// stored or fetched match's map at startup cost a first start with 17 matches 37 minutes, about
+// 5.5 GB of disk and an 8 GB peak (2026-11-18), for maps the user may never open.
 
 import (
 	"context"
@@ -36,13 +33,6 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
 )
 
-// startupMatch is the listing projection enqueueStartupBuilds needs from a store match:
-// the id (the variant job's key) and the key of its world mesh (meshKeyOf, the mesh job's key).
-type startupMatch struct {
-	MatchID string
-	MeshKey string
-}
-
 // hasMatchMvar says whether the match's map variant file is in the store (the variant
 // build's input).
 func hasMatchMvar(root *store.Root, id string) bool {
@@ -50,25 +40,18 @@ func hasMatchMvar(root *store.Root, id string) bool {
 	return err == nil
 }
 
-// enqueueStartupBuilds enqueues every one-time build that is not ready yet, in this order:
-// the weapon icon set, the HUD icon set, the rank badge set, the home backdrop, the announcer
-// sounds, the weapon library, the first-person library, the Spartan piece library, then, for every
-// match in the store,
-// that match's map mesh and variant layer (each
-// distinct map module once, in the store's listing order). ready is the runner's own
-// readiness check, so an output that is already on disk is skipped; variantExists says
-// which matches have a stored map variant to build. outdated (nil: none) is the runner's own
-// outdated check: a High-quality map or variant file that is on disk in an older build format is
-// queued too (its update, in place for a format-2 file, takes seconds), but a High file that is
-// absent is never built here (High is built only when the user picks it). Without it a High file
-// stayed outdated until opened, and the viewer met it there. skipCoatingLibs leaves the three
-// coating libraries unqueued: the coatings setup being run this startup queues them (with
+// enqueueStartupBuilds enqueues every one-time library build that is not ready yet, in this
+// order: the weapon icon set, the HUD icon set, the rank badge set, the home backdrop, the
+// announcer sounds, the weapon library, the first-person library, the Spartan piece library. No
+// map mesh or variant layer: those build when their match is opened. ready is the runner's own
+// readiness check, so an output that is already on disk is skipped. skipCoatingLibs leaves the
+// three coating libraries unqueued: the coatings setup being run this startup queues them (with
 // coatings) in its own completion step. It enqueues through jobs (its own Enqueue, so a
 // recording wrapper is used transparently), never blocks, and logs one line naming what it
 // queued (or "nothing"). A nil jobs or ready is a no-op.
 func enqueueStartupBuilds(jobs interface {
 	Enqueue(string) meshjobs.Snapshot
-}, ready, outdated func(string) bool, matches []startupMatch, variantExists func(id string) bool, skipCoatingLibs bool) {
+}, ready func(string) bool, skipCoatingLibs bool) {
 	if jobs == nil || ready == nil {
 		return
 	}
@@ -102,31 +85,6 @@ func enqueueStartupBuilds(jobs interface {
 			}
 		}
 	}
-	seen := map[string]bool{}
-	// once enqueues a key the first time it is seen: Standard when not ready, High only when its
-	// file is there but outdated.
-	once := func(key string) {
-		if seen[key] {
-			return
-		}
-		seen[key] = true
-		if !ready(key) {
-			enqueue(key)
-		}
-		high := meshjobs.JobKey(key, meshjobs.QualityHigh)
-		if outdated != nil && outdated(high) {
-			enqueue(high)
-		}
-	}
-	for _, m := range matches {
-		if m.MeshKey != "" {
-			once(m.MeshKey)
-		}
-		// The variant layer is per match: two matches on one map each get theirs.
-		if variantExists != nil && variantExists(m.MatchID) {
-			once(variantPrefix + m.MatchID)
-		}
-	}
 	if queued > 0 {
 		slog.Info("serve startup: enqueued one-time builds", "queued", queued)
 	} else {
@@ -141,7 +99,7 @@ func enqueueStartupBuilds(jobs interface {
 // going to the listen.
 func runServeStartup(jobs interface {
 	Enqueue(string) meshjobs.Snapshot
-}, ready, outdated func(string) bool, root *store.Root, gameRoot string, startCoatingsSetup func()) {
+}, ready func(string) bool, root *store.Root, gameRoot string, startCoatingsSetup func()) {
 	if jobs == nil || ready == nil {
 		return
 	}
@@ -174,18 +132,7 @@ func runServeStartup(jobs interface {
 	if !skipCoatingLibs {
 		realignLibraries(root.Dir(), ready)
 	}
-	ms, err := root.ListMatches()
-	if err != nil {
-		slog.Warn("list matches for startup builds", "err", err)
-		return
-	}
-	matches := make([]startupMatch, 0, len(ms))
-	for _, m := range ms {
-		matches = append(matches, startupMatch{MatchID: m.MatchID, MeshKey: meshKeyOf(m)})
-	}
-	enqueueStartupBuilds(jobs, ready, outdated, matches, func(id string) bool {
-		return hasMatchMvar(root, id)
-	}, skipCoatingLibs)
+	enqueueStartupBuilds(jobs, ready, skipCoatingLibs)
 }
 
 // renameStaleCoatingLibraries moves each stale coating library aside (one log line each,
@@ -255,26 +202,4 @@ func moveCoatingLibraryAsideIfStale(dataDir, module string) {
 	}
 	slog.Info("coating library stale", "library", module, "old_stamp", stamp, "new_stamp", cur)
 	moveStaleCoatingLibrary(dataDir, module)
-}
-
-// enqueueMatchBuilds enqueues one match's map mesh and, when its map variant file is
-// present, its variant layer. It is the place a match added while the server runs (the
-// remote fetch route) is added to the build queue. A match is fetched to be watched, so its
-// builds go ahead of the background ones (EnqueueFirst); the runner re-derives readiness, so
-// an output already on disk is never queued and a module already queued is joined, not
-// duplicated.
-func (h serverHandlers) enqueueMatchBuilds(id string) {
-	if h.jobs == nil {
-		return
-	}
-	meta, err := h.root.MatchMeta(id)
-	if err != nil {
-		return
-	}
-	if key := meshKeyOf(meta); key != "" {
-		h.jobs.EnqueueFirst(key)
-	}
-	if hasMatchMvar(h.root, id) {
-		h.jobs.EnqueueFirst(variantPrefix + id)
-	}
 }

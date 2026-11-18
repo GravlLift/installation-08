@@ -274,13 +274,9 @@ func (h serverHandlers) runRemoteFetch(id string) {
 		err = &fetchStepError{Step: fetchStepSignIn, Err: err}
 	} else {
 		update("downloading", 0, 0)
+		// A fetched match's map and variant layer are not built here: they build when the match
+		// is opened (serve_startup.go says why).
 		err = j.fetch(context.Background(), h.root, api, id, update)
-		if err == nil {
-			// The fetch route is where the server learns about a match added while it runs:
-			// the new match's map mesh and variant layer join the build queue here, through
-			// the runner's own readiness checks.
-			h.enqueueMatchBuilds(id)
-		}
 	}
 	j.mu.Lock()
 	defer j.mu.Unlock()

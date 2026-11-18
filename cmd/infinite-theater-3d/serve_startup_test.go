@@ -3,10 +3,9 @@
 package main
 
 // serve_startup_test.go — the serve startup step: with a fake store, a fake runner and a
-// fake readiness function, the step enqueues every one-time build that is not ready yet,
-// in the fixed order (weapon icons, weapon library, first-person library, then each match's
-// map mesh and variant layer), skips an output that is already on disk, queues each
-// distinct map module once, and queues nothing when no game install is found. No test uses
+// fake readiness function, the step enqueues every one-time library that is not ready yet,
+// in the fixed order, skips an output that is already on disk, never queues a match's map mesh
+// or variant layer, and queues nothing when no game install is found. No test uses
 // a real game install.
 
 import (
@@ -99,25 +98,14 @@ func newRecordingRunner(t *testing.T, ready func(string) bool) *recordingRunner 
 	return rec
 }
 
-// TestStartupBuildsOrderAndOnce — the startup step enqueues the five libraries in the
-// fixed order first (weapon icons, HUD icons, rank badges, weapon library, first-person
-// library), then
-// each distinct map module once, with a match's variant following; an output that is ready
-// is skipped.
-func TestStartupBuildsOrderAndOnce(t *testing.T) {
+// TestStartupBuildsLibrariesInOrder — the startup step enqueues the eight libraries in the fixed
+// order and nothing else.
+func TestStartupBuildsLibrariesInOrder(t *testing.T) {
 	rr := newRecordingRunner(t, func(string) bool { return false })
-	matches := []startupMatch{
-		{MatchID: "aaaa", MeshKey: "moda"},
-		{MatchID: "bbbb", MeshKey: "moda"}, // same module as aaaa: queued once
-		{MatchID: "cccc", MeshKey: "modb"},
-	}
-	// bbbb shares aaaa's map module but has a variant of its own: its variant is still queued.
-	variantExists := func(id string) bool { return id == "aaaa" || id == "bbbb" }
-	enqueueStartupBuilds(rr, rr.ready, nil, matches, variantExists, false)
+	enqueueStartupBuilds(rr, rr.ready, false)
 	want := []string{
 		meshjobs.JobWeaponIcons, meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobBackdrop, meshjobs.JobAnnouncer,
 		meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces,
-		"moda", "variant:aaaa", "variant:bbbb", "modb",
 	}
 	if got := rr.modules(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("queued = %v, want %v", got, want)
@@ -126,40 +114,11 @@ func TestStartupBuildsOrderAndOnce(t *testing.T) {
 
 // TestStartupBuildsSkipsReady — an output that is already on disk is not queued.
 func TestStartupBuildsSkipsReady(t *testing.T) {
-	ready := map[string]bool{meshjobs.JobWeaponIcons: true, "modb": true, "variant:bbbb": true}
+	ready := map[string]bool{meshjobs.JobWeaponIcons: true, meshjobs.JobFirstPerson: true}
 	rr := newRecordingRunner(t, func(m string) bool { return ready[m] })
-	matches := []startupMatch{
-		{MatchID: "aaaa", MeshKey: "moda"},
-		{MatchID: "bbbb", MeshKey: "moda"},
-		{MatchID: "cccc", MeshKey: "modb"},
-	}
-	enqueueStartupBuilds(rr, rr.ready, nil, matches, func(id string) bool { return id == "bbbb" }, false)
+	enqueueStartupBuilds(rr, rr.ready, false)
 	want := []string{meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobBackdrop, meshjobs.JobAnnouncer, meshjobs.JobWeapons,
-		meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces, "moda"}
-	if got := rr.modules(); !reflect.DeepEqual(got, want) {
-		t.Fatalf("queued = %v, want %v", got, want)
-	}
-}
-
-// TestStartupBuildsUpdatesOutdatedHigh — a High map or variant file on disk in an older build
-// format is queued after its Standard counterpart (its update runs in place); a High file that is
-// current or absent is not (High is never built from nothing at startup).
-func TestStartupBuildsUpdatesOutdatedHigh(t *testing.T) {
-	ready := map[string]bool{meshjobs.JobWeaponIcons: true, meshjobs.JobHudIcons: true, meshjobs.JobRanks: true,
-		meshjobs.JobBackdrop: true, meshjobs.JobAnnouncer: true, meshjobs.JobWeapons: true, meshjobs.JobFirstPerson: true,
-		meshjobs.JobSpartanPieces: true, "modb": true, "variant:bbbb": true}
-	outdated := map[string]bool{
-		meshjobs.JobKey("moda", meshjobs.QualityHigh):         true,
-		meshjobs.JobKey("variant:bbbb", meshjobs.QualityHigh): true,
-	}
-	rr := newRecordingRunner(t, func(m string) bool { return ready[m] })
-	matches := []startupMatch{
-		{MatchID: "aaaa", MeshKey: "moda"},
-		{MatchID: "bbbb", MeshKey: "moda"},
-		{MatchID: "cccc", MeshKey: "modb"},
-	}
-	enqueueStartupBuilds(rr, rr.ready, func(m string) bool { return outdated[m] }, matches, func(id string) bool { return id == "bbbb" }, false)
-	want := []string{"moda", meshjobs.JobKey("moda", meshjobs.QualityHigh), meshjobs.JobKey("variant:bbbb", meshjobs.QualityHigh)}
+		meshjobs.JobSpartanPieces}
 	if got := rr.modules(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("queued = %v, want %v", got, want)
 	}
@@ -171,40 +130,26 @@ func TestStartupBuildsNoInstall(t *testing.T) {
 	root := startupTestStore(t)
 	rr := newRecordingRunner(t, func(string) bool { return false })
 	t.Setenv("LEVELUP_HALO_DEPLOY", filepath.Join(t.TempDir(), "absent"))
-	runServeStartup(rr, rr.ready, nil, root, "", nil)
+	runServeStartup(rr, rr.ready, root, "", nil)
 	if got := rr.modules(); len(got) != 0 {
 		t.Fatalf("queued = %v, want nothing (no install)", got)
 	}
 }
 
-// TestStartupBuildsFoundInstall — when the install is found the startup step enqueues the
-// seven libraries and, for the store's matches, the two distinct map modules and the one
-// stored variant.
+// TestStartupBuildsFoundInstall — when the install is found the startup step enqueues the eight
+// libraries, in order, and no map mesh or variant layer for the store's matches (those build
+// when a match is opened).
 func TestStartupBuildsFoundInstall(t *testing.T) {
 	root := startupTestStore(t)
 	rr := newRecordingRunner(t, func(string) bool { return false })
 	t.Setenv("LEVELUP_HALO_DEPLOY", t.TempDir())
-	runServeStartup(rr, rr.ready, nil, root, "", nil)
-	// The seven libraries lead, in order; the two distinct map modules and the one stored
-	// variant follow (their relative order is the store's listing order, newest import
-	// first, a tie broken by id).
-	got := rr.modules()
-	if len(got) != 11 || got[0] != meshjobs.JobWeaponIcons || got[1] != meshjobs.JobHudIcons ||
-		got[2] != meshjobs.JobRanks || got[3] != meshjobs.JobBackdrop || got[4] != meshjobs.JobAnnouncer ||
-		got[5] != meshjobs.JobWeapons || got[6] != meshjobs.JobFirstPerson || got[7] != meshjobs.JobSpartanPieces {
-		t.Fatalf("queued = %v, want the eight libraries first in order", got)
+	runServeStartup(rr, rr.ready, root, "", nil)
+	want := []string{
+		meshjobs.JobWeaponIcons, meshjobs.JobHudIcons, meshjobs.JobRanks, meshjobs.JobBackdrop, meshjobs.JobAnnouncer,
+		meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces,
 	}
-	for _, want := range []string{"moda", "variant:bbbb", "modb"} {
-		found := false
-		for _, m := range got[8:] {
-			if m == want {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Fatalf("queued = %v, want %q among the map builds", got, want)
-		}
+	if got := rr.modules(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("queued = %v, want only the libraries %v", got, want)
 	}
 }
 
@@ -216,7 +161,7 @@ func TestStartupStartsCoatingsSetup(t *testing.T) {
 	rr := newRecordingRunner(t, func(string) bool { return false })
 	deploy := t.TempDir()
 	started := false
-	runServeStartup(rr, rr.ready, nil, root, deploy, func() { started = true })
+	runServeStartup(rr, rr.ready, root, deploy, func() { started = true })
 	if !started {
 		t.Fatal("the coatings setup was not started (no valid export, no override, install found)")
 	}
@@ -241,7 +186,7 @@ func TestStartupValidExportSkipsSetup(t *testing.T) {
 	rr := newRecordingRunner(t, func(string) bool { return false })
 	deploy := t.TempDir()
 	started := false
-	runServeStartup(rr, rr.ready, nil, root, deploy, func() { started = true })
+	runServeStartup(rr, rr.ready, root, deploy, func() { started = true })
 	if started {
 		t.Fatal("the setup ran with a valid export in place")
 	}
@@ -260,7 +205,7 @@ func TestStartupOverrideSkipsSetup(t *testing.T) {
 	deploy := t.TempDir()
 	t.Setenv(spartanpieces.EkurEnv, t.TempDir())
 	started := false
-	runServeStartup(rr, rr.ready, nil, root, deploy, func() { started = true })
+	runServeStartup(rr, rr.ready, root, deploy, func() { started = true })
 	if started {
 		t.Fatal("the setup ran under the override")
 	}
