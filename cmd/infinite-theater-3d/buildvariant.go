@@ -27,6 +27,7 @@ func runBuildVariant(args []string) error {
 	mode := fs.String("mode", "", "match's game variant name (for example Ranked:Slayer): the layer holds the objects that mode creates; empty holds none of the mode-only objects")
 	quality := fs.String("texture-quality", "standard", "texture quality to read at: standard (default, today's output) or high (bigger textures)")
 	textures := fs.String("textures", string(texcompress.DefaultFormat), "image format of the GLB's textures: ktx2 (default, GPU-compressed Basis Universal, KHR_texture_basisu) or png (the PNG and JPEG images of earlier builds)")
+	debugObjects := fs.Bool("debug-objects", false, "include Forge object indices and types in node names")
 	out := fs.String("out", "", "GLB file to write")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -46,7 +47,7 @@ func runBuildVariant(args []string) error {
 	ctx := context.Background()
 	opts := meshbuild.BuildVariantOptions{
 		Map: *mapKey, Mvar: *mvar, GameRoot: *gameRoot,
-		ForgeMaterials: *forgeMaterials, ForgeObjects: *forgeObjects, Mode: *mode, Quality: q, Textures: tf,
+		ForgeMaterials: *forgeMaterials, ForgeObjects: *forgeObjects, Mode: *mode, Quality: q, Textures: tf, DebugObjects: *debugObjects,
 	}
 	summary, err := meshbuild.BuildVariant(ctx, opts, *out, func(step mapmesh.Step) {
 		slog.InfoContext(ctx, "build step", "map", *mapKey, "step", step)

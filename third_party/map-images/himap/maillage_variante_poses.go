@@ -17,13 +17,17 @@ import (
 	"fmt"
 	"math"
 	"slices"
+
+	"github.com/JGtm/halo-infinite-files-reader/mapvar"
 )
 
 // PosesVariante holds a variant layer's shared geometries and their placements.
 type PosesVariante struct {
-	Geometries []GeometrieVariante
-	Poses      []PoseVariante
-	parCle     map[cleGeometrie]int
+	// DebugObjects enables diagnostic node names when non-nil.
+	DebugObjects []mapvar.Object
+	Geometries   []GeometrieVariante
+	Poses        []PoseVariante
+	parCle       map[cleGeometrie]int
 	// teintes: the material id a tinted placement draws instead of a source material
 	// (appliqueTeintes); absent, the source material is drawn as it is.
 	teintes map[cleTeinte]uint32

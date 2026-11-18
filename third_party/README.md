@@ -403,6 +403,8 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
       the normal and control maps laid there (`normaleMacro`, `controleMacro`), and a cut lives
       in the mask's alpha (`decoupeMasque`). Read on UV0 they streaked across scaled blocks.
       Swatches only a style draws are read at 256 (`coteEchantillon`).
+    - `himap/glb_poses.go` and `himap/maillage_variante_poses.go`: optional diagnostic
+      node names include the original Forge object index and type; disabled by default.
     - `himap/maillage_variante_poses.go` (`avecJeuMacro`): a Forge object's mesh without UV1
       reads its UV0 there, as Ekur keeps the active map when UV1 is missing. Foliage cards have
       no UV1; zero-filled, their cut, ASG and normal read one texel.

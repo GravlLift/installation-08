@@ -40,6 +40,8 @@ var canvasByLevelID = map[int32]string{
 
 // BuildVariantOptions names a variant object-layer build's inputs.
 type BuildVariantOptions struct {
+	// DebugObjects includes Forge object identities in node names.
+	DebugObjects bool
 	// Map is the variant's map key: an installed module's folder name, or a Forge map's map_id
 	// (himap.CartesForge).
 	Map string
@@ -96,7 +98,7 @@ func BuildVariant(ctx context.Context, opts BuildVariantOptions, out string, ann
 	target := mapmesh.VariantTarget{
 		Key: opts.Map, Module: module, Objects: v.Objects, Styles: v.Styles, StyleGrimes: v.StyleGrimes,
 		ForgeMaterials: materials, ForgeObjects: objects, Mode: opts.Mode, TextureCaps: capsOfQuality(opts.Quality),
-		Textures: texturesOf(opts.Textures),
+		Textures: texturesOf(opts.Textures), DebugObjects: opts.DebugObjects,
 	}
 	return mapmesh.BuildVariant(ctx, gameRoot, target, out, generatorTagVariant, announce)
 }

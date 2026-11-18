@@ -6,6 +6,8 @@ package himap
 import (
 	"math"
 	"testing"
+
+	"github.com/JGtm/halo-infinite-files-reader/mapvar"
 )
 
 // gltfDe : un point Halo en axes glTF (x, z, -y).
@@ -116,5 +118,18 @@ func TestBoitePoses(t *testing.T) {
 	}
 	if _, _, ok := pv.boite(nil); ok {
 		t.Error("boite sans placement")
+	}
+}
+
+func TestVariantDebugObjectNames(t *testing.T) {
+	pv := posesDeTest()
+	pv.DebugObjects = []mapvar.Object{{Index: 102, TypeID: -414884733}, {}, {}, {Index: 450, TypeID: 42}}
+	doc := &gltfDoc{}
+	ajoutePosesVariante(doc, &tamponGLB{}, pv, func(id uint32) int { return int(id) })
+	if got := doc.Nodes[0].Name; got != "structure mvar=102 type=-414884733" {
+		t.Errorf("object name = %q", got)
+	}
+	if got := doc.Nodes[4].Name; got != "structure mvar=450 type=42" {
+		t.Errorf("kit piece name = %q", got)
 	}
 }

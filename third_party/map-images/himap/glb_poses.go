@@ -40,6 +40,11 @@ func ajoutePosesVariante(doc *gltfDoc, bin *tamponGLB, pv *PosesVariante, rangMa
 		}
 		mesh := meshDePose(doc, pv, p, ecrites[p.Geometrie], rangMateriau, meshes)
 		noeud := gltfNode{Name: nomGroupePose(g.Ombre), Mesh: &mesh}
+		// LOCAL-CHANGE: optional Forge object identity for diagnostic builds.
+		if p.Objet >= 0 && p.Objet < len(pv.DebugObjects) {
+			o := pv.DebugObjects[p.Objet]
+			noeud.Name = fmt.Sprintf("%s mvar=%d type=%d", noeud.Name, o.Index, o.TypeID)
+		}
 		if p.Locale == nil {
 			noeud.Matrix = matriceGLTF(p.Parent)
 			doc.Nodes = append(doc.Nodes, noeud)

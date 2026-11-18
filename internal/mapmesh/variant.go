@@ -23,6 +23,8 @@ import (
 
 // VariantTarget is a map variant's object layer to build.
 type VariantTarget struct {
+	// DebugObjects includes Forge object identities in node names.
+	DebugObjects bool
 	// Key identifies the variant (its map_id, or the installed map's own key), published in the
 	// GLB.
 	Key string
@@ -96,6 +98,9 @@ func BuildVariant(ctx context.Context, gameRoot string, t VariantTarget, path, g
 	m, bilan, err := himap.CollecteMaillageVariante(ctx, opts)
 	if err != nil {
 		return Summary{}, err
+	}
+	if t.DebugObjects && m.Poses != nil {
+		m.Poses.DebugObjects = t.Objects
 	}
 	note(StepWriting)
 	extras := map[string]any{"mapId": t.Key, "module": filepath.Base(t.Module), "objects": bilan.Poses}
