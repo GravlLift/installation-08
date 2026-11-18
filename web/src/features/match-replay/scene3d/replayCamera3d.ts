@@ -6,7 +6,6 @@ import { deathCameraPose, povSubject, type DeathCameraOpts, type DeathCameraPose
 import { aimDirThree, toThree, type PlayerState3d, type Tracks3d } from './tracks3d'
 import { springArmLength } from './springArm3d'
 import type { ActionScene3d } from './actionScene3d'
-import type { MapModel } from './mapModel'
 import type { CameraMode3d, PovStatus } from './replayScene3d'
 
 const TP_DISTANCE = 1.05
@@ -146,10 +145,12 @@ export class ReplayCamera3d {
 /**
  * measureOriginAboveFloor: the published origin's median height above the floor, measured by
  * raycasting downward under the player's points. It sets where to place the eye and the capsule.
- * Measured on the map's structure alone: the value does not depend on the layer's arrival.
+ * Measured against the nearest of the given surfaces, the map's structure and the posed layer's:
+ * a Forge map's floor lives in the layer, not the canvas, so the layer must be included or a spawn
+ * near the canvas's ground would be dropped to it (the map alone is passed before the layer arrives).
  */
-export function measureOriginAboveFloor(pts: readonly { x: number; y: number; z: number }[], model: MapModel | null, raycaster: THREE.Raycaster): number {
-  if (!model) return 0
+export function measureOriginAboveFloor(pts: readonly { x: number; y: number; z: number }[], pickables: THREE.Mesh[], raycaster: THREE.Raycaster): number {
+  if (pickables.length === 0) return 0
   const step = Math.max(1, Math.floor(pts.length / FLOOR_SAMPLES))
   const gaps: number[] = []
   raycaster.firstHitOnly = true
@@ -157,7 +158,7 @@ export function measureOriginAboveFloor(pts: readonly { x: number; y: number; z:
   for (let i = 0; i < pts.length; i += step) {
     const [x, y, z] = toThree(pts[i].x, pts[i].y, pts[i].z)
     raycaster.set(new THREE.Vector3(x, y + 0.1, z), new THREE.Vector3(0, -1, 0))
-    const hit = raycaster.intersectObjects(model.pickables, false)[0]
+    const hit = raycaster.intersectObjects(pickables, false)[0]
     if (hit) gaps.push(y - hit.point.y)
   }
   if (gaps.length === 0) return 0

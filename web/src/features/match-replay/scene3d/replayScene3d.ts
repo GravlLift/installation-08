@@ -269,7 +269,9 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.players = tracks.players.map((p) => ({ xuid: p.xuid, name: p.name }))
     const allPoints = tracks.players.flatMap((p) => tracks.allPoints(p.xuid))
     seg('origin', () => {
-      this.feetDrop = measureOriginAboveFloor(allPoints, this.model, this.raycaster)
+      // The map's structure alone: the layer is posed later (`attachLayer`), which re-measures the
+      // drop against the map and the layer so a Forge map's players land on the layer's floor.
+      this.feetDrop = measureOriginAboveFloor(allPoints, this.groundSurfaces(), this.raycaster)
     })
     this.scene.add(this.actionRoot); this.prepareAvatars()
   }
@@ -397,6 +399,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     freezeStatic(layer.root)
     this.findBackFaces()
     this.ground?.setPickables(this.groundSurfaces())
+    this.remeasureFloorDrop()
     this.top?.sync(this.ciel, this.mapRoots())
     return true
   }
@@ -416,6 +419,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.lighting.fitHaze(this.playReach, this.playReach)
     this.lighting.setStaticCasters(this.mapRoots())
     this.ground?.setPickables(this.groundSurfaces())
+    this.remeasureFloorDrop()
     this.top?.sync(this.ciel, this.mapRoots())
     this.lighting.releaseLayer(layer.surfaces)
   }
@@ -666,7 +670,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   private applyPov(xuid: string | null): void {
     if (xuid === this.povXuid) return
     this.povXuid = xuid
-    this.originAboveFloor = xuid && this.tracks ? measureOriginAboveFloor(this.tracks.allPoints(xuid), this.model, this.raycaster) : 0
+    this.originAboveFloor = xuid && this.tracks ? measureOriginAboveFloor(this.tracks.allPoints(xuid), this.groundSurfaces(), this.raycaster) : 0
     this.armsPlayerReady = null
   }
 
@@ -818,6 +822,19 @@ export class ReplayScene3d implements Replay3DExportSource {
   /** groundSurfaces: the ground surfaces, the map's then the posed layer's. */
   private groundSurfaces(): THREE.Mesh[] {
     return [...(this.model?.pickables ?? []), ...(this.layer?.pickables ?? [])]
+  }
+
+  /**
+   * remeasureFloorDrop re-measures the players' drop against the ground surfaces as they stand now
+   * (the layer arrives after the map, and detaches before it). A Forge map's floor lives in the
+   * layer, so the drop must follow the layer's presence; without this a spawn near the canvas's
+   * ground would be left on it when the layer poses (and popped back to it when it detaches).
+   */
+  private remeasureFloorDrop(): void {
+    const tracks = this.tracks
+    if (!tracks) return
+    this.feetDrop = measureOriginAboveFloor(tracks.players.flatMap((p) => tracks.allPoints(p.xuid)), this.groundSurfaces(), this.raycaster)
+    this.originAboveFloor = this.povXuid ? measureOriginAboveFloor(tracks.allPoints(this.povXuid), this.groundSurfaces(), this.raycaster) : 0
   }
 }
 
