@@ -155,6 +155,54 @@ describe('HUD 3D display', () => {
       expect(ammo?.res).toBeUndefined()
     })
   })
+
+  describe('the spawn ammo per emplacement, across a switch', () => {
+    // Life 520 reads both spawn magazines by keyframe (15 | 45 and 12 | 36); life 530 spawns at
+    // 2376 with the same two-weapon loadout and is the one read by the HUD.
+    const switchDoc = (extra: Parameters<typeof testReplayDoc>[0] = {}) => testReplayDoc({
+      frameIntervalMs: 33,
+      tracks: [
+        { slot: 520, xuid: 'B', team: 0, startFrame: 100, endFrame: 400, points: [{ t: 100, x: 0, y: 0 }, { t: 400, x: 0, y: 0 }] },
+        { slot: 530, xuid: 'A', team: 1, startFrame: 2376, endFrame: 2732, points: [{ t: 2376, x: 0, y: 0 }, { t: 2732, x: 0, y: 0 }] },
+      ],
+      loadouts: [
+        { t: 100, slot: 520, w: ['0x6ACDC44D', '0x2B1824D5'], src: 'birth', k: [0, 1] },
+        { t: 2376, slot: 530, w: ['0x6ACDC44D', '0x2B1824D5'], src: 'birth', k: [0, 1] },
+      ],
+      inventory: [{ t: 200, slot: 520, d: 0, am: [{ mag: 15, res: 45 }, { mag: 12, res: 36 }], g: [2] }],
+      ...extra,
+    })
+
+    it('shows the secondary its spawn ammo after a switch, with no shot fired', () => {
+      const doc = switchDoc({ drawnWeapons: [{ t: 2450, slot: 530, d: 1 }] })
+      const source = prepareHud(doc, 'A', [])
+      expect(readHud(source, 2400, 'en')?.ammo).toMatchObject({ mag: 15, res: 45 })
+      expect(readHud(source, 2500, 'en')?.ammo).toMatchObject({ mag: 12, res: 36 })
+    })
+
+    it('keeps the secondary at its spawn ammo after the primary fires, and the primary follows its own read', () => {
+      const doc = switchDoc({
+        shots: [{ t: 2420, slot: 530, x: 0, y: 0, w: '0x6ACDC44D42C9679F' }],
+        ammoReads: [{ t: 2420, ms: 79860, slot: 530, w: 0, mag: 14, res: 44, src: 'delta' }],
+        drawnWeapons: [{ t: 2450, slot: 530, d: 1 }],
+      })
+      const source = prepareHud(doc, 'A', [])
+      expect(readHud(source, 2420, 'en')?.ammo?.mag).toBe(14)
+      expect(readHud(source, 2500, 'en')?.ammo).toMatchObject({ mag: 12, res: 36 })
+    })
+
+    it('shows no spawn ammo for a weapon picked up since the spawn', () => {
+      const doc = switchDoc({
+        pickups: [{ t: 2440, slot: 530, class: 1, kind: 'weapon', w: '0xAAAA1111' }],
+        weaponChanges: [{ t: 2440, slot: 530, kind: 'taken', k: 1, w: '0xAAAA1111' }],
+        drawnWeapons: [{ t: 2450, slot: 530, d: 1 }],
+      })
+      const source = prepareHud(doc, 'A', [])
+      const hud = readHud(source, 2500, 'en')
+      expect(hud?.weaponId).toBe('0xAAAA1111')
+      expect(hud?.ammo?.mag).toBeUndefined()
+    })
+  })
 })
 
 describe('HUD 3D score banner: team order', () => {
