@@ -211,9 +211,10 @@ func moveCoatingLibraryAsideIfStale(dataDir, module string) {
 
 // enqueueMatchBuilds enqueues one match's map mesh and, when its map variant file is
 // present, its variant layer. It is the place a match added while the server runs (the
-// remote fetch route) is added to the build queue; the runner's Enqueue re-derives
-// readiness, so an output already on disk is never queued and a module already queued is
-// joined, not duplicated.
+// remote fetch route) is added to the build queue. A match is fetched to be watched, so its
+// builds go ahead of the background ones (EnqueueFirst); the runner re-derives readiness, so
+// an output already on disk is never queued and a module already queued is joined, not
+// duplicated.
 func (h serverHandlers) enqueueMatchBuilds(id string) {
 	if h.jobs == nil {
 		return
@@ -223,9 +224,9 @@ func (h serverHandlers) enqueueMatchBuilds(id string) {
 		return
 	}
 	if key := meshKeyOf(meta); key != "" {
-		h.jobs.Enqueue(key)
+		h.jobs.EnqueueFirst(key)
 	}
 	if hasMatchMvar(h.root, id) {
-		h.jobs.Enqueue(variantPrefix + id)
+		h.jobs.EnqueueFirst(variantPrefix + id)
 	}
 }

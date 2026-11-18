@@ -452,7 +452,8 @@ func (h serverHandlers) handleMeshBuild(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
-	snap := h.jobs.Enqueue(meshjobs.JobKey(meshKeyOf(meta), quality))
+	// The viewer is waiting on this map: it goes ahead of the background builds.
+	snap := h.jobs.EnqueueFirst(meshjobs.JobKey(meshKeyOf(meta), quality))
 	status := http.StatusAccepted
 	if snap.Ready() {
 		status = http.StatusOK

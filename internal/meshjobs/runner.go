@@ -249,9 +249,13 @@ type Runner struct {
 	outdated func(module string) bool
 	gameRoot string
 
-	mu          sync.Mutex
-	queue       []string // modules waiting to build, in arrival order
-	active      string   // the module being built, or ""
+	mu    sync.Mutex
+	queue []string // modules waiting to build, in arrival order
+	// urgent (LOCAL-CHANGE (infinite-theater-3d)) is how many entries at the head of queue were
+	// asked for by the viewer (EnqueueFirst): they build before the background ones behind
+	// them, in the order they were asked for.
+	urgent      int
+	active      string // the module being built, or ""
 	failed      map[string]string
 	cancelled   map[string]bool
 	cancelling  bool
@@ -353,6 +357,40 @@ func (r *Runner) Enqueue(module string) Snapshot {
 	return r.snapshotLocked(module)
 }
 
+// EnqueueFirst (LOCAL-CHANGE (infinite-theater-3d)) is Enqueue for a build someone is waiting
+// on: the match the viewer is opening. It answers like Enqueue, but the module goes ahead of
+// the background builds already queued (the serve startup's one-time builds, which after an
+// update can take ten minutes) and behind the modules earlier EnqueueFirst calls put there, so
+// a match's map and then its variant layer keep their order. A module already queued among
+// the background builds is moved up; the running build is never interrupted.
+func (r *Runner) EnqueueFirst(module string) Snapshot {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.ready(module) || r.active == module {
+		return r.snapshotLocked(module)
+	}
+	at := -1
+	for i, m := range r.queue {
+		if m == module {
+			at = i
+			break
+		}
+	}
+	switch {
+	case at >= 0 && at < r.urgent:
+		return r.snapshotLocked(module) // already ahead of the background builds
+	case at >= 0:
+		r.queue = append(r.queue[:at], r.queue[at+1:]...)
+	default:
+		r.enqueuedTotal++
+		delete(r.cancelled, module)
+	}
+	r.queue = append(r.queue[:r.urgent], append([]string{module}, r.queue[r.urgent:]...)...)
+	r.urgent++
+	r.kickPumpLocked()
+	return r.snapshotLocked(module)
+}
+
 // Prioritize records that item (an item key inside module's library — a weapon or rig key the
 // viewer just asked for and could not get because the library has not built it yet) should be
 // among the first the library build reaches, moving it to the front of module's recorded
@@ -408,6 +446,9 @@ func (r *Runner) pump() {
 		if len(r.queue) > 0 && r.active == "" {
 			module := r.queue[0]
 			r.queue = r.queue[1:]
+			if r.urgent > 0 {
+				r.urgent--
+			}
 			r.active = module
 			ctx, cancel := context.WithCancel(context.Background())
 			r.cancel = cancel

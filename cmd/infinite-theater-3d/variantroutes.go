@@ -238,7 +238,8 @@ func (h serverHandlers) handleVariantBuild(w http.ResponseWriter, r *http.Reques
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "builds_unavailable"})
 		return
 	}
-	snap := h.jobs.Enqueue(variantJobKey(id, quality))
+	// The viewer is waiting on this layer: it goes ahead of the background builds.
+	snap := h.jobs.EnqueueFirst(variantJobKey(id, quality))
 	status := http.StatusAccepted
 	if snap.Ready() {
 		status = http.StatusOK

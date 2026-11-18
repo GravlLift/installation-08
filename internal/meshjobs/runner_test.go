@@ -5,6 +5,7 @@ package meshjobs
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
@@ -163,6 +164,46 @@ func TestRunnerQueueOrder(t *testing.T) {
 	defer f.mu.Unlock()
 	if f.builds["alpha"] != 1 || f.builds["beta"] != 1 {
 		t.Fatalf("builds alpha=%d beta=%d, want 1/1", f.builds["alpha"], f.builds["beta"])
+	}
+}
+
+// TestRunnerEnqueueFirst — a build the viewer waits on goes ahead of the queued background
+// builds, behind earlier ones the viewer asked for, without interrupting the running build; a
+// queued background module is moved up, and one already ahead is left in place.
+func TestRunnerEnqueueFirst(t *testing.T) {
+	f := newFakeStore(t)
+	f.delay = 80 * time.Millisecond
+	r := runnerOf(t, f)
+	r.Start()
+	defer r.Stop(2 * time.Second)
+
+	r.Enqueue("running")
+	waitBuilding(t, r, "running")
+	for _, m := range []string{"bg1", "bg2", "bg3"} {
+		r.Enqueue(m)
+	}
+	queue := func() string { _, q := r.Activity(); return fmt.Sprint(q) }
+	if s := r.EnqueueFirst("map"); s.State != StateQueued || s.QueuePosition != 1 {
+		t.Fatalf("map = %s at %d, want queued first", s.State, s.QueuePosition)
+	}
+	r.EnqueueFirst("variant")
+	r.EnqueueFirst("bg3")
+	r.EnqueueFirst("map")
+	if got, want := queue(), "[map variant bg3 bg1 bg2]"; got != want {
+		t.Fatalf("queue = %s, want %s", got, want)
+	}
+	if s := r.Snapshot("running"); s.State != StateBuilding {
+		t.Fatalf("running = %s, want still building", s.State)
+	}
+	// Once the viewer's builds have started, a new one goes first again, ahead of bg1.
+	waitBuilding(t, r, "bg3")
+	r.EnqueueFirst("other")
+	if got, want := queue(), "[other bg1 bg2]"; got != want {
+		t.Fatalf("queue after the urgent ones started = %s, want %s", got, want)
+	}
+	waitState(t, r, "bg2", StateReady)
+	if done, total := r.Progress(); done != total || total != 7 {
+		t.Fatalf("progress = %d/%d, want 7/7", done, total)
 	}
 }
 
