@@ -132,3 +132,30 @@ describe('SessionCache3d', () => {
     expect(cache.get('b')).toBe('B')
   })
 })
+
+it('keeps a newly inserted library alive when pinned assets already exceed the cap', () => {
+  silence()
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  const cache = new SessionCache3d(100)
+  const map = {}
+  cache.set('map', { value: map, bytes: 90, dispose: vi.fn() })
+  cache.acquire('map')
+  cache.set('map', { value: map, bytes: 120, dispose: vi.fn() })
+  const dispose = vi.fn()
+  cache.set('weapon-coatings', { value: 'library', bytes: 0, dispose })
+  cache.acquire('weapon-coatings')
+  expect(cache.get('weapon-coatings')).toBe('library')
+  expect(dispose).not.toHaveBeenCalled()
+})
+
+it('keeps pinned assets when a new asset exceeds the cap', () => {
+  silence()
+  vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  const cache = new SessionCache3d(100)
+  const dispose = vi.fn()
+  cache.set('map', { value: 'map', bytes: 80, dispose })
+  cache.acquire('map')
+  cache.set('layer', { value: 'layer', bytes: 120, dispose: vi.fn() })
+  expect(cache.get('map')).toBe('map')
+  expect(dispose).not.toHaveBeenCalled()
+})

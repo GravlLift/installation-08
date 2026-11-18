@@ -103,13 +103,8 @@ export class SessionCache3d {
    * the very value already held), then evicts unpinned entries, oldest first, until the cap holds.
    * The new entry starts unpinned; call `acquire` right after if the caller is about to use it.
    *
-   * An entry bigger than the whole cap on its own is a special case: the normal eviction loop
-   * below removes unpinned entries oldest-first until the total fits, but the entry just inserted
-   * is itself the newest and still unpinned at this point, so on a strict "oldest first" walk it
-   * would eventually evict ITSELF too, right after being stored — leaving the cache empty even
-   * though the resource is still in use. Such an entry is kept alone instead (every OTHER entry
-   * evicted, this one kept) and logged distinctly, since it is either a genuinely huge resource or
-   * (more likely) a wrong byte estimate worth noticing rather than silently clearing the cache.
+   * The new entry stays alive until its caller can acquire it, even when pinned entries exceed
+   * the budget. Releasing a resource later allows the cache to return under the cap.
    */
   set<T>(key: string, init: CacheEntryInit<T>): void {
     const previous = this.entries.get(key)
@@ -124,23 +119,11 @@ export class SessionCache3d {
       dispose: init.dispose as (value: unknown) => void,
       refCount: sameValue ? previous.refCount : 0,
     }
-    if (init.bytes > this.capBytes) {
-      for (const [otherKey, other] of this.entries) {
-        if (otherKey === key) continue
-        this.entries.delete(otherKey)
-        this.totalBytesHeld -= other.bytes
-        this.disposeEntry(otherKey, other)
-      }
-      this.entries.delete(key)
-      this.entries.set(key, entry)
-      this.totalBytesHeld = init.bytes
-      console.warn(`${this.label}: ${key} (${init.bytes} B) alone exceeds the cap (${this.capBytes} B) — keeping it cached alone, evicting everything else`)
-      return
-    }
+    if (init.bytes > this.capBytes) console.warn(`${this.label}: ${key} (${init.bytes} B) exceeds the cap (${this.capBytes} B)`)
     this.entries.delete(key)
     this.entries.set(key, entry)
     this.totalBytesHeld += sameValue ? init.bytes - previous.bytes : init.bytes
-    this.evictOverCap()
+    this.evictOverCap(key)
   }
 
   /** acquire: pins `key` (one more live user); a pinned entry is never evicted. No-op on a miss. */
@@ -170,11 +153,11 @@ export class SessionCache3d {
     this.entries.set(key, entry)
   }
 
-  private evictOverCap(): void {
+  private evictOverCap(protectedKey?: string): void {
     if (this.totalBytesHeld <= this.capBytes) return
     for (const [key, entry] of this.entries) {
       if (this.totalBytesHeld <= this.capBytes) break
-      if (entry.refCount > 0) continue
+      if (key === protectedKey || entry.refCount > 0) continue
       this.entries.delete(key)
       this.totalBytesHeld -= entry.bytes
       this.disposeEntry(key, entry)
