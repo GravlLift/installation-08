@@ -60,6 +60,21 @@ type Input struct {
 	// published on the score timeline when the film's final scores do not exceed it.
 	// Absent: the timeline carries no target and the viewer bars stay unfilled.
 	ScoreTarget int
+	// ForgeMap is the Forge canvas the match's map variant is built on, with the map's public
+	// name; nil for a native map or without a stored variant. A community Forge map is in
+	// neither the identity table nor the bounds catalog, but the catalog's maps on the same
+	// canvas all carry that canvas's quantization box (every Forge canvas shares one, 2026-11-18
+	// catalog: 81 entries), so the film decodes with it. Never consulted for a map the table
+	// and the catalog resolve.
+	ForgeMap *ForgeMap
+}
+
+// ForgeMap names a Forge map whose film the identity table cannot resolve (Input.ForgeMap).
+type ForgeMap struct {
+	// Canvas is the canvas module (himap.Canevas*, e.g. fo09_academy).
+	Canvas string
+	// Name is the map's public name, published as the report's map name; may be empty.
+	Name string
 }
 
 // StatsPlayer is one row of the match stats scoreboard.
@@ -94,6 +109,9 @@ type Stats struct {
 	// first (the final team score is a cumulative total, not the result on those modes).
 	// Absent: the round reading is not available and the score falls back to points.
 	TeamRoundsWon *[2][3]int `json:"teamRoundsWon,omitempty"`
+	// MapName is the map's public name as the discovery service gives it, recorded at fetch for
+	// a map the identity table does not hold (a community Forge map): see Input.ForgeMap.
+	MapName string `json:"mapName,omitempty"`
 }
 
 // Report states, field by field, what the document is missing or degraded because of an
@@ -233,6 +251,8 @@ func fillMapIdentity(r *Report, in Input, chunk0 []byte) {
 	if r.MapName == "" {
 		if name, err := mapNameOfAsset(r.MapAssetID, in.MatchMap); err == nil {
 			r.MapName = name
+		} else if in.ForgeMap != nil {
+			r.MapName = in.ForgeMap.Name
 		}
 	}
 }

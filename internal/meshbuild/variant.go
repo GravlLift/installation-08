@@ -38,6 +38,12 @@ var canvasByLevelID = map[int32]string{
 	-992358985:  himap.CanevasFrost,
 }
 
+// CanvasOfLevelID names the Forge canvas a variant's level_id designates; false for none.
+func CanvasOfLevelID(levelID int32) (string, bool) {
+	c, ok := canvasByLevelID[levelID]
+	return c, ok
+}
+
 // BuildVariantOptions names a variant object-layer build's inputs.
 type BuildVariantOptions struct {
 	// DebugObjects includes Forge object identities in node names.

@@ -75,6 +75,25 @@ func TestMatchMapNameFindsBounds(t *testing.T) {
 	}
 }
 
+// TestForgeMapFallsBackToItsCanvasBounds: a community Forge map named nowhere in the catalog
+// decodes with the bounds of a catalog map on the same canvas; a native map does not fall back.
+func TestForgeMapFallsBackToItsCanvasBounds(t *testing.T) {
+	forge := &ForgeMap{Canvas: "fo09_academy", Name: "Multi-Range Octagon"}
+	entry, err := resolveMapEntry(Input{MapName: "Multi-Range Octagon", ForgeMap: forge})
+	if err != nil {
+		t.Fatalf("resolveMapEntry(Forge map on fo09_academy): %v", err)
+	}
+	if entry.Module != "fo09_academy" {
+		t.Errorf("module %q, want the canvas fo09_academy", entry.Module)
+	}
+	if _, err := resolveMapEntry(Input{MapName: "Multi-Range Octagon"}); err == nil {
+		t.Error("an unknown map without a Forge canvas resolved")
+	}
+	if _, err := resolveMapEntry(Input{MapName: "Multi-Range Octagon", ForgeMap: &ForgeMap{Canvas: "not_a_canvas"}}); err == nil {
+		t.Error("an unknown canvas resolved")
+	}
+}
+
 // TestIsShort8 —the short8 predicate: eight hex characters, both cases, nothing else.
 func TestIsShort8(t *testing.T) {
 	yes := []string{"7d798138", "ABCDEF01"}

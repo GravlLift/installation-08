@@ -21,6 +21,7 @@ import (
 	"github.com/JGtm/halo-infinite-film-decoder/finalise"
 	"github.com/llampwall/infinite-theater-3d/internal/haloapi"
 	"github.com/llampwall/infinite-theater-3d/internal/haloauth"
+	"github.com/llampwall/infinite-theater-3d/internal/refdata"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 )
 
@@ -253,6 +254,11 @@ func fetchArtifacts(ctx context.Context, root *store.Root, api *haloapi.Client, 
 	}
 	if facts.GameVariantName == "" {
 		facts.GameVariantName = api.ModeName(ctx, raw)
+	}
+	// A map the identity table does not hold (a community Forge map) is named by the discovery
+	// service, for the decode's Forge fallback (build.Input.ForgeMap).
+	if _, err := refdata.LookupMapIdentity(mapID); err != nil && mapID != "" {
+		facts.MapName = api.MapName(ctx, raw)
 	}
 	stats, _ := json.Marshal(facts)
 	statsPath, _ := root.MatchStatsPath(id)

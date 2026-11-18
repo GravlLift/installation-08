@@ -18,9 +18,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/JGtm/halo-infinite-files-reader/mapvar"
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
 
 	"github.com/llampwall/infinite-theater-3d/internal/build"
+	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 )
 
@@ -101,6 +103,7 @@ func buildStored(root *store.Root, matchID string, f importFlags) error {
 		MatchID:      matchID,
 		MapName:      f.mapName,
 		MatchMap:     storedMapLink(root, matchID),
+		ForgeMap:     storedForgeMap(root, matchID),
 	})
 	if err != nil {
 		return fmt.Errorf("build %s: %w", matchID, err)
@@ -205,6 +208,34 @@ func storedMapLink(root *store.Root, matchID string) build.MapLink {
 		name = textValue(object(link["PublicName"])["value"])
 	}
 	return build.MapLink{AssetID: textValue(link["AssetId"]), Name: name}
+}
+
+// storedForgeMap reads the Forge canvas the match's stored map variant is built on and the map's
+// public name recorded at fetch (build.Stats.MapName); nil without a variant, or when its
+// level_id names no Forge canvas (a native map). The decode only consults it for a map the
+// identity table and the bounds catalog cannot resolve (build.Input.ForgeMap).
+func storedForgeMap(root *store.Root, matchID string) *build.ForgeMap {
+	statsPath, err := root.MatchStatsPath(matchID)
+	if err != nil {
+		return nil
+	}
+	blob, err := os.ReadFile(filepath.Join(filepath.Dir(statsPath), "map.mvar")) //nolint:gosec // store path
+	if err != nil {
+		return nil
+	}
+	v, err := mapvar.Parse(blob)
+	if err != nil {
+		return nil
+	}
+	canvas, ok := meshbuild.CanvasOfLevelID(v.LevelID)
+	if !ok {
+		return nil
+	}
+	var stats build.Stats
+	if raw, err := os.ReadFile(statsPath); err == nil { //nolint:gosec // store path
+		_ = json.Unmarshal(raw, &stats)
+	}
+	return &build.ForgeMap{Canvas: canvas, Name: stats.MapName}
 }
 
 // optionalPath returns a store path, or the empty string when it cannot be computed (the

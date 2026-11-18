@@ -50,6 +50,19 @@ func (c *Client) assetName(ctx context.Context, kind string, ref assetRef) strin
 	return asset.Name
 }
 
+// MapName returns the map's public name for a raw match stats payload, or "".
+func (c *Client) MapName(ctx context.Context, stats []byte) string {
+	var p struct {
+		Info struct {
+			Map assetRef `json:"MapVariant"`
+		} `json:"MatchInfo"`
+	}
+	if json.Unmarshal(stats, &p) != nil {
+		return ""
+	}
+	return c.assetName(ctx, kindMap, p.Info.Map)
+}
+
 // ModeName returns the game mode's public name for a raw match stats payload, or "".
 func (c *Client) ModeName(ctx context.Context, stats []byte) string {
 	var p struct {

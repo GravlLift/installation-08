@@ -96,6 +96,7 @@ func refreshLegacyKillDetails(root *store.Root, id string, details []build.KillD
 		MatchID:      id,
 		MapName:      meta.MapName,
 		MatchMap:     storedMapLink(root, id),
+		ForgeMap:     storedForgeMap(root, id),
 	})
 	if err != nil || len(fresh) == 0 {
 		slog.Info("kill details refresh skipped, serving the stored details", "match_id", id, "err", err)

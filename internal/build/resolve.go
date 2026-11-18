@@ -32,23 +32,47 @@ import (
 // chunk_00 carries a map asset id, and the identity table (internal/refdata) says what that
 // map is. The bounds themselves are never in the film.
 func resolveMapEntry(in Input) (decfilm.MapQuantEntry, error) {
-	name := in.MapName
-	if name == "" {
-		resolved, err := mapNameFromFilm(in)
-		if err != nil {
-			return decfilm.MapQuantEntry{}, err
-		}
-		name = resolved
-	}
 	catalog, err := catalogOf(in)
 	if err != nil {
 		return decfilm.MapQuantEntry{}, err
 	}
+	name := in.MapName
+	if name == "" {
+		resolved, err := mapNameFromFilm(in)
+		if err != nil {
+			if entry, ok := forgeCanvasEntry(catalog, in.ForgeMap); ok {
+				return entry, nil
+			}
+			return decfilm.MapQuantEntry{}, err
+		}
+		name = resolved
+	}
 	entry, err := catalog.Lookup(name)
 	if err != nil {
+		if entry, ok := forgeCanvasEntry(catalog, in.ForgeMap); ok {
+			return entry, nil
+		}
 		return decfilm.MapQuantEntry{}, fmt.Errorf("map %q: %w", name, err)
 	}
 	return entry, nil
+}
+
+// forgeCanvasEntry is the bounds of a Forge map the catalog does not name (Input.ForgeMap): the
+// entry of a catalog map built on the same canvas, found through the identity table's canvas
+// column. False without a Forge map, or when no catalog map on that canvas is known.
+func forgeCanvasEntry(catalog *decfilm.MapQuantCatalog, forge *ForgeMap) (decfilm.MapQuantEntry, bool) {
+	if forge == nil || forge.Canvas == "" {
+		return decfilm.MapQuantEntry{}, false
+	}
+	for _, ident := range refdata.AllMapIdentities() {
+		if ident.Canvas != forge.Canvas {
+			continue
+		}
+		if entry, err := catalog.Lookup(ident.Name); err == nil && entry.Module == forge.Canvas {
+			return entry, true
+		}
+	}
+	return decfilm.MapQuantEntry{}, false
 }
 
 // mapNameFromFilm resolves the map's display name from the film's own identity: chunk_00's

@@ -153,6 +153,9 @@ func TestFetchPipelineStoresArtifacts(t *testing.T) {
 			fmt.Fprint(w, `{"MatchInfo":{"MapVariant":{"AssetId":"map","VersionId":"ver"},"UgcGameVariant":{"PublicName":"Slayer"}},"Players":[{"PlayerId":"xuid(123)","LastTeamId":1}]}`)
 		case "/Maps/map/versions/ver":
 			fmt.Fprintf(w, `{"Files":{"Prefix":%q,"FileRelativePaths":["base.mvar","map.mvar"]}}`, base+"/blob")
+		case "/maps/map/versions/ver":
+			// The map's public name: "map" is not in the identity table (a community Forge map).
+			fmt.Fprint(w, `{"PublicName":"Test Forge Map"}`)
 		case "/blob/map.mvar":
 			fmt.Fprint(w, "map-data")
 		case "/players/xuid(123)/customization":
@@ -191,6 +194,10 @@ func TestFetchPipelineStoresArtifacts(t *testing.T) {
 	full, err := os.ReadFile(filepath.Join(root.MatchesDir(), "abc", "stats-full.json"))
 	if err != nil || !bytes.Contains(full, []byte(`"PlayerId":"xuid(123)"`)) {
 		t.Fatalf("full stats not saved: %s, %v", full, err)
+	}
+	// A map the identity table does not hold keeps its public name for the decode's Forge fallback.
+	if stats, err := os.ReadFile(filepath.Join(root.MatchesDir(), "abc", "stats.json")); err != nil || !bytes.Contains(stats, []byte(`"mapName":"Test Forge Map"`)) {
+		t.Fatalf("map name not recorded: %s, %v", stats, err)
 	}
 	// A build that fails after a complete download names its step and keeps its cause.
 	cause := errors.New("no bounds")
