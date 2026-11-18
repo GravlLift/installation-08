@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { frameToMs, isAliveAt, trackWindow } from '@/lib/replay/replayLogic'
-import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
+import type { ReplayDocumentReady, ReplayTrackReady } from '@/lib/replay/replayNormalize'
 import { LOADOUT_SRC_BIRTH, currentLifeOf, loadoutAt, type LoadoutReading } from '@/lib/replay/rosterLogic'
 import { inventoryAt, type InventoryReading } from './inventoryReading'
+import { birthWeaponsOf, pickupEffects, type PickupEffect } from './pickupPlacement'
 import { covers } from './replaySpans'
 
 /** The in-hand weapon slot of a life across the film: sorted instants and slot (0 or 1). */
@@ -47,8 +48,85 @@ const handTracksCache = new WeakMap<ReplayDocumentReady, Map<number, HandTrack>>
  * THE SPAWN HAND (`birthHand`): a life read from its birth loadout holds the weapon of
  * emplacement 0 until its first dated read, as long as no weapon change is dated since birth.
  * A life with no loadout reading at all is named by its own shots (`weaponFromShots`).
+ *
+ * PICKUPS NO WEAPON CHANGE SAW: read as the weapon changes they are (`withPlacedPickups`), so the
+ * hand holds a picked-up weapon from its pickup on.
  */
 export function weaponInHand(doc: ReplayDocumentReady, slot: number, frame: number): { id: string; weaponSlot: number } | null {
+  return handOn(withPlacedPickups(doc), slot, frame)
+}
+
+const placementsCache = new WeakMap<ReplayDocumentReady, Map<ReplayTrackReady, PickupEffect[]>>()
+
+/**
+ * pickupPlacements: the placed effect of every weapon pickup no weapon change saw, per life read
+ * from its birth loadout (`pickupEffects`). The hand that places a replacement is located WITHOUT
+ * the placed pickups (`handOn` on the document itself): a pickup is placed by what the film says
+ * before it, never by its own placement.
+ */
+export function pickupPlacements(doc: ReplayDocumentReady): Map<ReplayTrackReady, PickupEffect[]> {
+  let placements = placementsCache.get(doc)
+  if (placements) return placements
+  placements = new Map()
+  const handAt = (slot: number, frame: number) => handOn(doc, slot, frame)
+  for (const track of doc.tracks) {
+    const weapons = birthWeaponsOf(doc, track)
+    if (!weapons) continue
+    const effects = pickupEffects(doc, track, weapons, handAt)
+    if (effects.length) placements.set(track, effects)
+  }
+  placementsCache.set(doc, placements)
+  return placements
+}
+
+const placedCache = new WeakMap<ReplayDocumentReady, ReplayDocumentReady>()
+
+/**
+ * withPlacedPickups: the document with each placed pickup that put a NEW weapon into an emplacement
+ * (`fill`, `replace`) written as the weapon change the film did not write (`taken`, at its
+ * emplacement), so the hand, the row and the ammo reads see the picked weapon from the pickup on
+ * (0bb2ccc9 frame 10825: the hand kept the replaced 0x48C19D2D while the player fired the
+ * 0x80977BA5 he picked up). A pickup that cannot be placed (`unknown`) becomes a change without an
+ * emplacement, which every reader treats as "either emplacement may have changed". A refill changes
+ * no weapon and writes nothing. The document itself is returned when nothing is placed.
+ */
+export function withPlacedPickups(doc: ReplayDocumentReady): ReplayDocumentReady {
+  let placed = placedCache.get(doc)
+  if (placed) return placed
+  const extra: ReplayDocumentReady['weaponChanges'] = []
+  for (const [track, effects] of pickupPlacements(doc)) {
+    for (const fx of effects) {
+      if (fx.effect === 'refill') continue
+      extra.push({ t: fx.t, slot: track.slot, kind: 'taken', w: fx.w, ...(fx.emplacement != null ? { k: fx.emplacement } : {}) })
+    }
+  }
+  placed = extra.length ? { ...doc, weaponChanges: [...doc.weaponChanges, ...extra].sort((a, b) => a.t - b.t) } : doc
+  placedCache.set(doc, placed)
+  return placed
+}
+
+/**
+ * changesInto: the weapon changes into emplacement `emplacement` of the life of `slot` covering
+ * `frame`, placed pickups included (`withPlacedPickups`): the frame of the latest at or before
+ * `frame` (-Infinity: none) and of the next after it (Infinity: none). A change without an
+ * emplacement counts for both. An ammo read of the emplacement dated before `last`, or after `next`,
+ * describes ANOTHER weapon than the one it holds at `frame`.
+ */
+export function changesInto(doc: ReplayDocumentReady, slot: number, emplacement: number, frame: number): { last: number; next: number } {
+  const life = currentLifeOf(doc, slot, frame)
+  let last = -Infinity, next = Infinity
+  if (!life) return { last, next }
+  const { start, end } = trackWindow(life)
+  for (const c of withPlacedPickups(doc).weaponChanges) {
+    if (c.slot !== slot || c.t < start || c.t > end || (c.k != null && c.k !== emplacement)) continue
+    if (c.t <= frame) { if (c.t > last) last = c.t }
+    else if (c.t < next) next = c.t
+  }
+  return { last, next }
+}
+
+/** handOn: `weaponInHand` read on `doc` as given (`weaponInHand` hands it the placed pickups). */
+function handOn(doc: ReplayDocumentReady, slot: number, frame: number): { id: string; weaponSlot: number } | null {
   const life = currentLifeOf(doc, slot, frame)
   if (!life || carriedObjectAt(doc, life.xuid, frame)) return null
   let tracked = handTracksCache.get(doc)

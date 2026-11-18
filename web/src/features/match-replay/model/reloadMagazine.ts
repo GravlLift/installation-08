@@ -13,7 +13,7 @@
 import { frameToMs, msToFrames } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 
-import { weaponInHand } from './weaponInHand'
+import { changesInto, weaponInHand } from './weaponInHand'
 
 /** The model key of a weapon id: its first eight hex digits, lower case. */
 function modelKeyOf(id: string | undefined): string {
@@ -29,20 +29,22 @@ export function magazineAtReload(doc: ReplayDocumentReady, slot: number, ms: num
   const frame = msToFrames(ms, doc)
   const main = weaponInHand(doc, slot, frame)
   if (!main) return null
+  // A read dated before the latest weapon change into the emplacement counts the replaced weapon.
+  const since = changesInto(doc, slot, main.weaponSlot, frame).last
   let read: ReplayDocumentReady['ammoReads'][number] | null = null
   for (const r of doc.ammoReads) {
-    if (r.slot !== slot || r.w !== main.weaponSlot || r.mag == null || r.ms > ms) continue
+    if (r.slot !== slot || r.w !== main.weaponSlot || r.mag == null || r.ms > ms || r.t < since) continue
     if (!read || r.ms >= read.ms) read = r
   }
   if (!read || read.mag == null) return null
-  const since = read.ms
-  if (starts.some((d) => d > since && d < ms)) return null
+  const readMs = read.ms
+  if (starts.some((d) => d > readMs && d < ms)) return null
   const key = modelKeyOf(main.id)
   let shots = 0
   for (const s of doc.shots) {
     if (s.slot !== slot || modelKeyOf(s.w) !== key) continue
     const t = frameToMs(s.t, doc) + (s.o ?? 0)
-    if (t > since && t <= ms) shots++
+    if (t > readMs && t <= ms) shots++
   }
   return Math.max(0, read.mag - shots)
 }

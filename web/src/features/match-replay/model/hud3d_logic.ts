@@ -9,7 +9,7 @@ import { shieldHudAt, shieldHudTrackOf, type ShieldHudTrack } from './shieldHud'
 import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
 import { catalogText } from '../i18n/catalogLabel'
 import type { ReplayKill } from './killFeedLogic'
-import { weaponInHand } from './weaponInHand'
+import { changesInto, weaponInHand } from './weaponInHand'
 import { equipmentSlotAt } from './equipmentSlotHud'
 import { grenadeBoxAt, grenadesCarriedFrom, inventoryAt } from './inventoryReading'
 import { weaponClassOfKey } from '../scene3d/weaponClass3d'
@@ -61,8 +61,13 @@ function shieldBar(source: ReturnType<typeof prepareHud>, life: ReplayTrackReady
 /** The ammo of a weapon slot of a life across the film: each read carries forward what it does not say. */
 export interface AmmoTracking {
   ms: number[]
+  /** Each read's frame. */
+  t: number[]
   mag: (number | undefined)[]
   res: (number | undefined)[]
+  /** What each read says itself, before carrying forward. */
+  readMag: (number | undefined)[]
+  readRes: (number | undefined)[]
 }
 
 const ammoKey = (slot: number, w: number) => slot * 8 + w
@@ -73,17 +78,24 @@ export function trackAmmo(doc: ReplayDocumentReady): Map<number, AmmoTracking> {
   for (const read of doc.ammoReads) {
     const key = ammoKey(read.slot, read.w)
     let tracking = tracked.get(key)
-    if (!tracking) tracked.set(key, (tracking = { ms: [], mag: [], res: [] }))
+    if (!tracking) tracked.set(key, (tracking = { ms: [], t: [], mag: [], res: [], readMag: [], readRes: [] }))
     const last = tracking.ms.length - 1
     tracking.ms.push(read.ms)
+    tracking.t.push(read.t)
     tracking.mag.push(read.mag ?? tracking.mag[last])
     tracking.res.push(read.res ?? tracking.res[last])
+    tracking.readMag.push(read.mag)
+    tracking.readRes.push(read.res)
   }
   return tracked
 }
 
-/** ammoAt: the last read of the slot at instant `ms`, null before the first. */
-export function ammoAt(tracking: AmmoTracking | undefined, ms: number): { mag?: number; res?: number } | null {
+/**
+ * ammoAt: the last read of the slot at instant `ms`, null before the first. With `sinceFrame`, only
+ * the reads dated at or after that frame count, and a field none of them says stays out: the reads
+ * before it describe another weapon (`changesInto`).
+ */
+export function ammoAt(tracking: AmmoTracking | undefined, ms: number, sinceFrame = -Infinity): { mag?: number; res?: number } | null {
   if (!tracking) return null
   let start = 0
   let end = tracking.ms.length
@@ -92,7 +104,18 @@ export function ammoAt(tracking: AmmoTracking | undefined, ms: number): { mag?: 
     if (tracking.ms[mid] <= ms) start = mid + 1
     else end = mid
   }
-  return start ? { mag: tracking.mag[start - 1], res: tracking.res[start - 1] } : null
+  if (!start) return null
+  const i = start - 1
+  if (tracking.t[i] < sinceFrame) return null
+  if (sinceFrame === -Infinity || tracking.t[0] >= sinceFrame) return { mag: tracking.mag[i], res: tracking.res[i] }
+  // Carry forward again, from the first read since the change only.
+  let mag: number | undefined
+  let res: number | undefined
+  for (let j = i; j >= 0 && tracking.t[j] >= sinceFrame && (mag == null || res == null); j--) {
+    mag ??= tracking.readMag[j]
+    res ??= tracking.readRes[j]
+  }
+  return { mag, res }
 }
 
 function lastMark(times: readonly number[], now: number, duration: number): number {
@@ -118,9 +141,15 @@ export function readHud(source: ReturnType<typeof prepareHud>, frame: number, lo
   const inHand = held?.weaponSlot
   const weapon = held
   const label = weapon ? doc.weaponLabels?.[weapon.id] : undefined
-  const keyframe = inHand != null ? inventory?.state.am?.[inHand] : undefined
+  // A read of the emplacement dated before the latest weapon change into it (a pickup included), or
+  // an upcoming keyframe dated after the next one, counts another weapon's ammo: never shown. Blank
+  // is better than the replaced weapon's count (1a521d10 slot 518: a VK78 picked into emplacement 0
+  // at frame 757 showed the replaced rifle's 36 | 108 until the next keyframe).
+  const into = inHand != null ? changesInto(doc, slot, inHand, frame) : null
+  const keyframeValid = inventory != null && into != null && inventory.state.t >= into.last && inventory.state.t < into.next
+  const keyframe = inHand != null && keyframeValid ? inventory?.state.am?.[inHand] : undefined
   // The `ammoReads` axis tracks the magazine per shot; the inventory keyframe stands in without it.
-  const fine = inHand != null ? ammoAt(source.ammo.get(ammoKey(slot, inHand)), now) : null
+  const fine = inHand != null ? ammoAt(source.ammo.get(ammoKey(slot, inHand)), now, into?.last) : null
   // While nothing has moved a field of the birth weapon (a fresh spawn that has not fired yet; a
   // refill tops up the reserve and keeps the magazine), the weapon's spawn ammo as the film measures
   // it (`spawnAmmo`): past information, so it outranks an upcoming keyframe, and it fills the field

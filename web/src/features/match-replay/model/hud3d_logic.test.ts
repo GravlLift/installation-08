@@ -237,6 +237,45 @@ describe('HUD 3D display', () => {
       expect(readHud(source, 2600, 'en')?.ammo?.mag).toBeUndefined()
     })
 
+    it('never counts a picked-up weapon with the ammo read while its emplacement was empty', () => {
+      const doc = switchDoc({
+        loadouts: [
+          { t: 100, slot: 520, w: ['0x6ACDC44D', '0x2B1824D5'], src: 'birth', k: [0, 1] },
+          { t: 2376, slot: 530, w: ['0x6ACDC44D'], src: 'birth', k: [0] },
+        ],
+        inventory: [
+          { t: 200, slot: 520, d: 0, am: [{ mag: 15, res: 45 }, { mag: 12, res: 36 }], g: [2] },
+          { t: 2400, slot: 530, d: 0, am: [{ mag: 15, res: 45 }, { res: 0 }], g: [2] },
+        ],
+        ammoReads: [
+          { t: 2400, ms: 79200, slot: 530, w: 0, mag: 15, res: 45, src: 'kf' },
+          { t: 2400, ms: 79200, slot: 530, w: 1, res: 0, src: 'kf' },
+        ],
+        weaponChanges: [{ t: 2450, slot: 530, kind: 'taken', w: 'aaaa1111', k: 1 }],
+        drawnWeapons: [{ t: 2450, slot: 530, d: 1 }],
+      })
+      const source = prepareHud(doc, 'A', [])
+      expect(readHud(source, 2440, 'en')?.ammo).toMatchObject({ mag: 15, res: 45 })
+      const hud = readHud(source, 2500, 'en')
+      expect(hud?.weaponId).toBe('0xAAAA1111')
+      expect(hud?.ammo?.mag).toBeUndefined()
+      expect(hud?.ammo?.res).toBeUndefined()
+    })
+
+    it('holds the weapon a pickup no weapon change saw put in hand, without the replaced one\'s ammo', () => {
+      const doc = switchDoc({
+        shots: [{ t: 2400, slot: 530, x: 0, y: 0, w: '0x6ACDC44D42C9679F' }],
+        ammoReads: [{ t: 2400, ms: 79200, slot: 530, w: 0, mag: 14, res: 45, src: 'delta' }],
+        pickups: [{ t: 2420, slot: 530, class: 0, kind: 'weapon', w: 'aaaa1111' }],
+      })
+      const source = prepareHud(doc, 'A', [])
+      expect(readHud(source, 2410, 'en')).toMatchObject({ weaponId: '0x6ACDC44D', ammo: { mag: 14, res: 45 } })
+      const hud = readHud(source, 2500, 'en')
+      expect(hud?.weaponId).toBe('0xAAAA1111')
+      expect(hud?.ammo?.mag).toBeUndefined()
+      expect(hud?.ammo?.res).toBeUndefined()
+    })
+
     it('keeps the carried weapon when a new weapon fills the empty emplacement', () => {
       const doc = switchDoc({
         loadouts: [
