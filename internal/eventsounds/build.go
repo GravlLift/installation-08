@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 
 // Package eventsounds extracts a mixed set of one-shot replay sound effects from the user's
-// installed game: the repair field's activation and end, the weapon stand-and-drop sounds, and
-// the objective family's skull (Oddball), zone capture and bomb detonation calls. It replaces the
+// installed game: the repair field's activation and end, the weapon stand-and-drop sounds, the
+// objective family's skull (Oddball), zone capture and bomb detonation calls, and the equipment
+// family's single-take sounds (camo end, shroud deploy, grapple, repulsor, pickup). It replaces the
 // matching files of internal/sounds/files/halo_infinite (hand-produced, embedded in the binary)
 // the same way internal/uisounds replaces the interface sounds: the viewer keeps requesting the
 // same stems, served from the data directory's sound folder when built and from the embedded set
@@ -57,7 +58,9 @@ import (
 const ManifestName = "events.json"
 
 // ManifestVersion is the manifest's format version; an older one is stale and the build runs again.
-const ManifestVersion = 1
+//
+// 2: the equipment family (camo end, shroud deploy, grapple, repulsor, equipment pickup).
+const ManifestVersion = 2
 
 // Sound is one event sound the viewer plays: its file stem, where its bank is (Tag xor Name),
 // the event that posts it, and how many of the event's media to write as numbered variants.
@@ -138,6 +141,34 @@ var Sounds = []Sound{
 	{Stem: "objective_zone_captured_team", Tag: 0x1c609526, Event: 0xd8a2fcb8, Media: 90826356},
 	{Stem: "objective_zone_captured_enemy", Tag: 0x1c609526, Event: 0x4ebe99d6},
 	{Stem: "objective_zone_contested", Tag: 0x1c609526, Event: 0xc3327c0b},
+
+	// The equipment family, found by name: each bank's own id is the Wwise hash of the name below
+	// (confirmed against the installed game, globals-rtx-new.module), and each event's name is
+	// LevelUp's own survey of the `sb_007_abl_*` banks (`.ai/V7.5/RE_BANQUES_SONORES_NOMMEES`
+	// section 3.4). Every take was measured within 5 ms of the shipped file it replaces; where an
+	// event plays several takes, Media pins the one each shipped stem was cut from, so a shipped
+	// variant's stem keeps its own take.
+	//   - active camo's end, `play_007_abl_activecamo_deactivate_player` (afde714f, one take,
+	//     1908 ms vs the shipped 1903 ms). Its activation (aa932bc4, 1924 ms) is NOT the shipped
+	//     3415 ms file, nor are the overshield's start/end (09eec642 1867 ms vs 3995 ms, 40d46c8f
+	//     1700 ms vs 2155 ms): those shipped files are assembled from more than one layer and stay.
+	//   - the shroud screen's deploy, `play_007_abl_shroud_deploy_player` (ecd34df7, three takes;
+	//     343194978 is the shipped one, 1835 ms vs 1834 ms).
+	//   - the grappling hook's fire, `play_007_abl_grapplinghook_deploy_player` (34df0941): its
+	//     three takes are the shipped three, 745/765/757 ms vs 745/764/757 ms.
+	//   - the repulsor's pulse, `play_007_abl_knockback_pulse_player` (5fa136df): its three takes
+	//     are the shipped repulsor_kill three, 1537/1447/1595 ms vs 1536/1446/1594 ms.
+	//   - the equipment pickup, `play_007_abl_shared_pickup` (c73036e4, two takes; 779938423 is
+	//     the shipped objective_pad_pickup, 804 ms vs 804 ms).
+	{Stem: "camo_deactivate", Name: "sb_007_abl_activecamo", Event: 0xafde714f},
+	{Stem: "shroud_deploy", Name: "sb_007_abl_shroud", Event: 0xecd34df7, Media: 343194978},
+	{Stem: "grapple_fire", Name: "sb_007_abl_grapplinghook", Event: 0x34df0941, Media: 646478996},
+	{Stem: "grapple_fire_v2", Name: "sb_007_abl_grapplinghook", Event: 0x34df0941, Media: 880401016},
+	{Stem: "grapple_fire_v3", Name: "sb_007_abl_grapplinghook", Event: 0x34df0941, Media: 970648875},
+	{Stem: "repulsor_kill", Name: "sb_007_abl_knockback", Event: 0x5fa136df, Media: 429477947},
+	{Stem: "repulsor_kill_v2", Name: "sb_007_abl_knockback", Event: 0x5fa136df, Media: 625402148},
+	{Stem: "repulsor_kill_v3", Name: "sb_007_abl_knockback", Event: 0x5fa136df, Media: 856604309},
+	{Stem: "objective_pad_pickup", Name: "sb_007_abl_shared", Event: 0xc73036e4, Media: 779938423},
 }
 
 // bankDirs are the platform globals modules this package scans for bank tags and, by name,

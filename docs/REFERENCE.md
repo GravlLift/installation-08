@@ -121,12 +121,15 @@ else about the export reaches the viewer (no path, no environment value).
 
 ## Replay sounds
 
-**Built-in set.** The match's sound set is built into the program: the viewer plays it from
-`/static/sounds/halo_infinite/` on a fresh install, no setup needed. The set (183 `.ogg` files,
-one per stem) cannot be rebuilt from a game installation: it was hand-produced for a replay
-player (decoded, assembled and picked by ear) by JGtm's
-[LevelUp](https://github.com/JGtm/LevelUp) and ships in `internal/sounds`, embedded in the
-binary (see [NOTICE.md](../NOTICE.md)).
+**Built-in set.** The rest of the match's sound set is built into the program: the viewer plays
+it from `/static/sounds/halo_infinite/` on a fresh install, no setup needed. The set (140 `.ogg`
+files, one per stem) was hand-produced for a replay player (decoded, assembled and picked by
+ear) by JGtm's [LevelUp](https://github.com/JGtm/LevelUp) and ships in `internal/sounds`,
+embedded in the binary (see [NOTICE.md](../NOTICE.md)). Most of these files (weapon shots,
+vehicles, grenades, explosions, music) mix several of the game's sound layers into one file per
+gesture, which the install builds below cannot reproduce: they repack one game media each,
+without decoding. Every stem a build below extracts from the install was removed from the set
+once its take was confirmed to be the shipped one (same media, length within a few ms).
 
 To replace individual files with your own versions, `import-sounds --from <sounds-dir>` copies
 every `.ogg` file into the data directory (subfolders kept), skips files already present and

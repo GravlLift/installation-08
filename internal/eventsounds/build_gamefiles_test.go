@@ -67,4 +67,14 @@ func TestBuildFromTheInstalledGame(t *testing.T) {
 	within("objective_zone_captured_team", 2750, 3050)
 	within("objective_zone_captured_enemy", 2200, 2450)
 	within("objective_zone_contested", 1050, 1300)
+	// The equipment family: each shipped file's own length, within a few ms.
+	within("camo_deactivate", 1880, 1930)
+	within("shroud_deploy", 1810, 1860)
+	within("grapple_fire", 730, 760)
+	within("grapple_fire_v2", 750, 780)
+	within("grapple_fire_v3", 740, 770)
+	within("repulsor_kill", 1520, 1550)
+	within("repulsor_kill_v2", 1430, 1460)
+	within("repulsor_kill_v3", 1580, 1610)
+	within("objective_pad_pickup", 790, 820)
 }
