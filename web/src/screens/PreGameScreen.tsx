@@ -171,7 +171,7 @@ function QualityChoice({
   const intro = cancelled
     ? 'Build cancelled. Pick a texture quality.'
     : anyBuilt
-      ? `This map is not built at ${QUALITY_BUILD_COST[preferred].name} yet. Load the quality already built, or build this one.`
+      ? `This map is not built at ${QUALITY_BUILD_COST[preferred].name} yet. Pick one.`
       : 'This map has not been built yet. Pick a texture quality to build it.'
   return (
     <div className="bc-quality-choice" data-testid="quality-choice">
@@ -187,10 +187,12 @@ function QualityChoice({
               data-testid={`build-quality-${q}`}
               onClick={() => onPick(q)}
             >
-              <b>
-                {built[q] ? 'Load' : 'Build'} {cost.name}
-              </b>
-              <small>{built[q] ? 'already built, loads at once' : `${cost.time}, ${cost.size}`}</small>
+              <b>{built[q] ? cost.name : `Build ${cost.name}`}</b>
+              {built[q] ? null : (
+                <small>
+                  {cost.time}, {cost.size}
+                </small>
+              )}
             </button>
           )
         })}

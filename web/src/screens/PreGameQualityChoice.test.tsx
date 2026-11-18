@@ -88,7 +88,7 @@ describe('the pre-game quality choice', () => {
     expect(screen.queryByTestId('replay-viewer')).toBeNull()
   })
 
-  it('marks the quality already built as Load and says it waits for a pick', async () => {
+  it('labels the built quality by name only and says it waits for a pick', async () => {
     serve(['standard'])
     localStorage.setItem(QUALITY_KEY, 'high')
     render(<PreGameScreen matchId={ID} onBack={vi.fn()} />)
@@ -96,8 +96,7 @@ describe('the pre-game quality choice', () => {
     await flush()
 
     expect(screen.getByTestId('quality-choice').textContent).toContain('not built at High yet')
-    expect(screen.getByTestId('build-quality-standard').textContent).toContain('Load Standard')
-    expect(screen.getByTestId('build-quality-standard').textContent).toContain('already built')
+    expect(screen.getByTestId('build-quality-standard').textContent).toBe('Standard')
     expect(screen.getByTestId('build-quality-high').textContent).toContain('Build High')
     expect(document.body.textContent).toContain('Waiting for a texture quality pick')
     expect(document.body.textContent).not.toContain('Match loading')
