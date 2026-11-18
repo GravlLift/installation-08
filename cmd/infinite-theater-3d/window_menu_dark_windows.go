@@ -38,6 +38,9 @@ const (
 	dtHidePrefix      = 0x00100000
 	bkModeTransparent = 1
 	appModeForceDark  = 2
+	rdwInvalidate     = 0x0001
+	rdwUpdateNow      = 0x0100
+	rdwFrame          = 0x0400
 	menuBarColor      = 0x00202020 // COLORREF 0x00BBGGRR: the dark title bar's gray
 	menuBarHotColor   = 0x003E3E3E
 	menuBarTextColor  = 0x00E6E6E6
@@ -54,6 +57,8 @@ var (
 	procCreateSolidBrush = windows.NewLazySystemDLL("gdi32.dll").NewProc("CreateSolidBrush")
 	procSetTextColor     = windows.NewLazySystemDLL("gdi32.dll").NewProc("SetTextColor")
 	procSetBkMode        = windows.NewLazySystemDLL("gdi32.dll").NewProc("SetBkMode")
+	procDrawMenuBar      = windows.NewLazySystemDLL("user32.dll").NewProc("DrawMenuBar")
+	procRedrawWindow     = windows.NewLazySystemDLL("user32.dll").NewProc("RedrawWindow")
 	darkMenuBrush        uintptr
 	darkMenuHotBrush     uintptr
 )

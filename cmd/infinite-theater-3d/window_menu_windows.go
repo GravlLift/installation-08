@@ -303,6 +303,10 @@ func installAppWindowMenu(w webview.WebView, a menuActions, guard *closeGuard) {
 	if ret, _, err := procSetWindowLongPtrW.Call(uintptr(hwnd), gwlWndProc, subclass); ret == 0 {
 		slog.Error("app window: SetWindowLongPtrW(GWL_WNDPROC) failed, menu and close-save disabled", "err", err)
 	}
+	// SetMenu above painted the bar through the original procedure, light; repaint the frame
+	// now that the subclass draws it, or it stays light until something else repaints it.
+	_, _, _ = procDrawMenuBar.Call(uintptr(hwnd))
+	_, _, _ = procRedrawWindow.Call(uintptr(hwnd), 0, 0, rdwInvalidate|rdwFrame|rdwUpdateNow)
 	// The binding's body may run on the Chromium message thread; the action itself must
 	// run on the main OS thread, so dispatch it.
 	_ = w.Bind("it3dAccelerator", func(name string) {
