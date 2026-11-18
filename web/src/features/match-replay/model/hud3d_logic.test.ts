@@ -87,6 +87,74 @@ describe('HUD 3D display', () => {
     expect(readHud(source, 3, 'en')?.ammo).toMatchObject({ mag: 7, res: 20 })
     expect(readHud(source, 4, 'en')?.ammo).toMatchObject({ mag: 6, res: 20 })
   })
+
+  // f5454b2a (Streets): R One Oh 7 respawns at frame 2376 with the 0x6ACDC44D and no read of his
+  // ammo until his first shot at 2668 (~10 s); the HUD showed no count. Other lives of the film
+  // read the same weapon by keyframe before firing: 15 | 45.
+  describe('a fresh spawn before any read of its ammo', () => {
+    const spawnDoc = (extra: Parameters<typeof testReplayDoc>[0] = {}) => testReplayDoc({
+      frameIntervalMs: 33,
+      tracks: [
+        { slot: 520, xuid: 'B', team: 0, startFrame: 100, endFrame: 400, points: [{ t: 100, x: 0, y: 0 }, { t: 400, x: 0, y: 0 }] },
+        { slot: 530, xuid: 'A', team: 1, startFrame: 2376, endFrame: 2732, points: [{ t: 2376, x: 0, y: 0 }, { t: 2732, x: 0, y: 0 }] },
+      ],
+      loadouts: [
+        { t: 100, slot: 520, w: ['0x6ACDC44D'], src: 'birth', k: [0] },
+        { t: 200, slot: 520, w: ['0x6ACDC44D'] },
+        { t: 2376, slot: 530, w: ['0x6ACDC44D'], src: 'birth', k: [0] },
+      ],
+      // Life 520 is read at 200, before its first shot (300): its spawn state.
+      inventory: [{ t: 200, slot: 520, d: 0, am: [{ mag: 15, res: 45 }, { res: 0 }], g: [2] }],
+      shots: [{ t: 300, slot: 520, x: 0, y: 0, w: '0x6ACDC44D42C9679F' }, { t: 2668, o: 4, slot: 530, x: 0, y: 0, w: '0x6ACDC44D42C9679F' }],
+      ammoReads: [
+        { t: 200, ms: 6600, slot: 520, w: 0, mag: 15, res: 45, src: 'kf' },
+        { t: 300, ms: 9900, slot: 520, w: 0, mag: 14, src: 'delta' },
+        { t: 2668, ms: 88048, slot: 530, w: 0, mag: 14, src: 'delta' },
+      ],
+      ...extra,
+    })
+
+    it('shows the spawn ammo the film reads for that weapon from the spawn to the first read', () => {
+      const source = prepareHud(spawnDoc(), 'A', [])
+      expect(readHud(source, 2376, 'en')?.ammo).toMatchObject({ mag: 15, res: 45 })
+      expect(readHud(source, 2500, 'en')?.ammo).toMatchObject({ mag: 15, res: 45 })
+      expect(readHud(source, 2669, 'en')?.ammo?.mag).toBe(14)
+    })
+
+    it('stops at the first shot of the life, and never seeds a weapon picked up since the spawn', () => {
+      const shotDoc = spawnDoc({ ammoReads: [{ t: 200, ms: 6600, slot: 520, w: 0, mag: 15, res: 45, src: 'kf' }] })
+      expect(readHud(prepareHud(shotDoc, 'A', []), 2669, 'en')?.ammo?.mag).toBeUndefined()
+      const swapDoc = spawnDoc({
+        loadouts: [
+          { t: 100, slot: 520, w: ['0x6ACDC44D'], src: 'birth', k: [0] },
+          { t: 2376, slot: 530, w: ['0x2B1824D5'], src: 'birth', k: [0] },
+        ],
+      })
+      expect(readHud(prepareHud(swapDoc, 'A', []), 2500, 'en')?.ammo?.mag).toBeUndefined()
+    })
+
+    it('leaves a field out when the spawn reads of the film disagree on it', () => {
+      const doc = spawnDoc({
+        tracks: [
+          { slot: 520, xuid: 'B', team: 0, startFrame: 100, endFrame: 400, points: [{ t: 100, x: 0, y: 0 }, { t: 400, x: 0, y: 0 }] },
+          { slot: 521, xuid: 'C', team: 0, startFrame: 100, endFrame: 400, points: [{ t: 100, x: 0, y: 0 }, { t: 400, x: 0, y: 0 }] },
+          { slot: 530, xuid: 'A', team: 1, startFrame: 2376, endFrame: 2732, points: [{ t: 2376, x: 0, y: 0 }, { t: 2732, x: 0, y: 0 }] },
+        ],
+        loadouts: [
+          { t: 100, slot: 520, w: ['0x6ACDC44D'], src: 'birth', k: [0] },
+          { t: 100, slot: 521, w: ['0x6ACDC44D'], src: 'birth', k: [0] },
+          { t: 2376, slot: 530, w: ['0x6ACDC44D'], src: 'birth', k: [0] },
+        ],
+        inventory: [
+          { t: 200, slot: 520, d: 0, am: [{ mag: 15, res: 45 }], g: [2] },
+          { t: 200, slot: 521, d: 0, am: [{ mag: 15, res: 90 }], g: [2] },
+        ],
+      })
+      const ammo = readHud(prepareHud(doc, 'A', []), 2500, 'en')?.ammo
+      expect(ammo?.mag).toBe(15)
+      expect(ammo?.res).toBeUndefined()
+    })
+  })
 })
 
 describe('HUD 3D score banner: team order', () => {

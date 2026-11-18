@@ -13,6 +13,7 @@ import { weaponInHand } from './weaponInHand'
 import { equipmentSlotAt } from './equipmentSlotHud'
 import { grenadeBoxAt, grenadesCarriedFrom, inventoryAt } from './inventoryReading'
 import { weaponClassOfKey } from '../scene3d/weaponClass3d'
+import { spawnAmmoAt, spawnAmmoIndex } from './spawnAmmo'
 
 export function reticleShape(key: string | undefined): 'circle' | 'precision' | 'pistol' | 'dot' | 'large' | 'default' {
   if (!key) return 'default'
@@ -47,7 +48,7 @@ export function prepareHud(doc: ReplayDocumentReady, xuid: string, kills: readon
   const players = buildPlayers(doc, [])
   const allegiance = buildFilmAllegiance(players, xuid)
   const feed = [...kills].sort((a, b) => a.replayMs - b.replayMs)
-  return { doc, xuid, allegiance, feed, score: scoreTimelineOf(doc), player: players.find((p) => p.xuid === xuid), presence: vitalityPresence(doc), impacts, eliminations, ammo: trackAmmo(doc), shields: new Map<ReplayTrackReady, ShieldHudTrack>() }
+  return { doc, xuid, allegiance, feed, score: scoreTimelineOf(doc), player: players.find((p) => p.xuid === xuid), presence: vitalityPresence(doc), impacts, eliminations, ammo: trackAmmo(doc), spawnAmmo: spawnAmmoIndex(doc), shields: new Map<ReplayTrackReady, ShieldHudTrack>() }
 }
 
 /** The shield bar of a life (`shieldHud`), built on its first read and kept for the source's life. */
@@ -120,7 +121,12 @@ export function readHud(source: ReturnType<typeof prepareHud>, frame: number, lo
   const keyframe = inHand != null ? inventory?.state.am?.[inHand] : undefined
   // The `ammoReads` axis tracks the magazine per shot; the inventory keyframe stands in without it.
   const fine = inHand != null ? ammoAt(source.ammo.get(ammoKey(slot, inHand)), now) : null
-  const ammo = fine ? { ...keyframe, mag: fine.mag ?? keyframe?.mag, res: fine.res ?? keyframe?.res } : keyframe
+  // Before any read of the life (a fresh spawn that has not fired yet), the weapon's spawn ammo as
+  // the film measures it (`spawnAmmo`): past information, so it outranks an upcoming keyframe.
+  const spawn = !fine && held && !(inventory && inventory.age >= 0) ? spawnAmmoAt(source.spawnAmmo, state.life, frame, held) : null
+  const ammo = fine
+    ? { ...keyframe, mag: fine.mag ?? keyframe?.mag, res: fine.res ?? keyframe?.res }
+    : spawn ? { ...keyframe, mag: spawn.mag ?? keyframe?.mag, res: spawn.res ?? keyframe?.res } : keyframe
   const box = grenadeBoxAt(doc, slot, frame, inventory)
   const grenades = box ? grenadesCarriedFrom(box.g, doc.grenadeLabels, locale) : []
   if (!grenades.some((g) => g.rank === 0)) grenades.unshift({ rank: 0, name: catalogText(doc.grenadeLabels?.[0], locale) ?? REPLAY_TEXT[locale].soundCategory.grenade, count: box?.g[0] ?? 0 })
