@@ -252,6 +252,7 @@ func appendSubmenu(bar uintptr, sub uintptr, text string) {
 // would free live window-procedure code.
 func installAppWindowMenu(w webview.WebView, a menuActions, guard *closeGuard) {
 	hwnd := windows.Handle(w.Window())
+	enableDarkMenus()
 	if menu := createAppMenu(); menu != 0 {
 		_, _, _ = procSetMenu.Call(uintptr(hwnd), uintptr(menu))
 	}
@@ -270,6 +271,9 @@ func installAppWindowMenu(w webview.WebView, a menuActions, guard *closeGuard) {
 		return
 	}
 	subclass := windows.NewCallback(func(hwnd windows.Handle, msg uint32, wParam, lParam uintptr) uintptr {
+		if r, handled := darkMenuMessage(hwnd, msg, wParam, lParam, orig); handled {
+			return r
+		}
 		if msg == wmCommand && wParam>>16 == 0 { // a menu selection
 			a.runMenuCommand(wParam)
 			return 0
