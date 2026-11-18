@@ -144,11 +144,13 @@ vec2 atOn(vec4 x, float on) { return (on > 1.5 ? vMacro : vCouche) * x.xy + x.zw
 
 // A layer's color from its map's sample. A gradient runs from the bottom
 // color (0) through the middle (0.5) to the top (1), as Ekur's ColorMixer node does.
+// One return, no early exit: Direct3D's compiler under ANGLE reads the early-return form as a
+// "potentially uninitialized variable" (warning X4000, on every layered program).
 vec3 colorOf(vec4 s, int k) {
-  if (L_KIND(k) < 0.5) return s.rgb * L_TINT(k);
   float g = s.r;
   vec3 low = mix(L_MID(k), L_BOT(k), clamp(1.0 - g * 2.0, 0.0, 1.0));
-  return mix(low, L_TOP(k), clamp(g * 2.0 - 1.0, 0.0, 1.0));
+  vec3 ramp = mix(low, L_TOP(k), clamp(g * 2.0 - 1.0, 0.0, 1.0));
+  return L_KIND(k) < 0.5 ? s.rgb * L_TINT(k) : ramp;
 }
 
 // A layer's tangent-space normal from the red and green of its normal map.
