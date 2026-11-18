@@ -119,9 +119,19 @@ type Report struct {
 // ErrUnreadable is a clear error (never a panic) for a chunk folder that cannot be loaded.
 var ErrUnreadable = errors.New("film chunks unreadable")
 
+// MemoryExceededMessage is the line a decode logs just before its memory guard stops the
+// process. A parent that ran the decode in a child process reads it to name the failure.
+const MemoryExceededMessage = "memory limit exceeded, stopping decode"
+
+// MemoryLimitBytes is the footprint at which the guard stops a decode.
+var MemoryLimitBytes = memguard.HardLimitFor(memguard.DefaultLimitGiB)
+
 // Build decodes the film of in.ChunkDir and assembles the replay document. The decode is
 // guarded by the decoder's memory sentinel (memguard), armed at its default ceiling: an
 // out-of-memory decode stops with its reason instead of taking the machine hostage.
+//
+// THE GUARD MEASURES AND STOPS THE WHOLE PROCESS (os.Exit), so a long-lived process must not
+// call Build itself: the app runs it in a child process (cmd/infinite-theater-3d/decodechild.go).
 func Build(ctx context.Context, in Input) (replay.ReplayDocument, Report, error) {
 	entry, err := resolveMapEntry(in)
 	if err != nil {
@@ -130,7 +140,7 @@ func Build(ctx context.Context, in Input) (replay.ReplayDocument, Report, error)
 	matchID := resolveMatchID(in)
 	guard := memguard.Arm(ctx, "infinite-theater-3d decode", memguard.DefaultLimitGiB,
 		func(peak uint64) {
-			slog.ErrorContext(ctx, "memory limit exceeded, stopping decode", "peak_bytes", peak)
+			slog.ErrorContext(ctx, MemoryExceededMessage, "peak_bytes", peak)
 			os.Exit(2)
 		}, memguard.WithArmMessage("infinite-theater-3d decode: memory ceiling armed for this decode"))
 	defer guard.Disarm()

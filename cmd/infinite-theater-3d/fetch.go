@@ -142,8 +142,10 @@ type fetchOptions struct {
 	build    func(*store.Root, string) error
 }
 
+// fetchMatch downloads a match and builds its replay. The build runs in a child process
+// (decodechild.go): the decoder's memory guard stops the process it runs in.
 func fetchMatch(ctx context.Context, root *store.Root, api *haloapi.Client, id string, progress fetchProgress) error {
-	return fetchPipeline(ctx, root, api, id, fetchOptions{progress: progress, build: func(root *store.Root, id string) error { return buildStored(root, id, importFlags{}) }})
+	return fetchPipeline(ctx, root, api, id, fetchOptions{progress: progress, build: func(root *store.Root, id string) error { return buildStoredInChild(ctx, root, id) }})
 }
 func fetchPipeline(ctx context.Context, root *store.Root, api *haloapi.Client, id string, opts fetchOptions) error {
 	progress := opts.progress

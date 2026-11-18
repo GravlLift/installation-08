@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"runtime/debug"
 )
 
 const usage = `usage: installation-08 <command> [flags]
@@ -59,7 +60,8 @@ var commands = map[string]func([]string) error{
 	"build-firstperson-library": runBuildFirstPersonLibrary,
 	"build-icons":               runBuildIcons,
 	"setup-coatings":            runSetupCoatings,
-	"window":                    runWindow, // hidden developer command: the app window on a URL, no server
+	"window":                    runWindow,      // hidden developer command: the app window on a URL, no server
+	"build-replay":              runBuildReplay, // hidden: the decode child a fetch starts (decodechild.go)
 }
 
 func run(args []string) error {
@@ -84,13 +86,21 @@ func main() {
 	// its console; a GUI-subsystem build launched from a terminal takes the terminal's
 	// over, and on a double-click (no parent console) the output goes to the server log
 	// file beside the data instead.
-	hasConsole := attachConsole()
-	if !hasConsole {
+	//
+	// A decode child (decodechild.go) does neither: its streams are its parent's pipes, which
+	// read its output and its exit. Its log lines keep the server log's format.
+	hasConsole := false
+	if os.Getenv(decodeChildEnv) != "" {
+		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	} else if hasConsole = attachConsole(); !hasConsole {
 		if dataDir, err := dataDirFor(""); err == nil {
 			if f, logErr := openServerLog(dataDir); logErr == nil {
 				os.Stdout = f
 				os.Stderr = f
 				slog.SetDefault(slog.New(slog.NewTextHandler(f, nil)))
+				// The runtime writes a panic to the process's standard error handle, which a
+				// double-click launch does not have: point it at the log so a crash names itself.
+				_ = debug.SetCrashOutput(f, debug.CrashOptions{})
 			}
 		}
 	}
