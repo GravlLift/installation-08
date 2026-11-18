@@ -8,11 +8,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
 	"github.com/llampwall/infinite-theater-3d/internal/meshbuild"
@@ -48,15 +50,30 @@ func variantPath(root *store.Root, id, name string) string {
 	return filepath.Join(filepath.Dir(meta), name)
 }
 
-// Bump when variant output changes without a build-format change.
-const variantCacheRevision = 1
+var variantBuildRevision = sync.OnceValue(func() string {
+	path, err := os.Executable()
+	if err != nil {
+		return ""
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
+})
 
 func variantCacheKey(asset, version, module, build, mode string, quality meshjobs.Quality, mvar []byte) string {
-	if asset == "" || version == "" || module == "" || build == "" || len(mvar) == 0 {
+	revision := variantBuildRevision()
+	if asset == "" || version == "" || module == "" || build == "" || revision == "" || len(mvar) == 0 {
 		return ""
 	}
 	h := sha256.New()
-	_, _ = fmt.Fprintf(h, "%q:%q:%q:%q:%q:%q:%q:%d:%d:", asset, version, module, build, mode, quality, Version, mapmesh.BuildFormat, variantCacheRevision)
+	_, _ = fmt.Fprintf(h, "%q:%q:%q:%q:%q:%q:%q:%d:", asset, version, module, build, mode, quality, revision, mapmesh.BuildFormat)
 	_, _ = h.Write(mvar)
 	return fmt.Sprintf("%x", h.Sum(nil))
 }

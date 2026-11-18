@@ -218,3 +218,9 @@ func TestVariantCacheReusesLayer(t *testing.T) {
 		t.Fatal("cached layer was not copied")
 	}
 }
+
+func TestVariantBuildRevision(t *testing.T) {
+	if variantBuildRevision() == "" {
+		t.Fatal("running build needs a revision fingerprint")
+	}
+}
