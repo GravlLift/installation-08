@@ -63,8 +63,36 @@ function navigate(path: string): void {
   window.location.hash = path
 }
 
+/** The server's startup update check (`GET /api/update`, run 15 s after the server starts):
+ *  asked on mount and once more after the check has had time to run. Null until a newer
+ *  release is known; any failure stays null (the update line is a convenience). */
+function useUpdateNotice(): { latest: string; url: string } | null {
+  const [update, setUpdate] = useState<{ latest: string; url: string } | null>(null)
+  useEffect(() => {
+    const controller = new AbortController()
+    const ask = async () => {
+      try {
+        const res = await fetch('/api/update', { signal: controller.signal })
+        if (!res.ok) return
+        const body = (await res.json()) as { newer?: boolean; latest?: string; url?: string }
+        if (body.newer && body.latest && body.url) setUpdate({ latest: body.latest, url: body.url })
+      } catch {
+        // No server, an old server without the route, or an abort: no update line.
+      }
+    }
+    void ask()
+    const timer = setTimeout(() => void ask(), 20_000)
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [])
+  return update
+}
+
 export function HomeScreen() {
   const [state, setState] = useState<MatchesState>({ phase: 'loading' })
+  const update = useUpdateNotice()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -121,6 +149,13 @@ export function HomeScreen() {
           {SERVER_LABEL[state.phase]}
         </span>,
         ...tickerText.map((text) => <span key={text}>{text}</span>),
+        ...(update
+          ? [
+              <a key="update" className="bc-update-link" href={update.url} target="_blank" rel="noopener noreferrer">
+                Update available: {update.latest}
+              </a>,
+            ]
+          : []),
       ]}
       keys={[['Up/Down', 'Move'], ['Enter', 'Select']]}
     >

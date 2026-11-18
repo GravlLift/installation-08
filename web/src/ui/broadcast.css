@@ -562,3 +562,6 @@ body.bc-has-optimize-bar .bc-stage, body.bc-has-optimize-bar .bc-player { top: v
 .bc-main { display: grid; min-height: 0; }
 /* A page laid over another one (the pre-game screen over the loading viewer). */
 .bc-over { position: fixed; inset: 0; z-index: 50; isolation: isolate; background: var(--studio-950); }
+/* The home ticker's update line: a link to the newer release's download page. */
+.bc-update-link { color: var(--win); text-decoration: none; }
+.bc-update-link:hover, .bc-update-link:focus-visible { text-decoration: underline; }
