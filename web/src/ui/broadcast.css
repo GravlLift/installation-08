@@ -70,9 +70,12 @@ body.bc-has-optimize-bar .bc-stage, body.bc-has-optimize-bar .bc-player { top: v
 .bc-rule { height: 1px; margin: 0 36px; background: linear-gradient(90deg, var(--air) 0, rgba(111,211,255,0.25) 22%, rgba(255,255,255,0.08) 100%); }
 
 /* Ticker */
-.bc-ticker { display: flex; align-items: center; gap: 28px; padding: 10px 36px; font-size: 12px; color: var(--ink-dim);
+/* Three columns: the left stays empty (the home's credits corner), status items in the center,
+ * key hints on the right. */
+.bc-ticker { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 10px 36px; font-size: 12px; color: var(--ink-dim);
   background: linear-gradient(180deg, transparent, rgba(3,6,10,0.7)); font-family: var(--display); letter-spacing: 0.14em; text-transform: uppercase; }
-.bc-ticker .bc-keys { margin-left: auto; display: flex; gap: 18px; }
+.bc-ticker-items { grid-column: 2; display: flex; align-items: center; gap: 28px; }
+.bc-ticker .bc-keys { grid-column: 3; justify-self: end; display: flex; gap: 18px; }
 .bc-key { display: inline-block; min-width: 22px; padding: 1px 6px; margin-right: 6px; border: 1px solid var(--ink-faint); border-radius: 3px; color: var(--ink); text-align: center; font-size: 11px; }
 .bc-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--win); margin-right: 8px; }
 .bc-dot.bad { background: var(--loss); }
@@ -134,10 +137,11 @@ body.bc-has-optimize-bar .bc-stage, body.bc-has-optimize-bar .bc-player { top: v
 /* The first-start "Getting ready" plate: across the desk, above the coatings row. */
 .bc-home .bc-firstrun { grid-column: 1 / -1; justify-self: center; width: min(100%, 720px); }
 .bc-home .bc-firstrun .bc-title { font-size: clamp(26px, 2.6vw, 40px); }
-/* The credits corner (HomeCredits): bottom left of the desk, just above the ticker, out of the
- * desk's grid so it never moves the menu or the featured card. Project links in the menu's
- * display type, authors in the rows' sub-line type. */
-.bc-home-credits { position: absolute; left: 0; bottom: 0; z-index: 1; }
+/* The credits corner (HomeCredits): the page's bottom left corner, down in the ticker's empty
+ * left third and on its margins (the ticker centers its status items), out of the desk's grid so
+ * it never moves the menu or the featured card. Project links in the menu's display type,
+ * authors in the rows' sub-line type. */
+.bc-home-credits { position: fixed; left: 36px; bottom: 10px; z-index: 2; }
 .bc-home-credits .bc-eyebrow { font-size: 11px; margin-bottom: 6px; }
 .bc-credits-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: auto auto; gap: 2px 14px; justify-content: start; align-items: baseline; }
 .bc-credits-list li { display: contents; }

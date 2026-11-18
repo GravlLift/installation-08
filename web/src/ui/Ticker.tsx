@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * Ticker — the status line along the bottom of every broadcast page: free-form status
- * items on the left (server state, "N matches stored", the coatings notice) and the
+ * items in the center (server state, "N matches stored", the coatings notice) and the
  * key hints for the current page on the right (e.g. ["Up/Down", "Move"], ["Enter", "Select"]).
+ * The left third stays empty: the home screen's credits corner sits there.
  */
 import type { ReactNode } from 'react'
 
@@ -16,7 +17,7 @@ export interface TickerProps {
 export function Ticker({ items, keys }: TickerProps) {
   return (
     <div className="bc-ticker">
-      {items}
+      <span className="bc-ticker-items">{items}</span>
       {keys && keys.length > 0 ? (
         <span className="bc-keys">
           {keys.map(([key, label]) => (
