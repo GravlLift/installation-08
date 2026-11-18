@@ -14,11 +14,11 @@
  *
  * ## The three rules, and where each one holds
  *
- * **CAPTURE IN PROGRESS.** The gauge only publishes RAMPES (monotone climbs), closed by a
+ * **CAPTURE IN PROGRESS.** The gauge only publishes ramps (monotone climbs), closed by a
  * return to zero when the film carries one — that is written in `ZoneState.Gauge` on the Go
- * side. A rampe says a capture is in progress; it does not say WHO is capturing. The side
- * is read at the arrival: if the rampe ends with an OWNER CHANGE, the captor is the new
- * owner. A rampe that falls back without changing the owner stays MUTE — that is exactly
+ * side. A ramp says a capture is in progress; it does not say WHO is capturing. The side
+ * is read at the arrival: if the ramp ends with an OWNER CHANGE, the captor is the new
+ * owner. A ramp that falls back without changing the owner stays MUTE — that is exactly
  * the "contested" case, and we cannot yet name the one who failed.
  *
  * **SCORING TICK.** Product rule from the user (2026-08-27): "we could play them each second
@@ -42,7 +42,7 @@
  *
  * **HILL SECURING** (2026-08-30). In King of the Hill the GUARD is what scores, once the
  * hill is taken (a capture of roughly one second). The trigger is therefore the `active`
- * interval HELD, not a gauge rampe: a hill's rampes do not sound. Detail and floor:
+ * interval HELD, not a gauge ramp: a hill's ramps do not sound. Detail and floor:
  * `ZONE_SECURING_MIN_MS`.
  *
  * ## Without an allied side, three of the four stay silent
@@ -84,7 +84,7 @@ export const ZONE_SOUND_STEMS = {
   /**
    * The zone is CONTESTED. Definition given by the user on 2026-08-27, word for word:
    * "it is when you are going to take an enemy zone and an enemy enters the zone to contest
-   * it". What the film shows of it: a GAUGE RAMPE that falls back WITHOUT the owner
+   * it". What the film shows of it: a GAUGE ramp that falls back WITHOUT the owner
    * changing — the capture was in progress, it was interrupted.
    *
    * NO SIDE, and that is not a gap: the game has only ONE contested sound
@@ -102,7 +102,7 @@ export const ZONE_SOUND_STEMS = {
    * WHY THIS IS NOT `capturing`, AND WHY THE TWO DO NOT STEP ON EACH OTHER. In King of the
    * Hill the taking is a capture of roughly one second and it is the GUARD that scores. A
    * hill's gauge is published since schema 92, but `zoneSoundEvents` does NOT read a hill's
-   * rampes (a zone whose intervals are `active`): `capturing` remains the Strongholds
+   * ramps (a zone whose intervals are `active`): `capturing` remains the Strongholds
    * capture, and securing is born of a held `active` interval, which only exists on a hill.
    *
    * THE SOUND IS SERVED LONG (5.5 s) AND PLAYED ONCE ONLY. That is a rule of the user, and
@@ -194,7 +194,7 @@ export function zoneSoundEvents(
   const zones: readonly ZoneStateLike[] = doc.zoneStates ?? []
   if (zones.length === 0) return []
   const out: ReplaySoundEvent[] = []
-  const cote = (owner: number | null | undefined): ZoneSide | undefined => {
+  const sideOf = (owner: number | null | undefined): ZoneSide | undefined => {
     if (allyTeam === null || owner === null || owner === undefined) return undefined
     return owner === allyTeam ? 'ally' : 'enemy'
   }
@@ -202,12 +202,12 @@ export function zoneSoundEvents(
   for (const z of zones) {
     // A HILL DOES NOT SOUND ITS GAUGE: its grammar is securing (below).
     if (z.spans.some((s) => s.active)) continue
-    for (const r of gaugeRampes(z.gauge ?? [])) {
-      const arrivee = ownerAfter(z.spans, r.end)
-      if (arrivee === undefined) {
-        // THE RAMPE CHANGED NOTHING: the capture was in progress and was interrupted. That
+    for (const r of gaugeRamps(z.gauge ?? [])) {
+      const arrival = ownerAfter(z.spans, r.end)
+      if (arrival === undefined) {
+        // THE RAMP CHANGED NOTHING: the capture was in progress and was interrupted. That
         // is CONTESTATION, and it sounds at the instant the gauge stops climbing — not at the
-        // start of the rampe, where nothing was yet contested. No side: the game has only
+        // start of the ramp, where nothing was yet contested. No side: the game has only
         // one sound for it.
         out.push(soundEvent(frameToMs(r.end, doc), ZONE_SOUND_STEMS.contested))
         continue
@@ -216,7 +216,7 @@ export function zoneSoundEvents(
       // arrival owner otherwise. The difference is not cosmetic: `ownerAfter` returns
       // `null` when the interval that opens is NEUTRAL, and the sound then stayed completely
       // silent — a neutralized base sounded neither the capture nor the contested.
-      const c = cote(rampSide(z.gaugeRamps, r.end) ?? arrivee)
+      const c = sideOf(rampSide(z.gaugeRamps, r.end) ?? arrival)
       if (!c) continue
       out.push(soundEvent(frameToMs(r.start, doc), ZONE_SOUND_STEMS.capturing[c]))
     }
@@ -271,31 +271,31 @@ function hillSecurings(
 }
 
 /**
- * gaugeRampes cuts the series into monotone climbs. A value that does not increase closes
- * the rampe in progress — that is the return to zero the Go publishes at the end of a rampe,
- * or simply the next point of another rampe.
+ * gaugeRamps cuts the series into monotone climbs. A value that does not increase closes
+ * the ramp in progress — that is the return to zero the Go publishes at the end of a ramp,
+ * or simply the next point of another ramp.
  *
- * A rampe of a single point is not one: the gesture sought is a capture that LASTS.
+ * A ramp of a single point is not one: the gesture sought is a capture that LASTS.
  *
- * THE RAMPE STARTS AT THE FIRST NON-ZERO POINT, AND THAT IS THE CORRECTION OF 2026-09-20.
- * The Go closes each rampe with a point at ZERO (`appendGaugeReset`,
+ * THE RAMP STARTS AT THE FIRST NON-ZERO POINT, AND THAT IS THE CORRECTION OF 2026-09-20.
+ * The Go closes each ramp with a point at ZERO (`appendGaugeReset`,
  * `zone_states_gauge.go`), and that zero is also the first point of the NEXT increasing
  * series. Since the gauge is published thinned (one point per variation >= 0.02 or per
- * second of rampe, NOTHING outside a rampe), there is then no more point until the real
+ * second of ramp, NOTHING outside a ramp), there is then no more point until the real
  * push: taking that zero for the start is announcing "a capture starts" at the instant the
  * PREVIOUS one just completed.
  *
- * MEASUREMENT, 2026-09-20, over the 8 zone documents of the cache (241 rampes): median
- * advance of the sound 17.6 s, maximum 173.1 s, 207 rampes out of 241 sounded more than 2 s
- * too early. Witness `396cfc92`, zone A: the published rampe runs from 73 600 to 103 900 ms,
+ * MEASUREMENT, 2026-09-20, over the 8 zone documents of the cache (241 ramps): median
+ * advance of the sound 17.6 s, maximum 173.1 s, 207 ramps out of 241 sounded more than 2 s
+ * too early. Witness `396cfc92`, zone A: the published ramp runs from 73 600 to 103 900 ms,
  * the first non-zero point is at 97 000 ms — 23.4 s of advance, and 73 600 ms is exactly the
  * instant the enemy side had just finished ITS capture.
  *
  * THE SERIES BEING STRICTLY INCREASING, at most ONE point can be worth zero: the first. The
  * correction is therefore local and never moves the summit — `contested`, which sounds at
- * the END of the rampe, keeps its instant and only sees the gesture correctly bounded.
+ * the END of the ramp, keeps its instant and only sees the gesture correctly bounded.
  */
-function gaugeRampes(g: readonly GaugeLike[]): { start: number; end: number }[] {
+function gaugeRamps(g: readonly GaugeLike[]): { start: number; end: number }[] {
   const out: { start: number; end: number }[] = []
   let i = 0
   while (i < g.length) {
@@ -308,14 +308,14 @@ function gaugeRampes(g: readonly GaugeLike[]): { start: number; end: number }[] 
 }
 
 /**
- * rampSide returns the side that the DOCUMENT measures for the rampe whose summit lands at
- * `end` (schema 64), or `undefined` when it measures none: aborted rampe, mute channel, or
+ * rampSide returns the side that the DOCUMENT measures for the ramp whose summit lands at
+ * `end` (schema 64), or `undefined` when it measures none: aborted ramp, mute channel, or
  * artifact prior to the schema.
  *
  * THE JOIN IS MADE BY THE SUMMIT, not by the start: the published bounds are those of
  * `findZoneRamps` on the Go side, whose `t0` is the return to zero that closes the PREVIOUS
- * rampe (that is exactly the defect `gaugeRampes` corrects here). The summit, for its part,
- * is the same on both sides — it is the last point published of the rampe.
+ * ramp (that is exactly the defect `gaugeRamps` corrects here). The summit, for its part,
+ * is the same on both sides — it is the last point published of the ramp.
  */
 function rampSide(
   ramps: readonly RampLike[] | null | undefined,
@@ -329,8 +329,8 @@ function rampSide(
 
 /**
  * ownerAfter returns the owner of the interval that STARTS at the closest point after the
- * end of a rampe — that is, the one the capture installed. Returns `undefined` when no
- * interval opens there: the rampe changed nothing, and the replay stays silent.
+ * end of a ramp — that is, the one the capture installed. Returns `undefined` when no
+ * interval opens there: the ramp changed nothing, and the replay stays silent.
  */
 function ownerAfter(spans: readonly SpanLike[], end: number): number | null | undefined {
   for (const s of spans) {
@@ -340,7 +340,7 @@ function ownerAfter(spans: readonly SpanLike[], end: number): number | null | un
 }
 
 /**
- * TOLERANCE_FRAMES — the allowed gap between the end of a rampe and the opening of the
+ * TOLERANCE_FRAMES — the allowed gap between the end of a ramp and the opening of the
  * interval it produces. The gauge is THINNED at publication (one point per variation
  * >= 0.02 or per second), so its last point precedes the handoff by a few frames.
  */

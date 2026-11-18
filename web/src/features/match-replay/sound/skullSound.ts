@@ -184,7 +184,7 @@ function firstLifeAfter(
 }
 
 /** The side of a score ticket, seen from the page — same notion as in `objectiveSound.ts`. */
-type MarqueSide = 'ally' | 'enemy'
+type ScoreSide = 'ally' | 'enemy'
 
 /**
  * scoreTickets — one event per SCORE STEP, in the side of the team that scores.
@@ -204,12 +204,12 @@ function scoreTickets(doc: ReplayDocumentReady, allyTeam: number | null): Replay
   if (!timeline) return []
   const out: ReplaySoundEvent[] = []
   for (const team of timeline.teams) {
-    const cote: MarqueSide = team.teamId === allyTeam ? 'ally' : 'enemy'
-    const stem = cote === 'ally' ? SKULL_SOUND_STEMS.scoringTeam : SKULL_SOUND_STEMS.scoringEnemy
-    let precedent: number | undefined
+    const side: ScoreSide = team.teamId === allyTeam ? 'ally' : 'enemy'
+    const stem = side === 'ally' ? SKULL_SOUND_STEMS.scoringTeam : SKULL_SOUND_STEMS.scoringEnemy
+    let previous: number | undefined
     for (const p of team.total) {
-      if (precedent !== undefined && p.v > precedent) out.push(soundEvent(frameToMs(p.t, doc), stem))
-      precedent = p.v
+      if (previous !== undefined && p.v > previous) out.push(soundEvent(frameToMs(p.t, doc), stem))
+      previous = p.v
     }
   }
   return out

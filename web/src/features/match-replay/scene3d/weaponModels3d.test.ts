@@ -109,12 +109,12 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('WeaponModels.sourcesChargees', () => {
+describe('WeaponModels.loadedSources', () => {
   it('returns the loaded models, empty with no model loaded', () => {
     const models = new WeaponModels('/weapons')
-    expect(models.sourcesChargees()).toEqual([])
+    expect(models.loadedSources()).toEqual([])
     models.dispose()
-    expect(models.sourcesChargees()).toEqual([])
+    expect(models.loadedSources()).toEqual([])
   })
 })
 

@@ -103,7 +103,7 @@ export class ReplayScene3d implements Replay3DExportSource {
    */
   readonly warmUp = serialize(async () => {
     try {
-      await prechauffer3d(this.renderer, this.scene, this.camera, { roots: [...Array.from(this.avatars.values(), (a) => a.group), ...(this.bras?.racinesChargees() ?? [])], detaches: this.weaponModels?.sourcesChargees() ?? [], composer: this.post.composer, avatars: [...this.avatars.values()], outline: this.post.outline })
+      await prechauffer3d(this.renderer, this.scene, this.camera, { roots: [...Array.from(this.avatars.values(), (a) => a.group), ...(this.bras?.racinesChargees() ?? [])], detaches: this.weaponModels?.loadedSources() ?? [], composer: this.post.composer, avatars: [...this.avatars.values()], outline: this.post.outline })
     } catch (error) { console.warn('3D replay: prewarming unavailable', error) }
   })
   /** The posed map: session-cached (`sessionAssetCache3d`) by its served path, not owned by this scene. */

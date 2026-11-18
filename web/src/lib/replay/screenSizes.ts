@@ -15,7 +15,7 @@
  * scale applied to world lengths is the MAXIMUM of two scales — the map's, and a FLOOR that
  * is the old framing enlarged by 20%.
  *
- *     scale_px_per_mm = max( map_scale_px_per_mm , PX_PAR_MM_MINIMUM_ECRAN )
+ *     scale_px_per_mm = max( map_scale_px_per_mm , MIN_SCREEN_PX_PER_MM )
  *     size_px         = softCeil( length_mm[family] × scale_px_per_mm )
  *
  * WHAT THIS SHAPE GUARANTEES, AND WHAT A PIXEL FLOOR DID NOT. The floor bears on the SCALE,
@@ -75,7 +75,7 @@ export const CORE_RADIUS = 3.4
 /** Legibility outline: the map goes from light to dark, a colored point gets lost in it without it. */
 export const OUTLINE_PAD = 1.0
 /**
- * PION_VISIBLE_DIAMETER_PX — the diameter ACTUALLY SEEN of a pawn at ground level: the core
+ * PAWN_VISIBLE_DIAMETER_PX — the diameter ACTUALLY SEEN of a pawn at ground level: the core
  * AND its outline. The outline is not an ornament, it is what makes the point legible on a
  * background that goes from light to dark — `markerEdge` already counts it as part of the
  * pawn.
@@ -87,14 +87,14 @@ export const OUTLINE_PAD = 1.0
  * Hence the user feedback of 2026-09-09: "the Ghost is smaller than the player's pawn"
  * (original French: « le Ghost est plus petit que le pion du joueur »).
  */
-export const PION_VISIBLE_DIAMETER_PX = (CORE_RADIUS + OUTLINE_PAD) * 2
+export const PAWN_VISIBLE_DIAMETER_PX = (CORE_RADIUS + OUTLINE_PAD) * 2
 
 /**
- * PION_SCREEN_PX — THE HISTORICAL UNIT OF THE FRAMING: the diameter ACTUALLY SEEN of a pawn
+ * PAWN_SCREEN_PX — THE HISTORICAL UNIT OF THE FRAMING: the diameter ACTUALLY SEEN of a pawn
  * at ground level, outline included. The pawn does not change size (decision of 2026-09-19);
  * it remains the anchor by which the old scale, hence the floor, is defined.
  */
-export const PION_SCREEN_PX = PION_VISIBLE_DIAMETER_PX
+export const PAWN_SCREEN_PX = PAWN_VISIBLE_DIAMETER_PX
 
 /**
  * MONGOOSE_REFERENCE_LENGTH_MM — the REAL length (nose-up) of the Mongoose sprite: 128 sprite
@@ -104,7 +104,7 @@ export const PION_SCREEN_PX = PION_VISIBLE_DIAMETER_PX
 const MONGOOSE_REFERENCE_LENGTH_MM = 1280
 
 /**
- * MONGOOSE_TO_PION_RATIO_V1 — the framing target of BEFORE 2026-09-20: "a Mongoose is 1.75
+ * MONGOOSE_TO_PAWN_RATIO_V1 — the framing target of BEFORE 2026-09-20: "a Mongoose is 1.75
  * pawn long", the middle of the 1.5-2 range originally requested. It no longer decides
  * anything; it is kept because the SCALE FLOOR is defined relative to it, and a floor whose
  * origin cannot be reconstituted is no longer verifiable.
@@ -116,7 +116,7 @@ const MONGOOSE_TO_PAWN_RATIO_V1 = 1.75
  * 0.01203125 px/mm. It is the former `VEHICLE_PX_PER_MM`, and it was applied whatever the
  * map.
  */
-const PX_PER_MM_FRAMING_V1 = (PION_SCREEN_PX * MONGOOSE_TO_PAWN_RATIO_V1) / MONGOOSE_REFERENCE_LENGTH_MM
+const PX_PER_MM_FRAMING_V1 = (PAWN_SCREEN_PX * MONGOOSE_TO_PAWN_RATIO_V1) / MONGOOSE_REFERENCE_LENGTH_MM
 
 /**
  * VEHICLE_SCREEN_BUMP — THE +20% ASKED BY THE USER ON 2026-09-19, in a SINGLE literal.
@@ -127,7 +127,7 @@ const PX_PER_MM_FRAMING_V1 = (PION_SCREEN_PX * MONGOOSE_TO_PAWN_RATIO_V1) / MONG
 export const VEHICLE_SCREEN_BUMP = 1.2
 
 /**
- * PX_PAR_MM_MINIMUM_ECRAN — THE SCALE FLOOR: 0.0144375 px/mm, that is the old scale
+ * MIN_SCREEN_PX_PER_MM — THE SCALE FLOOR: 0.0144375 px/mm, that is the old scale
  * enlarged by 20%. Under this floor, the map's scale no longer decides.
  *
  * THE SWITCHING SCALE IS WORTH 14.44 px/m, that is a scene 65.9 m wide in a 1 000 CSS px
@@ -136,7 +136,7 @@ export const VEHICLE_SCREEN_BUMP = 1.2
  * Snowbound (54.2 m, 17.56 px/m) is above — the map's scale is used there, and the vehicles
  * are bigger than the old +20%.
  */
-export const PX_PAR_MM_MINIMUM_ECRAN = PX_PER_MM_FRAMING_V1 * VEHICLE_SCREEN_BUMP
+export const MIN_SCREEN_PX_PER_MM = PX_PER_MM_FRAMING_V1 * VEHICLE_SCREEN_BUMP
 
 /**
  * VEHICLE_SOFT_CEIL_PX — the SOFT ceiling, UNCHANGED (7 pawns, 61.60 px): beyond it, the
@@ -148,7 +148,7 @@ export const PX_PAR_MM_MINIMUM_ECRAN = PX_PER_MM_FRAMING_V1 * VEHICLE_SCREEN_BUM
  * Measurement on Flood Gulch: the Pelican goes from 70.17 to 71.62 px, the Phantom from
  * 69.87 to 71.32.
  */
-export const VEHICLE_SOFT_CEIL_PX = 7 * PION_SCREEN_PX
+export const VEHICLE_SOFT_CEIL_PX = 7 * PAWN_SCREEN_PX
 
 /**
  * VEHICLE_CEIL_CANVAS_RATIO — THE FRACTION OF THE CANVAS that a vehicle does not exceed
@@ -167,7 +167,7 @@ export const VEHICLE_SOFT_CEIL_PX = 7 * PION_SCREEN_PX
 export const VEHICLE_CEIL_CANVAS_RATIO = 0.12
 
 /** Floor of the canvas ceiling: four pawns — a tiny canvas does not reduce a vehicle to a point. */
-export const VEHICLE_CEIL_MIN_PX = 4 * PION_SCREEN_PX
+export const VEHICLE_CEIL_MIN_PX = 4 * PAWN_SCREEN_PX
 
 /**
  * vehicleCeilPx — the soft ceiling of a vehicle for a canvas whose SHORT SIDE is
@@ -204,14 +204,14 @@ const VEHICLE_UNKNOWN_HALF_MM = CORE_RADIUS / PX_PER_MM_FRAMING_V1
  * than the diamond of an unknown chassis, without reaching the size of a driven chassis —
  * and this ratio is now held AT EVERY SCALE, since the three follow the same one.
  */
-const VEHICLE_TURRET_HALF_MM = (PION_SCREEN_PX * 0.75) / PX_PER_MM_FRAMING_V1
+const VEHICLE_TURRET_HALF_MM = (PAWN_SCREEN_PX * 0.75) / PX_PER_MM_FRAMING_V1
 
 /**
  * VEHICLE_EDGE_FALLBACK_MM — the equivalent world length of the half-gauge that a vehicle
  * whose sprite or manifest is NOT YET LOADED lends to its label: the one that gives back its
  * 4.40 historical px (a half-pawn) at the old scale. 4.40 -> 5.28 px on a big map.
  */
-const VEHICLE_EDGE_FALLBACK_MM = (PION_SCREEN_PX / 2) / PX_PER_MM_FRAMING_V1
+const VEHICLE_EDGE_FALLBACK_MM = (PAWN_SCREEN_PX / 2) / PX_PER_MM_FRAMING_V1
 
 /**
  * screenScalePxPerMm — THE EFFECTIVE SCALE of the layer: the map's, or the floor, the larger
@@ -223,7 +223,7 @@ const VEHICLE_EDGE_FALLBACK_MM = (PION_SCREEN_PX / 2) / PX_PER_MM_FRAMING_V1
  */
 export function screenScalePxPerMm(scalePxPerM: number): number {
   const mapScale = scalePxPerM > 0 ? scalePxPerM / 1000 : 0
-  return Math.max(mapScale, PX_PAR_MM_MINIMUM_ECRAN)
+  return Math.max(mapScale, MIN_SCREEN_PX_PER_MM)
 }
 
 /**

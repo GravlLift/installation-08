@@ -147,11 +147,11 @@ export class WeaponModels {
   }
 
   /**
-   * sourcesChargees: the loaded models, not attached to the scene (their copies are). Their
+   * loadedSources: the loaded models, not attached to the scene (their copies are). Their
    * materials and textures are shared by the copies: compiling and loading their textures once
    * covers every copy.
    */
-  sourcesChargees(): THREE.Object3D[] {
+  loadedSources(): THREE.Object3D[] {
     return this.owned
   }
 

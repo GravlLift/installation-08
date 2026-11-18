@@ -24,19 +24,19 @@ const URL = '/static/sounds/halo_infinite/intro_music_01.ogg'
 let ctx: FakeContext
 let fetchMock: ReturnType<typeof vi.fn>
 /** The held `fetch` response: it is released when the "decoding" must finish. */
-let libere: () => void
+let release: () => void
 /** The injected wall clock, in ms. */
-let maintenant = 0
-const horloge = () => maintenant
+let now = 0
+const clock = () => now
 
 beforeEach(() => {
   const fake = installFakeAudio()
   ctx = fake.ctx
   fetchMock = fake.fetchMock
   fetchMock.mockImplementation(
-    () => new Promise((resolve) => { libere = () => resolve(okAudioResponse(3)) }),
+    () => new Promise((resolve) => { release = () => resolve(okAudioResponse(3)) }),
   )
-  maintenant = 1_000
+  now = 1_000
 })
 
 afterEach(() => {
@@ -45,8 +45,8 @@ afterEach(() => {
 
 /** Makes the decoding "finish" at the `ms` moment of the wall clock. */
 async function decodeA(ms: number) {
-  maintenant = ms
-  libere()
+  now = ms
+  release()
   await flushAudio()
 }
 
@@ -60,7 +60,7 @@ describe('introLateBoundS — the admitted delay is the preamble at the current 
 describe('playIntroAligned — aligned start despite a late decoding', () => {
   it('decoded in 200 ms: the source goes out with an offset of 0.2 s', async () => {
     const p = new ReplayAudioPlayer(1)
-    void playIntroAligned(p, URL, 1, horloge)
+    void playIntroAligned(p, URL, 1, clock)
     expect(ctx.sources).toHaveLength(0) // nothing until the buffer is there
     await decodeA(1_200)
     expect(ctx.sources).toHaveLength(1)
@@ -71,14 +71,14 @@ describe('playIntroAligned — aligned start despite a late decoding', () => {
 
   it('decoded beyond the preamble: no source (the kickoff is past)', async () => {
     const p = new ReplayAudioPlayer(1)
-    void playIntroAligned(p, URL, 1, horloge)
+    void playIntroAligned(p, URL, 1, clock)
     await decodeA(2_050)
     expect(ctx.sources).toHaveLength(0)
   })
 
   it('at 2x, the bound is 0.5 s: 0.6 s of delay is already too late', async () => {
     const p = new ReplayAudioPlayer(1)
-    void playIntroAligned(p, URL, 2, horloge)
+    void playIntroAligned(p, URL, 2, clock)
     await decodeA(1_600)
     expect(ctx.sources).toHaveLength(0)
   })
@@ -87,8 +87,8 @@ describe('playIntroAligned — aligned start despite a late decoding', () => {
     const p = new ReplayAudioPlayer(1)
     p.preload([URL])
     await decodeA(1_000)
-    maintenant = 5_000
-    void playIntroAligned(p, URL, 1, horloge)
+    now = 5_000
+    void playIntroAligned(p, URL, 1, clock)
     expect(ctx.sources).toHaveLength(1)
     expect(ctx.sources[0].offset).toBe(0)
   })

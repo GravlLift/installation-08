@@ -63,7 +63,7 @@ const SCREEN_EFFECT_SHADERS: ReadonlySet<number> = new Set([0xc0146c52])
  */
 const STENCIL_DECAL_SHADERS: ReadonlySet<number> = new Set([3233303146])
 
-interface Pochoir { couleur: [number, number, number]; opacite: number }
+interface Stencil { couleur: [number, number, number]; opacite: number }
 
 /**
  * decalStencilMaterial returns the stencil decal material for a texture: a tinted standard
@@ -72,7 +72,7 @@ interface Pochoir { couleur: [number, number, number]; opacite: number }
  * served from `cache`. The texture object is reused (never cloned) to keep its UV transform
  * (`KHR_texture_transform`).
  */
-export function decalStencilMaterial(texture: THREE.Texture, cache: Map<string, THREE.MeshStandardMaterial>, pochoir?: Pochoir): THREE.MeshStandardMaterial {
+export function decalStencilMaterial(texture: THREE.Texture, cache: Map<string, THREE.MeshStandardMaterial>, pochoir?: Stencil): THREE.MeshStandardMaterial {
   const signature = `${texture.uuid}|${pochoir ? `${pochoir.couleur.join(',')}|${pochoir.opacite}` : 'fallback'}`
   let m = cache.get(signature)
   if (!m) {
@@ -97,7 +97,7 @@ interface MaterialExtras {
   /** The game's glass: drawn by refraction, its melange stays opaque. */
   vitre?: boolean
   couches?: LayeredInfo
-  pochoir?: Pochoir
+  pochoir?: Stencil
   /** Flat color (linear RGB) of a layerless material: a Forge variant's placed object. */
   teinte?: [number, number, number]
   /** Its light is a picture (sign, screen, hologram), not a light mask (`glowOf`). */
@@ -236,11 +236,11 @@ export function seeThroughGlowMaterial(source: THREE.MeshStandardMaterial, extra
 }
 
 /**
- * teinteVerreTeint averages the color of a layered material's first layer (`bas`, `milieu` and
+ * glassTintOf averages the color of a layered material's first layer (`bas`, `milieu` and
  * `haut`, whichever are present, in linear RGB): the game's dark glass tint. Null with no
  * readable layer or color (the glass then keeps the clear glass).
  */
-export function teinteVerreTeint(couches: LayeredInfo): [number, number, number] | null {
+export function glassTintOf(couches: LayeredInfo): [number, number, number] | null {
   const layer = couches.couches[0]
   if (!layer) return null
   const colors = [layer.bas, layer.milieu, layer.haut].filter((c): c is [number, number, number] => c !== undefined)
@@ -343,11 +343,11 @@ interface MaterialContext {
   animateGlow(material: THREE.MeshStandardMaterial | THREE.MeshBasicMaterial, source: THREE.MeshStandardMaterial, image: boolean): void
   /** A see-through emitter of the game, one per game material (`seeThroughGlowMaterial`). */
   seeThroughGlow(source: THREE.MeshStandardMaterial, extras: MaterialExtras): THREE.MeshBasicMaterial
-  tintCopy(base: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial, teinte: [number, number, number]): THREE.MeshStandardMaterial
-  /** The game's tinted glass: it multiplies what is behind it by `teinte`, with no lighting or reflection. */
-  verreTeint(teinte: [number, number, number]): THREE.MeshBasicMaterial
+  tintCopy(base: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial, tint: [number, number, number]): THREE.MeshStandardMaterial
+  /** The game's tinted glass: it multiplies what is behind it by `tint`, with no lighting or reflection. */
+  tintedGlass(tint: [number, number, number]): THREE.MeshBasicMaterial
   /** The game's stencil decal, shared by texture, color and opacity. */
-  decalStencil(texture: THREE.Texture, pochoir?: Pochoir): THREE.MeshStandardMaterial
+  decalStencil(texture: THREE.Texture, pochoir?: Stencil): THREE.MeshStandardMaterial
 }
 
 /**
@@ -385,9 +385,9 @@ function placeMaterial(o: THREE.Mesh, source: THREE.MeshStandardMaterial, extras
   }
   o.material = emits(source) ? ctx.glowCopy(ctx.mats[key], source, image) : ctx.mats[key]
   if (key === 'seeThrough' && extras.vitre && extras.couches && !emits(source)) {
-    const teinte = teinteVerreTeint(extras.couches)
+    const tint = glassTintOf(extras.couches)
     // Below 0.25 linear brightness, multiply blending obscures the view rather than reading as a tint.
-    if (teinte && (teinte[0] + teinte[1] + teinte[2]) / 3 >= 0.25) o.material = ctx.verreTeint(teinte)
+    if (tint && (tint[0] + tint[1] + tint[2]) / 3 >= 0.25) o.material = ctx.tintedGlass(tint)
   }
   if (extras.teinte && !extras.couches && key !== 'seeThrough' && !emits(source)) o.material = ctx.tintCopy(ctx.mats[key], source, extras.teinte)
   // A light masked by a texture stays on its lit copy (`glowCopy`): the layered shader's thirteen
@@ -471,12 +471,12 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
   }
   // One tinted copy of a family material per distinct flat color (the game's roughness and metal).
   const tinted = new Map<string, THREE.MeshStandardMaterial>()
-  const tintCopy = (base: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial, teinte: [number, number, number]) => {
-    const signature = `${base.uuid}|${teinte.join(',')}|${source.roughness}|${source.metalness}`
+  const tintCopy = (base: THREE.MeshStandardMaterial, source: THREE.MeshStandardMaterial, tint: [number, number, number]) => {
+    const signature = `${base.uuid}|${tint.join(',')}|${source.roughness}|${source.metalness}`
     let m = tinted.get(signature)
     if (!m) {
       m = base.clone()
-      m.color.setRGB(teinte[0], teinte[1], teinte[2], THREE.LinearSRGBColorSpace)
+      m.color.setRGB(tint[0], tint[1], tint[2], THREE.LinearSRGBColorSpace)
       m.roughness = source.roughness
       m.metalness = source.metalness
       owned.push(m)
@@ -486,22 +486,22 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
   }
   // One tinted glass per distinct tint: the game's dark glass (a layered `vitre` material),
   // placed at the tinted glass's opacity instead of the family's clear glass.
-  const verreTeint = new Map<string, THREE.MeshBasicMaterial>()
-  const verreTeintCopy = (teinte: [number, number, number]) => {
-    const signature = teinte.map((v) => Math.round(v * 1000) / 1000).join(',')
-    let m = verreTeint.get(signature)
+  const tintedGlass = new Map<string, THREE.MeshBasicMaterial>()
+  const tintedGlassCopy = (tint: [number, number, number]) => {
+    const signature = tint.map((v) => Math.round(v * 1000) / 1000).join(',')
+    let m = tintedGlass.get(signature)
     if (!m) {
       m = new THREE.MeshBasicMaterial({ blending: THREE.MultiplyBlending, premultipliedAlpha: true, transparent: true, depthWrite: false, side: THREE.DoubleSide })
-      m.color.setRGB(teinte[0], teinte[1], teinte[2], THREE.LinearSRGBColorSpace)
+      m.color.setRGB(tint[0], tint[1], tint[2], THREE.LinearSRGBColorSpace)
       owned.push(m)
-      verreTeint.set(signature, m)
+      tintedGlass.set(signature, m)
     }
     return m
   }
   // One stencil decal per distinct texture, color and opacity.
   const decalStencil = new Map<string, THREE.MeshStandardMaterial>()
-  const decalStencilCopy = (texture: THREE.Texture, pochoir?: Pochoir) => decalStencilMaterial(texture, decalStencil, pochoir)
-  const ctx: MaterialContext = { mats, owned, layered: new Map(), jobs: [], parser: gltf.parser, glowCopy, animateGlow, seeThroughGlow, tintCopy, verreTeint: verreTeintCopy, decalStencil: decalStencilCopy }
+  const decalStencilCopy = (texture: THREE.Texture, pochoir?: Stencil) => decalStencilMaterial(texture, decalStencil, pochoir)
+  const ctx: MaterialContext = { mats, owned, layered: new Map(), jobs: [], parser: gltf.parser, glowCopy, animateGlow, seeThroughGlow, tintCopy, tintedGlass: tintedGlassCopy, decalStencil: decalStencilCopy }
   const instanced: THREE.InstancedMesh[] = []
   timedSync(`${label}:traverse`, () => gltf.scene.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return

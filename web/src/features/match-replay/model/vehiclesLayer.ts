@@ -43,7 +43,7 @@
  *
  * WHAT THIS LAYER REFUSES TO DRAW — THE UNPLAYABLE FAMILIES (user verdict of
  * 2026-09-02, after real viewing, amended 2026-09-24: the Falcon was removed). See
- * `FAMILLES_NON_JOUABLES`: they are SCENERY entities, not vehicles of the game, and
+ * `NON_PLAYABLE_FAMILIES`: they are SCENERY entities, not vehicles of the game, and
  * they must NEITHER draw, NOR name anyone, NOR make a piece disappear.
  *
  * ORIENTATION — THE SCREEN GAP CONSTANT (GATE C6). The samples carry a WORLD heading
@@ -78,7 +78,7 @@ import { headingTowardNext } from './headingInterp'
 // --- REJECTED FAMILIES ------------------------------------------------------------------------
 
 /**
- * FAMILLES_NON_JOUABLES — the families this layer IGNORES ENTIRELY.
+ * NON_PLAYABLE_FAMILIES — the families this layer IGNORES ENTIRELY.
  *
  * SOURCE: user verdict of 2026-09-02 after real viewing of the replay ("on Behemoth,
  * falcons appear while the game had none of them"), cross-checked on artifact
@@ -117,19 +117,19 @@ import { headingTowardNext } from './headingInterp'
  *     passing by. A false embarking erases a very real player from the map; the
  *     refusal must therefore carry here first.
  */
-export const FAMILLES_NON_JOUABLES: ReadonlySet<string> = new Set([
+export const NON_PLAYABLE_FAMILIES: ReadonlySet<string> = new Set([
   'pelican',
   'phantom',
   'skiff',
 ])
 
 /**
- * vehicleIsDecor — true when the family is refused by `FAMILLES_NON_JOUABLES`. An
+ * vehicleIsDecor — true when the family is refused by `NON_PLAYABLE_FAMILIES`. An
  * EMPTY family (unresolved chassis) is NOT scenery: it is not known what it is, and
  * the neutral diamond keeps saying it.
  */
 export function vehicleIsDecor(family: string | undefined): boolean {
-  return family !== undefined && FAMILLES_NON_JOUABLES.has(family)
+  return family !== undefined && NON_PLAYABLE_FAMILIES.has(family)
 }
 
 /**
@@ -216,7 +216,7 @@ export function vehicleSpriteFamily(track: Pick<ReplayVehicleTrackReady, 'family
  * of the map**. Named rather than sown as a literal, same reason as
  * `VEHICLE_END_DESTROYED`.
  *
- * IT IS NOT CONFUSED WITH `FAMILLES_NON_JOUABLES`, AND THE DIFFERENCE IS THE POINT OF
+ * IT IS NOT CONFUSED WITH `NON_PLAYABLE_FAMILIES`, AND THE DIFFERENCE IS THE POINT OF
  * THE LOT. The scenery (Pelican, Phantom, Skiff) does NOT draw: that was the user
  * complaint of 2026-09-02, scripted transports that passed for vehicles of the game.
  * A map element, FOR ITS PART, DRAWS — user decision of 2026-09-14: "these are
@@ -333,7 +333,7 @@ export function vehiclePaintColor(
 /**
  * VEHICLE_END_DESTROYED — THE ONLY value of `track.end` this layer treats as a proof of
  * destruction. Named rather than sown as a literal (same reason as
- * `FAMILLES_NON_JOUABLES`): a single place to change if the Go picks another word.
+ * `NON_PLAYABLE_FAMILIES`): a single place to change if the Go picks another word.
  * Every OTHER value — `"unknown"` today, systematically — is read as "end not
  * affirmed": nothing draws.
  */
@@ -368,7 +368,7 @@ export type VehicleExplosionKind = 'plasma' | 'normal'
  * receive the PLASMA, RED explosion (`plasma_hot`, cf. `drawVehicleDestructionFx`) —
  * Ghost, Banshee, Wraith, Chopper, Shade, no exception: the faction decides the color,
  * not the chassis. The Banished without rendering (Phantom, Skiff:
- * `FAMILLES_NON_JOUABLES`) never explode on screen. The Shade (mounted Covenant
+ * `NON_PLAYABLE_FAMILIES`) never explode on screen. The Shade (mounted Covenant
  * turret, immobile — cf. `VEHICLE_DEFAULT_HEADING_DEG`) stays a Covenant energy even
  * without ever moving, it therefore enters here and not in the human table below.
  *
@@ -407,7 +407,7 @@ export const VEHICLE_HUMAN_FAMILIES: ReadonlySet<string> = new Set([
 ])
 
 /**
- * FAMILLES_ARME_FIXE — THE CHASSIS WHOSE WEAPON IS RIGID WITH THE BODY, and whose nose
+ * FIXED_WEAPON_FAMILIES — THE CHASSIS WHOSE WEAPON IS RIGID WITH THE BODY, and whose nose
  * therefore follows what the DRIVER aims.
  *
  * THE DECISION IS THE USER'S (2026-09-20): « le châssis s'oriente là où l'ARME pointe »
@@ -438,7 +438,7 @@ export const VEHICLE_HUMAN_FAMILIES: ReadonlySet<string> = new Set([
  * without any test seeing it. A family unknown to this layer therefore receives the
  * velocity, the neutral fallback.
  */
-export const FAMILLES_ARME_FIXE: ReadonlySet<string> = new Set([
+export const FIXED_WEAPON_FAMILIES: ReadonlySet<string> = new Set([
   'ghost',
   'banshee',
   'wraith',
@@ -467,7 +467,7 @@ export function vehicleExplosionKindOf(family: string | undefined): VehicleExplo
  *
  * TWO REFUSALS, FOR THE SAME REASON: a removed piece is a player no longer displayed,
  * and that is only justified if the vehicle carrying it is, for its part, displayed
- * and certain. The scenery is refused (cf. `FAMILLES_NON_JOUABLES`), and the
+ * and certain. The scenery is refused (cf. `NON_PLAYABLE_FAMILIES`), and the
  * UNRESOLVED CHASSIS too: an occupation episode placed on an unknown family can point
  * to anything — including another prop — and the price of the error (a player erased)
  * is heavier than that of the abstention (one piece too many while driving).
@@ -617,7 +617,7 @@ export function vehiclePositionAt(track: ReplayVehicleTrackReady, frame: number)
  * framing scale (`scaleOf(view)`).
  *
  * WHAT CHANGED ON 2026-09-20: this length now depends on the MAP SCALE, FLOORED at
- * the old framing +20% (`PX_PAR_MM_MINIMUM_ECRAN`). It was constant — the same on
+ * the old framing +20% (`MIN_SCREEN_PX_PER_MM`). It was constant — the same on
  * screen on a 54 m map and on a 273 m one —, which made the vehicle too small on the
  * large ones (user feedback of 2026-09-19) and out of proportion on the small ones.
  * The floor applies to the SCALE, not to the size: the eighteen families cross it

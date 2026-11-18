@@ -124,7 +124,7 @@ export interface EngineStems {
  * absent from this table (turrets, unresolved chassis) is a CLEAN SILENCE.
  *
  * THE FALCON SOUNDS SINCE 2026-09-24: it came out of the DECOR families
- * (`FAMILLES_NON_JOUABLES`, user decision "the Falcon it depends"), and an occupied Falcon
+ * (`NON_PLAYABLE_FAMILIES`, user decision "the Falcon it depends"), and an occupied Falcon
  * plays its engine like any vehicle. A Falcon without an occupant has no engine, whether it is
  * parked, a map decor (`vehicleIsScenery`, lot M7) or hovering as a Behemoth decor.
  */

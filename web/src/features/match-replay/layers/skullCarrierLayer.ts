@@ -21,7 +21,7 @@
  * recognizes the same object; only its place changes (on the ground / above a player).
  *
  * ITS DRESSING IS THAT OF THE FLAG since 2026-08-28 (rim in the ink of the background, enlarged
- * size, two orbits): the why, the cote and the limit (the game icon exists but is not cooked in
+ * size, two orbits): the why, the cost and the limit (the game icon exists but is not cooked in
  * the document) live in the header of `skullGlyph.ts`. No text: the carrier is already named by
  * their marker.
  */

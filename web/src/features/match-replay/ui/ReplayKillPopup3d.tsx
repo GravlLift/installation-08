@@ -12,7 +12,7 @@
 import { displayPlayerName } from '@/lib/players/displayName'
 import type { KillPopup } from '../model/hud3d_logic'
 import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
-import { libelleMedale } from './MedalBadges'
+import { medalLabel } from './MedalBadges'
 
 export function ReplayKillPopup3d({ popups, locale }: { popups: readonly KillPopup[]; locale: ReplayLocale }) {
   if (popups.length === 0) return null
@@ -27,7 +27,7 @@ export function ReplayKillPopup3d({ popups, locale }: { popups: readonly KillPop
           {/* The game stacks the most recent medal on top: the feed's order reversed. */}
           {[...kill.medals].reverse().map((m, j) => (
             <span key={`${m.name}-${m.tMs}-${j}`} style={{ display: 'flex', alignItems: 'center', gap: '0.45em', fontSize: '0.38em', fontWeight: 500 }}>
-              {libelleMedale(m)}
+              {medalLabel(m)}
               {m.imageUrl && <img src={m.imageUrl} alt="" style={{ width: '2.2em', height: '2.2em', objectFit: 'contain' }} />}
             </span>
           ))}

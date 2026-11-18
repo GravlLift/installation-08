@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import { glowStateAt, type GlowAnimSpec } from './glowAnimation3d'
 import type { LayeredInfo } from './layeredMaterial'
 import { glowLevel, IMAGE_GLOW_MAX, imageGlowLevel } from './lighting'
-import { DECAL_TINT, decalStencilMaterial, loadLayerModel, teinteVerreTeint } from './mapModel'
+import { DECAL_TINT, decalStencilMaterial, loadLayerModel, glassTintOf } from './mapModel'
 
 /** A 2u-wide horizontal square at three.js height `y = 1`. */
 const SQUARE = [-1, 1, -1, 1, 1, -1, 1, 1, 1, -1, 1, 1]
@@ -141,20 +141,20 @@ function meshUnder(root: THREE.Object3D, node: string): THREE.Mesh {
   return found
 }
 
-describe('teinteVerreTeint', () => {
+describe('glassTintOf', () => {
   it('averages the first layer\'s colors (bas, milieu, haut)', () => {
-    const teinte = teinteVerreTeint(DARK_LAYERS)
-    expect(teinte).toEqual([EXPECTED_TINT, EXPECTED_TINT, EXPECTED_TINT])
+    const tint = glassTintOf(DARK_LAYERS)
+    expect(tint).toEqual([EXPECTED_TINT, EXPECTED_TINT, EXPECTED_TINT])
   })
 
   it('includes only the colors present', () => {
     const info: LayeredInfo = { couches: [{ sorte: 'couleur', bas: [0.1, 0.2, 0.3], opacite: 1 }], masque: -1, jeuMasque: 0, jeuCouches: 0 }
-    expect(teinteVerreTeint(info)).toEqual([0.1, 0.2, 0.3])
+    expect(glassTintOf(info)).toEqual([0.1, 0.2, 0.3])
   })
 
   it('returns null with no layer and no color', () => {
-    expect(teinteVerreTeint({ couches: [], masque: -1, jeuMasque: 0, jeuCouches: 0 })).toBeNull()
-    expect(teinteVerreTeint({ couches: [{ sorte: 'couleur' }], masque: -1, jeuMasque: 0, jeuCouches: 0 })).toBeNull()
+    expect(glassTintOf({ couches: [], masque: -1, jeuMasque: 0, jeuCouches: 0 })).toBeNull()
+    expect(glassTintOf({ couches: [{ sorte: 'couleur' }], masque: -1, jeuMasque: 0, jeuCouches: 0 })).toBeNull()
   })
 })
 

@@ -36,7 +36,7 @@ import {
   vehicleAimAngle,
   vehicleDriverAt,
   vehicleHeadingAt,
-  FAMILLES_ARME_FIXE,
+  FIXED_WEAPON_FAMILIES,
 } from './vehiclesLayer'
 
 /**
@@ -197,7 +197,7 @@ export function vehicleOccupantAimAt(
  *
  * ## The four regimes, in order
  *
- *   1. DRIVER'S AIM — fixed-weapon family (`FAMILLES_ARME_FIXE`), a SEAT 0 episode in
+ *   1. DRIVER'S AIM — fixed-weapon family (`FIXED_WEAPON_FAMILIES`), a SEAT 0 episode in
  *      effect on this image, and an aim reading in effect on it.
  *   2. VELOCITY — everything else, exactly as before: turret family, empty seat 0
  *      (abandoned vehicle, or driven by no one), or episode without an aim reading in
@@ -213,7 +213,7 @@ export function vehicleOccupantAimAt(
  * This module is the ONLY one to read `ReplayVehicleRide.aim` (cf. the header), and
  * `vehiclesLayer` does not import it — putting it there would create a cycle between
  * the two files. The TABLE of families, for its part, stays with the other family
- * tables (`FAMILLES_ARME_FIXE`).
+ * tables (`FIXED_WEAPON_FAMILIES`).
  *
  * ## What this function does NOT change
  *
@@ -225,7 +225,7 @@ export function vehicleChassisHeadingAt(
   track: ReplayVehicleTrackReady,
   frame: number,
 ): number {
-  if (track.family !== undefined && FAMILLES_ARME_FIXE.has(track.family)) {
+  if (track.family !== undefined && FIXED_WEAPON_FAMILIES.has(track.family)) {
     const driver = vehicleDriverAt(track, frame)
     const read = driver ? vehicleRideAimReading(driver, frame) : null
     if (read?.h !== undefined) return read.h

@@ -16,7 +16,7 @@ import type { MedalEvent } from '../model/killFeedLogic'
 const MEDAL_PX = 16
 
 /** A medal's display label: the localized label, otherwise the film's English name. */
-export function libelleMedale(medal: MedalEvent): string {
+export function medalLabel(medal: MedalEvent): string {
   return medal.label || medal.name
 }
 
@@ -24,7 +24,7 @@ export function MedalBadges({ medals }: { medals: readonly MedalEvent[] }) {
   return (
     <>
       {medals.map((m, i) => {
-        const label = libelleMedale(m)
+        const label = medalLabel(m)
         const tooltip = m.description ? `${label} — ${m.description}` : label
         return m.imageUrl ? (
           <img

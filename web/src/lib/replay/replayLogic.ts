@@ -353,7 +353,7 @@ export function msToFrames(ms: number, doc: Pick<ReplayDocumentReady, 'frameInte
  * Opening a replay from a tactical link places itself THIS DELAY BEFORE the event: time to
  * see the action coming rather than arriving on the spot. Same value for both clocks.
  */
-export const OUVERTURE_AVANT_EVENEMENT_MS = 5000
+export const OPEN_BEFORE_EVENT_MS = 5000
 
 /** What the replay route draws from a tactical link once the document is loaded. */
 export interface TacticalOpenAtFrame {
@@ -380,7 +380,7 @@ export interface TacticalOpenAtFrame {
  *     unknown of several seconds, and a wrong jump would not be distinguishable from an exact
  *     one: the `showMissingOriginNotice` notice says so.
  *
- * The opening instant is moved back by `OUVERTURE_AVANT_EVENEMENT_MS`, floored at the zero frame.
+ * The opening instant is moved back by `OPEN_BEFORE_EVENT_MS`, floored at the zero frame.
  *
  * `search.t` IS A STRING (not a number): see the doc of `Route.validateSearch` in
  * `replay.tsx` — a numeric field in THIS route's search schema would poison the GLOBAL schema
@@ -401,12 +401,12 @@ export function resolveTacticalOpenAtFrame(
   let filmMs = tMs
   if (search.clock === 'match') {
     // `filmMsOfMatchMs` does not read the match header: only the film origin counts here.
-    const horloge = matchClock(doc, null)
-    if (!horloge) return { openAtFrame: null, showMissingOriginNotice: true }
-    filmMs = horloge.filmMsOfMatchMs(tMs)
+    const clock = matchClock(doc, null)
+    if (!clock) return { openAtFrame: null, showMissingOriginNotice: true }
+    filmMs = clock.filmMsOfMatchMs(tMs)
   }
-  const ouvertureMs = Math.max(0, filmMs - OUVERTURE_AVANT_EVENEMENT_MS)
-  return { openAtFrame: Math.round(msToFrames(ouvertureMs, doc)), showMissingOriginNotice: false }
+  const openMs = Math.max(0, filmMs - OPEN_BEFORE_EVENT_MS)
+  return { openAtFrame: Math.round(msToFrames(openMs, doc)), showMissingOriginNotice: false }
 }
 
 /**
