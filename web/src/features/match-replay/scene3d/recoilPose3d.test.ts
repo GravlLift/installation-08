@@ -54,7 +54,7 @@ describe('recoil in third person', () => {
   function pose(recoil: Recoil, gun = rifle()) {
     const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     wearSpartan(a, source)
-    placeBody(a, FEET, { h: 120, p: 15, crouch: false, dropOeil: 0, mix }, false)
+    placeBody(a, FEET, { h: 120, p: 15, crouch: false, eyeDrop: 0, mix }, false)
     showWeapon(a, { color: TEAM, recoil }, gun, null)
     return { a, gun, root: a.spartan?.rig.root as THREE.Object3D, model: a.model as THREE.Object3D }
   }
@@ -90,7 +90,7 @@ describe('recoil in third person', () => {
     wearSpartan(a, source)
     const gun = rifle()
     const frame = (recoil: Recoil) => {
-      placeBody(a, FEET, { h: 40, p: -10, crouch: false, dropOeil: 0, mix }, false)
+      placeBody(a, FEET, { h: 40, p: -10, crouch: false, eyeDrop: 0, mix }, false)
       showWeapon(a, { color: TEAM, recoil }, gun, null)
       return weaponFrame(a.model as THREE.Object3D)
     }
@@ -119,7 +119,7 @@ describe('recoil in first person', () => {
       const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
       const gun = rifle()
       const view = viewGripOf('1a22fee6')
-      placeBody(a, FEET, { h, p, crouch: false, dropOeil: 0 }, true)
+      placeBody(a, FEET, { h, p, crouch: false, eyeDrop: 0 }, true)
       const aimBefore = a.aim.quaternion.clone()
       showWeapon(a, { color: TEAM, recoil: KICK }, gun, view)
       // The cone (and the camera following it) does not move: the film's aim already carries the look.

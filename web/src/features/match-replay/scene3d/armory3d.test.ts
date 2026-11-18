@@ -310,7 +310,7 @@ describe('SpartanArmory weapons', () => {
     { xuid: '1', status: 'armor', manifest: manifest('h1'), weapon_coatings: [{ model_key: '11111111', style_key: '2c5251bc' }] },
   ]
 
-  it('peindreArme: coatArme null while pending, the coat placed and cached afterward', async () => {
+  it('paintWeapon: weaponCoat null while pending, the coat placed and cached afterward', async () => {
     const { io } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes, 'coating-2c5251bc.json': coatingArmes })
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers, undefined, '/armes', io)
     const scene = weaponScene()
@@ -324,7 +324,7 @@ describe('SpartanArmory weapons', () => {
     expect(console.info).toHaveBeenCalledTimes(1)
   })
 
-  it('peindreArme: without a coating for the weapon (no core), the default style of each list, cached', async () => {
+  it('paintWeapon: without a coating for the weapon (no core), the default style of each list, cached', async () => {
     const { io } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes })
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [{ xuid: '1', status: 'armor', manifest: manifest() }], undefined, '/armes', io)
     const scene = weaponScene()
@@ -334,13 +334,13 @@ describe('SpartanArmory weapons', () => {
     expect(armory.weaponCoat('1', '11111111', scene)).toBe(coat)
   })
 
-  it('peindreArme: without a weapon library, null', async () => {
+  it('paintWeapon: without a weapon library, null', async () => {
     const { io } = fakeIO()
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers)
     expect(await armory.paintWeapon('1', '11111111', weaponScene())).toBeNull()
   })
 
-  it("coatArme: the coat no longer covers every painted material of the model, null", async () => {
+  it("weaponCoat: the coat no longer covers every painted material of the model, null", async () => {
     const { io } = fakeIO()
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers, undefined, '/armes', io)
     const scene = weaponScene()
@@ -355,7 +355,7 @@ describe('SpartanArmory weapons', () => {
     expect(armory.weaponCoat('1', '11111111', scene)).toBeNull()
   })
 
-  it('peindreObjet: the default style of each list, one coat per model key, cached', async () => {
+  it('paintObject: the default style of each list, one coat per model key, cached', async () => {
     const { io, fetchJson } = fakeIO(new Set(), {}, { 'coatings.json': tableArmes })
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [], undefined, '/armes', io)
     const sceneA = weaponScene()
@@ -377,7 +377,7 @@ describe('SpartanArmory weapons', () => {
     expect((await p2)?.size).toBe(1)
   })
 
-  it('peindreObjet: without a weapon library, null', async () => {
+  it('paintObject: without a weapon library, null', async () => {
     const { io } = fakeIO()
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [])
     expect(await armory.paintObject('11111111', weaponScene())).toBeNull()
@@ -398,7 +398,7 @@ describe('SpartanArmory weapons', () => {
     }
   }
 
-  it("peindreBras: the rig's weapon wears its own coating, the arms the player's", async () => {
+  it("paintArms: the rig's weapon wears its own coating, the arms the player's", async () => {
     const { io, loadSwatch } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece }, { 'coatings.json': tableArmes })
     const m = { ...manifest('h4'), coating: { path: 'c', style_id: 1, style_key: '2c5251bc' } }
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), [
@@ -421,7 +421,7 @@ describe('SpartanArmory weapons', () => {
     expect(loadSwatch).toHaveBeenCalledTimes(1)
   })
 
-  it('peindreBras: a prosthetic arm wears the player coating like his third-person Spartan, not a flat gunmetal', async () => {
+  it('paintArms: a prosthetic arm wears the player coating like his third-person Spartan, not a flat gunmetal', async () => {
     const { io, loadSwatch } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece })
     const base = manifest('h5')
     const m: SpartanArmorManifest = {
@@ -445,7 +445,7 @@ describe('SpartanArmory weapons', () => {
     expect(loadSwatch).toHaveBeenCalled()
   })
 
-  it('peindreBras: without an entry for the rig weapon, it wears the default style of each list', async () => {
+  it('paintArms: without an entry for the rig weapon, it wears the default style of each list', async () => {
     const { io } = fakeIO(new Set(), { 'piece-aaaaaaaa-11111111.glb': paintedPiece }, { 'coatings.json': tableArmes })
     const armory = new SpartanArmory(new ArmorLibrary('/b', io), weaponPlayers, undefined, '/armes', io)
     armory.dress('1')

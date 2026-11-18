@@ -97,7 +97,7 @@ describe('wearSpartan', () => {
     // A single skeleton for the copy: both meshes share it.
     expect(meshes[0].skeleton).toBe(meshes[1].skeleton)
     expect(meshes[0].skeleton.bones[0]).not.toBe(skinned(source)[0].skeleton.bones[0])
-    placeBody(a, FEET, { h: 0, p: 0, crouch: false, dropOeil: 0 }, false)
+    placeBody(a, FEET, { h: 0, p: 0, crouch: false, eyeDrop: 0 }, false)
     showWeapon(a, null, null, null)
     expect(a.body.visible).toBe(false)
     expect(a.spartan?.rig.root.visible).toBe(true)
@@ -179,7 +179,7 @@ describe('wearSpartan', () => {
     const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     wearSpartan(a, spartanSource())
     for (const crouch of [false, true]) {
-      placeBody(a, FEET, { h: 30, p: 0, crouch, dropOeil: 0 }, false)
+      placeBody(a, FEET, { h: 30, p: 0, crouch, eyeDrop: 0 }, false)
       const root = a.spartan?.rig.root as THREE.Object3D
       expect(root.getWorldPosition(new THREE.Vector3()).distanceTo(FEET)).toBeLessThan(1e-9)
     }
@@ -215,7 +215,7 @@ describe('showWeapon with the Spartan', () => {
     mix.baseCount = 1
     Object.assign(mix.base[0], { clip: clips.get('combat:rifle:idle'), time: 0, weight: 1, loop: true })
     for (const [h, p] of [[90, 20], [200, -40]]) {
-      placeBody(a, FEET, { h, p, crouch: false, dropOeil: 0, mix }, false)
+      placeBody(a, FEET, { h, p, crouch: false, eyeDrop: 0, mix }, false)
       showWeapon(a, held, gun(), null)
       const grip = a.spartan?.rig.rightGrip as THREE.Bone
       expect(a.model?.parent).toBe(grip)
@@ -229,7 +229,7 @@ describe('showWeapon with the Spartan', () => {
   it('in first person the Spartan hides and the weapon goes back to the cone', () => {
     const a = makeAvatar(new THREE.Scene(), 'player', TEAM)
     wearSpartan(a, spartanSource())
-    placeBody(a, FEET, { h: 0, p: 0, crouch: false, dropOeil: 0 }, true)
+    placeBody(a, FEET, { h: 0, p: 0, crouch: false, eyeDrop: 0 }, true)
     showWeapon(a, held, gun(), { x: 0, y: -0.09, z: 0.06, roll: 0 })
     expect(a.model?.parent).toBe(a.aim)
     expect(a.spartan?.rig.root.visible).toBe(false)
@@ -308,7 +308,7 @@ describe('showWeapon with the weapon coating', () => {
 })
 
 describe('attachBoneOf — the bone a stuck projectile rides (schema 128)', () => {
-  const POSE = { h: 0, p: 0, crouch: false, dropOeil: 0 }
+  const POSE = { h: 0, p: 0, crouch: false, eyeDrop: 0 }
   // The test Spartan's skin joints: 0 b_pedestal, 1 b_pelvis, 2-4 b_spine1-3, 5 b_head, 6 b_r_grip.
   const HEAD = 5
 

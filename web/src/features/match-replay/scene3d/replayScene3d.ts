@@ -150,7 +150,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   private feetDrop = 0
   private playTop = 0
   players: readonly { xuid: string; name: string }[] = []
-  readonly profil = nouveauProfil()
+  readonly profile = nouveauProfil()
   /** The console's performance knobs (perfToggles3d), read at each frame. */
   private readonly knobs: PerfToggles = { ...PERF_TOGGLES_DEFAULT }
   private knobRatio: number | null = null
@@ -532,7 +532,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.lastFrame = frame
     this.animateGlow((frame * this.frameMs) / 1000)
     let status: PovStatus = 'none'
-    const p = this.profil
+    const p = this.profile
     let t = performance.now(); this.renderer.info.reset()
     const knobs = this.applyKnobs()
     this.post.resetCosts()
@@ -635,7 +635,7 @@ export class ReplayScene3d implements Replay3DExportSource {
 
   /** notePassCosts copies what each pass drew this frame into the profile (the shadow updates out of the scene pass). */
   private notePassCosts(minimap: { calls: number; triangles: number }): void {
-    const passes = this.profil.passes
+    const passes = this.profile.passes
     const shadow = this.lighting.split.cost
     for (const name of PASS_NAMES) {
       const cost = this.post.costs[name]
@@ -748,7 +748,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       const feet = rider ?? feetOf(s as PlayerState3d, this.originAboveFloor)
       const h = rider ? this.action?.riderHeadingAt(p.xuid, f) ?? s?.h ?? 0 : s?.h ?? 0
       this.buildAvatar(p.xuid, a)
-      const pose = { h, p: rider ? 0 : s?.p ?? 0, crouch: s?.crouch ?? false, dropOeil: s?.dropOeil ?? 0, mix: this.action?.motion(p.xuid, f, rider !== null, a.mix) ?? null } // aboard: no roll, no locomotion
+      const pose = { h, p: rider ? 0 : s?.p ?? 0, crouch: s?.crouch ?? false, eyeDrop: s?.dropOeil ?? 0, mix: this.action?.motion(p.xuid, f, rider !== null, a.mix) ?? null } // aboard: no roll, no locomotion
       placeBody(a, feet, pose, firstPerson, this.lighting.probeAt(feet))
       if (s) this.drawnSlots.set(s.slot, { xuid: p.xuid, firstPerson })
       const held = s && this.action ? this.action.heldWeapon(s.slot, f) : null

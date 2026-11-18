@@ -441,7 +441,7 @@ export function Replay3DView({
   const ready = load.kind === 'ready'
   // The playback meter: the loop records each drawn frame (no allocation), the corner reads it.
   const meterRef = useRef(newPlaybackMeter())
-  const lireProfil = useCallback(() => sceneRef.current?.profil ?? null, [])
+  const lireProfil = useCallback(() => sceneRef.current?.profile ?? null, [])
   useEffect(() => {
     if (ready) sceneRef.current?.setPov(pov)
   }, [ready, pov])

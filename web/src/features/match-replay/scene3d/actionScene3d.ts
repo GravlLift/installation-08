@@ -75,7 +75,7 @@ export interface ActionContext {
   dressOf(xuid: string): Dress | null
   /**
    * The match's armory (held weapons' coatings, and the default-style paint of the map objects:
-   * the pad, rack and ground weapons, `armory3d.peindreObjet`/`coatObjet`); null until it is posed
+   * the pad, rack and ground weapons, `armory3d.paintObject`/`objectCoat`); null until it is posed
    * (the action layers may be built before the armor query answers).
    */
   armurerie?: () => SpartanArmory | null

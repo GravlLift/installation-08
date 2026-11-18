@@ -131,7 +131,7 @@ function rowsOfMatch(source: THREE.Object3D, dir: string, cases: Case[]): Row[] 
     const [x, , z] = toThree(s.x, s.y, s.z)
     const feet = new THREE.Vector3(x, s.z, z)
     const mix = motion.at(player.xuid, frame, false, avatar.mix)
-    placeBody(avatar, feet, { h: s.h, p: s.p, crouch: s.crouch, dropOeil: s.dropOeil, mix }, false)
+    placeBody(avatar, feet, { h: s.h, p: s.p, crouch: s.crouch, eyeDrop: s.dropOeil, mix }, false)
     scene.updateMatrixWorld(true)
     const bone = bones[c.node]
     const p = new THREE.Vector3(...toThree(c.deto[0], c.deto[1], c.deto[2]))
