@@ -106,6 +106,25 @@ const (
 	teamEmblemCount = 9
 )
 
+// scoreMeterTag is the `bitm` tag id of the score bar's meter: the meter on the center
+// scoreboard screen (`cusc` fb8c6614, a fui_meter_two_tone_quad_widget, 404x60, its meter
+// value bound to the score). Its `pc` entry owns three resources; the one whose payload is
+// exactly 409600 bytes is mip 0, BC7, stored 1600x256 (400x64 blocks x 16 = 409600), and it
+// decodes cleanly at 1600x256 with decodeBC7 and no guide. The tag declares 800x64; why it
+// is stored at twice that is not known (one sample).
+//
+// Its pixels are a channel-packed mask, NOT colors: R is constant (104), B is the bar's
+// rounded-rectangle shape, G is a striped left-to-right ramp the meter value is compared
+// against, and A is 255. The pixels are kept exactly as decoded (no tint, no channel
+// changes): the web code reads B and G.
+const scoreMeterTag = 0x128bc424
+
+// scoreMeterW and scoreMeterH are the score meter bitmap's stored dimensions.
+const (
+	scoreMeterW = 1600
+	scoreMeterH = 256
+)
+
 // HudOutDir is the HUD icon set's folder below the data directory.
 func HudOutDir(dataDir string) string {
 	return filepath.Join(dataDir, "assets", "weapons-icons", "halo_infinite", "hud")
@@ -113,14 +132,14 @@ func HudOutDir(dataDir string) string {
 
 // HudFileNames returns the sorted stems of the HUD icon files the build writes (one per
 // piece of equipment and grenade, in LevelUp's public file names, plus the damage arc,
-// the shield chase, the shield quad, and the nine team emblems). The route serves only
-// these names, so the list is the surface of the set.
+// the shield chase, the shield quad, the score meter, and the nine team emblems). The
+// route serves only these names, so the list is the surface of the set.
 func HudFileNames() []string {
-	out := make([]string, 0, len(hudSources)+3+teamEmblemCount)
+	out := make([]string, 0, len(hudSources)+4+teamEmblemCount)
 	for stem := range hudSources {
 		out = append(out, stem)
 	}
-	out = append(out, "DamageArc", "ShieldChase", "ShieldQuad")
+	out = append(out, "DamageArc", "ShieldChase", "ShieldQuad", "ScoreMeter")
 	for k := 0; k < teamEmblemCount; k++ {
 		out = append(out, fmt.Sprintf("TeamEmblem%d", k))
 	}
@@ -129,12 +148,12 @@ func HudFileNames() []string {
 }
 
 // HudSetReady says whether the HUD icon set is built: index.json, DamageArc.png,
-// ShieldChase.png, ShieldQuad.png, the last team emblem (TeamEmblem8.png), AND the HUD's
-// default font are all present in the output folder. A set built before one of those was
-// added is missing it, so it is not ready and gets rebuilt once.
+// ShieldChase.png, ShieldQuad.png, ScoreMeter.png, the last team emblem (TeamEmblem8.png),
+// AND the HUD's default font are all present in the output folder. A set built before one
+// of those was added is missing it, so it is not ready and gets rebuilt once.
 func HudSetReady(dataDir string) bool {
 	dir := HudOutDir(dataDir)
-	for _, name := range []string{"index.json", "DamageArc.png", "ShieldChase.png", "ShieldQuad.png", "TeamEmblem8.png", hudFontRequired} {
+	for _, name := range []string{"index.json", "DamageArc.png", "ShieldChase.png", "ShieldQuad.png", "ScoreMeter.png", "TeamEmblem8.png", hudFontRequired} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			return false
 		}
@@ -224,6 +243,12 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 	}
 	written += emblemFiles
 	total += emblemBytes
+	meterFiles, meterBytes, err := buildScoreMeter(ctx, ix, out)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	written += meterFiles
+	total += meterBytes
 	fontFiles, fontBytes, err := buildHudFonts(ctx, ix, out)
 	if err != nil {
 		return 0, 0, 0, err
@@ -413,12 +438,11 @@ func resourcePayloadBytes(blob []byte) []byte {
 	return blob[off:]
 }
 
-// pickShieldQuadPayload selects, among the entry's owned resource payloads, the one that
-// is exactly shieldQuadBytes long (the quad's stored mip 0). It returns -1 when none
-// fits.
-func pickShieldQuadPayload(payloads [][]byte) int {
+// pickPayloadOfLen selects, among the entry's owned resource payloads, the one that is
+// exactly n bytes long. It returns -1 when none fits.
+func pickPayloadOfLen(payloads [][]byte, n int) int {
 	for k, p := range payloads {
-		if len(p) == shieldQuadBytes {
+		if len(p) == n {
 			return k
 		}
 	}
@@ -492,7 +516,7 @@ func buildShieldQuad(ctx context.Context, ix *tagIndex, out string) (written, by
 	if err != nil {
 		return 0, 0, err
 	}
-	k := pickShieldQuadPayload(payloads)
+	k := pickPayloadOfLen(payloads, shieldQuadBytes)
 	if k < 0 {
 		return 0, 0, fmt.Errorf("shield quad tag %08x: no owned resource of the stored BC7 size", shieldQuadTag)
 	}
@@ -555,6 +579,35 @@ func buildTeamEmblems(ctx context.Context, ix *tagIndex, out string) (written, b
 		bytes += int(fi.Size())
 	}
 	return written, bytes, nil
+}
+
+// scoreMeterBytes is the byte count of the meter's stored mip 0: 400x64 BC7 blocks.
+const scoreMeterBytes = ((scoreMeterW + 3) / 4) * ((scoreMeterH + 3) / 4) * 16
+
+// buildScoreMeter writes ScoreMeter.png, the score bar's meter bitmap, from its tag
+// (scoreMeterTag) into out: among the `pc` variant's owned resources (the entry's +0x10
+// index to the next entry's), the one whose payload is exactly the stored 1600x256 BC7
+// size (scoreMeterBytes); it is decoded at 1600x256 and written as-is. Returns the number
+// of files written (0 or 1) and the file's byte count.
+func buildScoreMeter(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
+	payloads, err := ownedPayloads(ctx, ix, scoreMeterTag)
+	if err != nil {
+		return 0, 0, err
+	}
+	k := pickPayloadOfLen(payloads, scoreMeterBytes)
+	if k < 0 {
+		return 0, 0, fmt.Errorf("score meter tag %08x: no owned resource of the stored BC7 size", scoreMeterTag)
+	}
+	img, _, _, _ := decodeBC7(payloads[k], scoreMeterW, scoreMeterH, nil)
+	path := filepath.Join(out, "ScoreMeter.png")
+	if err := writePNG(path, img); err != nil {
+		return 0, 0, fmt.Errorf("write ScoreMeter.png: %w", err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return 0, 0, err
+	}
+	return 1, int(fi.Size()), nil
 }
 
 // writeHudAtlas decodes each named image, scales it to hudIconSize×hudIconSize, and

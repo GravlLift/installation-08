@@ -109,13 +109,23 @@ func TestResourcePayloadBytes(t *testing.T) {
 	}
 }
 
-func TestPickShieldQuadPayload(t *testing.T) {
+func TestPickPayloadOfLen(t *testing.T) {
+	// The shield quad's stored size: a payload of another length is refused, and the exact
+	// length is picked by position.
 	wrong := make([]byte, 75200)
 	right := make([]byte, shieldQuadBytes)
-	if k := pickShieldQuadPayload([][]byte{wrong}); k != -1 {
+	if k := pickPayloadOfLen([][]byte{wrong}, shieldQuadBytes); k != -1 {
 		t.Errorf("a 75200-byte payload was selected (k=%d), want -1", k)
 	}
-	if k := pickShieldQuadPayload([][]byte{wrong, right}); k != 1 {
+	if k := pickPayloadOfLen([][]byte{wrong, right}, shieldQuadBytes); k != 1 {
+		t.Errorf("selected k=%d, want 1", k)
+	}
+	// The score meter's stored size: same exact-length rule, and -1 when none fits.
+	meter := make([]byte, scoreMeterBytes)
+	if k := pickPayloadOfLen([][]byte{right}, scoreMeterBytes); k != -1 {
+		t.Errorf("a shield-quad-sized payload was selected for the meter (k=%d), want -1", k)
+	}
+	if k := pickPayloadOfLen([][]byte{right, meter}, scoreMeterBytes); k != 1 {
 		t.Errorf("selected k=%d, want 1", k)
 	}
 }
