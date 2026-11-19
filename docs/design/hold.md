@@ -17,16 +17,17 @@ the held player moves. That is the "time stops, the player turns to camera" shot
    `holds` array next to `keys`. One file describes the whole shot, and other tools hand over a
    single document. `parseCameraScript` validates it, and a script without holds is unchanged.
 
-2. **Freezing the world is a clamp on the frame, not a second clock.** While a hold with
-   `freezeWorld` is active, everything in the world is posed at `worldFrame = min(f, at)`, while
-   the camera script and the held player's animation keep using the real frame `f`. The
-   playback loop, scrubbing, the camera keys (still in document ms) and the export's frame plan
-   all stay as they are. Rewinding before `at` brings the film back exactly. Ambient motion
-   (clouds, animated self-lit surfaces) keeps the real frame, so the frozen moment still breathes.
+2. **Freezing the world is the script clock at rate 0** (`camera-scripts.md`, decision 9;
+   revised 2026-11-19, replacing a `freezeWorld` flag). The world is posed at the clock's document
+   frame, `docFrame(s)`; the camera and the held player's animation run on script time `s`. A
+   rate of 0 from `at` on stops the world on the kill while the held player turns and emotes; a
+   slow rate instead lets the world crawl behind the pose. Ambient motion (clouds, animated
+   self-lit surfaces) runs on script time, so the frozen moment still breathes.
 
-3. **The held player's pose is a function of the frame, as every pose in the scene already is**
-   (`pose3d.ts`: "nothing accumulates from one frame to the next"). At frame `f >= at`, the held
-   pose is computed from `f - at`: a crossfade from the film's clip mix at `at` to the hold clip
+3. **The held player's pose is a function of script time, as every pose in the scene is a
+   function of its time** (`pose3d.ts`: "nothing accumulates from one frame to the next"). At
+   script time `s >= at`, the held pose is computed from `s - at`: a crossfade from the film's
+   clip mix at `docMs(at)` to the hold clip
    over `blendMs`, a turn from the heading at `at` to the hold heading over `turnMs`, and the
    pitch eased to the hold pitch (default 0, level) over `blendMs`.
 
@@ -42,8 +43,8 @@ the held player moves. That is the "time stops, the player turns to camera" shot
    later death, respawn or vehicle entry in the film does not reach them.
 
 7. **Camera anchors see the hold.** The camera script's resolver (`feetAt`) returns the held
-   position for the held player when `t >= at`, and the frozen world's position (`worldFrame`)
-   for everyone else. A key that follows the held player therefore orbits a body that stays put.
+   position for the held player when `s >= at`, and the clock's document time for everyone
+   else. A key that follows the held player therefore orbits a body that stays put.
 
 8. **Clips come from the game's own animation graphs** (the effects-from-game-data rule). The
    body GLB today carries only the gameplay set (`internal/mapmesh/spartan.go`,
@@ -69,33 +70,30 @@ the held player moves. That is the "time stops, the player turns to camera" shot
     "turnMs": 400,
     "pitch": 0,
     "weapon": "keep",
-    "freezeWorld": true,
     "until": null
   }
 ]
 ```
 
-- `at`: document ms; the player leaves the film here. `xuid` must be a player of the match. An
+- `at`: script ms; the player leaves the film at the document time `docMs(at)`. `xuid` must be a player of the match. An
   unknown xuid is dropped with a warning, never thrown, the same rule as camera anchors.
 - `clip`: a clip name the scene can resolve: a gameplay clip already in the body GLB
   (`combat:rifle:idle`), or a pose clip from the pose catalog (unit H4). An unknown clip falls back
   to the weapon class's idle.
 - `loop` (default false: hold the clip's last frame), `blendMs` (default 250, 0 to 2000),
   `heading` (game degrees; default: the heading at `at`), `turnMs` (default 400, 0 to 5000),
-  `pitch` (degrees; default 0), `weapon` (`keep` | `hide`, default `keep`), `freezeWorld`
-  (default false), `until` (document ms or null; the player rejoins the film at `until` after a
-  reverse blend of `blendMs`; ignored when `freezeWorld`).
-- At most one hold per player, at most 16 holds, and at most one with `freezeWorld` (the scene
-  freezes at the earliest one).
+  `pitch` (degrees; default 0), `weapon` (`keep` | `hide`, default `keep`), `until` (script ms
+  or null; the player rejoins the film at `until` after a reverse blend of `blendMs`).
+- At most one hold per player, at most 16 holds.
 
 ## How it fits the scene (confirmed in code, 2026-11-19)
 
 - `ReplayScene3d.render(frame)` (`scene3d/replayScene3d.ts:558`) and
   `ReplayExportScene3d.exportFrame(frame)` (`scene3d/replayExportScene3d.ts:122`) are the two
-  entries that pose a frame, and `primeFirstFrame` (`:525`) is a third. Each computes
-  `worldFrame` once and passes it to `placeAvatars`, `action.settle`, `action.update` and
-  `lighting.updateShadows`, while the camera placement keeps `frame`. `placeAvatars(f)` becomes
-  `placeAvatars(worldFrame, frame)`: the second argument is used only by held players.
+  entries that pose a frame, and `primeFirstFrame` (`:525`) is a third. With the script clock,
+  the frame they receive is already the clock's document frame, and the script time comes from
+  the playhead in `cameraScriptStore.ts`. `placeAvatars(f)` reads the playhead only for held
+  players: a held player at `s >= at` is drawn from the sample at `docMs(at)` and posed at `s - at`.
 - The pose input in `placeAvatars` (`:781`) is
   `{ h, p, crouch, eyeDrop, mix: this.action?.motion(xuid, f, rider, a.mix) }`, applied by
   `placeBody` and then `poseSpartan` (`pose3d.ts:133`). The hold builds the same structure:
@@ -122,8 +120,8 @@ A Hold section under the key list:
 - Clip picker: the gameplay idles first, then the intro emotes and stances from the pose catalog,
   with names as the catalog gives them. Picking one previews it in place.
 - **Face camera** sets `heading` so the player faces the free camera's current position, plus a
-  heading field for fine-tuning. Turn, blend and pitch fields, and Loop, Hide weapon and Freeze
-  world toggles.
+  heading field for fine-tuning. Turn, blend and pitch fields, Loop and Hide weapon toggles, and
+  Freeze world, which writes a rate-0 entry into the script clock at `at`.
 
 ## Units of work
 
@@ -131,10 +129,10 @@ Same rules as the camera script units: run only the touched test files with `--m
 lead runs full suites before merge and sees each visual change in the viewer.
 
 - **H1. Format and hold state** (pure): `scene3d/hold3d.ts` with the hold types,
-  `parseHolds` (called from `parseCameraScript`), `worldFrameOf(holds, frame, fps)`, and
-  `holdStateAt(hold, tMs)` returning `{ active, sinceMs, clipTime, blendIn, heading, pitch }`
+  `parseHolds` (called from `parseCameraScript`) and
+  `holdStateAt(hold, sMs)` returning `{ active, sinceMs, clipTime, blendIn, heading, pitch }`
   (heading turned along the shorter arc). Plus `hold3d.test.ts`. Needs camera unit 1.
-- **H2. Scene integration**: the `worldFrame` plumbing in the three entries above, the held
+- **H2. Scene integration**: the playhead read in the three entries above, the held
   branch in `placeAvatars`, the crossfaded mix, the resolver change, and tests in the files
   touched. Needs camera unit 3 and H1.
 - **H3. Pose catalog** (Go, independent of H1 and H2): `GET /api/spartan/poses` lists the
@@ -153,8 +151,7 @@ lead runs full suites before merge and sees each visual change in the viewer.
 
 ## Acceptance
 
-- `hold3d.test.ts`: parse rules and rejections; `worldFrameOf` clamps only from the earliest
-  `freezeWorld` hold; blend weights at 0, half, and full `blendMs`; the turn takes the short
+- `hold3d.test.ts`: parse rules and rejections; blend weights at 0, half, and full `blendMs`; the turn takes the short
   way across 359/0; a non-looping clip holds its last frame; `until` blends back.
 - Go tests for the pose catalog: classification over a fake clip listing (port the Library's
   `server_armor_poses_test.go` cases), one decoded clip served and cached, and an unknown name

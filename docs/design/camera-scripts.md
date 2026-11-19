@@ -68,6 +68,24 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
    are also how another local tool hands a script to Installation 08. They are never stored
    in browser storage, which the app window can lose.
 
+9. **A script has its own clock (added 2026-11-19).** Key times are *script* milliseconds, and
+   an optional `clock` maps script time to document time through a rate track: rate 1 plays the
+   film at its speed, 0.25 is slow motion, 0 freezes the world, up to 4 fast-forwards. The camera
+   always moves on script time, so a camera can whip around a player while the world crawls or
+   stands still. Without a `clock`, script time is document time (start 0, rate 1), so a
+   clock-less script reads exactly as before. Document time is the integral of the rate:
+   `docMs(s) = clock.startMs + ∫₀ˢ rate`, in closed form per segment, so it is a pure function of
+   `s` and the export samples it exactly. Player anchors resolve at `docMs(s)`. The hold plan
+   (`hold.md`) uses this clock for its frozen world.
+   - Fractional frames already render smoothly: live playback hands the 3D view a fractional
+     `frameRef` (`usePlaybackLoop.ts:37`, `Replay3DView.tsx:551`), and tracks, flights and clips
+     interpolate between samples (confirmed 2026-11-19). Sound at a rate other than 1 is not
+     time-stretched: it is muted while the rate is not 1 (version 1).
+   - Higher-level camera maneuvers (orbit, snorricam, corkscrew, flyby, push-in) are the
+     intended authoring layer above keys: a maneuver is a function from script time to a pose,
+     and a chain of maneuvers can be compiled into keys plus a clock. Where that layer lives is
+     open; this format is its compile target either way.
+
 ## Script format, version 1
 
 ```json
@@ -94,8 +112,15 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
 }
 ```
 
-- `t`: document milliseconds; keys are sorted by `t`, and two keys may share a `t` only when the
-  second is a `cut`.
+- `t`: script milliseconds (document milliseconds when there is no `clock`); keys are sorted by
+  `t`, and two keys may share a `t` only when the second is a `cut`.
+- `clock` (optional): `{ "startMs": 310000, "rates": [{ "s": 0, "rate": 1 }, { "s": 1800, "rate": 1 },
+  { "s": 2300, "rate": 0.25, "ease": "smooth" }] }`. `startMs` is the document time at script
+  time 0 (finite, at least 0). `rates` is sorted by `s` (script ms, at least 0), at least one entry,
+  at most 512; each `rate` is 0 to 4; `ease` (default `smooth`) is how the rate moves from the
+  previous entry's rate to this one, using the same curves as keys (`cut`: the previous rate holds
+  until `s`, then jumps). Before the first entry the first rate holds, after the last the last
+  rate holds. The script's length is the later of its last key's `t` and its last rate's `s`.
 - `pos`, `look`: `{ at: "world", point: [x, y, z] }` or
   `{ at: "player", xuid, offset?: [x, y, z], relative?: "world" | "heading", window?: ms }`.
   A player point is that player's feet at `t`, plus `offset`. Without `offset`, a `look` aims at
@@ -170,7 +195,7 @@ view selector at the top left.
 
 ## Out of scope for version 1
 
-Time remapping (slow motion on the kill), depth of field, camera shake, a render endpoint so
+Time-stretched sound under slow motion, depth of field, camera shake, a render endpoint so
 another tool can trigger an export remotely, and finding a player's best kill automatically. The format
 leaves room for each: a later version adds top-level fields, and `version` gates them.
 
@@ -189,17 +214,29 @@ visual change in the viewer before reporting it done.
    shape and size (256 KB cap), written atomically under the match's data directory; plus Go
    tests. Reading set: `serve_bvh.go`, `remote_routes.go` (lines 340 to 400), the store's
    match-path helper.
-3. **Scene integration**: `ReplayCamera3d` script slot, the `render`/`primeFirstFrame`
-   orbit skip, `ScopeView3d.hold`, `cameraScriptStore.ts`, and registration in
-   `Replay3DView.tsx`; plus tests in `replayCamera3d.test.ts`.
+1b. **The clock** (pure): `clock` parsing and validation, `scriptClockOf(script)` with
+   `docMsAt(s)`, `rateAt(s)` and `lengthMs`, and `evaluateCameraScript` taking script time and
+   resolving anchors at `docMsAt(s)`; plus tests (each ease's integral against a fine numeric sum,
+   rate 0 freezing document time, no clock being the identity).
+3. **Scene integration**: `ReplayCamera3d` script slot posed at a script time, the
+   `render`/`primeFirstFrame` orbit skip, `ScopeView3d.hold`, `cameraScriptStore.ts` (which also
+   holds the playhead, the script time being drawn), registration in `Replay3DView.tsx`, and the
+   script transport: while a script plays, `usePlaybackLoop` advances script time by wall time ×
+   the page speed and sets `frameRef` to the clock's document frame; the page's own scrub stops
+   the script; plus tests in `replayCamera3d.test.ts` and `usePlaybackLoop`'s tests.
 4. **Camera panel**: `ui/CameraScriptPanel.tsx`, its pure model (key capture to anchor
    conversion, the dirty state, the API client), the panel slot and toolbar button in
    `MatchViewScreen.tsx`/`PlayerTransport.tsx`, the `c` shortcut, and stopping the script when
    the camera leaves Free; plus tests for the model and the panel.
-5. **Export additions**: script range and clean frame in `ReplayExportDialog.tsx` and
-   `useReplayExport.ts`/`export3dFrame.ts`; plus their tests.
+5. **Export additions**: clean frame, and "Export script": the plan samples script time at the
+   export rate over the script's length and maps each sample to its document frame
+   (`replayExportPlan.ts` builds a list of document frames today, so the list is the seam), with
+   the playhead set before each `exportFrame`; sound muted where the rate is not 1. In
+   `ReplayExportDialog.tsx`, `useReplayExport.ts`, `replayExportPlan.ts`, `export3dFrame.ts`;
+   plus their tests.
 
-Units 1 and 2 are independent. Unit 3 needs 1. Unit 4 needs 2 and 3. Unit 5 needs 3.
+Units 1 and 2 are independent and done. 1b is next. Unit 3 needs 1b. Unit 4 needs 2 and 3 and
+waits on where the maneuver layer lives. Unit 5 needs 3.
 
 ## Acceptance
 
