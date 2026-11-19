@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { useId } from 'react'
 import { tokenCssVar } from '@/lib/accessibility/semantic-tokens'
-import type { ShieldHudState } from '../model/shieldHud'
+import { SHIELD_CHASE_INK, type ShieldHudState } from '../model/shieldHud'
 import { shieldBarPath, shieldGlossPath, shieldStreakPaths, SHIELD_BAR_H } from './shieldBarGeometry'
 
 /**
@@ -9,13 +9,18 @@ import { shieldBarPath, shieldGlossPath, shieldStreakPaths, SHIELD_BAR_H } from 
  * bar whose edges sag toward the center, its ends chamfered to a point below the middle, light
  * steel blue, brighter at the center, under a pale rim. The fill drains from both ends toward the
  * center. `low` turns the fill red and pulses it, `broken` leaves the empty glass with a pulsing
- * red rim, `recharging` marks the fill's growing edges. `flash` (0..1) is the pulse of the moment
+ * red rim, `recharging` marks the fill's growing edges. Right after a drop the bar carries the
+ * game's chase band (`chase`, `shieldChaseAt`): the shield just lost, additive over the fill,
+ * closing on it over the recent-damage window. `flash` (0..1) is the pulse of the moment
  * (`shieldFlash`), so the drawing stays a function of the frame.
  */
 
-export function ShieldBar3d({ fraction, state, flash, label }: { fraction: number; state: ShieldHudState; flash: number; label: string }) {
+export function ShieldBar3d({ fraction, state, flash, chase, label }: { fraction: number; state: ShieldHudState; flash: number; chase: number; label: string }) {
   const id = `shield${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
   const half = 500 * Math.max(0, Math.min(1, fraction))
+  // The chase band's edges: the game's `shield_chase` quad spans the just-lost shield, from the
+  // live value out to the lagging value (`shieldChaseAt`), drawn additively (`SHIELD_CHASE_INK`).
+  const chaseHalf = 500 * Math.max(0, Math.min(1, chase))
   const low = state === 'low'
   const alert = low || state === 'broken'
   const pulse = alert ? 0.35 + 0.65 * flash : 1
@@ -40,6 +45,12 @@ export function ShieldBar3d({ fraction, state, flash, label }: { fraction: numbe
         <rect width={1000} height={SHIELD_BAR_H} fill={`url(#${id}-ink)`} opacity={low ? 0.45 + 0.45 * flash : 0.82} />
         <path d={shieldGlossPath()} fill="none" stroke="#fff" strokeOpacity={0.45} strokeWidth={6} />
         {shieldStreakPaths().map((d) => <path key={d} d={d} fill="none" stroke="#fff" strokeOpacity={0.1} strokeWidth={3} />)}
+      </g>}
+      {/* The chase band: the shield just lost, from the live fill out to the lagging chase,
+          additive over the fill, closing on it over the recent-damage window. */}
+      {chaseHalf > half && <g style={{ mixBlendMode: 'plus-lighter', fill: SHIELD_CHASE_INK }}>
+        <rect x={500 - chaseHalf} y={0} width={chaseHalf - half} height={SHIELD_BAR_H} />
+        <rect x={500 + half} y={0} width={chaseHalf - half} height={SHIELD_BAR_H} />
       </g>}
       {state === 'recharging' && half > 0 && half < 500 && <g style={{ stroke: tokenCssVar('replay-hud-shield-rim') }} strokeWidth={2} vectorEffect="non-scaling-stroke" opacity={0.9}>
         <line x1={500 - half} y1={0} x2={500 - half} y2={SHIELD_BAR_H} vectorEffect="non-scaling-stroke" />

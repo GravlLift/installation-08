@@ -183,6 +183,11 @@ BC7 pixels sit inside the tag, as the CUI bitmaps' do).
     while it fades. Recharging: a bar sweeps across the meter every 666 ms, looping.
   - Nothing in the screen tints the shield fill itself red on a hit. The red comes from the chase
     band.
+  - Drawn 2026-11-19 (`shieldChaseAt` in `model/shieldHud.ts`, `ShieldBar3d`, the export) as a flat
+    #FF8181 band, additive, over our own bar; the game's chase bitmap is not decoded. Inferred:
+    the band holds 0.2 s, then closes on the live value with a cubic ease-out, reaching it at 1 s.
+    Checked in the viewer at frames 4878, 4888 (shield broken) and 4903. The health chase is not drawn:
+    our bar shows no health, and its color comes from an undecoded named color resource.
 
 **Phase 4: pings (decoder research, open-ended).**
 9. Find out whether the film carries pings at all. The only lead is the unexported `managed-navpoint`

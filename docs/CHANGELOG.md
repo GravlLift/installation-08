@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1-test.7
+
+Changes since 0.1.1-test.6.
+
+- When the followed player's shield drops, a light red band covers the part just lost, as in the game. It holds briefly, then shrinks back to the remaining shield within a second. It shows even when the hit breaks the shield. In the viewer and the video export.
+
 ## 0.1.1-test.6
 
 Changes since 0.1.1-test.5.
