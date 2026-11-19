@@ -41,6 +41,7 @@ import type { LoadState } from '../features/match-replay/model/loading3d_logic'
 import {
   QUALITY_BUILD_COST,
   READY_HOLD_MS,
+  buildDetailOf,
   buildLineOf,
   offersQualityChoice,
   preGameStepOfDocument,
@@ -309,6 +310,7 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
   let stepLabel: string
   let fraction: number | null = null
   let buildLine: ReturnType<typeof buildLineOf> | null = null
+  let buildDetail: string | null = null
   switch (state.phase) {
     case 'document':
       stepLabel = preGameStepOfDocument('document')
@@ -318,6 +320,7 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
       break
     case 'build': {
       buildLine = buildLineOf(buildPhase, cancelling, 'en')
+      buildDetail = buildDetailOf(buildPhase)
       stepLabel = buildLine.text
       fraction = buildLine.fraction
       break
@@ -412,7 +415,7 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
                   onPick={onPickQuality}
                 />
               ) : counting ? null : (
-                <ProgressLine label={stepLabel} fraction={fraction} />
+                <ProgressLine label={stepLabel} fraction={fraction} detail={buildDetail ?? undefined} />
               )}
               {!choosing && !viewer && state.phase === 'build' && buildLine?.action ? (
                 <div className="bc-pregame-actions">

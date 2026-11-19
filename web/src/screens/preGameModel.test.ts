@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   COUNTDOWN_SKIP_GUARD_MS,
   sceneStepOf,
+  buildDetailOf,
   buildLineOf,
   COUNTDOWN_STEPS,
   preGameStepOfDocument,
@@ -151,6 +152,50 @@ describe('buildLineOf', () => {
 
   it('reports the built map as loading', () => {
     expect(buildLineOf({ phase: 'ready' }, false).text).toBe('Map built, loading…')
+  })
+})
+
+describe('buildDetailOf', () => {
+  it('names the current step in plain words with the time spent so far', () => {
+    expect(buildDetailOf({ phase: 'building', stage: 'textures', elapsedMs: 252000 })).toBe('Compressing textures  ·  4:12')
+  })
+
+  it('maps every stage the server reports', () => {
+    const detail = (stage: string) => buildDetailOf({ phase: 'building', stage, elapsedMs: 0 })
+    expect(detail('styles')).toBe('Preparing styles  ·  0:00')
+    expect(detail('geometry')).toBe('Building geometry  ·  0:00')
+    expect(detail('lighting')).toBe('Baking lighting  ·  0:00')
+    expect(detail('writing')).toBe('Writing the map file  ·  0:00')
+    expect(detail('textures')).toBe('Compressing textures  ·  0:00')
+    expect(detail('compress')).toBe('Compressing geometry  ·  0:00')
+    expect(detail('weapons')).toBe('Building the weapon library  ·  0:00')
+    expect(detail('rigs')).toBe('Building the first-person rigs  ·  0:00')
+  })
+
+  it('shows an unknown stage as-is, first letter capitalized', () => {
+    expect(buildDetailOf({ phase: 'building', stage: 'mystery', elapsedMs: 0 })).toBe('Mystery  ·  0:00')
+    // The library builds report a "done/total" count: it starts with a digit, so it shows unchanged.
+    expect(buildDetailOf({ phase: 'building', stage: '3/10', elapsedMs: 0 })).toBe('3/10  ·  0:00')
+  })
+
+  it('shows only the elapsed time, as m:ss, when the server carries no stage', () => {
+    expect(buildDetailOf({ phase: 'building', elapsedMs: 95000 })).toBe('1:35')
+    expect(buildDetailOf({ phase: 'building', elapsedMs: 3725000 })).toBe('62:05')
+  })
+
+  it('floors the fraction of a second in the elapsed time', () => {
+    expect(buildDetailOf({ phase: 'building', elapsedMs: 252999 })).toBe('4:12')
+  })
+
+  it('shows only the step when the server carries no elapsed time', () => {
+    expect(buildDetailOf({ phase: 'building', stage: 'geometry' })).toBe('Building geometry')
+  })
+
+  it('renders nothing outside a running build, or while the build reports neither stage nor time', () => {
+    expect(buildDetailOf(null)).toBeNull()
+    expect(buildDetailOf({ phase: 'queued' })).toBeNull()
+    expect(buildDetailOf({ phase: 'ready' })).toBeNull()
+    expect(buildDetailOf({ phase: 'building' })).toBeNull()
   })
 })
 

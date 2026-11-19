@@ -280,6 +280,12 @@ body.bc-has-optimize-bar .bc-stage, body.bc-has-optimize-bar .bc-player { top: v
 @keyframes bc-progress-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
 .bc-progress .bc-step { margin-top: 6px; font-family: var(--display); font-size: 12px; letter-spacing: 0.2em;
   text-transform: uppercase; color: var(--ink-dim); }
+/* The build's small detail line under the step name: the current step in plain words and the
+ * time spent in the build. It reserves one line of height while shown so the bar and the step
+ * never move as the build's text changes. */
+.bc-progress .bc-detail { margin-top: 2px; font-family: var(--display); font-stretch: 75%; font-size: 11px;
+  letter-spacing: 0.04em; color: var(--ink-faint); line-height: 1.5; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; }
 .bc-count { font-family: var(--display); font-stretch: 75%; font-weight: 700; font-size: 150px; line-height: 1;
   color: var(--air-hot); animation: bc-count-tick 900ms ease-out; }
 @keyframes bc-count-tick { from { transform: scale(1.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }

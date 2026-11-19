@@ -118,6 +118,48 @@ function buildLineBuilding(
   return { text, action: 'cancel', actionLabel: cancelling ? 'Cancelling…' : 'Cancel', fraction }
 }
 
+/** The plain words the build's detail line uses for each stage the server reports: the
+ *  mesh build's steps (mapmesh's geometry, lighting, writing, textures and compress, the
+ *  variant layer's styles) and the library builds' weapons and rigs. A stage outside the
+ *  table shows as-is, first letter capitalized (the library builds' "done/total" counts
+ *  start with a digit, so they show unchanged). */
+const BUILD_STAGE_DETAIL: Record<string, string> = {
+  styles: 'Preparing styles',
+  geometry: 'Building geometry',
+  lighting: 'Baking lighting',
+  writing: 'Writing the map file',
+  textures: 'Compressing textures',
+  compress: 'Compressing geometry',
+  weapons: 'Building the weapon library',
+  rigs: 'Building the first-person rigs',
+}
+
+/** The time a build has spent so far, as m:ss ("4:12"); the fraction of a second floors. */
+function buildElapsedClock(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  return `${minutes}:${String(totalSeconds % 60).padStart(2, '0')}`
+}
+
+/**
+ * The small detail line under the pre-game's build bar: the current step in plain words and
+ * the time spent in the build so far, a middle dot with spaces between them
+ * ("Compressing textures  ·  4:12"). A stage outside the table shows as-is, first letter
+ * capitalized; with no stage the line is the elapsed time alone. Null outside a running
+ * build, and while the build has reported neither a stage nor a time (nothing to show).
+ */
+export function buildDetailOf(
+  phase: { phase: string; elapsedMs?: number; stage?: string } | null,
+): string | null {
+  if (!phase || phase.phase !== 'building') return null
+  const parts: string[] = []
+  if (phase.stage) {
+    parts.push(BUILD_STAGE_DETAIL[phase.stage] ?? phase.stage.charAt(0).toUpperCase() + phase.stage.slice(1))
+  }
+  if (typeof phase.elapsedMs === 'number') parts.push(buildElapsedClock(phase.elapsedMs))
+  return parts.length > 0 ? parts.join('  ·  ') : null
+}
+
 /**
  * The rough cost of building a map at each texture quality, shown on the pre-game's quality
  * choice so the pick is informed. The server exposes no size for a map before it is built (the
