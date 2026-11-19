@@ -130,6 +130,37 @@ func TestPickPayloadOfLen(t *testing.T) {
 	}
 }
 
+func TestBurstChain(t *testing.T) {
+	// The resources come smaller mips first (40960 bytes), then mip 0 (131072): the chain puts
+	// mip 0 first so mipGuide finds mip 1 right after it.
+	small := make([]byte, 40960)
+	small[0] = 7
+	mip0 := make([]byte, bcSize(shieldBurstW, shieldBurstH))
+	mip0[0] = 9
+	chain := burstChain([][]byte{small, mip0})
+	if len(chain) != len(small)+len(mip0) {
+		t.Fatalf("chain is %d bytes, want %d", len(chain), len(small)+len(mip0))
+	}
+	if chain[0] != 9 || chain[len(mip0)] != 7 {
+		t.Errorf("chain order: first byte %d, byte after mip 0 %d; want 9 then 7", chain[0], chain[len(mip0)])
+	}
+	if burstChain([][]byte{small}) != nil {
+		t.Error("a chain without mip 0 was returned, want nil")
+	}
+}
+
+func TestHudFileNamesIncludeShieldScreenArt(t *testing.T) {
+	names := map[string]bool{}
+	for _, n := range HudFileNames() {
+		names[n] = true
+	}
+	for _, want := range []string{"ShieldGlow", "ShieldBurst", "HealthBar"} {
+		if !names[want] {
+			t.Errorf("HudFileNames lacks %s", want)
+		}
+	}
+}
+
 func TestShieldQuadDecodeCrop(t *testing.T) {
 	// A 76800-byte payload of zero BC7 blocks: it decodes at the stored 960x80 and
 	// crops to the written 940x80.

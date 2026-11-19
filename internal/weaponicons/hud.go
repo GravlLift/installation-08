@@ -125,6 +125,37 @@ const (
 	scoreMeterH = 256
 )
 
+// The shield screen (`cusc` 9299c419) draws three more pieces from these bitmaps, all
+// measured 2026-11-19 (probe data/probe/shieldart):
+//
+//   - shieldGlowTag: the red glow over the frame while the shield is empty, two 1080x256
+//     quads, the second mirrored, under a container tinted ARGB (1, 1, 0.224, 0.224). Its
+//     pixels are inline in the tag (mip 0, BC7, 512x256, no further mips). It is a
+//     channel-packed mask: R is 255, G is 0, A is the glow (the left half of the frame's
+//     outline, the bitmap's right edge at the screen's center), B a ramp from about 243 at
+//     the top to 3 at the bottom (the two-tone quad's gradient coordinate, inferred).
+//   - shieldBurstTag: the shield-break burst, a quad that scales out and fades in 766 ms
+//     when the shield empties. Its `pc` entry owns two resources: 131072 bytes, mip 0 (BC7
+//     512x256), and 40960 bytes, mips 1 and 2. Gray (R = G = B, at most 127) on A = 255: an
+//     arc of light, drawn additively (inferred from the black background).
+//   - healthBarTag: the health bar under the shield, 606x64 b8g8r8a8 stored 640 wide (its
+//     second resource, 163840 bytes = 640x64x4; the first holds the smaller mips). R is
+//     255, G is 0, A is the bar's shape (a thin strip with tick marks, rows about 24 to 40),
+//     B a left-to-right ramp (the meter coordinate, inferred).
+const (
+	shieldGlowTag  = 0xf47d743f
+	shieldGlowW    = 512
+	shieldGlowH    = 256
+	shieldBurstTag = 0x7139ad8e
+	shieldBurstW   = 512
+	shieldBurstH   = 256
+	healthBarTag   = 0x30099cc7
+	healthBarW     = 606
+	healthBarH     = 64
+	// healthBarStoreW is the health bar's stored (padded) width.
+	healthBarStoreW = 640
+)
+
 // HudOutDir is the HUD icon set's folder below the data directory.
 func HudOutDir(dataDir string) string {
 	return filepath.Join(dataDir, "assets", "weapons-icons", "halo_infinite", "hud")
@@ -135,11 +166,11 @@ func HudOutDir(dataDir string) string {
 // the shield chase, the shield quad, the score meter, and the nine team emblems). The
 // route serves only these names, so the list is the surface of the set.
 func HudFileNames() []string {
-	out := make([]string, 0, len(hudSources)+4+teamEmblemCount)
+	out := make([]string, 0, len(hudSources)+7+teamEmblemCount)
 	for stem := range hudSources {
 		out = append(out, stem)
 	}
-	out = append(out, "DamageArc", "ShieldChase", "ShieldQuad", "ScoreMeter")
+	out = append(out, "DamageArc", "ShieldChase", "ShieldQuad", "ScoreMeter", "ShieldGlow", "ShieldBurst", "HealthBar")
 	for k := 0; k < teamEmblemCount; k++ {
 		out = append(out, fmt.Sprintf("TeamEmblem%d", k))
 	}
@@ -148,12 +179,13 @@ func HudFileNames() []string {
 }
 
 // HudSetReady says whether the HUD icon set is built: index.json, DamageArc.png,
-// ShieldChase.png, ShieldQuad.png, ScoreMeter.png, the last team emblem (TeamEmblem8.png),
-// AND the HUD's default font are all present in the output folder. A set built before one
-// of those was added is missing it, so it is not ready and gets rebuilt once.
+// ShieldChase.png, ShieldQuad.png, ScoreMeter.png, ShieldGlow.png, ShieldBurst.png,
+// HealthBar.png, the last team emblem (TeamEmblem8.png), AND the HUD's default font are all
+// present in the output folder. A set built before one of those was added is missing it,
+// so it is not ready and gets rebuilt once.
 func HudSetReady(dataDir string) bool {
 	dir := HudOutDir(dataDir)
-	for _, name := range []string{"index.json", "DamageArc.png", "ShieldChase.png", "ShieldQuad.png", "ScoreMeter.png", "TeamEmblem8.png", hudFontRequired} {
+	for _, name := range []string{"index.json", "DamageArc.png", "ShieldChase.png", "ShieldQuad.png", "ScoreMeter.png", "ShieldGlow.png", "ShieldBurst.png", "HealthBar.png", "TeamEmblem8.png", hudFontRequired} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			return false
 		}
@@ -249,6 +281,14 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 	}
 	written += meterFiles
 	total += meterBytes
+	for _, build := range []func(context.Context, *tagIndex, string) (int, int, error){buildShieldGlow, buildShieldBurst, buildHealthBar} {
+		n, b, err := build(ctx, ix, out)
+		if err != nil {
+			return 0, 0, 0, err
+		}
+		written += n
+		total += b
+	}
 	fontFiles, fontBytes, err := buildHudFonts(ctx, ix, out)
 	if err != nil {
 		return 0, 0, 0, err
@@ -608,6 +648,90 @@ func buildScoreMeter(ctx context.Context, ix *tagIndex, out string) (written, by
 		return 0, 0, err
 	}
 	return 1, int(fi.Size()), nil
+}
+
+// writeHudFile writes img as out/name and returns 1 and the file's byte count.
+func writeHudFile(out, name string, img image.Image) (written, bytes int, err error) {
+	path := filepath.Join(out, name)
+	if err := writePNG(path, img); err != nil {
+		return 0, 0, fmt.Errorf("write %s: %w", name, err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return 0, 0, err
+	}
+	return 1, int(fi.Size()), nil
+}
+
+// buildShieldGlow writes ShieldGlow.png, the empty-shield glow (shieldGlowTag), from the
+// pixels inline in its tag: mip 0, BC7 512x256, kept as decoded (the web code reads A).
+func buildShieldGlow(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
+	if err := ctx.Err(); err != nil {
+		return 0, 0, err
+	}
+	ref, ok := pickRef(ix.byID[shieldGlowTag])
+	if !ok {
+		return 0, 0, fmt.Errorf("shield glow tag %08x not found in the install", shieldGlowTag)
+	}
+	tag, err := ix.extract(ref)
+	if err != nil {
+		return 0, 0, fmt.Errorf("shield glow tag %08x: %w", shieldGlowTag, err)
+	}
+	img, err := inlineBC7Image(tag, shieldGlowW, shieldGlowH)
+	if err != nil {
+		return 0, 0, fmt.Errorf("shield glow tag %08x: %w", shieldGlowTag, err)
+	}
+	return writeHudFile(out, "ShieldGlow.png", img)
+}
+
+// burstChain returns the burst's mip chain, mip 0 followed by the smaller mips, from its
+// owned payloads (mip 0 is the payload of exactly the 512x256 BC7 size; the smaller mips
+// are the other payload), or nil when mip 0 is not there. The chain feeds mipGuide.
+func burstChain(payloads [][]byte) []byte {
+	k := pickPayloadOfLen(payloads, bcSize(shieldBurstW, shieldBurstH))
+	if k < 0 {
+		return nil
+	}
+	chain := append([]byte(nil), payloads[k]...)
+	for i, p := range payloads {
+		if i != k {
+			chain = append(chain, p...)
+		}
+	}
+	return chain
+}
+
+// buildShieldBurst writes ShieldBurst.png, the shield-break burst (shieldBurstTag): mip 0,
+// BC7 512x256, decoded with mip 1 as the mode-7 witness.
+func buildShieldBurst(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
+	payloads, err := ownedPayloads(ctx, ix, shieldBurstTag)
+	if err != nil {
+		return 0, 0, err
+	}
+	chain := burstChain(payloads)
+	if chain == nil {
+		return 0, 0, fmt.Errorf("shield burst tag %08x: no owned resource of the mip 0 BC7 size", shieldBurstTag)
+	}
+	img, _, _, _ := decodeBC7(chain, shieldBurstW, shieldBurstH, mipGuide(chain, 0, shieldBurstW, shieldBurstH))
+	return writeHudFile(out, "ShieldBurst.png", img)
+}
+
+// buildHealthBar writes HealthBar.png, the health bar (healthBarTag): the owned payload of
+// exactly 640x64x4 bytes, b8g8r8a8, cropped to the declared 606x64.
+func buildHealthBar(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
+	payloads, err := ownedPayloads(ctx, ix, healthBarTag)
+	if err != nil {
+		return 0, 0, err
+	}
+	k := pickPayloadOfLen(payloads, healthBarStoreW*healthBarH*4)
+	if k < 0 {
+		return 0, 0, fmt.Errorf("health bar tag %08x: no owned resource of the stored b8g8r8a8 size", healthBarTag)
+	}
+	img, err := bgraToNRGBA(payloads[k], healthBarStoreW, healthBarH)
+	if err != nil {
+		return 0, 0, fmt.Errorf("health bar tag %08x: %w", healthBarTag, err)
+	}
+	return writeHudFile(out, "HealthBar.png", cropNRGBALeft(img, healthBarW, healthBarH))
 }
 
 // writeHudAtlas decodes each named image, scales it to hudIconSize×hudIconSize, and
