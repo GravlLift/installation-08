@@ -4,12 +4,15 @@
  *
  * A camera script is a list of keyframes on the match's time axis that places the 3D replay
  * camera at every frame: types, `parseCameraScript` (validation, version 1), and
- * `evaluateCameraScript` (one pose per drawn time). No scene, no three.js objects.
+ * `evaluateCameraScript` (one pose per drawn script time). No scene, no three.js objects.
  *
  * The contract uses the replay's own terms: points in GAME coordinates (z up, headings in
- * degrees from +x toward +y), times in document milliseconds. The pose is returned in THREE
- * coordinates via `toThree`. Player anchors are resolved at the time being drawn, not at the
- * key's time; a `cut` splits the script into runs the Catmull-Rom spline never crosses.
+ * degrees from +x toward +y). Key times are SCRIPT milliseconds; an optional `clock` maps
+ * script time to document milliseconds (the film's own time) through a rate track, so a shot
+ * can slow, speed or freeze the world while the camera keeps moving. The pose is returned in
+ * THREE coordinates via `toThree`. Player anchors resolve at the clock's document time, not at
+ * the key's script time; without a clock, script time is document time. A `cut` splits the
+ * script into runs the Catmull-Rom spline never crosses.
  */
 import { toThree, type Vec3 } from './tracks3d'
 import { verticalFovOf } from '../model/fovLogic'
@@ -28,6 +31,15 @@ export interface PlayerPoint {
 }
 export type ScriptPoint = WorldPoint | PlayerPoint
 
+export interface ClockRate {
+  s: number
+  rate: number
+  ease: Ease
+}
+export interface ScriptClock {
+  startMs: number
+  rates: ClockRate[]
+}
 export interface CameraKey {
   t: number
   pos: ScriptPoint
@@ -41,12 +53,15 @@ export interface CameraScript {
   matchId: string
   name: string
   keys: CameraKey[]
+  clock?: ScriptClock
 }
 
 export const CAMERA_SCRIPT_MAX_KEYS = 512
 export const CAMERA_SCRIPT_FOV_MIN = 10
 export const CAMERA_SCRIPT_FOV_MAX = 150
 export const HEADING_WINDOW_DEFAULT_MS = 400
+export const CLOCK_RATE_MIN = 0
+export const CLOCK_RATE_MAX = 4
 
 export type ParseResult = { ok: true; script: CameraScript } | { ok: false; error: string }
 
@@ -91,6 +106,38 @@ function parsePoint(raw: unknown): { point: ScriptPoint } | { error: string } {
     return { point: out }
   }
   return { error: "at must be 'world' or 'player'" }
+}
+
+/** Validates a raw `clock` (version 1); returns a clean copy with only the known fields, or a short reason. */
+function parseClock(raw: unknown): { clock: ScriptClock } | { error: string } {
+  if (typeof raw !== 'object' || raw === null) return { error: 'clock is not an object' }
+  const c = raw as Record<string, unknown>
+  if (!isFiniteNumber(c.startMs) || c.startMs < 0) return { error: 'clock.startMs must be a finite number >= 0' }
+  if (!Array.isArray(c.rates)) return { error: 'clock.rates must be an array' }
+  if (c.rates.length === 0) return { error: 'clock.rates must have at least one entry' }
+  if (c.rates.length > CAMERA_SCRIPT_MAX_KEYS) {
+    return { error: `clock.rates has ${c.rates.length} entries; at most ${CAMERA_SCRIPT_MAX_KEYS}` }
+  }
+  const rates: ClockRate[] = []
+  for (let i = 0; i < c.rates.length; i++) {
+    const e = c.rates[i]
+    if (typeof e !== 'object' || e === null) return { error: `clock.rates[${i}] is not an object` }
+    const re = e as Record<string, unknown>
+    if (!isFiniteNumber(re.s) || re.s < 0) return { error: `clock.rates[${i}].s must be a finite number >= 0` }
+    if (i > 0 && re.s < rates[i - 1].s) return { error: `clock.rates[${i}].s: rates are not sorted by s` }
+    if (!isFiniteNumber(re.rate) || re.rate < CLOCK_RATE_MIN || re.rate > CLOCK_RATE_MAX) {
+      return { error: `clock.rates[${i}].rate must be a finite number in [${CLOCK_RATE_MIN}, ${CLOCK_RATE_MAX}]` }
+    }
+    let ease: Ease = 'smooth'
+    if (re.ease !== undefined) {
+      if (typeof re.ease !== 'string' || !EASES.includes(re.ease as Ease)) {
+        return { error: `clock.rates[${i}].ease must be one of ${EASES.join(', ')}` }
+      }
+      ease = re.ease as Ease
+    }
+    rates.push({ s: re.s, rate: re.rate, ease })
+  }
+  return { clock: { startMs: c.startMs, rates } }
 }
 
 /**
@@ -152,7 +199,16 @@ export function parseCameraScript(raw: unknown, expectedMatchId?: string): Parse
     keys.push(out)
   }
 
-  return { ok: true, script: { version: 1, matchId: r.matchId, name: r.name, keys } }
+  let clock: ScriptClock | undefined
+  if (r.clock !== undefined) {
+    const parsed = parseClock(r.clock)
+    if ('error' in parsed) return { ok: false, error: parsed.error }
+    clock = parsed.clock
+  }
+
+  const script: CameraScript = { version: 1, matchId: r.matchId, name: r.name, keys }
+  if (clock !== undefined) script.clock = clock
+  return { ok: true, script }
 }
 
 /** The camera pose in THREE coordinates. */
@@ -200,6 +256,100 @@ function easeOf(ease: Ease, u: number): number {
       return 1 - (1 - u) * (1 - u)
     case 'cut':
       return u
+  }
+}
+
+/** The integral of an ease curve from 0 to u; E(u) in the closed form. 0 for cut, which holds the previous rate until it jumps. */
+function easeIntegral(ease: Ease, u: number): number {
+  switch (ease) {
+    case 'smooth':
+      return u * u * u - (u * u * u * u) / 2
+    case 'linear':
+      return (u * u) / 2
+    case 'in':
+      return (u * u * u) / 3
+    case 'out':
+      return u * u - (u * u * u) / 3
+    case 'cut':
+      return 0
+  }
+}
+
+/** The script's clock view: script time to document time, the rate at script time, and the script's length in script ms. */
+export interface ScriptClockView {
+  docMsAt(s: number): number
+  rateAt(s: number): number
+  lengthMs: number
+}
+
+/**
+ * Maps a script's clock to document time. Without a clock, script time IS document time
+ * (start 0, rate 1). With one, `docMs(s) = startMs + ∫₀ˢ rate`, in closed form per segment
+ * (each ease's integral), so it is a pure function of s and the export samples it exactly.
+ */
+export function scriptClockOf(script: CameraScript): ScriptClockView {
+  const keys = script.keys
+  const lastKeyT = keys.length > 0 ? keys[keys.length - 1].t : 0
+
+  const clock = script.clock
+  if (clock === undefined) {
+    return {
+      docMsAt: (s: number): number => s,
+      rateAt: (): number => 1,
+      lengthMs: lastKeyT,
+    }
+  }
+
+  const { startMs, rates } = clock
+  const n = rates.length
+  const firstS = rates[0].s
+  const lastS = rates[n - 1].s
+
+  // Cumulative document ms at each entry's s: cum[i] = ∫₀^{s_i} rate.
+  const cum: number[] = new Array(n)
+  cum[0] = rates[0].rate * firstS // constant first rate on [0, s_0]
+  for (let i = 1; i < n; i++) {
+    const L = rates[i].s - rates[i - 1].s
+    const r0 = rates[i - 1].rate
+    const r1 = rates[i].rate
+    cum[i] = cum[i - 1] + (L === 0 ? 0 : L * (r0 + (r1 - r0) * easeIntegral(rates[i].ease, 1)))
+  }
+
+  // The entry i such that rates[i-1].s <= s <= rates[i].s (callers ensure firstS < s < lastS).
+  const segment = (s: number): number => {
+    let i = 1
+    while (rates[i].s < s) i++
+    return i
+  }
+
+  return {
+    docMsAt(s: number): number {
+      if (s <= firstS) return startMs + rates[0].rate * s // constant first rate
+      if (s >= lastS) return startMs + cum[n - 1] + rates[n - 1].rate * (s - lastS) // constant last rate
+      const i = segment(s)
+      const s0 = rates[i - 1].s
+      const s1 = rates[i].s
+      if (s0 === s1) return startMs + cum[i - 1] // zero-length segment: no integral
+      const L = s1 - s0
+      const u = (s - s0) / L
+      const r0 = rates[i - 1].rate
+      const r1 = rates[i].rate
+      return startMs + cum[i - 1] + L * (r0 * u + (r1 - r0) * easeIntegral(rates[i].ease, u))
+    },
+    rateAt(s: number): number {
+      if (s < firstS) return rates[0].rate
+      if (s >= lastS) return rates[n - 1].rate
+      const i = segment(s)
+      const s0 = rates[i - 1].s
+      const s1 = rates[i].s
+      const r0 = rates[i - 1].rate
+      const r1 = rates[i].rate
+      if (s0 === s1) return r1 // two entries at one s: the later wins from that s on
+      const u = (s - s0) / (s1 - s0)
+      if (rates[i].ease === 'cut') return u >= 1 ? r1 : r0 // cut: the previous rate holds until s1, then jumps
+      return r0 + (r1 - r0) * easeOf(rates[i].ease, u)
+    },
+    lengthMs: Math.max(lastKeyT, lastS),
   }
 }
 
@@ -286,19 +436,22 @@ function catmullRom(P0: Vec3, P1: Vec3, P2: Vec3, P3: Vec3, u: number): Vec3 {
 }
 
 /**
- * The scripted camera pose at document ms `tMs`, in THREE coordinates, or null for a keyless
- * script. Player anchors resolve at `tMs` (the time being drawn); a key before the first key
- * holds the first key, a cut key holds the previous key, both still resolved at `tMs`, so a
- * held player key keeps following its player.
+ * The scripted camera pose at script ms `sMs`, in THREE coordinates, or null for a keyless
+ * script. Keys interpolate on script time; every player anchor resolves at the clock's document
+ * time `docMsAt(sMs)` (the time the world is at), so the camera can move on a slow or frozen
+ * world. A key before the first key holds the first key, a cut key holds the previous key, both
+ * still resolved at the document time, so a held player key keeps following its player.
  */
 export function evaluateCameraScript(
   script: CameraScript,
-  tMs: number,
+  sMs: number,
   subjects: ScriptSubjects,
   baseGameFov: number,
 ): ScriptPose | null {
   const keys = script.keys
   if (keys.length === 0) return null
+
+  const tMs = scriptClockOf(script).docMsAt(sMs) // document time: where the world is
 
   const isCut = (i: number): boolean => keys[i].ease === 'cut'
   // Two keys are in the same run when no cut key sits between them (a cut key starts a new run).
@@ -307,9 +460,9 @@ export function evaluateCameraScript(
     return true
   }
 
-  // k = the last key at or before tMs; before key 0, k = 0 and key 0 holds.
+  // k = the last key at or before sMs (script time); before key 0, k = 0 and key 0 holds.
   let k = 0
-  for (let i = 0; i < keys.length; i++) if (keys[i].t <= tMs) k = i
+  for (let i = 0; i < keys.length; i++) if (keys[i].t <= sMs) k = i
 
   // An unresolved point takes the resolved point of the same field on the nearest earlier key
   // in the same run, else the nearest later key in the same run, else the world origin.
@@ -330,8 +483,8 @@ export function evaluateCameraScript(
     return [0, 0, 0]
   }
 
-  if (tMs < keys[0].t || k === keys.length - 1 || isCut(k + 1)) {
-    // Hold key k: its points, resolved at tMs.
+  if (sMs < keys[0].t || k === keys.length - 1 || isCut(k + 1)) {
+    // Hold key k: its points, resolved at the document time.
     const position = toThree(...resolve(k, 'pos'))
     const target = toThree(...resolve(k, 'look'))
     return {
@@ -342,7 +495,7 @@ export function evaluateCameraScript(
     }
   }
 
-  const u = easeOf(keys[k + 1].ease ?? 'smooth', (tMs - keys[k].t) / (keys[k + 1].t - keys[k].t))
+  const u = easeOf(keys[k + 1].ease ?? 'smooth', (sMs - keys[k].t) / (keys[k + 1].t - keys[k].t))
 
   // Spline neighbors: a run's end is mirrored through its neighbor (a phantom), so the first and last
   // segment of a run still curve instead of going straight to a duplicated point.

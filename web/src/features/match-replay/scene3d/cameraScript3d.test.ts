@@ -5,8 +5,10 @@ import {
   circularMeanDeg,
   evaluateCameraScript,
   parseCameraScript,
+  scriptClockOf,
   type CameraKey,
   type CameraScript,
+  type ClockRate,
   type Ease,
   type PlayerPoint,
   type ScriptPoint,
@@ -186,6 +188,170 @@ describe('parseCameraScript', () => {
   it('rejects a bad ease', () => {
     const s = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(1, w([0, 0, 0]), w([0, 0, 0]), { ease: 'bounce' as Ease })])
     expect(rejects(s)).toContain('ease')
+  })
+})
+
+describe('parseCameraScript (clock)', () => {
+  // A raw script carrying a `clock` (an unknown object); the base keys are one world key.
+  function rawWithClock(clock: unknown): Record<string, unknown> {
+    return { ...script([key(0, w([0, 0, 0]), w([0, 0, 0]))]), clock }
+  }
+
+  it('accepts a valid clock and drops unknown fields', () => {
+    const raw = rawWithClock({
+      startMs: 310000,
+      rates: [
+        { s: 0, rate: 1, junk: 1 },
+        { s: 1800, rate: 1 },
+        { s: 2300, rate: 0.25, ease: 'smooth' },
+      ],
+      extra: true,
+    })
+    const s = accepts(raw)
+    expect(s.clock).toEqual({
+      startMs: 310000,
+      rates: [
+        { s: 0, rate: 1, ease: 'smooth' },
+        { s: 1800, rate: 1, ease: 'smooth' },
+        { s: 2300, rate: 0.25, ease: 'smooth' },
+      ],
+    })
+  })
+
+  it('keeps a clock-less script clock-less', () => {
+    expect(accepts(script([key(0, w([0, 0, 0]), w([0, 0, 0]))])).clock).toBeUndefined()
+  })
+
+  it('rejects a non-object clock', () => {
+    expect(rejects(rawWithClock(42))).toContain('clock')
+  })
+
+  it('rejects a negative or non-finite startMs', () => {
+    expect(rejects(rawWithClock({ startMs: -1, rates: [{ s: 0, rate: 1 }] }))).toContain('startMs')
+    expect(rejects(rawWithClock({ startMs: NaN, rates: [{ s: 0, rate: 1 }] }))).toContain('startMs')
+  })
+
+  it('rejects an empty rates array', () => {
+    expect(rejects(rawWithClock({ startMs: 0, rates: [] }))).toContain('rates')
+  })
+
+  it('rejects a rate out of [0, 4]', () => {
+    expect(rejects(rawWithClock({ startMs: 0, rates: [{ s: 0, rate: 5 }] }))).toContain('rate')
+    expect(rejects(rawWithClock({ startMs: 0, rates: [{ s: 0, rate: -1 }] }))).toContain('rate')
+  })
+
+  it('rejects rates that are not sorted by s', () => {
+    expect(rejects(rawWithClock({ startMs: 0, rates: [{ s: 10, rate: 1 }, { s: 5, rate: 1 }] }))).toContain('sorted')
+  })
+
+  it('rejects an unknown ease', () => {
+    expect(rejects(rawWithClock({ startMs: 0, rates: [{ s: 0, rate: 1, ease: 'bounce' }] }))).toContain('ease')
+  })
+
+  it('rejects more than 512 rates', () => {
+    const rates = Array.from({ length: 513 }, (_, i) => ({ s: i * 10, rate: 1 }))
+    expect(rejects(rawWithClock({ startMs: 0, rates }))).toContain('512')
+  })
+})
+
+describe('scriptClockOf', () => {
+  const STEPS = 20000
+  // docMs(s) approximated as startMs + a midpoint-rule sum of rateAt over [0, s] at STEPS steps.
+  function numericDocMs(view: { rateAt: (s: number) => number }, startMs: number, s: number): number {
+    const h = s / STEPS
+    let sum = 0
+    for (let k = 0; k < STEPS; k++) sum += view.rateAt((k + 0.5) * h)
+    return startMs + sum * h
+  }
+  const r = (s: number, rate: number, ease: Ease = 'smooth'): ClockRate => ({ s, rate, ease })
+  const clockScript = (rates: ClockRate[]): CameraScript => ({
+    version: 1,
+    matchId: 'm',
+    name: 's',
+    keys: [],
+    clock: { startMs: 5000, rates },
+  })
+
+  it('is the identity without a clock', () => {
+    const view = scriptClockOf(script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(700, w([1, 0, 0]), w([0, 0, 0]))]))
+    for (const s of [-1000, 0, 500, 12345]) expect(view.docMsAt(s)).toBe(s)
+    expect(view.rateAt(-1000)).toBe(1)
+    expect(view.rateAt(999999)).toBe(1)
+    expect(view.lengthMs).toBe(700)
+  })
+
+  it('matches a fine numeric sum of rateAt for each ease', () => {
+    const eases: Ease[] = ['smooth', 'linear', 'in', 'out', 'cut']
+    for (const ease of eases) {
+      const view = scriptClockOf(clockScript([r(1000, 1), r(3000, 0.25, ease)]))
+      for (const s of [0, 250, 1000, 1500, 2500, 3000, 3500, 4000]) {
+        // cut jumps at s = 3000, so the midpoint rule misses the single straddling subinterval
+        // by at most the jump (0.75) times one step; the other eases are continuous and exact to O(h^2).
+        const tol = ease === 'cut' ? Math.max(1e-3, 0.75 * (s / STEPS)) : 1e-3
+        expect(Math.abs(view.docMsAt(s) - numericDocMs(view, 5000, s))).toBeLessThan(tol)
+      }
+    }
+  })
+
+  it('holds the first rate before it and the last after it', () => {
+    const view = scriptClockOf(clockScript([r(1000, 1), r(3000, 0.25, 'linear')]))
+    expect(view.rateAt(0)).toBe(1)
+    expect(view.rateAt(999)).toBe(1)
+    expect(view.rateAt(3000)).toBe(0.25)
+    expect(view.rateAt(100000)).toBe(0.25)
+  })
+
+  it('lets a later entry win from a shared s onward', () => {
+    const view = scriptClockOf(clockScript([r(1000, 1), r(1000, 0.25, 'linear')]))
+    expect(view.rateAt(1000)).toBe(0.25)
+    expect(view.rateAt(2000)).toBe(0.25)
+  })
+
+  it('freezes document time at rate 0', () => {
+    const view = scriptClockOf(clockScript([r(0, 1), r(1000, 0, 'cut')]))
+    expect(view.docMsAt(1500)).toBe(view.docMsAt(2500))
+    expect(view.docMsAt(1500)).toBe(5000 + 1000)
+    expect(view.docMsAt(2500)).toBe(5000 + 1000)
+  })
+
+  it('extrapolates a negative s at the first rate', () => {
+    const view = scriptClockOf(clockScript([r(1000, 2), r(2000, 1, 'linear')]))
+    expect(view.docMsAt(-500)).toBe(5000 + 2 * -500)
+  })
+
+  it('reports lengthMs as the later of the last key and the last rate', () => {
+    const keyAfter = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(1000, w([1, 0, 0]), w([0, 0, 0]))])
+    keyAfter.clock = { startMs: 0, rates: [r(500, 1)] }
+    expect(scriptClockOf(keyAfter).lengthMs).toBe(1000)
+    const rateAfter = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(300, w([1, 0, 0]), w([0, 0, 0]))])
+    rateAfter.clock = { startMs: 0, rates: [r(500, 1)] }
+    expect(scriptClockOf(rateAfter).lengthMs).toBe(500)
+    expect(scriptClockOf({ version: 1, matchId: 'm', name: 's', keys: [], clock: { startMs: 0, rates: [r(42, 1)] } }).lengthMs).toBe(42)
+    expect(scriptClockOf({ version: 1, matchId: 'm', name: 's', keys: [] }).lengthMs).toBe(0)
+  })
+})
+
+describe('evaluateCameraScript (clock)', () => {
+  it('resolves anchors at the document time, not the script time', () => {
+    // A player at 10 u/s along +x (feet.x = tMs/1000 * 10); a key at script t = 2000 on them, and a
+    // clock that starts the world at document ms 10000 and runs at rate 0.5. At script s = 2000 the
+    // document time is 10000 + 0.5 * 2000 = 11000, so the camera sits at the player's x at 11000.
+    const s = script([key(2000, pl('A'), pl('A'))])
+    s.clock = { startMs: 10000, rates: [{ s: 0, rate: 0.5, ease: 'smooth' }] }
+    const pose = eval_(s, 2000)
+    expect(pose).not.toBeNull()
+    expectVec(pose!.position, 110, 0, 0)
+  })
+
+  it('moves the camera on script time while the world crawls', () => {
+    // Two world keys on script time; the world (player A) is only reached through the clock, so a
+    // player-anchored look at script s = 500 follows the feet at the clock's document time 500/2 = 250.
+    const s = script([key(0, w([0, 0, 0]), pl('A')), key(1000, w([4, 0, 0]), pl('A'), { ease: 'linear' })])
+    s.clock = { startMs: 0, rates: [{ s: 0, rate: 0.5, ease: 'smooth' }] }
+    const pose = eval_(s, 500)
+    expect(pose).not.toBeNull()
+    // The look target is A's feet (body center) at document ms 250: x = 2.5.
+    expectVec(pose!.target, 2.5, BODY_CENTER, 0)
   })
 })
 
