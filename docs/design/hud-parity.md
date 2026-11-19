@@ -24,7 +24,8 @@ reference only, gitignored: `data/reference/hud/infinite-hud-weapons-killfeed.pn
   - Today: wrong. The viewer draws one box per grenade type side by side.
 - **Equipment** is the rightmost small box on that row, right of the grenade slot.
   - Today: drawn left of the grenades.
-- Small button glyphs (LB / RB) sit above the grenade and equipment boxes in the game.
+- Small button glyphs (LB / RB) sit above the grenade and equipment boxes in the game. The viewer
+  leaves them out on purpose (owner's call): they are controller prompts.
 
 ## Bottom center: score and clock
 
@@ -85,7 +86,8 @@ The video export draws the same HUD (`export/exportHud.ts`), so each phase updat
    trades them on the selector flip.
 2. Weapon name tag: shown under the in-hand row on each change of the weapon in hand (by
    `drawnWeapons`, and by a pickup that replaces the weapon in hand), naming the weapon taken out,
-   fading out over 2 s. A seek does not replay it: only a change crossed while playing shows it.
+   fading out over 2 s. It is a function of the frame, so the export draws it too and a seek just
+   after a swap shows it partly faded, as the game showed it at that moment. Not at spawn.
 3. Grenade slot: one box with the selected type's icon and its count (`gs`). When the selection
    is indeterminate, it falls back to the only type carried, and to frag otherwise.
 4. Equipment moves to the right of the grenade slot.
