@@ -103,7 +103,7 @@ it('preloads and paints HUD icons, using a short label when an image is unavaila
   expect(tagOp).toBeGreaterThan(plateOp)
 })
 
-it('an indeterminate grenade (rank null) draws its generic text, no box icon', async () => {
+it('a grenade type with no image draws its name as text, no box icon', async () => {
   class FakeImage {
     onload: (() => void) | null = null
     onerror: (() => void) | null = null
@@ -113,13 +113,13 @@ it('an indeterminate grenade (rank null) draws its generic text, no box icon', a
   }
   vi.stubGlobal('Image', FakeImage)
   const doc = testReplayDoc({ weaponLabels: { a: { en: 'Rifle', fr: 'Rifle', img: '/jeu/contour-01.png' } }, grenadeLabels: [{ en: 'Frag', fr: 'Frag', img: '/grenade.png' }] })
-  // The mocked HUD swaps in the indeterminate grenade, no equipment.
-  readHudMock.current = { ...MOCK_HUD, grenade: { rank: null, name: 'Grenade', count: null }, equipment: null }
+  // The mocked HUD swaps in a grenade rank the labels have no image for, no equipment.
+  readHudMock.current = { ...MOCK_HUD, grenade: { rank: 1, name: 'rank 1', count: 2 }, equipment: null }
   const paint = await createExportHud(doc, 'a', [{ weaponImageUrl: '/weapon.png' }] as ReplayKill[], null, null, 'en')
   const { ctx, named } = recordingCtx()
   paint(ctx, { width: 960, height: 540 }, 0)
-  // The indeterminate grenade has no image of its own: its box carries the generic text.
-  expect((named('fillText') as unknown[][]).some((args) => args[0] === 'Grenade')).toBe(true)
+  // That grenade has no image of its own: its box carries its name as text.
+  expect((named('fillText') as unknown[][]).some((args) => args[0] === 'rank 1')).toBe(true)
   // No equipment carried: nothing equipment-shaped is painted.
   expect(named('drawImage').some((args) => (args[0] as { src?: string })?.src === '/equip.png')).toBe(false)
 })

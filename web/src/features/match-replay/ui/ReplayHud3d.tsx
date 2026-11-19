@@ -120,11 +120,10 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
     paintDamageArcs(ctx, damageArcs, { x: w / 2, y: h / 2 }, h, damageArcReady ? damageArcImage : null)
   }, [frame, damageArcs, damageArcReady])
   const icon = ath?.label?.img ? weaponFullIcon(ath.label.img) : null
-  // The away weapon (small, dimmed, left of the upper row) and the selected grenade's label
-  // (rank null = the selection is indeterminate, the box carries the generic text).
+  // The away weapon (small, dimmed, left of the upper row) and the selected grenade's label.
   const away = ath?.away ?? null
   const awayIcon = away?.label?.img ? weaponFullIcon(away.label.img) : null
-  const grenadeLabel = ath?.grenade.rank != null ? doc.grenadeLabels?.[ath.grenade.rank] : undefined
+  const grenadeLabel = ath ? doc.grenadeLabels?.[ath.grenade.rank] : undefined
   const reticleColor = ath?.weaponId && onEnemy ? tokenCssVar('reticle-hostile') : undefined
   const banner = score && leftSide && rightSide ? <ScoreBanner locale={locale} frame={frame} doc={doc} playWindow={playWindow} timeLimitMs={timeLimitMs} leftSide={leftSide} rightSide={rightSide} /> : null
   // The levels (`hudLevel`): 2D keeps the score strip, free view adds the kill feed, third person
@@ -163,7 +162,7 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
     {ath && <div style={{ position: 'absolute', right: '3%', bottom: '6%', display: 'flex', flexDirection: 'column', alignItems: 'end', gap: '0.35em', lineHeight: 1, color: tokenCssVar('replay-hud-weapon') }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.25em', fontSize: '0.6em' }}>
         {awayIcon && away && <WeaponIcon imageUrl={awayIcon.url} tinted={away.label?.tinted} label={catalogText(away.label, locale) ?? ''} width="2.8em" height="1.1em" style={awayIcon.mirrored ? { opacity: 0.5 } : { ...MIRROR_STYLE, opacity: 0.5 }} />}
-        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25em', padding: '0.2em 0.4em', border: '1px solid currentColor', background: 'var(--replay-hud-shadow)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{grenadeLabel?.img ? <WeaponIcon imageUrl={grenadeLabel.img} tinted={grenadeLabel.tinted} label={ath.grenade.name} width="1.3em" height="1.3em" /> : ath.grenade.name}{ath.grenade.count != null && <span>{ath.grenade.count}</span>}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25em', padding: '0.2em 0.4em', border: '1px solid currentColor', background: 'var(--replay-hud-shadow)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{grenadeLabel?.img ? <WeaponIcon imageUrl={grenadeLabel.img} tinted={grenadeLabel.tinted} label={ath.grenade.name} width="1.3em" height="1.3em" /> : ath.grenade.name}<span>{ath.grenade.count}</span></span>
         {ath.equipment && <EquipmentHud3d doc={doc} rank={ath.equipment.rank} uses={ath.equipment.uses} locale={locale} />}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3em' }}>
