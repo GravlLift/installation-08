@@ -100,13 +100,14 @@ const (
 // BuildFormat is the build-format number published in every map and variant GLB's
 // asset.extras (under BuildFormatKey). It is bumped when the build output changes
 // (2: KTX2 textures, the texture read sizes, the materials; 3: geometry compressed with
-// EXT_meshopt_compression; 4: every KTX2 image block-aligned, see texcompress.blockAligned), so a
+// EXT_meshopt_compression; 4: every KTX2 image block-aligned, see texcompress.blockAligned; 5:
+// alpha-blended materials that carry layers are written see-through again), so a
 // GLB written by an older version of the app is detected as outdated and rebuilt by the normal
 // build flow. A GLB without the field (built before versioning) is outdated. Formats 2 and 3
 // differ from 4 by encodings only: UpgradeFile brings them to 4 in place, without reading the
 // game.
 const (
-	BuildFormat                = 4
+	BuildFormat                = 5
 	BuildFormatKey             = "buildFormat"
 	BreakerMaterialRevisionKey = "breakerMaterialRevision"
 	BreakerMaterialRevision    = 1
@@ -304,6 +305,11 @@ func UpgradeFile(ctx context.Context, path string) (Summary, bool, error) {
 // upgradableFrom is the build format (2 or 3) of the GLB at path when UpgradeFile upgrades it,
 // else 0.
 func upgradableFrom(path string) int {
+	// Format 5 changed the materials themselves (layered alpha-blended materials are see-through
+	// again), which only a full build from the game can write: no older GLB upgrades in place.
+	if BuildFormat >= 5 {
+		return 0
+	}
 	extras, err := texcompress.AssetExtras(path)
 	if err != nil {
 		return 0

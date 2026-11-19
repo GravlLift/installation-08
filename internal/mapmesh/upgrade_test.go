@@ -87,6 +87,16 @@ func TestUpgradeFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	before, _ := os.Stat(path)
+	if BuildFormat >= 5 {
+		// Format 5 changed the materials: an older GLB is rebuilt, never upgraded in place.
+		if _, ok, err := UpgradeFile(context.Background(), path); ok || err != nil {
+			t.Fatalf("format 2 under format %d: ok %v, err %v, want a full rebuild", BuildFormat, ok, err)
+		}
+		if after, _ := os.Stat(path); after.Size() != before.Size() {
+			t.Fatal("a GLB that is not upgraded must be left untouched")
+		}
+		return
+	}
 	s, ok, err := UpgradeFile(context.Background(), path)
 	if err != nil || !ok {
 		t.Fatalf("format 2: ok %v, err %v", ok, err)
