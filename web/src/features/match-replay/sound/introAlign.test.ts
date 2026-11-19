@@ -16,7 +16,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { type FakeContext, flushAudio, installFakeAudio, okAudioResponse } from '../test/fakeAudio'
-import { introLateBoundS, playIntroAligned } from './introSound'
+import { INTRO_THEME_START_S, introLateBoundS, playIntroAligned, playIntroFrom } from './introSound'
 import { ReplayAudioPlayer } from './replayAudio'
 
 const URL = '/static/sounds/halo_infinite/intro_music_01.ogg'
@@ -91,5 +91,34 @@ describe('playIntroAligned — aligned start despite a late decoding', () => {
     void playIntroAligned(p, URL, 1, clock)
     expect(ctx.sources).toHaveLength(1)
     expect(ctx.sources[0].offset).toBe(0)
+  })
+})
+
+describe('playIntroFrom — the whole theme first, the excerpt when it is missing', () => {
+  /** A player whose loads all finish at once: `ok` lists the URLs that decode. */
+  const stub = (ok: string[], loaded: string[] = []) => {
+    const played: [string, number][] = []
+    const done = new Set(loaded)
+    return {
+      played,
+      isLoaded: (u: string) => done.has(u),
+      whenLoaded: async (u: string) => { if (ok.includes(u)) done.add(u) },
+      playFrom: (u: string, s: number) => { played.push([u, s]) },
+    }
+  }
+  const THEME = '/static/sounds/halo_infinite/foot_17f8c16b.ogg'
+  const sources = [{ url: THEME, startS: INTRO_THEME_START_S }, { url: URL, startS: 0 }]
+
+  it('enters the decoded theme one second before its resolution', async () => {
+    const p = stub([], [THEME])
+    await playIntroFrom(p, sources, 1, clock)
+    expect(p.played).toEqual([[THEME, INTRO_THEME_START_S]])
+    expect(INTRO_THEME_START_S).toBeCloseTo(2.19, 9)
+  })
+
+  it('falls back to the excerpt when the theme does not load', async () => {
+    const p = stub([URL])
+    await playIntroFrom(p, sources, 1, clock)
+    expect(p.played).toEqual([[URL, 0]])
   })
 })

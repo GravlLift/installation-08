@@ -44,6 +44,21 @@ export function introLateBoundS(speed: number): number {
 }
 
 /**
+ * THE WHOLE THEME, WHEN THE INSTALL GIVES IT (`FootstepManifest.intro`, `internal/footstepsounds/
+ * intro.go`): the excerpt above stops 2 s after the resolution at about -21 dB, an abrupt cut
+ * (Jordan, 0.1.1-test.7), while the theme rings out after it on its own (-17 dB at 4 s, -36 dB
+ * at 12.5 s, silent by 14 s). Entered here, at R - 1 s, it lands the same resolution on the
+ * kickoff and ends on the game's decay. Without it, the shipped excerpt plays as before.
+ */
+export const INTRO_THEME_START_S = 3.19 - 1
+
+/** One file the intro can play, and where in it the intro starts. */
+export interface IntroSource {
+  url: string
+  startS: number
+}
+
+/**
  * playIntroAligned plays the excerpt immediately if it is decoded, otherwise as soon as it is, entered at
  * the moment it should have gone out, or not at all beyond the bound (cf. the header).
  * `nowMs` is the wall clock, injected by the tests.
@@ -54,9 +69,29 @@ export async function playIntroAligned(
   speed: number,
   nowMs: () => number = () => performance.now(),
 ): Promise<void> {
-  if (player.isLoaded(url)) return player.playFrom(url, 0)
+  return playIntroFrom(player, [{ url, startS: 0 }], speed, nowMs)
+}
+
+/**
+ * playIntroFrom is playIntroAligned over SOURCES in order of preference (the whole theme, then
+ * the excerpt): the first that decodes plays, entered at its start plus the wait, within the
+ * same bound; one that fails to load hands over to the next.
+ */
+export async function playIntroFrom(
+  player: Pick<ReplayAudioPlayer, 'isLoaded' | 'whenLoaded' | 'playFrom'>,
+  sources: readonly IntroSource[],
+  speed: number,
+  nowMs: () => number = () => performance.now(),
+): Promise<void> {
+  const first = sources[0]
+  if (!first) return
+  if (player.isLoaded(first.url)) return player.playFrom(first.url, first.startS)
   const geste = nowMs()
-  await player.whenLoaded(url)
-  const retardS = (nowMs() - geste) / 1000
-  if (retardS <= introLateBoundS(speed)) player.playFrom(url, retardS)
+  for (const s of sources) {
+    await player.whenLoaded(s.url)
+    if (!player.isLoaded(s.url)) continue
+    const retardS = (nowMs() - geste) / 1000
+    if (retardS <= introLateBoundS(speed)) player.playFrom(s.url, s.startS + retardS)
+    return
+  }
 }

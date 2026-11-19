@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.1-test.8
+
+Changes since 0.1.1-test.7.
+
+- Each foot step and game shot now feeds the zone reverb at the level the game sets for it, instead of all at one level. The followed player's own first-person shot is dry, as in the game: its tail is in the recording itself. Its thump and click get much less reverb. Other players' shots and the foot steps keep about the same reverb, a few dB more or less each, and it fades with distance like the sound itself. Other sounds are unchanged.
+- The followed player's own shots are 4 dB quieter.
+- The intro music no longer cuts off: it plays the game's whole multiplayer theme from your install, with the same rise onto the kickoff, and lets it ring out for about ten seconds. Without the theme in the install, the old excerpt plays.
+- The first start after updating extracts the sounds once more.
+
 ## 0.1.1-test.7
 
 Changes since 0.1.1-test.6.
