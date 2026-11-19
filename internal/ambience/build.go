@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -156,15 +157,61 @@ func (b *builder) mapBed(key string) (Bed, string, error) {
 	if err != nil {
 		return Bed{}, "", err
 	}
-	loop, distinct, ok := mainLoop(zones)
+	loop, distinct, ok := fallbackLoop(zones)
 	if !ok {
 		return Bed{}, SkippedNoZones, nil
 	}
-	takes, reason, err := b.loopTakes(ix, loop)
+	// The fallback loop's takes are the map's bed; without them the map has none, as before.
+	fallback, reason, err := b.loopTakes(ix, loop)
 	if err != nil || reason != "" {
 		return Bed{}, reason, err
 	}
-	return Bed{Loop: fmt.Sprintf("%08x", loop), Zones: len(zones), Beds: distinct, Takes: takes}, "", nil
+	takesOf := map[uint32][]Take{loop: fallback}
+	// Every other distinct loop the zones name is extracted too, once; a loop that names no event,
+	// reaches no media or cannot be read is left out of the bed (and its shapes) rather than
+	// failing the map.
+	tried := map[uint32]bool{loop: true}
+	for _, z := range zones {
+		if tried[z.Loop] {
+			continue
+		}
+		tried[z.Loop] = true
+		takes, r, err := b.loopTakes(ix, z.Loop)
+		if err != nil {
+			var wf writeFailure
+			if errors.As(err, &wf) {
+				return Bed{}, "", err
+			}
+			slog.Warn("ambience: zone loop skipped", "map", key, "loop", fmt.Sprintf("%08x", z.Loop), "err", err)
+			continue
+		}
+		if r == "" {
+			takesOf[z.Loop] = takes
+		}
+	}
+	bed := Bed{
+		Loop:  fmt.Sprintf("%08x", loop),
+		Zones: len(zones),
+		Beds:  distinct,
+		Takes: takesOf[loop],
+		Loops: map[string][]Take{},
+	}
+	for l, takes := range takesOf {
+		bed.Loops[fmt.Sprintf("%08x", l)] = takes
+	}
+	for _, z := range zones {
+		if _, ok := takesOf[z.Loop]; !ok || len(z.Points) < 3 {
+			continue
+		}
+		bed.Shapes = append(bed.Shapes, Shape{
+			Zone:   z.Zone,
+			Loop:   fmt.Sprintf("%08x", z.Loop),
+			Floor:  round3(z.Floor),
+			Height: round3(z.Height),
+			Points: roundPoints(z.Points),
+		})
+	}
+	return bed, "", nil
 }
 
 // levelTag returns the parsed level tag of the map: the one the map's own modules hold.
@@ -250,4 +297,17 @@ func (b *builder) extract(bank *wwise.Bank, id uint32) (Take, bool, error) {
 	t := Take{File: name, Media: id, DurationMs: s.DurationMs(), Channels: f.Channels}
 	b.written[id] = t
 	return t, true, nil
+}
+
+// round3 rounds a value to three decimals, the precision the manifest publishes for a zone's
+// geometry.
+func round3(x float64) float64 { return math.Round(x*1000) / 1000 }
+
+// roundPoints rounds every point of a floor polygon to three decimals.
+func roundPoints(p [][2]float64) [][2]float64 {
+	out := make([][2]float64, len(p))
+	for i, pt := range p {
+		out[i] = [2]float64{round3(pt[0]), round3(pt[1])}
+	}
+	return out
 }

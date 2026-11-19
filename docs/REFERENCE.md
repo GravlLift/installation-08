@@ -206,7 +206,12 @@ Routes (all under `/api` unless noted; state-changing routes accept loopback ori
   and `stale`, true when all three manifests are there and when any is of an older format, which
   is rebuilt), `POST /api/announcer/build` (one job extracts all three).
   `GET /api/matches/{id}/ambience.ogg` is the match's map bed (range-capable), a JSON `404`
-  `ambience_not_built` when the map has none yet.
+  `ambience_not_built` when the map has none yet. `GET /api/matches/{id}/ambience.json` is the
+  map's layout for picking a bed by camera position: `{"fallback", "files" (loop -> take file),
+  "zones" (each zone's floor polygon, floor, height and loop)}`, a JSON `404`
+  `ambience_not_built` when the map has none. `GET /api/matches/{id}/ambience/{file}` serves one
+  take file (range-capable) only when that file is listed in the layout; a JSON `404`
+  `ambience_not_built` otherwise.
 - `GET /api/matches/{id}/callouts`: the named areas of the match's map (the place name the HUD
   shows under the motion tracker), `{version, source, zones: [{en, fr, polygon, zBottom, zTop}]}`
   in game world meters, read at runtime from the installed game (a native map's level tag, a

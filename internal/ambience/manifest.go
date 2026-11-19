@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 
-// Package ambience extracts each multiplayer map's ambient bed (its "room tone") from the user's
+// Package ambience extracts each multiplayer map's ambient beds ("room tones") from the user's
 // game install. A map's level tag (`levl`) holds a palette of background sounds, one entry per
-// acoustic zone of the map, each naming a looping sound tag (`lsnd`); the looping sound names a
-// Wwise play event, and the event plays one long quad (4-channel) Wwise Vorbis loop authored to
-// repeat end to end. The build writes, per map, the loop of the zone the palette uses most as an
-// Ogg Vorbis file (repacked without decoding, internal/wwvorbis) and a manifest the server reads.
-// Nothing is committed to the repo: the files land in the data directory's sound folder, next to
-// the announcer's and the reloads'.
+// acoustic zone of the map: each zone names a looping sound tag (`lsnd`) and a floor polygon with
+// a height, the volume the zone occupies; the looping sound names a Wwise play event, and the
+// event plays one long quad (4-channel) Wwise Vorbis loop authored to repeat end to end. The
+// build writes, per map, every distinct loop the zones name as an Ogg Vorbis file (repacked
+// without decoding, internal/wwvorbis) and a manifest the server reads; the loop of the zone with
+// the largest volume is the map's fallback bed. Nothing is committed to the repo: the files land
+// in the data directory's sound folder, next to the announcer's and the reloads'.
 //
-// The game switches beds as the listener moves between zones and also places positional
-// emitters (a separate palette); the viewer plays the single main bed, non-positional.
+// The game plays the bed of the zone the listener stands in; the viewer switches beds by camera
+// position using the zone shapes the manifest carries. The positional emitters (a separate
+// palette) are not read.
 package ambience
 
 import (
@@ -26,7 +28,7 @@ const ManifestName = "ambience.json"
 
 // ManifestVersion is the manifest's format version; a manifest of an older version is stale and
 // the extraction runs again.
-const ManifestVersion = 1
+const ManifestVersion = 2
 
 // takeFile is the name of every take file a manifest lists: ambience_<media id, 8 hex digits>.ogg.
 // A rebuild removes the ones its manifest no longer lists, and no other file.
@@ -41,13 +43,36 @@ type Manifest struct {
 	Maps    map[string]Bed `json:"maps"`
 }
 
-// Bed is one map's ambient bed: the looping sound chosen, how many palette zones name a
-// background sound and how many distinct ones they name, and the takes its event plays.
+// Bed is one map's ambient beds: the fallback looping sound (the loop of the zone with the
+// largest volume), how many palette zones name a background sound and how many distinct ones
+// they name, the takes the fallback's event plays, every extracted loop, and the shapes of the
+// zones whose loop was extracted.
 type Bed struct {
-	Loop  string `json:"loop"`
-	Zones int    `json:"zones"`
-	Beds  int    `json:"beds"`
-	Takes []Take `json:"takes"`
+	Loop   string            `json:"loop"`
+	Zones  int               `json:"zones"`
+	Beds   int               `json:"beds"`
+	Takes  []Take            `json:"takes"`
+	Loops  map[string][]Take `json:"loops"`
+	Shapes []Shape           `json:"shapes"`
+}
+
+// Shape is one acoustic zone's floor polygon and volume: what the viewer tests the camera
+// position against to pick a bed.
+type Shape struct {
+	Zone   int          `json:"zone"`
+	Loop   string       `json:"loop"`
+	Floor  float64      `json:"floor"`
+	Height float64      `json:"height"`
+	Points [][2]float64 `json:"points"`
+}
+
+// Layout is what the viewer needs to switch beds by camera position: the fallback loop (played
+// where no zone holds the camera), the first take file of every extracted loop, and the zone
+// shapes.
+type Layout struct {
+	Fallback string // loop id, a key of Files
+	Files    map[string]string
+	Zones    []Shape
 }
 
 // Take is one extracted media.
@@ -90,6 +115,27 @@ func (m *Manifest) BedFile(mapKey string) (string, bool) {
 	return bed.Takes[0].File, true
 }
 
+// Layout returns what the viewer needs to pick a bed by camera position for a map: the fallback
+// loop, the first take file of every extracted loop, and the zone shapes. It is false when the
+// map has no bed.
+func (m *Manifest) Layout(mapKey string) (Layout, bool) {
+	bed, ok := m.Maps[mapKey]
+	if !ok || len(bed.Takes) == 0 {
+		return Layout{}, false
+	}
+	files := map[string]string{}
+	for loop, takes := range bed.Loops {
+		if len(takes) == 0 {
+			continue
+		}
+		files[loop] = takes[0].File
+	}
+	if _, ok := files[bed.Loop]; !ok {
+		files[bed.Loop] = bed.Takes[0].File
+	}
+	return Layout{Fallback: bed.Loop, Files: files, Zones: bed.Shapes}, true
+}
+
 // writeManifest writes the manifest into dir.
 func writeManifest(dir string, m *Manifest) error {
 	raw, err := json.MarshalIndent(m, "", "  ")
@@ -106,6 +152,11 @@ func removeStaleTakes(dir string, m *Manifest) (int, error) {
 	for _, bed := range m.Maps {
 		for _, t := range bed.Takes {
 			keep[t.File] = true
+		}
+		for _, takes := range bed.Loops {
+			for _, t := range takes {
+				keep[t.File] = true
+			}
 		}
 	}
 	entries, err := os.ReadDir(dir)
