@@ -2,7 +2,7 @@
 import { useEffect, useId, useState } from 'react'
 import { tokenCssVar } from '@/lib/accessibility/semantic-tokens'
 import { SHIELD_CHASE_INK, SHIELD_CHASE_URL, SHIELD_QUAD_URL, type ShieldHudState } from '../model/shieldHud'
-import { shieldBarPath, shieldGlossPath, shieldStreakPaths, SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER, SHIELD_QUAD_H, SHIELD_QUAD_W, SHIELD_QUAD_CENTER, SHIELD_QUAD_HALF, SHIELD_QUAD_CHASE_H, SHIELD_QUAD_CHASE_Y } from './shieldBarGeometry'
+import { shieldBarPath, shieldGlossPath, shieldStreakPaths, SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER, SHIELD_QUAD_H, SHIELD_QUAD_W, SHIELD_QUAD_CENTER, SHIELD_QUAD_HALF, SHIELD_QUAD_CHASE_H, SHIELD_QUAD_CHASE_Y, SHIELD_QUAD_SHAPE_GAIN as QUAD_SHAPE_GAIN, SHIELD_QUAD_HEX_OPACITY as QUAD_HEX_OPACITY, SHIELD_QUAD_FILL_OPACITY } from './shieldBarGeometry'
 import { tintedChaseUrl } from './shieldChaseArt'
 
 /** The game's chase-band bitmap, loaded once; the bar draws it tinted when it is ready. */
@@ -77,9 +77,19 @@ export function ShieldBar3d({ fraction, state, flash, chase, label }: { fraction
     <defs>
       {/* The bar's shape: the quad's alpha as an SVG mask, or the hand-made path as a clip. */}
       {isQuad
-        ? <mask id={`${id}-bar`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x={0} y={0} width={W} height={H}>
-          <image href={SHIELD_QUAD_URL} width={W} height={H} />
-        </mask>
+        ? <>
+          {/* The shape: the quad's alpha times SHIELD_QUAD_SHAPE_GAIN (see shieldBarGeometry). */}
+          <filter id={`${id}-solid`} x={0} y={0} width={W} height={H} filterUnits="userSpaceOnUse">
+            <feComponentTransfer><feFuncA type="linear" slope={QUAD_SHAPE_GAIN} /></feComponentTransfer>
+          </filter>
+          <mask id={`${id}-bar`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x={0} y={0} width={W} height={H}>
+            <image href={SHIELD_QUAD_URL} width={W} height={H} filter={`url(#${id}-solid)`} />
+          </mask>
+          {/* The raw alpha again, for the hex pattern drawn lightly over the fill. */}
+          <mask id={`${id}-hex`} style={{ maskType: 'alpha' }} maskUnits="userSpaceOnUse" x={0} y={0} width={W} height={H}>
+            <image href={SHIELD_QUAD_URL} width={W} height={H} />
+          </mask>
+        </>
         : <clipPath id={`${id}-bar`}><path d={shieldBarPath()} /></clipPath>}
       <clipPath id={`${id}-fill`}><rect x={cx - half} y={0} width={2 * half} height={H} /></clipPath>
       {/* The chase band's two x ranges: the bitmap is revealed by clipping to them. */}
@@ -97,7 +107,9 @@ export function ShieldBar3d({ fraction, state, flash, chase, label }: { fraction
       <rect width={W} height={H} style={{ fill: tokenCssVar('replay-hud-shield-track') }} />
       {state === 'broken' && <rect width={W} height={H} style={{ fill: alertInk }} opacity={0.18 * flash} />}
       {half > 0 && <g clipPath={`url(#${id}-fill)`}>
-        <rect width={W} height={H} fill={`url(#${id}-ink)`} opacity={low ? 0.45 + 0.45 * flash : 0.82} />
+        <rect width={W} height={H} fill={`url(#${id}-ink)`} opacity={low ? 0.45 + 0.45 * flash : isQuad ? SHIELD_QUAD_FILL_OPACITY : 0.82} />
+        {/* The quad's hex pattern and outline, light over the fill (the raw alpha). */}
+        {isQuad && <rect width={W} height={H} fill="#fff" mask={`url(#${id}-hex)`} opacity={QUAD_HEX_OPACITY} />}
         {/* The gloss and streaks were traced for the hand-made shape; the quad's own alpha replaces them. */}
         {!isQuad && <path d={shieldGlossPath()} fill="none" stroke="#fff" strokeOpacity={0.45} strokeWidth={6} />}
         {!isQuad && shieldStreakPaths().map((d) => <path key={d} d={d} fill="none" stroke="#fff" strokeOpacity={0.1} strokeWidth={3} />)}

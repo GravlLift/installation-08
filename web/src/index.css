@@ -36,11 +36,13 @@
   /* Outline of the player names on the map and the dimmed player card (death, shroud screen):
      a dark that frames team-colored letters on any floor. LevelUp's value. */
   --replay-label-stroke: rgb(8 12 18 / 0.92);
-  /* First-person shield bar (ui/ShieldBar3d.tsx): the glassy light steel blue read off the in-game
-     captures (brighter at the center, deeper at the ends, a pale rim). The alert red and the empty
-     track are design choices: the captures show only a full bar. */
-  --replay-hud-shield: #c2e3f8;
-  --replay-hud-shield-deep: #86a7c4;
+  /* First-person shield bar (ui/ShieldBar3d.tsx): brighter at the center, deeper at the ends, a
+     pale rim. First read off in-game captures as a light steel blue (#c2e3f8 / #86a7c4); on the
+     game's own bar shape that read white, and Jordan judged it "not blue enough and not bright
+     enough" (2026-11-19), so the two stops are a more saturated blue (set by eye). The alert red
+     and the empty track are design choices: the captures show only a full bar. */
+  --replay-hud-shield: #7cc8ff;
+  --replay-hud-shield-deep: #3d8fe0;
   --replay-hud-shield-rim: #dcefff;
   --replay-hud-shield-track: rgba(8, 16, 26, 0.35);
   --replay-hud-shield-alert: #ff4b3e;

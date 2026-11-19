@@ -31,6 +31,17 @@ export const SHIELD_QUAD_CHASE_H = 64
 // settle a clean nested offset (both quads render at the same 40-unit height from bitmaps of
 // different native heights, the main quad's margin_top -8 vs the chase's 0), so it is centered.
 export const SHIELD_QUAD_CHASE_Y = (SHIELD_QUAD_H - SHIELD_QUAD_CHASE_H) / 2
+// The quad's alpha is the outline at full strength and the hex cells at only 20 to 50 %, made
+// for the game's additive HDR draw; used raw as the bar's shape it leaves the fill see-through
+// and the bar reads white. NOT IN THE GAME'S DATA (set by eye in the viewer): the shape is the
+// alpha times SHIELD_QUAD_SHAPE_GAIN (clamped), so the cells become the bar's solid inside and
+// the glow outside the outline stays faint; the raw alpha is then drawn in white at
+// SHIELD_QUAD_HEX_OPACITY over the fill, for the hex pattern and the outline.
+export const SHIELD_QUAD_SHAPE_GAIN = 4
+export const SHIELD_QUAD_HEX_OPACITY = 0.18
+// The fill's opacity in quad mode (the legacy bar's 0.82 let the dark track through; on the
+// quad's solid shape that read gray-white). Set by eye.
+export const SHIELD_QUAD_FILL_OPACITY = 1
 
 /** The minimal path interface the bar's tracers need (satisfied by `CanvasRenderingContext2D`). */
 export interface ShieldBarPath {
