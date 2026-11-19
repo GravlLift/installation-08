@@ -116,6 +116,16 @@ func parseWeaponIconsTags() weaponIconsTagsTable {
 	return t
 }
 
+// WeaponKeys returns a copy of the weapon family to weapon_key join (familyToKey). A weapon
+// family is also the weapon tag's id in the game's module index.
+func WeaponKeys() map[uint32]string {
+	out := make(map[uint32]string, len(familyToKey))
+	for k, v := range familyToKey {
+		out[k] = v
+	}
+	return out
+}
+
 // familyToKey is the weapon family (high-32 of the 64-bit weapon id) to weapon_key
 // join, extracted from LevelUp's weapon registry (FilmshellWeaponKeysByFamily).
 var familyToKey = map[uint32]string{

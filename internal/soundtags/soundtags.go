@@ -132,7 +132,11 @@ func (m *Media) Bank(tag uint32) (*wwise.Bank, error) {
 // every bank tag of the game is indexed, and the owning bank is read on demand (cached in
 // m.banks).
 func (m *Media) Bytes(b *wwise.Bank, id uint32) ([]byte, error) {
-	if raw, ok := b.Embedded[id]; ok {
+	raw, embedded := b.Embedded[id]
+	// A bank can embed only the start of a streamed media (Wwise prefetch): its RIFF header
+	// announces more bytes than the bank holds, and the whole media is in a package (measured on
+	// the weapon shots, 2026-11-19).
+	if embedded && !prefetched(raw) {
 		return raw, nil
 	}
 	if m.streamed == nil {
@@ -142,6 +146,9 @@ func (m *Media) Bytes(b *wwise.Bank, id uint32) ([]byte, error) {
 	}
 	if r, ok := m.streamed[uint64(id)]; ok {
 		return r.pack.ReadEntry(r.entry)
+	}
+	if embedded {
+		return raw, nil
 	}
 	if m.lister != nil {
 		m.ensurePools()
@@ -156,6 +163,14 @@ func (m *Media) Bytes(b *wwise.Bank, id uint32) ([]byte, error) {
 		}
 	}
 	return nil, fmt.Errorf("soundtags: media %d is in no bank and no package", id)
+}
+
+// prefetched reports whether a RIFF media is cut short of the size its header announces.
+func prefetched(raw []byte) bool {
+	if len(raw) < 8 || string(raw[:4]) != "RIFF" {
+		return false
+	}
+	return int(binary.LittleEndian.Uint32(raw[4:]))+8 > len(raw)
 }
 
 // ensurePools indexes, the first time they are needed, the media id and the HIRC object id of

@@ -41,6 +41,11 @@ type Manifest struct {
 	// Movement maps a movement sound ("land", "landhard", "slide_into", "slide_outof", "jumpup")
 	// to its takes; the plain slide tag is left out on purpose (tags.go says why).
 	Movement map[string]Footstep `json:"movement"`
+	// Shots maps a weapon key ("hinf_bandit") to the game's own shot of that weapon, as other
+	// players hear it: its layers (near, mid and far, each a random draw of takes) with their
+	// volumes and falloffs (version 3, shots.go). A weapon whose shot is not found keeps the
+	// shipped sound.
+	Shots map[string]Footstep `json:"shots,omitempty"`
 	// Falloffs maps an attenuation id (8 hex digits) a take names to its distance falloff
 	// (version 3).
 	Falloffs map[string]soundtags.Falloff `json:"falloffs,omitempty"`
@@ -104,6 +109,11 @@ func removeStaleTakes(dir string, m *Manifest) (int, error) {
 		}
 	}
 	for _, f := range m.Movement {
+		for _, t := range f.Takes {
+			keep[t.File] = true
+		}
+	}
+	for _, f := range m.Shots {
 		for _, t := range f.Takes {
 			keep[t.File] = true
 		}

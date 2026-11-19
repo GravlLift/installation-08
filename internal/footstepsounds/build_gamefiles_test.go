@@ -27,6 +27,9 @@ func TestBuildFromTheInstalledGame(t *testing.T) {
 		t.Skipf("no installed game: %v", err)
 	}
 	dir := t.TempDir()
+	if d := os.Getenv("FOOTSTEP_BUILD_DIR"); d != "" {
+		dir = d // keep the takes for a listen or a level measurement
+	}
 	res, err := Build(ctx, Options{GameRoot: root, Module: module, OutDir: dir})
 	if err != nil {
 		t.Fatal(err)
@@ -35,10 +38,23 @@ func TestBuildFromTheInstalledGame(t *testing.T) {
 		t.Errorf("tags the module index has not: %v", res.Silent[SkippedTagMissing])
 	}
 	for reason, names := range res.Silent {
-		if reason != SkippedTagMissing && len(names) > 0 {
+		if reason != SkippedTagMissing && reason != ShotNone && reason != ShotAmbiguous && len(names) > 0 {
 			t.Errorf("silent for %s: %v", reason, names)
 		}
 	}
+	// The weapon shots: the Bandit's is three layers of five takes; every shot is found or named.
+	if s := res.Manifest.Shots["hinf_bandit"]; len(s.Layers) != 3 || len(s.Takes) != 15 {
+		t.Errorf("bandit shot: %d layers, %d takes", len(s.Layers), len(s.Takes))
+	}
+	for key, s := range res.Manifest.Shots {
+		for _, tk := range s.Takes {
+			if _, ok := res.Manifest.Falloffs[tk.Falloff]; !ok {
+				t.Errorf("shot %s: take %s names falloff %q", key, tk.File, tk.Falloff)
+			}
+		}
+		t.Logf("shot %s: %d layers, %d takes", key, len(s.Layers), len(s.Takes))
+	}
+	t.Logf("no shot: %v; ambiguous: %v", res.Silent[ShotNone], res.Silent[ShotAmbiguous])
 	for surface, actions := range res.Manifest.Feet {
 		for action, f := range actions {
 			if len(f.Takes) == 0 {

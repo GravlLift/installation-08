@@ -109,6 +109,9 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 		}
 		res.Manifest.Movement[action] = f
 	}
+	if err := b.shots(); err != nil {
+		return nil, err
+	}
 	if err := writeManifest(opts.OutDir, res.Manifest); err != nil {
 		return nil, err
 	}
