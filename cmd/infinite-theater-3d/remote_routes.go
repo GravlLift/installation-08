@@ -337,7 +337,7 @@ func newServerHandlers(root *store.Root, web string, jobs *meshjobs.Runner, weap
 		authMu.Lock()
 		defer authMu.Unlock()
 		return apiClient(ctx, root.Dir())
-	}, fetch: fetchMatch}, listCache: newMatchlistCache(), coatingsSetup: &coatingsSetupJob{}, callouts: newCalloutsSource(root.Dir())}
+	}, fetch: fetchMatch}, listCache: newMatchlistCache(), coatingsSetup: &coatingsSetupJob{}, callouts: newCalloutsSource(root.Dir()), poses: newPoseStore(root, &gamePoseSource{})}
 	h.mux = h.buildMux()
 	return h
 }
@@ -381,6 +381,8 @@ func (h serverHandlers) buildMux() *http.ServeMux {
 	mux.HandleFunc("GET /api/matches/{id}/camera-scripts/{name}", h.handleCameraScriptGet)
 	mux.HandleFunc("PUT /api/matches/{id}/camera-scripts/{name}", h.handleCameraScriptPut)
 	mux.HandleFunc("DELETE /api/matches/{id}/camera-scripts/{name}", h.handleCameraScriptDelete)
+	mux.HandleFunc("GET /api/spartan/poses", h.handleSpartanPoses)
+	mux.HandleFunc("GET /api/spartan/poses/{id}", h.handleSpartanPose)
 	mux.HandleFunc("GET /api/weapons", h.handleWeaponIndex)
 	mux.HandleFunc("GET /api/weapons/state", h.handleWeaponState)
 	mux.HandleFunc("POST /api/weapons/build", h.handleWeaponBuild)

@@ -104,3 +104,23 @@ func installedModule(gameRoot, key string) (string, bool) {
 	}
 	return module, true
 }
+
+// FirstInstalledModule returns the .module of the first installed map, in directory order
+// under pc/levels/multi. The Spartan body and its animation graphs live in `pc/globals`,
+// which every installed map's module covers, so any one of them suffices to read them.
+func FirstInstalledModule(gameRoot string) (string, bool) {
+	multi := filepath.Join(gameRoot, "pc", "levels", "multi")
+	entries, err := os.ReadDir(multi)
+	if err != nil {
+		return "", false
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if m, ok := installedModule(gameRoot, e.Name()); ok {
+			return m, true
+		}
+	}
+	return "", false
+}

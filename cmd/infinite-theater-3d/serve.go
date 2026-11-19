@@ -209,6 +209,8 @@ type serverHandlers struct {
 	coatingsSetup *coatingsSetupJob
 	// callouts reads and caches the maps' named areas (serve_callouts.go).
 	callouts *calloutsSource
+	// poses serves the Spartan pose catalog (serve_poses.go).
+	poses *poseStore
 }
 
 // readOnlyHandler is the one middleware the read-only mode wraps the top-level handler in:
