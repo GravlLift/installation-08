@@ -32,6 +32,12 @@ reference only, gitignored: `data/reference/hud/infinite-hud-weapons-killfeed.pn
 - Present today: both team bars with their scores and the clock.
 - Missing: the gradient effect behind the center, and the team emblems (the eagle at the left
   end, the cobra at the right).
+- Found 2026-11-19: the center scoreboard screen (`cusc` fb8c6614) references only four bitmaps
+  (0041107b and f09bdfde, 36x36 BC7 declared; 128bc424, 800x64; ddcfa2a6, 1x1) and no emblem;
+  its property names include no emblem or team icon either. The emblems are bound at run time
+  from somewhere else (not found yet). 128bc424 owns resources 11602 to 11604; 11604 (409600
+  bytes) decodes as BC7 1600x256 into a blue-to-cyan striped bar with rounded corners, likely
+  the score meter's ramp (inferred; the declared 800x64 does not match its storage).
 
 ## Top center: shield and damage
 
@@ -221,6 +227,15 @@ BC7 pixels sit inside the tag, as the CUI bitmaps' do).
     height, so the band sits in the top part of our fill. Matching it means shaping our fill
     like the game's shield quad (1a9b2c75, 940x80 BC7, whose resource is a 316-byte header with no
     pixels: not decoded yet).
+  - Decoded 2026-11-19 (probe `data/probe/scoreart`, gitignored). A module entry's +0x10 is its
+    FIRST resource index, and the entry owns the resources up to the next entry's +0x10
+    (confirmed on the shield chase: 9957 to 9958, one resource, and the entry before it shares
+    9957 and owns none). 1a9b2c75 owns 9958 (25600 bytes) and 9959 (76800 bytes); 9959 is mip 0
+    as BC7 stored 960 wide: 240x20 blocks x 16 = 76800 exactly, and decoding it at 940 shears
+    every row. At 960x80 it is the game's shield bar: hexagon pattern, angled ends, shallower in
+    the middle than at the ends, transparent around the shape, the last 20 columns empty.
+    Colors are magenta and red, so it is a channel-packed mask the material tints (inferred),
+    not the final color. Why 940 is stored as 960 is not known (one sample).
 
 **Phase 4: pings (decoder research, open-ended).**
 9. Find out whether the film carries pings at all. The only lead is the unexported `managed-navpoint`
