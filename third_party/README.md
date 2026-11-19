@@ -252,8 +252,10 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     drew as translucent blue. The byte matches Ekur's `alpha_blend_mode` on all 47,832 materials of
     its export. Decal modes (19, 23, 68, 69) keep the opaque layered drawing they had, and the GLB
     writes `melange` 0 for them; on Aquarius only the `diffuse_emissive` glow materials change.
-    Alpha-blended materials stay see-through even when they carry layers (2026-11-18): drawing
-    them opaque turned Recharge's skylight panes into solid slabs that blocked the sun.
+    Alpha-blended materials that carry layers draw with their layers like an opaque material
+    unless they are glass (`Materiau.Vitre`, 2026-11-19): drawing all of them see-through
+    whitened Streets' wet roads and floors, drawing all of them opaque turned Recharge's attic
+    windows into solid slabs.
     Covered by `himap/materiaux_melange_test.go` (new).
   - `himap/emissif.go`, `himap/materiaux.go`, `himap/textures_monde.go`, `himap/glb.go`,
     `himap/glb_couches.go` (LOCAL-CHANGE): `diffuse_emissive` materials carry their

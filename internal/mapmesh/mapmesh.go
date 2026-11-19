@@ -101,13 +101,14 @@ const (
 // asset.extras (under BuildFormatKey). It is bumped when the build output changes
 // (2: KTX2 textures, the texture read sizes, the materials; 3: geometry compressed with
 // EXT_meshopt_compression; 4: every KTX2 image block-aligned, see texcompress.blockAligned; 5:
-// alpha-blended materials that carry layers are written see-through again), so a
+// alpha-blended materials that carry layers are written see-through again; 6: only those that are
+// glass stay see-through, the others (wet asphalt, grime) draw with their layers again), so a
 // GLB written by an older version of the app is detected as outdated and rebuilt by the normal
 // build flow. A GLB without the field (built before versioning) is outdated. Formats 2 and 3
 // differ from 4 by encodings only: UpgradeFile brings them to 4 in place, without reading the
 // game.
 const (
-	BuildFormat                = 5
+	BuildFormat                = 6
 	BuildFormatKey             = "buildFormat"
 	BreakerMaterialRevisionKey = "breakerMaterialRevision"
 	BreakerMaterialRevision    = 1
