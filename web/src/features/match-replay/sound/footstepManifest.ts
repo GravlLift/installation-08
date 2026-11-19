@@ -71,6 +71,11 @@ export interface FootstepManifest {
    * A weapon absent keeps the shipped sound.
    */
   shots?: Readonly<Record<string, FootstepEntry>>
+  /**
+   * The same shots as their shooter hears them: the first-person event, heard in 2D (no
+   * falloff), stereo, with the low thump the third-person layers lack (version 4).
+   */
+  shotsFirstPerson?: Readonly<Record<string, FootstepEntry>>
   /** The distance falloffs the takes name, by attenuation id (version 3). */
   falloffs?: Readonly<Record<string, { volume: SoundFalloff }>>
 }

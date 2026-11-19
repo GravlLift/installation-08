@@ -5,6 +5,7 @@
 Changes since 0.1.1-test.6.
 
 - When the followed player's shield drops, a light red band covers the part just lost, as in the game. It holds briefly, then shrinks back to the remaining shield within a second. It shows even when the hit breaks the shield. In the viewer and the video export.
+- The followed player's own shots with the 15 weapons that use the game's shot now play the game's first-person version: a stereo take drawn among 30, with the low thump and mechanical click the shooter hears. Test.6 played the far-away version heard at point blank, which lacked the punch (the S7 most of all). Other players' shots keep the layered third-person version, and a shot's level is now set by the loudest it gets at any distance, which brings the S7 up 4 dB. The first start after updating extracts the sounds once more.
 
 ## 0.1.1-test.6
 
