@@ -56,6 +56,12 @@ func TestBuildFromTheInstalledGame(t *testing.T) {
 			}
 		}
 	}
+	if in := res.Manifest.Intro; in == nil || in.DurationMs != 16000 {
+		t.Errorf("intro theme: %+v", in)
+	}
+	if s := res.Manifest.ShotsFirstPerson["hinf_bandit"]; len(s.Takes) > 0 && s.Takes[0].ReverbDB > -40 {
+		t.Errorf("bandit first-person shot sends %.1f dB to the reverb, want about -60", s.Takes[0].ReverbDB)
+	}
 	for key, s := range res.Manifest.Shots {
 		for _, tk := range s.Takes {
 			if _, ok := res.Manifest.Falloffs[tk.Falloff]; !ok {

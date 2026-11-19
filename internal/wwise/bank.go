@@ -32,6 +32,10 @@ type HircObject struct {
 const (
 	PropVolume        = 0x00 // dB
 	PropAttenuationID = 0x46 // u32: the attenuation (HIRC type 14) the node and its children use
+	// PropGameAuxSend is the node's game-defined auxiliary send volume, dB: how much of the voice
+	// feeds the reverb of the zone the game routes it to. It adds along the chain like the volume
+	// (inferred from the volume's additivity, which the extracted levels confirm).
+	PropGameAuxSend = 0x17
 )
 
 // nodeParams reads the direct parent and authored volume of a v135 node.
@@ -101,6 +105,10 @@ type MediaMix struct {
 	// Attenuation is the id of the distance attenuation the media plays with: the one the nearest
 	// node of the chain names (a child's overrides its parents'); 0 when none does.
 	Attenuation uint32
+	// GameAuxSendDB is the sum of the chain's game-defined auxiliary send volumes: the level, against
+	// the voice, at which it feeds the zone reverb (the Bandit's first-person shot: -60, its
+	// third-person layers: +18).
+	GameAuxSendDB float64
 }
 
 // EventMediaMix returns, for each media the event plays, its node chain's mix.
@@ -150,6 +158,9 @@ func (bk *Bank) EventMediaMix(eventID uint32) map[uint32]MediaMix {
 			}
 			if v, ok := props[PropVolume]; ok {
 				mix.GainDB += float64(math.Float32frombits(v))
+			}
+			if v, ok := props[PropGameAuxSend]; ok {
+				mix.GameAuxSendDB += float64(math.Float32frombits(v))
 			}
 			if a, ok := props[PropAttenuationID]; ok && mix.Attenuation == 0 {
 				mix.Attenuation = a

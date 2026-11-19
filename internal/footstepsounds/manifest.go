@@ -23,7 +23,7 @@ const ManifestName = "footsteps.json"
 
 // ManifestVersion is the manifest's format version; a manifest of an older version is stale and
 // the extraction runs again.
-const ManifestVersion = 4
+const ManifestVersion = 5
 
 // takeFile is the name of every take file a manifest lists: foot_<media id, 8 hex digits>.ogg.
 // A rebuild removes the ones its manifest no longer lists, and no other file.
@@ -50,6 +50,9 @@ type Manifest struct {
 	// tag's first-person event, heard in 2D (no falloff), with its own takes and volumes
 	// (version 4).
 	ShotsFirstPerson map[string]Footstep `json:"shotsFirstPerson,omitempty"`
+	// Intro is the whole multiplayer theme the replay's intro plays the rise of, with its own ring-out
+	// (version 5, intro.go); absent when the install lacks it.
+	Intro *Take `json:"intro,omitempty"`
 	// Falloffs maps an attenuation id (8 hex digits) a take names to its distance falloff
 	// (version 3).
 	Falloffs map[string]soundtags.Falloff `json:"falloffs,omitempty"`
@@ -74,6 +77,9 @@ type Take struct {
 	// ("" when none). Version 3.
 	GainDB  float64 `json:"gainDb"`
 	Falloff string  `json:"falloff,omitempty"`
+	// ReverbDB is the level, against the take's own, at which it feeds the zone reverb: the sum of
+	// its node chain's game-defined auxiliary sends (version 5).
+	ReverbDB float64 `json:"reverbDb"`
 }
 
 // ManifestStatus reads the manifest in dir: built when it is there and readable, stale when its
@@ -116,6 +122,9 @@ func removeStaleTakes(dir string, m *Manifest) (int, error) {
 		for _, t := range f.Takes {
 			keep[t.File] = true
 		}
+	}
+	if m.Intro != nil {
+		keep[m.Intro.File] = true
 	}
 	for _, f := range m.ShotsFirstPerson {
 		for _, t := range f.Takes {

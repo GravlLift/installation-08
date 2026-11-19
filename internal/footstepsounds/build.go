@@ -114,6 +114,9 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	if err := b.shots(); err != nil {
 		return nil, err
 	}
+	if err := b.intro(); err != nil {
+		return nil, err
+	}
 	if err := writeManifest(opts.OutDir, res.Manifest); err != nil {
 		return nil, err
 	}
@@ -225,6 +228,7 @@ func (b *builder) eventTakes(id uint32, firstPerson bool) (Footstep, error) {
 // falloff in the manifest once.
 func (b *builder) mixed(bk *wwise.Bank, t Take, m wwise.MediaMix) Take {
 	t.GainDB = m.GainDB
+	t.ReverbDB = m.GameAuxSendDB
 	if m.Attenuation == 0 {
 		return t
 	}

@@ -112,8 +112,8 @@ func TestEventMediaMixTakesTheNearestAttenuation(t *testing.T) {
 	// sound 401 (media 9001) -> container 300 (atten 0xA, -6 dB) -> mixer 500 (atten 0xB, +2 dB)
 	sound := append(soundBody(9001)[:9], 0, 0, 0, 0, 0)
 	sound = append(sound, props(300, nil, nil)...)
-	container := props(500, []byte{PropVolume, PropAttenuationID}, []uint32{vol(-6), 0xA})
-	mixer := props(0, []byte{PropVolume, PropAttenuationID}, []uint32{vol(2), 0xB})
+	container := props(500, []byte{PropVolume, PropAttenuationID, PropGameAuxSend}, []uint32{vol(-6), 0xA, vol(-30)})
+	mixer := props(0, []byte{PropVolume, PropAttenuationID, PropGameAuxSend}, []uint32{vol(2), 0xB, vol(5)})
 	bk := &Bank{Objects: map[uint32]HircObject{
 		100: {Type: HircEvent, ID: 100, Body: append([]byte{1}, le32(nil, 200)...)},
 		200: {Type: HircAction, ID: 200, Body: le32(binary.LittleEndian.AppendUint16(nil, 0x0403), 401)},
@@ -122,7 +122,7 @@ func TestEventMediaMixTakesTheNearestAttenuation(t *testing.T) {
 		500: {Type: HircActorMix, ID: 500, Body: mixer},
 	}}
 	got := bk.EventMediaMix(100)[9001]
-	if got.GainDB != -4 || got.Attenuation != 0xA {
+	if got.GainDB != -4 || got.Attenuation != 0xA || got.GameAuxSendDB != -25 {
 		t.Fatalf("mix %+v", got)
 	}
 }
