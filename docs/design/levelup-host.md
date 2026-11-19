@@ -29,6 +29,15 @@ What LevelUp shows from us: the replay view (`#/matches/<id>`) with its controls
 
 Availability is local and cheap. The checks are whether LevelUp holds the film, whether the game install is present, and whether the map is one the viewer can build (or has built). There is no network call, so a page of about 50 ids answers in one call.
 
+## Playback (LevelUp drives)
+
+LevelUp has its own 2D map and timeline, and switches between its 2D view and our 3D view as Installation 08 does. LevelUp's timeline is therefore the one clock: in embedded mode our scrubber and transport controls are hidden, and the page takes commands and reports events over the webview's page messaging (no network).
+
+- Commands: `seek` (match ms), `play`, `pause`, `speed`, `follow` (player).
+- Events: `loading` (progress), `ready`, `time` (match ms, throttled), `state` (playing, paused, ended).
+- Switching views: LevelUp keeps the webview alive and paused while 2D shows, then seeks it to the current time and plays when 3D shows. The map and film stay loaded, so the switch is instant.
+- Inferred, to confirm on one of his matches: LevelUp's match ms and ours share a basis (our replay code descends from LevelUp's decoder).
+
 ## Updates
 
 LevelUp checks this repo's GitHub releases (public, `llampwall/installation-08`). It downloads the newer exe, verifies it against the release's `SHA256SUMS.txt`, and swaps it in before launch. It installs a release only when its `contract` is one LevelUp supports. LevelUp also reads a pinned version from its own repo. If a release is not right for LevelUp, JGtm holds users on the last good one without shipping a LevelUp release. Taste differences between the two products become viewer settings that LevelUp passes at launch, not forks.
