@@ -26,6 +26,7 @@ import type { SceneView3d } from '../features/match-replay/scene3d/topDownLogic'
 import { ReplaySettingsDrawer } from '../features/match-replay/settings/ReplaySettingsDrawer'
 import type { Action3dShow } from '../features/match-replay/scene3d/action3dInputs'
 import { usePlaybackLoop } from './usePlaybackLoop'
+import { scriptPlayback, setScriptPlaybackTime, stopScript } from '../features/match-replay/scene3d/cameraScriptStore'
 import { useScoreboardHold } from './useScoreboardHold'
 import { readReplayScoreboard } from '../features/match-replay/model/replayScoreboardLogic'
 import { ReplayScoreboardOverlay } from '../features/match-replay/ui/ReplayScoreboardOverlay'
@@ -185,6 +186,8 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
 
   const stepFrames = useCallback(
     (delta: number) => {
+      // The user's own seeks stop a playing camera script (seekBy and restart run through here).
+      if (scriptPlayback() !== null) stopScript()
       const next = Math.min(doc.frameCount - 1, Math.max(0, frameRef.current + delta))
       frameRef.current = next
       sound.seek(next * 1000 / fps)
@@ -193,7 +196,15 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
     [doc.frameCount, fps, sound.seek],
   )
   const seekBy = useCallback((seconds: number) => stepFrames(seconds * fps), [stepFrames, fps])
-  const togglePlay = useCallback(() => { if (held) return; sound.wake(); if (!playing && atPlaybackStart(frameRef.current, startFrame)) sound.intro(); setPlaying((p) => !p) }, [held, playing, startFrame, sound.wake, sound.intro])
+  const togglePlay = useCallback(() => {
+    if (held) return
+    // Pressing play again with a script at its end restarts the script from 0 before playing.
+    if (!playing) {
+      const script = scriptPlayback()
+      if (script !== null && script.sMs >= script.clock.lengthMs) setScriptPlaybackTime(0)
+    }
+    sound.wake(); if (!playing && atPlaybackStart(frameRef.current, startFrame)) sound.intro(); setPlaying((p) => !p)
+  }, [held, playing, startFrame, sound.wake, sound.intro])
   useEffect(() => {
     if (!countdownTickRef) return
     countdownTickRef.current = sound.countdownTick
@@ -206,6 +217,13 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
   }, [held, startFrame, sound.wake, sound.intro])
   // Restart returns to the start of playback (the first spawn); scrubbing still reaches frame zero.
   const restart = useCallback(() => { sound.wake(); stepFrames(startFrame - frameRef.current) }, [stepFrames, startFrame, sound.wake])
+
+  // Leaving free view stops a playing camera script; the script only drives the free camera.
+  useEffect(() => {
+    if (camera.mode !== 'free' && scriptPlayback() !== null) stopScript()
+  }, [camera.mode])
+  // Leaving the match stops any playing script.
+  useEffect(() => stopScript, [])
 
   useEffect(() => {
     const host = hostRef.current
@@ -261,9 +279,11 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
   }, [doc, shotFx, kills, mapObjectives, identity, inks, show])
 
   // The playback loop lives here (it did in the old PlaybackBar).
-  usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying, tick: sound.tick, onEnded: sound.endMatch })
+  usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying, tick: sound.tick, seek: sound.seek, onEnded: sound.endMatch })
 
   const onScrub = useCallback((next: number) => {
+    // The user's own scrub stops a playing camera script.
+    if (scriptPlayback() !== null) stopScript()
     frameRef.current = next
     sound.seek(next * 1000 / fps)
     setFrame(next)

@@ -9,7 +9,9 @@
  */
 import { useSyncExternalStore } from 'react'
 
-import type { CameraScript, ScriptVec3 } from './cameraScript3d'
+import { msToFrames } from '../../../lib/replay/replayLogic'
+import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
+import { scriptClockOf, type CameraScript, type ScriptClockView, type ScriptVec3 } from './cameraScript3d'
 
 /** The camera's pose in GAME coordinates (z up) and its vertical field of view in degrees. */
 export interface CameraScriptCapture {
@@ -52,14 +54,77 @@ function snapshot(): CameraScriptHost | null {
   return entry
 }
 
-/** Registers the 3D view; returns the unregister function (a no-op if another registration replaced it). */
+function notify(): void {
+  for (const fn of listeners) fn()
+}
+
+/** The PLAYBACK state of a camera script: the script, its clock view, and the current script time (ms). */
+export interface ScriptPlayback {
+  script: CameraScript
+  clock: ScriptClockView
+  sMs: number
+}
+
+let playback: ScriptPlayback | null = null
+
+/** Starts playback of a camera script from `fromSMs` and hands it to the registered 3D view. */
+export function startScript(script: CameraScript, fromSMs = 0): void {
+  playback = { script, clock: scriptClockOf(script), sMs: fromSMs }
+  entry?.setScript(script)
+  entry?.setScriptTime(fromSMs)
+  notify()
+}
+
+/** Stops playback; the 3D view's free camera goes back to being unscripted. */
+export function stopScript(): void {
+  if (playback === null) return
+  playback = null
+  entry?.setScript(null)
+  notify()
+}
+
+/**
+ * Advances the script's current time (it runs every animation frame). It does NOT notify
+ * subscribers: React must not re-render per frame, so it mutates `playback.sMs` in place.
+ */
+export function setScriptPlaybackTime(sMs: number): void {
+  if (playback === null) return
+  playback.sMs = sMs
+  entry?.setScriptTime(sMs)
+}
+
+/** The playback state, null when no script is playing. */
+export function scriptPlayback(): ScriptPlayback | null {
+  return playback
+}
+
+function snapshotPlayback(): ScriptPlayback | null {
+  return playback
+}
+
+/** Same read, and a re-render on start/stop only (the per-frame time advance is silent). */
+export function useScriptPlayback(): ScriptPlayback | null {
+  return useSyncExternalStore(subscribe, snapshotPlayback, snapshotPlayback)
+}
+
+/** The document frame a playback is showing: the film time the script's clock maps to, in frames. */
+export function scriptDocFrame(p: ScriptPlayback, doc: Pick<ReplayDocumentReady, 'frameIntervalMs'>): number {
+  return msToFrames(p.clock.docMsAt(p.sMs), doc)
+}
+
+/** Registers the 3D view; returns the unregister function (a no-op if another registration replaced it).
+ * A script already playing is applied to the newly registered host, so it takes effect on load. */
 export function registerCameraScriptHost(host: CameraScriptHost): () => void {
   entry = host
-  for (const fn of listeners) fn()
+  if (playback !== null) {
+    host.setScript(playback.script)
+    host.setScriptTime(playback.sMs)
+  }
+  notify()
   return () => {
     if (entry !== host) return
     entry = null
-    for (const fn of listeners) fn()
+    notify()
   }
 }
 

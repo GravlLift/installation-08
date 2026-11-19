@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
  * usePlaybackLoop — advances the playback frame once per animation frame while `playing`, at
- * `speed` of `fps`, until the document's last frame.
+ * `speed` of `fps`, until the document's last frame. A playing camera script (unit 3b) takes
+ * over the frame: wall time (times the page speed) advances the script's clock, the film frame
+ * follows the clock's document time, and the sound ticks only where the film runs at full rate.
  *
  * SCHEDULES EXACTLY ONE `requestAnimationFrame` PER TICK. Each tick must schedule at most one
  * more tick: scheduling twice (once unconditionally, once conditionally) doubles the number of
@@ -14,6 +16,8 @@
  */
 import { useEffect } from 'react'
 
+import { scriptDocFrame, scriptPlayback, setScriptPlaybackTime } from '../features/match-replay/scene3d/cameraScriptStore'
+import type { CameraScript } from '../features/match-replay/scene3d/cameraScript3d'
 import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'
 
 export interface PlaybackLoopDeps {
@@ -25,17 +29,64 @@ export interface PlaybackLoopDeps {
   setFrame: (f: number) => void
   setPlaying: (p: boolean) => void
   tick?: (ms: number, frameMs: number) => void
+  /** A sound JUMP (not a playback): used to re-place the cursor when full rate resumes after a silent stretch. */
+  seek?: (ms: number) => void
   onEnded?: () => void
 }
 
-export function usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying, tick, onEnded }: PlaybackLoopDeps): void {
+export function usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying, tick, seek, onEnded }: PlaybackLoopDeps): void {
   useEffect(() => {
     if (!playing) return
     let raf = 0
     let last = performance.now()
+    // The script's sound cursor: while the film runs at full rate it is in sync (ticks); after a
+    // silent stretch or a new script it must be PLACED (seek), so the crossed time is not burst.
+    let soundInSync = false
+    let lastSeenScript: CameraScript | null = null
     const step = (now: number) => {
-      const deltaFrames = ((now - last) / 1000) * fps * speed
+      const dt = now - last
       last = now
+      const script = scriptPlayback()
+      if (script !== null) {
+        // A new script takes over: its first full-rate frame re-places the cursor, not a burst.
+        if (script.script !== lastSeenScript) {
+          soundInSync = false
+          lastSeenScript = script.script
+        }
+        // The script drives the film: wall ms times the page speed (a preview multiplier) advance
+        // the SCRIPT clock, clamped to the script's length; the film frame follows the clock's
+        // document time.
+        const sMs = Math.min(script.clock.lengthMs, Math.max(0, script.sMs + dt * speed))
+        setScriptPlaybackTime(sMs)
+        const frame = Math.min(doc.frameCount - 1, Math.max(0, scriptDocFrame(script, doc)))
+        frameRef.current = frame
+        // Sound is not time-stretched: it stays silent where the film runs at another rate (known
+        // gap: sounds already scheduled ahead may still finish). Back to full rate, the cursor is
+        // PLACED via seek on the first such frame (a jump, not a burst of the silent stretch); it
+        // only ticks from the next full-rate frame on.
+        const rate = script.clock.rateAt(sMs)
+        if (rate === 1) {
+          const docMs = script.clock.docMsAt(sMs)
+          if (!soundInSync) {
+            seek?.(docMs)
+            soundInSync = true
+          } else {
+            tick?.(docMs, now)
+          }
+        } else {
+          soundInSync = false
+        }
+        setFrame(Math.round(frame))
+        if (sMs < script.clock.lengthMs) {
+          raf = requestAnimationFrame(step)
+        } else {
+          // The script ends the playback, not the match: no onEnded (that plays the match-end
+          // sound). The script stays loaded, holding its last pose.
+          setPlaying(false)
+        }
+        return
+      }
+      const deltaFrames = (dt / 1000) * fps * speed
       const next = Math.min(doc.frameCount - 1, Math.max(0, (frameRef.current ?? 0) + deltaFrames))
       frameRef.current = next
       // The frame's timestamp travels with its moment: the sound schedules ahead from it.
@@ -47,5 +98,5 @@ export function usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, 
     }
     raf = requestAnimationFrame(step)
     return () => cancelAnimationFrame(raf)
-  }, [playing, speed, fps, doc.frameCount, frameRef, setFrame, setPlaying, tick, onEnded])
+  }, [playing, speed, fps, doc.frameCount, frameRef, setFrame, setPlaying, tick, seek, onEnded])
 }
