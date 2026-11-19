@@ -5,6 +5,7 @@
 Changes since 0.1.1-test.5.
 
 - The weapon name tag no longer pushes the rest of the weapon corner up when it appears: it hangs below the ammo row. It is smaller, as in the game, and sits on a dark plate that fades with it, in the viewer and the video export.
+- When the followed player takes damage, a red arc on a ring around the reticle points toward the attacker and turns with the player's view, as in the game. It uses the game's own arc art, size and hit pulse. It shows more of the arc the more damage the attacker's hits did, and fades over 2 seconds. Shown in first person in the viewer and in the video export. Not shown when the attacker is unknown, for self damage or for falls. A grenade or splash hit points at the thrower.
 
 ## 0.1.1-test.5
 

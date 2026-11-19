@@ -18,6 +18,7 @@ import { aimHudAt, heldModelKey, RETICLE_DOT_R, RETICLE_KILL_STROKE, RETICLE_STR
 import { buildLivesByXuid } from '../model/livesPosition'
 import { CALLOUT_LABEL, calloutName, calloutOfLivesAt, type PreparedCallouts } from '../model/mapCallouts'
 import type { HeldWeapon } from '../scene3d/redReticle3d'
+import { DAMAGE_ARC_URL, paintDamageArcs } from '../ui/damageArcPaint'
 import { adsOverlaysOfDoc, createAdsOverlayAtlas, paintAdsAmmo, type SvgImageLoader } from './adsOverlayRaster'
 
 /** `color-mix(in srgb, color, #000 65%)` in hex: darken `hex` toward black by `amount` (0..1). */
@@ -61,6 +62,9 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
   for (const label of Object.values(doc.grenadeLabels ?? {})) if (label.img) urls.add(label.img)
   for (const label of Object.values(doc.abilityLabels ?? {})) if (label.img) urls.add(label.img)
   for (const kill of kills) if (kill.weaponImageUrl) urls.add(weaponFullIcon(kill.weaponImageUrl).url)
+  // The game's damage-arc bitmap, awaited with the icons so the first exported frame has it
+  // (only when the match has damage events: without them no arc is ever drawn).
+  if (doc.damages?.length) urls.add(DAMAGE_ARC_URL)
   const images = new Map<string, HTMLImageElement>()
   await Promise.all([...urls].map((url) => new Promise<void>((resolve) => {
     const img = new Image()
@@ -181,6 +185,9 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
         ctx.strokeStyle = alert ? alertInk : rimInk; ctx.lineWidth = 1.25; ctx.lineJoin = 'round'; ctx.globalAlpha = alert ? pulse : 0.9; ctx.stroke()
         ctx.globalAlpha = 1
       }
+      // The directional damage ring (`damageArcs`): the game's DamageArc bitmap, the same
+      // layer as the live HUD (under the reticle, over the rest of the HUD).
+      if (ath.shieldState) paintDamageArcs(ctx, ath.damageArcs ?? [], { x: w / 2, y: h / 2 }, h, images.get(DAMAGE_ARC_URL))
     }
     paintFeed()
     // THE STACKING OF THE LIVE HUD (`ReplayHud3d`): the kill feed, the score and the shield sit

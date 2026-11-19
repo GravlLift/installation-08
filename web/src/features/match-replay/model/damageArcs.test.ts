@@ -83,7 +83,7 @@ describe('damageArcsAt: the bearing, by the convention of spatialOf', () => {
 describe('damageArcsAt: the arc follows the view', () => {
   // A turn that completes by frame 11 (span 11 frames is beyond the heading interp max span of 10,
   // so the heading HOLDS at 0 until frame 11, then snaps to the new heading). Both check frames
-  // sit inside the arc lifetime (hit at 10, lifetime 10 frames).
+  // sit inside the arc lifetime (hit at 10, lifetime `DAMAGE_ARC_MS`).
   it('swings when the victim turns after the hit: the same hit, a later frame, a different bearing', () => {
     // Hit at 10 by an attacker straight ahead (10, 0); the player snaps right (heading 90) at 11.
     const doc = testReplayDoc({
@@ -178,6 +178,90 @@ describe('damageArcsAt: one arc per attacker', () => {
     const arcs = damageArcsAt(doc, 512, 12)
     expect(arcs).toHaveLength(2)
     expect(arcs.map((a) => a.by).sort()).toEqual([98, 99])
+  })
+})
+
+describe('damageArcsAt: the chain and the meter', () => {
+  /**
+   * The player at the origin with a shield track (`shieldAt`: frame -> sh value), hit by the
+   * same attacker straight ahead at the given frames.
+   */
+  function doc(damages: number[], shieldAt: Record<number, number> = {}) {
+    const points = [
+      { t: 0, x: 0, y: 0, h: 0 },
+      ...Object.entries(shieldAt).map(([t, sh]) => ({ t: Number(t), x: 0, y: 0, sh })),
+      { t: 200, x: 0, y: 0, h: 0 },
+    ]
+    return testReplayDoc({
+      frameIntervalMs: 100,
+      tracks: [
+        { ...PLAYER, points },
+        { ...ATTACKER, points: [{ t: 0, x: 10, y: 0 }, { t: 200, x: 10, y: 0 }] },
+      ],
+      damages: damages.map((t) => ({ t, slot: 512, by: 99 })),
+    })
+  }
+
+  it('is the base meter when no vitality reading exists to measure the drop', () => {
+    expect(arcAt(doc([10]), 10)!.meter).toBe(0.15)
+  })
+
+  it('is the base meter when the chain took no vitality off', () => {
+    expect(arcAt(doc([10], { 0: 1 }), 10)!.meter).toBe(0.15)
+  })
+
+  it('grows with the vitality the chain took off', () => {
+    // sh 1 -> 0.5 across the hit (t 10), measured one frame inside the hit's 3-frame window:
+    // acc 0.5, meter 0.15 + 0.85 * 0.5.
+    expect(arcAt(doc([10], { 0: 1, 12: 0.5 }), 13)!.meter).toBeCloseTo(0.15 + 0.85 * 0.5, 6)
+  })
+
+  it('reads a life with no hp reading yet as full health when the match records hp', () => {
+    // The track records hp only once health changes (after the shield broke): before that the
+    // life is at its spawn value. sh 0.7 -> 0.48 at the hit with hp unread: vitality
+    // (0.7 + 1) / 2 -> (0.48 + 1) / 2, a drop of 0.11, not a missing reading worth nothing.
+    const d = doc([10], { 0: 0.7, 11: 0.48 })
+    const withHp = { ...d, tracks: [...d.tracks, { ...ATTACKER, slot: 77, points: [{ t: 0, x: 50, y: 50, hp: 0.5 }] }] }
+    expect(arcAt(withHp, 12)!.meter).toBeCloseTo(0.15 + 0.85 * 0.11, 6)
+  })
+
+  it('stays alive while the hits keep coming within the lifetime', () => {
+    const d = doc([10, 15])
+    // Frame 30 is 2000 ms past the first hit alone, but the chain's newest hit (t 15) is 1500 ms old.
+    const arc = arcAt(d, 30)
+    expect(arc).not.toBeNull()
+    expect(arc!.ageMs).toBe(frameToMs(30, d) - frameToMs(15, d))
+  })
+
+  it('counts the older hits of the chain into the meter', () => {
+    // Two hits 500 ms apart: the older one's drop (sh 1 -> 0.5 across t 10) counts.
+    expect(arcAt(doc([10, 15], { 0: 1, 12: 0.5 }), 15)!.meter).toBeCloseTo(0.15 + 0.85 * 0.5, 6)
+  })
+
+  it('breaks the chain at a gap of the lifetime: the older drop no longer counts', () => {
+    // A hit at t 32, 2200 ms after the first: the chain is the new hit alone, which took nothing off.
+    expect(arcAt(doc([10, 32], { 0: 1, 12: 0.5 }), 32)!.meter).toBe(0.15)
+  })
+})
+
+describe('damageArcsAt: the ring keeps the 8 youngest arcs', () => {
+  it('caps at 8, dropping the oldest', () => {
+    const tracks = [
+      { ...PLAYER, points: [{ t: 0, x: 0, y: 0, h: 0 }, { t: 200, x: 0, y: 0, h: 0 }] },
+      ...Array.from({ length: 10 }, (_, i) => ({
+        slot: 100 + i, xuid: `X${i}`, team: 1, startFrame: 0, endFrame: 200,
+        points: [{ t: 0, x: 10 + i, y: 0 }, { t: 200, x: 10 + i, y: 0 }],
+      })),
+    ]
+    const doc = testReplayDoc({
+      frameIntervalMs: 100,
+      tracks,
+      damages: Array.from({ length: 10 }, (_, i) => ({ t: 10 + i, slot: 512, by: 100 + i })),
+    })
+    const arcs = damageArcsAt(doc, 512, 19)
+    expect(arcs).toHaveLength(8)
+    // The two oldest hits (t 10, 11) are the ones dropped; the survivors are t 12..19, youngest first.
+    expect(arcs.map((a) => a.by)).toEqual([109, 108, 107, 106, 105, 104, 103, 102])
   })
 })
 
