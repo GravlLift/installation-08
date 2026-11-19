@@ -164,8 +164,25 @@ BC7 pixels sit inside the tag, as the CUI bitmaps' do).
 - Bitmap `41d89be1` decodes (720x390, BC7, pixels inline after the tag's data): a red half ring,
   with blue varying along the arc. That blue is the ramp the meter value reveals: inferred from the
   two-tone meter widget, not yet confirmed.
-- `cusc` 9299c419 holds the shield bar (`shieldbardc`, `overshield`, `shield_chase`): 55
-  components, not yet read.
+- `cusc` 9299c419 is the shield bar (`shieldbardc`), read 2026-11-19 (line numbers are in the
+  gitignored dump `data/probe/uidump/out/cusc/9299c419.txt`; summary beside it in
+  `shield-screen-summary.md`). Confirmed from the dump:
+  - `shield_chase` is the red band over the shield. It is a meter quad whose min and current values
+    are bound to the live `shieldvitality` and whose max is bound to a number animator's output, so it
+    covers the shield just lost, from the current fill up to a lagging value. It is drawn additively
+    with tint ARGB (1, 1, 0.506, 0.506), a light red #FF8181, from bitmap `1a61d06e`, 940x64,
+    whose pixels are not inside the tag (not decoded).
+  - The animator (component 41af4bbd620acf4d) has initial value 1, animation mode 1, animation
+    param 3 and animation start time 0.2 s. What mode 1 and param 3 mean is not in the tag. Reading
+    them as "hold 0.2 s, then catch up within the 1 s recent-damage duration" is an inference.
+  - `health_chase` is the same mechanism on `healthvitality`, additive, tint blend alpha 0.66. Its
+    tint comes from a named color resource (0xed8d76c7), so the color stored in the tag is only a
+    placeholder.
+  - Shield full: the bloom's global intensity goes from 1.5 to 0.8 over 2633 ms. Shield empty
+    (expression "a<=0 && b == 0"): a 766 ms burst scales a component 1 to 9 wide and 1 to 5 tall
+    while it fades. Recharging: a bar sweeps across the meter every 666 ms, looping.
+  - Nothing in the screen tints the shield fill itself red on a hit. The red comes from the chase
+    band.
 
 **Phase 4: pings (decoder research, open-ended).**
 9. Find out whether the film carries pings at all. The only lead is the unexported `managed-navpoint`
