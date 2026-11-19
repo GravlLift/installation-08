@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it, vi } from 'vitest'
 
-import { REVERB_CROSSFADE_S, REVERB_SWITCH_HOLD_S, ZoneReverbPlayer, type ReverbBus } from './zoneReverb'
+import { REVERB_CROSSFADE_S, REVERB_SEND_DB, REVERB_SWITCH_HOLD_S, ZoneReverbPlayer, type ReverbBus } from './zoneReverb'
 import type { AmbienceLayout } from './ambienceZones'
 
 function fakeBus() {
@@ -50,8 +50,9 @@ describe('ZoneReverbPlayer', () => {
     await vi.waitFor(() => expect(convolvers).toHaveLength(2))
     expect(fetcher.mock.calls.map(([url]) => url)).toEqual(['/ambience/hall.wav', '/ambience/room.wav'])
     expect(convolvers.map((c) => [c.normalize, c.buffer])).toEqual([[false, buffer], [false, buffer]])
-    expect(gains[1].gain.value).toBeCloseTo(10 ** (-6 / 20))
-    expect(gains[3].gain.value).toBeCloseTo(10 ** (-12 / 20))
+    expect(gains[1].gain.value).toBeCloseTo(10 ** ((-6 + REVERB_SEND_DB) / 20))
+    expect(gains[3].gain.value).toBeCloseTo(10 ** ((-12 + REVERB_SEND_DB) / 20))
+    expect(REVERB_SEND_DB).toBe(-3)
     expect(gains[0].gain.value).toBe(0)
     expect(gains[2].gain.value).toBe(0)
     expect(gains[0].gain.setValueAtTime).toHaveBeenCalledWith(0, 0)

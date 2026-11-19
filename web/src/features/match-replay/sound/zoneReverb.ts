@@ -24,10 +24,11 @@
 import { ambienceLoopAt, prepareReverbZones, type AmbienceLayout, type PreparedAmbience } from './ambienceZones'
 import type { SoundListener } from './soundSpatial'
 
-/** Unity: the send is the game's own chain (impulse response level x wet level). The send level
- * of each sound into the reverb bus and that bus's own volume are not read; this is the one level
- * still chosen here. */
-export const REVERB_SEND_DB = 0
+/** The one level still chosen here, by ear (Jordan, 0.1.1-test.5: "slightly loud"): 3 dB under
+ * the game's own chain (impulse response level x wet level). Each sound's send into the reverb bus
+ * (a game-defined aux send, falling with distance in the sound's attenuation) and that bus's own
+ * volume are not read yet. */
+export const REVERB_SEND_DB = -3
 /** How long a new environment must hold the listener before the reverb switches (doorways). */
 export const REVERB_SWITCH_HOLD_S = 0.3
 /** The switch: send into the old convolver down and into the new one up over this many seconds. */
