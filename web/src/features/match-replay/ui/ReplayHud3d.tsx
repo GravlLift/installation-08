@@ -10,7 +10,7 @@ import type { ReplayKill } from '../model/killFeedLogic'
 import { hudClock, readHud, readKillFeed, readKillPopups, readScoreHud, prepareHud, NAME_TAG_EM, NAME_TAG_PAD_X, NAME_TAG_PAD_Y } from '../model/hud3d_logic'
 import { magsForWeapon } from '../model/scopeLogic'
 import { adsAmmoText } from '../model/adsOverlay'
-import { aimHudAt, heldModelKey, RETICLE_DOT_R, RETICLE_HEIGHT_SHARE, RETICLE_KILL_STROKE, RETICLE_MIN_PX, RETICLE_STROKE, reticleGeometry, segmentsPath } from '../model/aimHud'
+import { aimHudAt, heldModelKey, RETICLE_DOT_R, RETICLE_HALO_OPACITY, RETICLE_HALO_STROKE, RETICLE_HEIGHT_SHARE, RETICLE_KILL_STROKE, RETICLE_MIN_PX, RETICLE_STROKE, reticleGeometry, segmentsPath } from '../model/aimHud'
 import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
 import { ReplayHudFeed3d } from './ReplayHudFeed3d'
 import { ReplayHudScope3d } from './ReplayHudScope3d'
@@ -173,6 +173,11 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
     {ath?.shieldState && <canvas ref={damageArcCanvasRef} aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />}
     {aim && reticle && aimState.reticleShown && (
       <svg viewBox="0 0 100 100" aria-hidden="true" style={{ color: reticleColor, position: 'absolute', width: RETICLE_CSS_SIZE, height: RETICLE_CSS_SIZE, left: '50%', top: '50%', transform: `translate(-50%, -50%) scale(${aimState.reticleScale})`, overflow: 'visible' }} fill="none" stroke="currentColor" strokeWidth={RETICLE_STROKE}>
+        <g stroke="var(--replay-ads-ink)" strokeWidth={RETICLE_STROKE + RETICLE_HALO_STROKE} opacity={RETICLE_HALO_OPACITY}>
+          {reticle.ring !== null && <circle cx="50" cy="50" r={reticle.ring} />}
+          {reticle.dot && <circle cx="50" cy="50" r={RETICLE_DOT_R + RETICLE_HALO_STROKE / 2} fill="var(--replay-ads-ink)" stroke="none" />}
+          {reticle.ticks.length > 0 && <path d={segmentsPath(reticle.ticks)} />}
+        </g>
         {reticle.ring !== null && <circle cx="50" cy="50" r={reticle.ring} />}
         {reticle.dot && <circle cx="50" cy="50" r={RETICLE_DOT_R} fill="currentColor" stroke="none" />}
         {reticle.ticks.length > 0 && <path d={segmentsPath(reticle.ticks)} />}
@@ -193,8 +198,8 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
         {ath.equipment && <EquipmentHud3d doc={doc} rank={ath.equipment.rank} uses={ath.equipment.uses} locale={locale} />}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3em' }}>
-        <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{ath.ammo?.mag}</span>
-        {ath.ammo?.res != null && <span style={{ fontSize: '0.6em', opacity: 0.75, paddingLeft: '0.5em', borderLeft: '1px solid currentColor', fontVariantNumeric: 'tabular-nums' }}>{ath.ammo.res}</span>}
+        <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: tokenCssVar('replay-hud-weapon-mag') }}>{ath.ammo?.mag}</span>
+        {ath.ammo?.res != null && <span style={{ fontSize: '0.6em', paddingLeft: '0.5em', borderLeft: '1px solid currentColor', fontVariantNumeric: 'tabular-nums' }}>{ath.ammo.res}</span>}
         {icon && <WeaponIcon imageUrl={icon.url} tinted={ath.label?.tinted} label={catalogText(ath.label, locale) ?? ''} width="2.8em" height="1.1em" style={icon.mirrored ? undefined : MIRROR_STYLE} />}
       </div>
       {ath.nameTag && <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '0.35em', fontSize: `${NAME_TAG_EM}em`, fontWeight: 600, letterSpacing: '0.08em', lineHeight: 1, padding: `${NAME_TAG_PAD_Y}em ${NAME_TAG_PAD_X}em`, background: 'rgba(0, 0, 0, 0.55)', color: '#fff', opacity: ath.nameTag.opacity }}>{ath.nameTag.text}</div>}

@@ -96,12 +96,12 @@ describe('paintAdsAmmo', () => {
     const fillText = vi.fn()
     const ctx = { save: vi.fn(), restore: vi.fn(), fillText, globalAlpha: 1 } as unknown as CanvasRenderingContext2D
     paintAdsAmmo(ctx, { width: 960, height: 540 }, 'bandit', '15', 'system-ui')
-    // Bandit: (340, 13) from the center, right-aligned, 29 units.
+    // Bandit: (344, 13.5) from the center, right-aligned, 27 units.
     const u = 540 / 720
-    expect(fillText).toHaveBeenCalledWith('15', 480 + 340 * u, 270 + 13 * u)
+    expect(fillText).toHaveBeenCalledWith('15', 480 + 344 * u, 270 + 13.5 * u)
     expect(ctx.textAlign).toBe('right')
     expect(ctx.fillStyle).toBe('#ffd34a')
-    expect(ctx.font).toBe(`500 ${29 * u}px system-ui`)
+    expect(ctx.font).toBe(`500 ${27 * u}px system-ui`)
   })
 
   it('prints nothing for an overlay without a count', () => {

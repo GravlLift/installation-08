@@ -31,7 +31,11 @@
   /* LevelUp's HUD values: the game's light-blue HUD ink. */
   --replay-hud-on-dark: #eaf2f5;
   --replay-hud-shadow: rgba(0, 0, 0, 0.8);
-  --replay-hud-weapon: #a9dcff;
+  /* The weapon corner, measured on the owner's reference frame (2026-11-19, the brightest pixels
+     of each glyph over a dark floor): the magazine count near white, the reserve and the weapon
+     icon a pale cyan, both at full strength. */
+  --replay-hud-weapon: #c7ebfa;
+  --replay-hud-weapon-mag: #e8f8ff;
   --replay-export-backdrop: #000;
   /* Outline of the player names on the map and the dimmed player card (death, shroud screen):
      a dark that frames team-colored letters on any floor. LevelUp's value. */

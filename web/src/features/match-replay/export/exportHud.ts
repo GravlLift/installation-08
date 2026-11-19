@@ -3,9 +3,10 @@ import { resolveToken } from '@/lib/accessibility/resolveToken'
 import { formatClock, frameToMs } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { ReplayLocale } from '../i18n/i18n'
-import { hudClock, readHud, readKillFeed, readScoreHud, prepareHud, NAME_TAG_EM, NAME_TAG_PAD_X, NAME_TAG_PAD_Y } from '../model/hud3d_logic'
+import { hudClock, readHud, readKillFeed, readScoreHud, prepareHud, KILL_FEED_TOP_SHARE, NAME_TAG_EM, NAME_TAG_PAD_X, NAME_TAG_PAD_Y } from '../model/hud3d_logic'
 import { SHIELD_CHASE_INK, SHIELD_CHASE_URL, SHIELD_QUAD_URL, shieldFlash } from '../model/shieldHud'
 import { hexRgb, shieldFloodAt, shieldFloodTint } from '../model/shieldFlood'
+import { SHIELD_BLOOM_BLUR, SHIELD_BLOOM_LAYERS, shieldBloomIntensity, shieldBloomSource } from '../model/shieldBloom'
 import { SCORE_BAR_BAND_BOTTOM, SCORE_BAR_BAND_SHARE, SCORE_BAR_BAND_TOP, SCORE_BAR_BODY_SHARE } from '../model/scoreBarBand'
 import { TEAM_EMBLEM_GAP_SHARE, TEAM_EMBLEM_HEIGHT_SHARE, teamEmblemUrl } from '../model/teamEmblem'
 import { SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER, SHIELD_QUAD_H, SHIELD_QUAD_W, SHIELD_QUAD_CENTER, SHIELD_QUAD_HALF, SHIELD_QUAD_CHASE_H, SHIELD_QUAD_CHASE_Y, SHIELD_QUAD_SHAPE_GAIN, SHIELD_QUAD_HEX_OPACITY, SHIELD_QUAD_FILL_OPACITY } from '../ui/shieldBarGeometry'
@@ -17,7 +18,7 @@ import { REPLAY_TEXT } from '../i18n/i18n'
 import { catalogText } from '../i18n/catalogLabel'
 import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
 import { adsAmmoText } from '../model/adsOverlay'
-import { aimHudAt, heldModelKey, RETICLE_DOT_R, RETICLE_KILL_STROKE, RETICLE_STROKE, reticleBoxPx, reticleGeometry, type ReticleGeometry, type Segment } from '../model/aimHud'
+import { aimHudAt, heldModelKey, RETICLE_DOT_R, RETICLE_HALO_OPACITY, RETICLE_HALO_STROKE, RETICLE_KILL_STROKE, RETICLE_STROKE, reticleBoxPx, reticleGeometry, type ReticleGeometry, type Segment } from '../model/aimHud'
 import { buildLivesByXuid } from '../model/livesPosition'
 import { CALLOUT_LABEL, calloutName, calloutOfLivesAt, type PreparedCallouts } from '../model/mapCallouts'
 import type { HeldWeapon } from '../scene3d/redReticle3d'
@@ -61,6 +62,7 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
   const lives = buildLivesByXuid(doc.tracks)
   const white = '#eaf2f5'
   const weaponInk = resolveToken('replay-hud-weapon')
+  const magInk = resolveToken('replay-hud-weapon-mag')
   const aimOn = options.aim === true
   const atlas = aimOn
     ? await createAdsOverlayAtlas(adsOverlaysOfDoc(doc), options.frameSize ?? { width: 1920, height: 1080 }, { hostile: !!options.redReticle, load: options.loadSvg })
@@ -322,6 +324,8 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
             octx.drawImage(quadMasks(quadBitmap).solid, 0, 0, pixelW, pixelH)
             octx.globalCompositeOperation = 'source-over'
             ctx.drawImage(off, ox, oy, bw, bh)
+            // The screen's bloom over the bar, as ShieldBar3d's filter (`model/shieldBloom`).
+            paintShieldBloom(ctx, off, ox, oy, bw / pixelW, u, shieldBloomIntensity(state, stateAgeMs))
           }
           // The health strip and the break burst, over the bar.
           paintShieldOver(ctx, alertArtNow(), placement, state, stateAgeMs, ath.health)
@@ -498,10 +502,13 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       const weapon = ath.label?.img ? weaponFullIcon(ath.label.img) : null
       const iconWidth = size * 2.8, iconHeight = size * 1.1
       const hasWeapon = weapon && icon(ctx, weapon.url, weaponInk, !!ath.label?.tinted, !weapon.mirrored, w * 0.97 - iconWidth, h * 0.94 - iconHeight, iconWidth, iconHeight)
-      ctx.fillStyle = weaponInk
       ctx.textAlign = 'right'; ctx.font = `700 ${size}px ${HUD_FONT_FAMILY}`
-      const ammo = [ath.ammo?.mag, ath.ammo?.res].filter((v) => v != null).join(' | ')
-      if (ammo) ctx.fillText(ammo, w * 0.97 - (hasWeapon ? iconWidth + size * 0.3 : 0), h * 0.92)
+      // "mag | reserve": the reserve in the weapon ink, the magazine count left of it, brighter.
+      const ammoX = w * 0.97 - (hasWeapon ? iconWidth + size * 0.3 : 0)
+      const mag = ath.ammo?.mag != null ? String(ath.ammo.mag) : null
+      const reserve = ath.ammo?.res != null ? (mag != null ? ` | ${ath.ammo.res}` : String(ath.ammo.res)) : ''
+      if (reserve) { ctx.fillStyle = weaponInk; ctx.fillText(reserve, ammoX, h * 0.92) }
+      if (mag != null) { ctx.fillStyle = magInk; ctx.fillText(mag, ammoX - (reserve ? ctx.measureText(reserve).width : 0), h * 0.92) }
       // The in-hand weapon's name tag, under the in-hand row, right-aligned, fading with the game:
       // a dark translucent plate behind the letters, the whole thing at the tag's opacity.
       if (ath.nameTag) {
@@ -524,13 +531,13 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
     }
     ctx.restore()
 
-    /** The kill feed, left, above the place label; leaves the alpha at 1. */
+    /** The kill feed, left, hanging from KILL_FEED_TOP_SHARE, newest row last; leaves the alpha at 1. */
     function paintFeed() {
       ctx.fillStyle = white; ctx.font = `600 ${size * 0.48}px ${HUD_FONT_FAMILY}`; ctx.textAlign = 'left'
       const feed = readKillFeed(source, frame)
       feed.forEach(({ kill, opacity, mine, killer: killerSide, victim: victimSide }, i) => {
         ctx.globalAlpha = opacity
-        const y = h * 0.78 - (feed.length - i) * size * 0.62
+        const y = h * KILL_FEED_TOP_SHARE + (i + 0.5) * size * 0.62
         if (mine) {
           // The followed player's own kill: a light wash of his team color behind the row.
           const rowWidth = ctx.measureText(names.get(kill.xuid) ?? kill.xuid).width + ctx.measureText(kill.victimGamertag ?? names.get(kill.victimXuid) ?? '').width + size * 1.6
@@ -558,6 +565,38 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
   }
 }
 
+/** The bloom's source curve as a byte table (`shieldBloomSource`), applied in linear light. */
+const srgbToLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+const linearToSrgb = (c: number) => (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055)
+const BLOOM_LUT = Uint8ClampedArray.from({ length: 256 }, (_, v) => Math.round(255 * linearToSrgb(shieldBloomSource(srgbToLinear(v / 255)))))
+
+/**
+ * paintShieldBloom adds the shield screen's bloom over the bar just painted from `bar` at
+ * (`x`, `y`), scaled by `scale`: the bright part of each channel (`BLOOM_LUT`), blurred at the three
+ * layer sizes (`unitPx` pixels per quad unit), added with the layer weights times `intensity`.
+ * Skipped where the canvas cannot read pixels back.
+ */
+function paintShieldBloom(ctx: CanvasRenderingContext2D, bar: HTMLCanvasElement, x: number, y: number, scale: number, unitPx: number, intensity: number): void {
+  const pad = Math.ceil(3 * SHIELD_BLOOM_BLUR[SHIELD_BLOOM_BLUR.length - 1] * unitPx)
+  const hi = document.createElement('canvas')
+  hi.width = bar.width + 2 * pad; hi.height = bar.height + 2 * pad
+  const hctx = hi.getContext('2d')
+  if (!hctx || typeof hctx.getImageData !== 'function' || typeof hctx.putImageData !== 'function') return
+  hctx.drawImage(bar, pad, pad)
+  const pixels = hctx.getImageData(0, 0, hi.width, hi.height)
+  const d = pixels.data
+  for (let i = 0; i < d.length; i += 4) { d[i] = BLOOM_LUT[d[i]]; d[i + 1] = BLOOM_LUT[d[i + 1]]; d[i + 2] = BLOOM_LUT[d[i + 2]] }
+  hctx.putImageData(pixels, 0, 0)
+  ctx.save()
+  ctx.globalCompositeOperation = 'lighter'
+  SHIELD_BLOOM_BLUR.forEach((sd, i) => {
+    ctx.filter = `blur(${sd * unitPx}px)`
+    ctx.globalAlpha = Math.min(1, intensity * SHIELD_BLOOM_LAYERS[i])
+    ctx.drawImage(hi, x - pad * scale, y - pad * scale, hi.width * scale, hi.height * scale)
+  })
+  ctx.restore()
+}
+
 /**
  * paintReticle draws the hip reticle (`aimHud.reticleGeometry`) the way the live SVG does: its
  * 100-unit box centered on the view, `reticleBoxPx` wide, scaled by `scale`, lines in `color`, a
@@ -574,6 +613,13 @@ export function paintReticle(ctx: CanvasRenderingContext2D, view: { width: numbe
   }
   ctx.save()
   ctx.shadowColor = 'transparent'
+  // The dark halo under the lines (`RETICLE_HALO_*`), as the live reticle draws it.
+  ctx.globalAlpha = RETICLE_HALO_OPACITY
+  ctx.strokeStyle = ctx.fillStyle = resolveToken('replay-ads-ink')
+  ctx.lineWidth = (RETICLE_STROKE + RETICLE_HALO_STROKE) * k
+  if (geometry.ring !== null) { ctx.beginPath(); ctx.arc(cx, cy, geometry.ring * k, 0, Math.PI * 2); ctx.stroke() }
+  if (geometry.dot) { ctx.beginPath(); ctx.arc(cx, cy, (RETICLE_DOT_R + RETICLE_HALO_STROKE / 2) * k, 0, Math.PI * 2); ctx.fill() }
+  if (geometry.ticks.length > 0) strokeSegments(geometry.ticks)
   ctx.globalAlpha = 1
   ctx.strokeStyle = color
   ctx.fillStyle = color

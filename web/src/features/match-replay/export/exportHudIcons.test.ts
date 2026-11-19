@@ -19,6 +19,7 @@ vi.mock('../model/hud3d_logic', () => ({
   NAME_TAG_EM: 0.43,
   NAME_TAG_PAD_X: 0.45,
   NAME_TAG_PAD_Y: 0.2,
+  KILL_FEED_TOP_SHARE: 0.524,
   prepareHud: () => ({}),
   readScoreHud: () => null,
   hudClock: () => 0,

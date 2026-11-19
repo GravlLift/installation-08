@@ -71,9 +71,30 @@ reference only, gitignored: `data/reference/hud/infinite-hud-weapons-killfeed.pn
 - Present since 2026-11-19: the directional damage arc around the reticle, a red arc pointing
   toward where the player was hit from (the arc left of the reticle in frame 2). See Plan item 5.
 
+- Since 2026-11-19 the bar carries the shield screen's bloom (`uibloom`, `model/shieldBloom.ts`):
+  ambient 0.35, highlight 3 above 0.3, layers 0.5 / 0.35 / 0.2, global 0.8, from 1.5 to 0.8 over
+  2633 ms after a refill (confirmed from the dump). Inferred: the curve, Gaussian layers, their
+  sizes (4 / 12 / 32 quad units), the linear fall, and summing in linear light. The tint names the
+  undecoded `hud_wires` color and is not applied. It is the only HUD screen with a bloom widget
+  (the other two `uieffectbloom` users are menus).
+
+## Aim and weapon corner brightness (2026-11-19)
+
+Measured on the owner's 1450x819 capture of the Bandit Evo at 1.6x and the saved reference
+frames. The Bandit overlay (`ReplayHudScope3d` `Bandit`) is redrawn from the capture: the shade
+outside the window is 0.7 (the scene keeps 0.3 of its light), the blue housing has thick corner
+pieces and a thin edge, three light bars run outside, the MAG/AMMO tabs are filled, and the reticle
+is a ring with four arcs on the diagonals. The weapon corner's inks are measured: the magazine
+count is #e8f8ff, and the reserve and icon are #c7ebfa, at full opacity. The hip reticle gets the
+dark halo the ADS reticles have. The CUI has a `weaponsightdc` / `weaponzoomdc` screen family not
+yet read, which may hold the overlays themselves.
+
 ## Left: kill feed and pings
 
-- Present today: the kill feed.
+- Present today: the kill feed. Since 2026-11-19 it hangs from 52.4% of the height and grows down,
+  newest last (`KILL_FEED_TOP_SHARE`): the feed screen aligns its list to the top, its rows are 45
+  plus 6 + 6 margins on the 2160 reference (2.6% pitch, matching ours), and the start is measured
+  on the two reference frames.
 - Missing: pings, which the kill feed shows as rows such as "Enemy at Engine" and "Enemy at Catwalk", with
   the pinging player's name and a ping glyph. The followed player's own rows are highlighted.
 - Wrong: the font.

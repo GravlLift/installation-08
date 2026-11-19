@@ -37,7 +37,7 @@ export interface AdsAmmoText {
 export const ADS_AMMO_TEXT: Readonly<Partial<Record<AdsDesign, AdsAmmoText>>> = {
   smartLink: { x: 152, y: -119, anchor: 'middle', size: 17, opacity: 0.85, weight: 400, ink: 'smartlink' },
   commando: { x: 155, y: -117, anchor: 'middle', size: 17, opacity: 1, weight: 600, ink: 'white' },
-  bandit: { x: 340, y: 13, anchor: 'end', size: 29, opacity: 1, weight: 500, ink: 'amber' },
+  bandit: { x: 344, y: 13.5, anchor: 'end', size: 27, opacity: 1, weight: 500, ink: 'amber' },
 }
 
 /** AmmoText: the magazine count of the overlay `design`, at its `ADS_AMMO_TEXT` place. */
@@ -231,31 +231,83 @@ function Commando({ id, level, ammo, reticle }: DrawProps) {
 
 // --- Bandit ----------------------------------------------------------------------------------
 
-/** The Bandit: a rounded glass window with a blue rim, amber MAG/AMMO readouts and brackets. */
+/**
+ * The Bandit housing, measured on the owner's 1450x819 capture of the Bandit Evo at 1.6x
+ * (2026-11-19; units of 1/720 of the height from the center). The outer edge is a rounded box
+ * 374 x 247 (radius 45); its four corners are thick blue pieces (24 wide on the sides, 21 on top,
+ * inner radius 30) that run to y = +-109 down the sides and to x = +-294 along the top and bottom,
+ * joined by a thin edge (4). The blue is rgb(64, 87, 114) over near-black, read here as
+ * BANDIT_RIM at BANDIT_RIM_OPACITY. Outside the window the scene keeps 0.3 of its light (top
+ * and bottom-left edges, measured), so the shade is 0.7.
+ */
+const BANDIT = { hw: 374, hh: 247, r: 45, side: 24, top: 21, innerR: 30, cornerY: 109, cornerX: 294, thin: 4 } as const
+const BANDIT_SHADE = 0.7
+const BANDIT_RIM = 'rgb(100, 150, 215)'
+const BANDIT_RIM_OPACITY = 0.6
+/** The three light bars outside the window (y from, to), out to x = +-589 where they fade, measured
+ *  as about rgb(95, 140, 185) at 0.25 over the shade. */
+const BANDIT_BARS: readonly (readonly [number, number])[] = [[-172, -155], [-29, 29], [155, 173]]
+const BANDIT_BAR_END = 589
+/** The reticle's brackets read lighter than the readouts: a pale yellow (inferred from 2 px lines
+ *  over a known background, about rgb(255, 255, 190) at partial coverage). */
+const BANDIT_BRACKET = '#fbf59b'
+
+/** The Bandit: a rounded window in a blue housing, light bars outside, yellow MAG/AMMO readouts. */
 function Bandit({ id, level, ammo, reticle }: DrawProps) {
   const amber = ink('amber')
-  const glass = ink('glass')
-  const win = roundRect(368, 243, 40)
+  const B = BANDIT
+  const win = roundRect(B.hw, B.hh, B.r)
+  const thick = `${win} ${roundRect(B.hw - B.side, B.hh - B.top, B.innerR)}`
+  const thin = `${win} ${roundRect(B.hw - B.thin, B.hh - B.thin, B.r - B.thin)}`
+  const corners = [-1, 1].flatMap((sx) => [-1, 1].map((sy) => ({ sx, sy })))
   return (
     <g>
-      <Shade id={id} window={win} opacity={0.42} soft={5} />
-      <path d={win} filter={blur(id, 5)} style={line(glass, 16, 0.55)} />
-      <path d={roundRect(360, 236, 34)} style={line(glass, 2, 0.35)} />
-      {/* Readouts: label, value, the amber post and its ticks. */}
-      <path d="M-363,-27H-283 M363,-27H283" style={line(amber, 0.8, 0.4)} />
-      <path d="M-350,-25H-358V32H-350 M350,-25H358V32H350" style={line(amber, 2.2, 0.9)} />
-      <text x={-327} y={-29} textAnchor="middle" style={textStyle(amber, 8, 0.85)}>MAG</text>
-      {level.label && <text x={-341} y={13} style={textStyle(amber, 29, 1, 500)}>{level.label}</text>}
-      <text x={322} y={-29} textAnchor="middle" style={textStyle(amber, 8, 0.85)}>AMMO</text>
+      <defs>
+        <clipPath id={`${id}-corners`}>
+          {corners.map(({ sx, sy }) => <rect key={`${sx}${sy}`} x={sx < 0 ? -B.hw - 10 : B.cornerX} y={sy < 0 ? -B.hh - 10 : B.cornerY} width={B.hw + 10 - B.cornerX} height={B.hh + 10 - B.cornerY} />)}
+        </clipPath>
+        <linearGradient id={`${id}-barL`} gradientUnits="userSpaceOnUse" x1={-BANDIT_BAR_END} x2={-BANDIT_BAR_END + 24} y1="0" y2="0">
+          <stop offset="0" stopColor="rgb(95, 140, 185)" stopOpacity="0" />
+          <stop offset="1" stopColor="rgb(95, 140, 185)" stopOpacity="0.25" />
+        </linearGradient>
+      </defs>
+      <Shade id={id} window={win} opacity={BANDIT_SHADE} soft={2} />
+      {/* The light bars outside, mirrored. */}
+      {BANDIT_BARS.map(([y0, y1]) => <Sym key={y0} d={`M${-BANDIT_BAR_END},${y0}H${-B.hw + 2}V${y1}H${-BANDIT_BAR_END}Z`} style={{ fill: `url(#${id}-barL)` }} />)}
+      {/* The housing: thick corners, thin edge between them, a soft glow. */}
+      <path d={thick} fillRule="evenodd" clipPath={`url(#${id}-corners)`} filter={blur(id, 2)} style={{ fill: BANDIT_RIM, opacity: 0.35 }} />
+      <path d={thick} fillRule="evenodd" clipPath={`url(#${id}-corners)`} style={{ fill: BANDIT_RIM, opacity: BANDIT_RIM_OPACITY }} />
+      <path d={thin} fillRule="evenodd" style={{ fill: BANDIT_RIM, opacity: BANDIT_RIM_OPACITY }} />
+      {/* The inner vertical lines, through the readouts. */}
+      <path d={`M-316,${-B.hh + B.top}V${B.hh - B.top} M316,${-B.hh + B.top}V${B.hh - B.top}`} style={line(WHITE, 1.5, 0.45)} />
+      {/* Readouts: a dim filled tab with its label, the box's top and bottom lines, the thick post. */}
+      <Sym d="M-365,-39H-284V-25H-365Z M-365,34H-284V39H-365Z" style={{ fill: amber, opacity: 0.35 }} />
+      <Sym d="M-365,-25H-284 M-365,34H-284" style={line(amber, 1, 1)} />
+      <Sym d="M-359.5,-25V34" style={{ ...line(amber, 4.5, 1), strokeLinecap: 'butt' }} />
+      <text x={-324.5} y={-28.5} textAnchor="middle" style={textStyle(amber, 9, 1)}>MAG</text>
+      {level.label && <text x={-343} y={13.5} style={textStyle(amber, 27, 1, 500)}>{level.label}</text>}
+      <text x={324.5} y={-28.5} textAnchor="middle" style={textStyle(amber, 9, 1)}>AMMO</text>
       <AmmoText design="bandit" ammo={ammo} />
+      {/* The faint range lines on the center row. */}
+      <Sym d="M-228,-2H-123" style={line(amber, 1.8, 0.25)} />
       {/* The parentheses around the reticle and the corner marks. */}
-      <path d="M-43,-36C-56,-24 -60,-12 -60,0C-60,12 -56,24 -43,36 M-60,0H-57 M43,-36C56,-24 60,-12 60,0C60,12 56,24 43,36 M60,0H57" style={line(amber, 1.6, 0.9)} />
+      <path d="M-43,-36C-56,-24 -60,-12 -60,0C-60,12 -56,24 -43,36 M-60,0H-57 M43,-36C56,-24 60,-12 60,0C60,12 56,24 43,36 M60,0H57" style={line(BANDIT_BRACKET, 2.2, 1)} />
       <path d="M-98,-64V-68H-93 M95,-64V-68H90 M-98,61V65H-93 M95,61V65H90" style={line(amber, 1.2, 0.7)} />
       <path d="M-6,72Q0,66 6,72 M0,84V86 M0,104V106 M0,130V150" style={line(amber, 1, 0.35)} />
-      <Reticle ring={12} d="M0,-5L5,0L0,5L-5,0Z" color={reticle} width={1.2} dot={0.9} />
+      {/* The reticle: a ring and four short arcs around the diagonals (gaps up, down and sideways). */}
+      <Reticle ring={12.7} d={BANDIT_RETICLE_ARCS} color={reticle} width={2} />
     </g>
   )
 }
+
+/** The Bandit's inner arcs: radius 4.2, each spanning 60 degrees centered on a diagonal. */
+const BANDIT_RETICLE_ARCS = [45, 135, 225, 315].map((deg) => {
+  const r = 4.2
+  const a0 = ((deg - 30) * Math.PI) / 180
+  const a1 = ((deg + 30) * Math.PI) / 180
+  const p = (a: number) => `${(r * Math.cos(a)).toFixed(2)},${(r * Math.sin(a)).toFixed(2)}`
+  return `M${p(a0)}A${r},${r} 0 0 1 ${p(a1)}`
+}).join(' ')
 
 // --- S7 sniper -------------------------------------------------------------------------------
 

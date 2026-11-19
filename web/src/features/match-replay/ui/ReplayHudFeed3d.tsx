@@ -3,7 +3,7 @@ import { WeaponIcon } from '@/components/ui/WeaponIcon'
 import { teamTokenCssVar } from '@/features/match-view/teamSeriesColor'
 import { displayPlayerName } from '@/lib/players/displayName'
 import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
-import type { readKillFeed } from '../model/hud3d_logic'
+import { KILL_FEED_TOP_SHARE, type readKillFeed } from '../model/hud3d_logic'
 import { MIRROR_STYLE, weaponFullIcon } from '../model/weaponFullIcon'
 
 /** The game's kill feed draws the FULL weapon (the silhouette, not the outline), pointing at
@@ -17,7 +17,7 @@ function FeedWeaponIcon({ url, tinted, label, color }: { url: string; tinted?: b
 }
 
 export function ReplayHudFeed3d({ fil, locale, nameOfXuid }: { fil: ReturnType<typeof readKillFeed>; locale: ReplayLocale; nameOfXuid?: (xuid: string) => string | null }) {
-  return <div role="list" aria-label={REPLAY_TEXT[locale].killFeedTitle} style={{ position: 'absolute', left: '3%', bottom: '22%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.2em', fontSize: '0.48em', lineHeight: 1.2 }}>
+  return <div role="list" aria-label={REPLAY_TEXT[locale].killFeedTitle} style={{ position: 'absolute', left: '3%', top: `${KILL_FEED_TOP_SHARE * 100}%`, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0.2em', fontSize: '0.48em', lineHeight: 1.2 }}>
     {fil.map(({ kill: k, opacity, involved, mine, killer, victim }, index) => <div role="listitem" key={`${k.replayMs}-${k.xuid}-${k.victimXuid}-${index}`} style={{ display: 'flex', alignItems: 'center', gap: '0.4em', opacity, fontWeight: involved ? 800 : 500, padding: '0.1em 0.5em', borderRadius: '0.15em', background: mine ? MY_KILL_BACKGROUND : undefined }}>
       <span style={{ color: teamTokenCssVar(killer) }}>{displayPlayerName(nameOfXuid?.(k.xuid), k.xuid)}</span>
       {k.weaponImageUrl && <FeedWeaponIcon url={k.weaponImageUrl} tinted={k.weaponTinted} label={k.weaponLabel || REPLAY_TEXT[locale].killFeedUnknownWeapon} color={teamTokenCssVar(killer)} />}

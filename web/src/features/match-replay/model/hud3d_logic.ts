@@ -205,6 +205,15 @@ export const NAME_TAG_EM = 0.43
 export const NAME_TAG_PAD_Y = 0.2
 export const NAME_TAG_PAD_X = 0.45
 
+/**
+ * The kill feed's top edge, as a share of the view height. The feed hangs from there and grows
+ * down, newest row last: the kill feed screen (`cusc` 49050c80, `eventfeeddc`) aligns its list to
+ * the top (vertical alignment -1), and on the owner's two reference frames (751 and 753 px tall)
+ * the first row starts at 52.4% with 5 rows and with 4, the newest row (the one beside the
+ * "Killed" popup) at the bottom. Measured, not read from the parent HUD screen.
+ */
+export const KILL_FEED_TOP_SHARE = 0.524
+
 /** nameTagOpacity: the tag's opacity `ageMs` after the change; null before it and once faded. */
 export function nameTagOpacity(ageMs: number): number | null {
   if (ageMs < 0 || ageMs >= NAME_TAG_TOTAL_MS) return null

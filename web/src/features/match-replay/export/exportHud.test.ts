@@ -13,6 +13,7 @@ import { toReplayKills } from '../model/killFeedLogic'
 import { prepareCallouts } from '../model/mapCallouts'
 import { testReplayDoc } from '../test/testDoc'
 import { SHIELD_CHASE_INK, SHIELD_QUAD_URL } from '../model/shieldHud'
+import { SHIELD_BLOOM_BLUR } from '../model/shieldBloom'
 import { teamEmblemUrl } from '../model/teamEmblem'
 import { SCORE_METER_URL } from '../ui/scoreMeter'
 import { createExportHud } from './exportHud'
@@ -253,10 +254,10 @@ describe('the first-person aim and the place label', () => {
     const rec = callRecorder()
     hud(rec.ctx, VIEW_FILE, 50)
     expect(rec.named('drawImage')).toHaveLength(0)
-    // The S7 hip reticle is a dot ('point'): one arc at the center.
+    // The S7 hip reticle is a dot ('point'): one arc at the center, over its dark halo.
     const arcs = rec.named('arc')
-    expect(arcs).toHaveLength(1)
-    expect(arcs[0].args.slice(0, 2)).toEqual([480, 270])
+    expect(arcs).toHaveLength(2)
+    expect(arcs.every((a) => a.args[0] === 480 && a.args[1] === 270)).toBe(true)
   })
 
   it('smart link zoomed: the frame, its magazine count, and the hip reticle kept', async () => {
@@ -461,10 +462,10 @@ describe('createExportHud', () => {
       const hud = await createExportHud(shieldDocWithDamages(), 'A', [], null, null, 'en')
       const dropped = callRecorder()
       hud(dropped.ctx, VIEW, 100)
-      // The frame receives one drawImage: the offscreen canvas, at the bar's position and width
-      // with the quad's aspect (80/940), not the legacy 74/1000.
+      // The frame receives the offscreen canvas, at the bar's position and width with the quad's
+      // aspect (80/940), not the legacy 74/1000; then the bloom's three blurred layers over it.
       const draws = dropped.named('drawImage')
-      expect(draws).toHaveLength(1)
+      expect(draws).toHaveLength(1 + SHIELD_BLOOM_BLUR.length)
       const [, dx, dy, dw, dh] = draws[0].args as [unknown, number, number, number, number]
       expect(dx).toBe(460)
       expect(dy).toBe(720 * 0.08)

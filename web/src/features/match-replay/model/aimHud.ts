@@ -24,6 +24,13 @@ export const RETICLE_STROKE = 1.5
 export const RETICLE_KILL_STROKE = 2.5
 /** The center dot radius, in box units. */
 export const RETICLE_DOT_R = 1.7
+/**
+ * The dark halo under the reticle's lines (wider by this many box units, at this opacity, in the
+ * `--replay-ads-ink` dark), so the white reads over a bright wall as the game's dark-edged reticle
+ * does on the owner's Bandit capture (2026-11-19). The ADS reticles draw the same halo.
+ */
+export const RETICLE_HALO_STROKE = 1.2
+export const RETICLE_HALO_OPACITY = 0.55
 
 /** A line segment in box units: x1, y1, x2, y2. */
 export type Segment = readonly [number, number, number, number]

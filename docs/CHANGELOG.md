@@ -9,6 +9,10 @@
 - The score bars fill with the game's own meter art, a striped bar with rounded ends, growing from the center as before. In the viewer and the video export.
 - When your shield is empty, the frame above the shield bar glows red and the bar's outline flashes red, as in the game, and a red burst drops away from the bar the moment it breaks. In the viewer and the video export.
 - An orange health strip shows inside the shield bar whenever the shield is not full, shrinking toward the center as health drops. Its color is matched to game footage because the game's own color setting for it is not decoded yet.
+- The shield bar glows, using the bloom settings from the game's shield screen. The glow is brighter for a couple of seconds after the shield refills, as in the game. The blur sizes are not in the game data and are our choice. In the viewer and the video export.
+- The Bandit's aim-down-sights view is redrawn from game footage. It has the blue housing with thick corners, the light bars outside the window, filled MAG and AMMO tabs, brighter brackets, and the game's reticle (a ring with four short arcs) instead of a diamond. The view outside the window is darker, as in the game.
+- The weapon corner is brighter: the magazine count is near white, and the reserve count and weapon icon are pale cyan at full strength. The hip reticle has a dark edge so it stays visible over bright walls.
+- The kill feed sits near the middle of the screen on the left, as in the game. It starts just below the middle and grows downward, with the newest row last. In the viewer and the video export.
 - The first start after updating rebuilds the HUD icons once to add the emblems, the meter, the shield glow and the health strip; until then they draw as before.
 
 ## 0.1.1-test.11

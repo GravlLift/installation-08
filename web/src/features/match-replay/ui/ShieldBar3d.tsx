@@ -4,6 +4,7 @@ import { tokenCssVar } from '@/lib/accessibility/semantic-tokens'
 import { SHIELD_CHASE_INK, SHIELD_CHASE_URL, SHIELD_QUAD_URL, type ShieldHudState } from '../model/shieldHud'
 import { shieldBarPath, shieldGlossPath, shieldStreakPaths, SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER, SHIELD_QUAD_H, SHIELD_QUAD_W, SHIELD_QUAD_CENTER, SHIELD_QUAD_HALF, SHIELD_QUAD_CHASE_H, SHIELD_QUAD_CHASE_Y, SHIELD_QUAD_SHAPE_GAIN as QUAD_SHAPE_GAIN, SHIELD_QUAD_HEX_OPACITY as QUAD_HEX_OPACITY, SHIELD_QUAD_FILL_OPACITY } from './shieldBarGeometry'
 import { tintedChaseUrl } from './shieldChaseArt'
+import { SHIELD_BLOOM_BLUR, SHIELD_BLOOM_LAYERS, SHIELD_BLOOM_TABLE, shieldBloomIntensity } from '../model/shieldBloom'
 import { HEALTH_BAR_RGB, HEALTH_BAR_URL, healthStripBox, healthStripHalf, healthStripShown, SHIELD_ALERT_RGB, SHIELD_BURST_URL, SHIELD_GLOW_BOTTOM_BELOW_CENTER, SHIELD_GLOW_GAIN, SHIELD_GLOW_H, SHIELD_GLOW_SEAM_TRIM, SHIELD_GLOW_URL, SHIELD_GLOW_W, shieldBurstAt, shieldBurstBox, shieldFrameFlash, shieldGlowShown } from '../model/shieldAlert'
 
 /** An feColorMatrix that paints every pixel `rgb` (0..255) at its alpha times `gain`. */
@@ -90,6 +91,9 @@ export function ShieldBar3d({ fraction, state, flash, chase, label, health = nul
   const showHealth = isQuad && healthStripShown(state, health)
   const healthBox = healthStripBox(cx, H)
   const healthHalf = showHealth ? healthStripHalf(health ?? 0) : 0
+  // The bloom's global intensity (the fall after a refill) and its filter margin, in bar units.
+  const bloom = shieldBloomIntensity(state, stateAgeMs)
+  const bloomPad = SHIELD_BLOOM_BLUR[SHIELD_BLOOM_BLUR.length - 1] * (isQuad ? 1 : SHIELD_BAR_W / SHIELD_QUAD_W)
   const chaseBand = chaseHalf > half && (chaseReady ? <g style={{ mixBlendMode: 'plus-lighter' }} clipPath={`url(#${id}-chase)`}>
     <image href={tintedChaseUrl(chaseImage)} x={0} y={isQuad ? SHIELD_QUAD_CHASE_Y : 0} width={W} height={isQuad ? SHIELD_QUAD_CHASE_H : H} preserveAspectRatio="none" />
   </g> : <g style={{ mixBlendMode: 'plus-lighter', fill: SHIELD_CHASE_INK }}>
@@ -134,6 +138,18 @@ export function ShieldBar3d({ fraction, state, flash, chase, label, health = nul
       <clipPath id={`${id}-glowleft`}><rect x={cx - SHIELD_GLOW_W} y={glowY} width={SHIELD_GLOW_W} height={SHIELD_GLOW_H} /></clipPath>
       <clipPath id={`${id}-glowright`}><rect x={cx} y={glowY} width={SHIELD_GLOW_W} height={SHIELD_GLOW_H} /></clipPath>
       <clipPath id={`${id}-health`}><rect x={cx - healthHalf} y={healthBox.y} width={2 * healthHalf} height={healthBox.h} /></clipPath>
+      {/* The screen's bloom (`model/shieldBloom`): the bright part, blurred three ways, added back. */}
+      <filter id={`${id}-bloom`} filterUnits="userSpaceOnUse" x={-3 * bloomPad} y={-3 * bloomPad} width={W + 6 * bloomPad} height={H + 6 * bloomPad} colorInterpolationFilters="linearRGB">
+        <feComponentTransfer in="SourceGraphic" result="hi">
+          <feFuncR type="table" tableValues={SHIELD_BLOOM_TABLE} />
+          <feFuncG type="table" tableValues={SHIELD_BLOOM_TABLE} />
+          <feFuncB type="table" tableValues={SHIELD_BLOOM_TABLE} />
+        </feComponentTransfer>
+        {SHIELD_BLOOM_BLUR.map((sd, i) => <feGaussianBlur key={sd} in="hi" stdDeviation={sd} result={`b${i}`} />)}
+        <feComposite in="b0" in2="b1" operator="arithmetic" k2={bloom * SHIELD_BLOOM_LAYERS[0]} k3={bloom * SHIELD_BLOOM_LAYERS[1]} result="b01" />
+        <feComposite in="b01" in2="b2" operator="arithmetic" k2={1} k3={bloom * SHIELD_BLOOM_LAYERS[2]} result="glow" />
+        <feComposite in="SourceGraphic" in2="glow" operator="arithmetic" k2={1} k3={1} />
+      </filter>
     </defs>
     {/* The empty-shield glow: two quads meeting at the bar's center, the right one mirrored. */}
     {glowOn && <g filter={`url(#${id}-glowink)`}>
@@ -144,6 +160,7 @@ export function ShieldBar3d({ fraction, state, flash, chase, label, health = nul
         <image href={SHIELD_GLOW_URL} x={-cx + SHIELD_GLOW_SEAM_TRIM - SHIELD_GLOW_W} y={glowY} width={SHIELD_GLOW_W} height={SHIELD_GLOW_H} preserveAspectRatio="none" transform="scale(-1 1)" />
       </g>
     </g>}
+    <g filter={`url(#${id}-bloom)`}>
     <g {...(isQuad ? { mask: `url(#${id}-bar)` } : { clipPath: `url(#${id}-bar)` })}>
       <rect width={W} height={H} style={{ fill: tokenCssVar('replay-hud-shield-track') }} />
       {/* Broken: the game's frame flash (quad mode, the bar's own outline in the alert red), else the old tint. */}
@@ -163,6 +180,7 @@ export function ShieldBar3d({ fraction, state, flash, chase, label, health = nul
         <line x1={cx - half} y1={0} x2={cx - half} y2={H} vectorEffect="non-scaling-stroke" />
         <line x1={cx + half} y1={0} x2={cx + half} y2={H} vectorEffect="non-scaling-stroke" />
       </g>}
+    </g>
     </g>
     {/* The health strip: the game's bitmap in the measured color, lit from the center out to the health. */}
     {showHealth && healthHalf > 0 && <g clipPath={`url(#${id}-health)`} filter={`url(#${id}-healthink)`}>
