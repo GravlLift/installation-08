@@ -5,7 +5,8 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { ReplayLocale } from '../i18n/i18n'
 import { hudClock, readHud, readKillFeed, readScoreHud, prepareHud, NAME_TAG_EM, NAME_TAG_PAD_X, NAME_TAG_PAD_Y } from '../model/hud3d_logic'
 import { SHIELD_CHASE_INK, SHIELD_CHASE_URL, SHIELD_QUAD_URL, shieldFlash } from '../model/shieldHud'
-import { SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER, SHIELD_QUAD_H, SHIELD_QUAD_W, SHIELD_QUAD_CENTER, SHIELD_QUAD_HALF, SHIELD_QUAD_CHASE_H, SHIELD_QUAD_CHASE_Y } from '../ui/shieldBarGeometry'
+import { TEAM_EMBLEM_GAP_SHARE, TEAM_EMBLEM_HEIGHT_SHARE, teamEmblemUrl } from '../model/teamEmblem'
+import { SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER, SHIELD_QUAD_H, SHIELD_QUAD_W, SHIELD_QUAD_CENTER, SHIELD_QUAD_HALF, SHIELD_QUAD_CHASE_H, SHIELD_QUAD_CHASE_Y, SHIELD_QUAD_SHAPE_GAIN, SHIELD_QUAD_HEX_OPACITY, SHIELD_QUAD_FILL_OPACITY } from '../ui/shieldBarGeometry'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
 import { weaponFullIcon } from '../model/weaponFullIcon'
@@ -19,6 +20,7 @@ import { buildLivesByXuid } from '../model/livesPosition'
 import { CALLOUT_LABEL, calloutName, calloutOfLivesAt, type PreparedCallouts } from '../model/mapCallouts'
 import type { HeldWeapon } from '../scene3d/redReticle3d'
 import { DAMAGE_ARC_URL, paintDamageArcs } from '../ui/damageArcPaint'
+import { paintScoreMeter, readScoreMeterMask, SCORE_METER_URL, type ScoreMeterMask } from '../ui/scoreMeter'
 import { tintedChase } from '../ui/shieldChaseArt'
 import { ensureHudFonts, HUD_FONT_FAMILY, HUD_SCORE_FONT_FAMILY } from '../ui/hudFonts'
 import { adsOverlaysOfDoc, createAdsOverlayAtlas, paintAdsAmmo, type SvgImageLoader } from './adsOverlayRaster'
@@ -68,6 +70,16 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
   // bar masks to the quad's alpha whenever the player's life carries shield samples (damage
   // events are not involved, so this is not gated on them, as the chase bitmap below is).
   urls.add(SHIELD_QUAD_URL)
+  // The game's score meter bitmap, awaited with the icons so the first exported frame fills the
+  // score bars with it: the bars show whenever the document has a score timeline, damage events
+  // or not, so it preloads with every build (as the quad does).
+  urls.add(SCORE_METER_URL)
+  // The game's team emblems (the score bars' outer ends): one per camp the document's score
+  // timeline names, so a document without a score layer preloads none.
+  for (const team of doc.scoreTimeline?.teams ?? []) {
+    const emblem = teamEmblemUrl(team.teamId)
+    if (emblem) urls.add(emblem)
+  }
   // The game's damage-arc bitmap, awaited with the icons so the first exported frame has it
   // (only when the match has damage events: without them no arc is ever drawn).
   if (doc.damages?.length) {
@@ -85,7 +97,36 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
     img.onerror = () => resolve()
     img.src = url
   }))])
+  // The shield quad's two masks, built once from its alpha: `solid` (the alpha times
+  // SHIELD_QUAD_SHAPE_GAIN, the bar's shape) and `hex` (the raw alpha in white, the hex pattern).
+  // Where a canvas cannot be read (a headless test), both fall back to the bitmap itself.
+  let quadMaskCache: { solid: CanvasImageSource; hex: CanvasImageSource } | null = null
+  function quadMasks(img: HTMLImageElement): { solid: CanvasImageSource; hex: CanvasImageSource } {
+    if (quadMaskCache) return quadMaskCache
+    quadMaskCache = { solid: img, hex: img }
+    try {
+      const w = SHIELD_QUAD_W, h = SHIELD_QUAD_H
+      const make = (scale: number): HTMLCanvasElement | null => {
+        const c = document.createElement('canvas'); c.width = w; c.height = h
+        const cx2 = c.getContext('2d')
+        if (!cx2) return null
+        cx2.drawImage(img, 0, 0, w, h)
+        const data = cx2.getImageData(0, 0, w, h)
+        const px = data.data
+        for (let i = 0; i < px.length; i += 4) { px[i] = 255; px[i + 1] = 255; px[i + 2] = 255; px[i + 3] = Math.min(255, px[i + 3] * scale) }
+        cx2.putImageData(data, 0, 0)
+        return c
+      }
+      const solid = make(SHIELD_QUAD_SHAPE_GAIN), hex = make(1)
+      if (solid && hex) quadMaskCache = { solid, hex }
+    } catch { /* keep the bitmap fallback */ }
+    return quadMaskCache
+  }
   const painted = new Map<string, HTMLCanvasElement>()
+  // The score meter's mask, read once from the preloaded bitmap: the bars fill with it whenever
+  // it is loaded, and fall back to the flat fill when it is not.
+  const meterImage = images.get(SCORE_METER_URL)
+  const meterMask: ScoreMeterMask | null = meterImage ? readScoreMeterMask(meterImage) : null
   function icon(ctx: CanvasRenderingContext2D, url: string | undefined, color: string, tinted: boolean, mirror: boolean, x: number, y: number, w: number, h: number): boolean {
     const img = url ? images.get(url) : undefined
     if (!img || !url) return false
@@ -126,8 +167,31 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       for (const [index, side] of [left, right].entries()) {
         const x = index === 0 ? w / 2 - size * 1.6 - bar : w / 2 + size * 1.6
         ctx.fillStyle = 'rgba(0,0,0,.8)'; ctx.fillRect(x, y - size * 0.4, bar, size * 0.8)
-        ctx.globalAlpha = 0.7; ctx.fillStyle = colors[index]; const fill = bar * Math.max(0, Math.min(1, side.fill)); ctx.fillRect(index === 0 ? x + bar - fill : x, y - size * 0.4, fill, size * 0.8)
+        const fraction = Math.max(0, Math.min(1, side.fill))
+        ctx.globalAlpha = 0.7
+        if (meterMask) {
+          // The game's meter bitmap fills the bar's box (the right side is the mirrored bitmap):
+          // the fill grows from the high-G end, so both bars fill from the center.
+          paintScoreMeter(ctx, meterMask, x, y - size * 0.4, bar, size * 0.8, fraction, colors[index], index === 1)
+        } else {
+          ctx.fillStyle = colors[index]
+          const fill = bar * fraction
+          ctx.fillRect(index === 0 ? x + bar - fill : x, y - size * 0.4, fill, size * 0.8)
+        }
         ctx.globalAlpha = 1; ctx.fillStyle = white; ctx.textAlign = index === 0 ? 'right' : 'left'; ctx.fillText(String(side.score), index === 0 ? x + bar - 5 : x + 5, y)
+        // The game's team emblem at the bar's OUTER end (cusc 21a7dab4): 1.55 x the bar's
+        // height (`size * 0.8` here), a gap of 0.27 x the bar's height beyond the end,
+        // centered on the bar, untinted at opacity 0.7. A set built before the emblems
+        // preloaded no image, and nothing is drawn then.
+        const emblemUrl = teamEmblemUrl(side.teamId)
+        const emblem = emblemUrl ? images.get(emblemUrl) : undefined
+        if (emblem) {
+          const emblemSize = size * 0.8 * TEAM_EMBLEM_HEIGHT_SHARE
+          const gap = size * 0.8 * TEAM_EMBLEM_GAP_SHARE
+          ctx.globalAlpha = 0.7
+          ctx.drawImage(emblem, index === 0 ? x - gap - emblemSize : x + bar + gap, y - emblemSize / 2, emblemSize, emblemSize)
+          ctx.globalAlpha = 1
+        }
       }
     }
     if (ath) {
@@ -170,8 +234,11 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
               grad.addColorStop(0, deepInk); grad.addColorStop(0.5, mainInk); grad.addColorStop(1, deepInk)
               octx.save()
               octx.beginPath(); octx.rect((SHIELD_QUAD_CENTER - half) * u, 0, 2 * half * u, pixelH); octx.clip()
-              octx.globalAlpha = low ? 0.45 + 0.45 * flash : 0.82
+              octx.globalAlpha = low ? 0.45 + 0.45 * flash : SHIELD_QUAD_FILL_OPACITY
               octx.fillStyle = grad; octx.fillRect(0, 0, pixelW, pixelH)
+              // The quad's hex pattern and outline, light over the fill (its raw alpha, in white).
+              octx.globalAlpha = SHIELD_QUAD_HEX_OPACITY
+              octx.drawImage(quadMasks(quadBitmap).hex, 0, 0, pixelW, pixelH)
               octx.restore()
               // `recharging`: the fill's growing edges, marked with the rim color, as ShieldBar3d.
               if (state === 'recharging' && half < SHIELD_QUAD_HALF) {
@@ -207,9 +274,9 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
               }
               octx.restore()
             }
-            // The bar's shape: the quad's alpha, applied over the whole box.
+            // The bar's shape: the quad's alpha times the gain (`quadMasks`), over the whole box.
             octx.globalCompositeOperation = 'destination-in'
-            octx.drawImage(quadBitmap, 0, 0, pixelW, pixelH)
+            octx.drawImage(quadMasks(quadBitmap).solid, 0, 0, pixelW, pixelH)
             octx.globalCompositeOperation = 'source-over'
             ctx.drawImage(off, ox, oy, bw, bh)
           }

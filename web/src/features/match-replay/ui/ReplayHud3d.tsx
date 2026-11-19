@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { WeaponIcon } from '@/components/ui/WeaponIcon'
+import { resolveToken } from '@/lib/accessibility/resolveToken'
 import { tokenCssVar } from '@/lib/accessibility/semantic-tokens'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
@@ -16,8 +17,10 @@ import { ReplayHudScope3d } from './ReplayHudScope3d'
 import { ReplayKillPopup3d } from './ReplayKillPopup3d'
 import { ShieldBar3d } from './ShieldBar3d'
 import { DAMAGE_ARC_URL, paintDamageArcs } from './damageArcPaint'
+import { getScoreMeterMask, paintScoreMeter, type ScoreMeterMask } from './scoreMeter'
 import { ensureHudFonts, HUD_FONT_FAMILY, HUD_SCORE_FONT_FAMILY } from './hudFonts'
 import { shieldFlash } from '../model/shieldHud'
+import { TEAM_EMBLEM_GAP_SHARE, TEAM_EMBLEM_HEIGHT_SHARE, teamEmblemUrl } from '../model/teamEmblem'
 import { frameToMs, formatClock } from '@/lib/replay/replayLogic'
 import { MIRROR_STYLE, weaponFullIcon } from '../model/weaponFullIcon'
 import type { ReplayScene3d } from '../scene3d/replayScene3d'
@@ -42,9 +45,9 @@ damageArcImage.src = DAMAGE_ARC_URL
  * ScoreBanner — the match score and clock, bottom center: drawn at every HUD level (`hudLevel`),
  * the 2D view's 'score' level keeps it alone.
  */
-function ScoreBanner({ locale, frame, doc, playWindow, timeLimitMs, leftSide, rightSide }: { locale: ReplayLocale; frame: number; doc: ReplayDocumentReady; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; leftSide: { team: 'team-ally' | 'team-enemy'; score: number; part: number }; rightSide: { team: 'team-ally' | 'team-enemy'; score: number; part: number } }) {
+function ScoreBanner({ locale, frame, doc, playWindow, timeLimitMs, meterMask, leftSide, rightSide }: { locale: ReplayLocale; frame: number; doc: ReplayDocumentReady; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; meterMask: ScoreMeterMask | null; leftSide: { team: 'team-ally' | 'team-enemy'; teamId: number; score: number; part: number }; rightSide: { team: 'team-ally' | 'team-enemy'; teamId: number; score: number; part: number } }) {
   // `data-map-inset`: the 2D view's map fits over it (`topDownView3d.readInsets`).
-  return <div role="group" data-map-inset="bottom" aria-label={REPLAY_TEXT[locale].scoreBannerLabel} style={{ position: 'absolute', bottom: '6%', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '0.6em', fontSize: '0.65em', fontFamily: HUD_SCORE_FONT_FAMILY, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}><ScoreBar team={leftSide.team} score={leftSide.score} part={leftSide.part} towardCenter /><span aria-label={REPLAY_TEXT[locale].scoreBannerClock}>{formatClock(hudClock(timeLimitMs, displayClockMs(frameToMs(frame, doc), playWindow)))}</span><ScoreBar team={rightSide.team} score={rightSide.score} part={rightSide.part} /></div>
+  return <div role="group" data-map-inset="bottom" aria-label={REPLAY_TEXT[locale].scoreBannerLabel} style={{ position: 'absolute', bottom: '6%', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '0.6em', fontSize: '0.65em', fontFamily: HUD_SCORE_FONT_FAMILY, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}><ScoreBar team={leftSide.team} score={leftSide.score} part={leftSide.part} towardCenter teamId={leftSide.teamId} meterMask={meterMask} /><span aria-label={REPLAY_TEXT[locale].scoreBannerClock}>{formatClock(hudClock(timeLimitMs, displayClockMs(frameToMs(frame, doc), playWindow)))}</span><ScoreBar team={rightSide.team} score={rightSide.score} part={rightSide.part} teamId={rightSide.teamId} meterMask={meterMask} /></div>
 }
 
 export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, playWindow, timeLimitMs, sceneRef, hud = 'full', callouts = null }: { doc: ReplayDocumentReady; xuid: string; frameRef: RefObject<number>; locale: ReplayLocale; kills: readonly ReplayKill[]; nameOfXuid?: (xuid: string) => string | null; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; sceneRef?: RefObject<ReplayScene3d | null>; hud?: HudLevel; callouts?: PreparedCallouts | null }) {
@@ -62,6 +65,14 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
     damageArcImage.addEventListener('load', onLoad)
     return () => damageArcImage.removeEventListener('load', onLoad)
   }, [damageArcReady])
+  // The game's score meter bitmap, loaded once; the score bars paint with its mask when it is
+  // ready, and keep the flat fill until then (a HUD set built before it, or a failed load).
+  const [meterMask, setMeterMask] = useState<ScoreMeterMask | null>(null)
+  useEffect(() => {
+    let live = true
+    getScoreMeterMask().then((mask) => { if (live && mask) setMeterMask(mask) })
+    return () => { live = false }
+  }, [])
   const source = useMemo(() => prepareHud(doc, xuid, kills), [doc, xuid, kills])
   const lives = useMemo(() => buildLivesByXuid(doc.tracks), [doc])
   useEffect(() => {
@@ -84,11 +95,11 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
   // The game arranges the bars by team id, not by allegiance: the left side carries
   // `towardCenter`, and the color (`team`) stays that of each team's own allegiance.
   const leftSide = score && (score.allyOnLeft
-    ? { team: 'team-ally' as const, score: score.ally.score, part: score.ally.fill }
-    : { team: 'team-enemy' as const, score: score.enemy.score, part: score.enemy.fill })
+    ? { team: 'team-ally' as const, teamId: score.ally.teamId, score: score.ally.score, part: score.ally.fill }
+    : { team: 'team-enemy' as const, teamId: score.enemy.teamId, score: score.enemy.score, part: score.enemy.fill })
   const rightSide = score && (score.allyOnLeft
-    ? { team: 'team-enemy' as const, score: score.enemy.score, part: score.enemy.fill }
-    : { team: 'team-ally' as const, score: score.ally.score, part: score.ally.fill })
+    ? { team: 'team-enemy' as const, teamId: score.enemy.teamId, score: score.enemy.score, part: score.enemy.fill }
+    : { team: 'team-ally' as const, teamId: score.ally.teamId, score: score.ally.score, part: score.ally.fill })
   const weaponKey = heldModelKey(ath?.weaponId)
   // The magnification per level comes from the weapon index (the tag's own values); the hand
   // table gives only the kind and the style. A weapon the index has no zoom for does not zoom.
@@ -129,7 +140,7 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
   const awayIcon = away?.label?.img ? weaponFullIcon(away.label.img) : null
   const grenadeLabel = ath ? doc.grenadeLabels?.[ath.grenade.rank] : undefined
   const reticleColor = ath?.weaponId && onEnemy ? tokenCssVar('reticle-hostile') : undefined
-  const banner = score && leftSide && rightSide ? <ScoreBanner locale={locale} frame={frame} doc={doc} playWindow={playWindow} timeLimitMs={timeLimitMs} leftSide={leftSide} rightSide={rightSide} /> : null
+  const banner = score && leftSide && rightSide ? <ScoreBanner locale={locale} frame={frame} doc={doc} playWindow={playWindow} timeLimitMs={timeLimitMs} meterMask={meterMask} leftSide={leftSide} rightSide={rightSide} /> : null
   // The levels (`hudLevel`): 2D keeps the score strip, free view adds the kill feed, third person
   // is the full HUD without the aim (reticle, scope masks, Bandit frame), first person is all of it.
   if (hud === 'score') return <div className="pointer-events-none absolute inset-0" style={HUD_STYLE}>{banner}</div>
@@ -199,11 +210,52 @@ function EquipmentHud3d({ doc, rank, uses, locale }: { doc: ReplayDocumentReady;
  * team's own color (both follow the in-game team color the tokens carry). `towardCenter`: the
  * left bar, filled from the screen's center.
  */
-function ScoreBar({ team, score, part, towardCenter = false }: { team: 'team-ally' | 'team-enemy'; score: number; part: number; towardCenter?: boolean }) {
+function ScoreBar({ team, score, part, towardCenter = false, teamId, meterMask }: { team: 'team-ally' | 'team-enemy'; score: number; part: number; towardCenter?: boolean; teamId?: number; meterMask: ScoreMeterMask | null }) {
   const side = towardCenter ? 'right' : 'left'
   const color = tokenCssVar(team)
+  // The fill: a canvas painted with the game's meter bitmap when its mask is loaded, the flat
+  // colored span it replaces before that (and on a set built before the bitmap).
+  const fillRef = useRef<HTMLCanvasElement | null>(null)
+  const fraction = Math.max(0, Math.min(1, part))
+  const ink = resolveToken(team)
+  useEffect(() => {
+    const canvas = fillRef.current
+    if (!canvas || !meterMask) return
+    const dpr = window.devicePixelRatio || 1
+    const w = canvas.clientWidth
+    const h = canvas.clientHeight
+    if (w === 0 || h === 0) return
+    const bw = Math.round(w * dpr)
+    const bh = Math.round(h * dpr)
+    if (canvas.width !== bw) canvas.width = bw
+    if (canvas.height !== bh) canvas.height = bh
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.clearRect(0, 0, w, h)
+    // The fill grows from the high-G end: unflipped that is the RIGHT end, the screen's center
+    // for the left bar. The right bar uses the mirrored bitmap (the game sets bitmap_flipx = 1
+    // on the right team's quad), so only it flips (`!towardCenter`).
+    paintScoreMeter(ctx, meterMask, 0, 0, w, h, fraction, ink, !towardCenter)
+  }, [meterMask, fraction, ink, towardCenter])
   return <span data-score-bar={team} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: towardCenter ? 'flex-end' : 'flex-start', width: '6.5em', height: '1.15em', padding: '0 0.3em', background: `color-mix(in srgb, ${color} 28%, #000)`, [towardCenter ? 'borderRight' : 'borderLeft']: `2px solid ${color}` }}>
-    <span aria-hidden="true" style={{ position: 'absolute', top: 0, bottom: 0, [side]: 0, width: `${Math.max(0, Math.min(1, part)) * 100}%`, background: color }} />
+    {meterMask
+      ? <canvas ref={fillRef} aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
+      : <span aria-hidden="true" style={{ position: 'absolute', top: 0, bottom: 0, [side]: 0, width: `${fraction * 100}%`, background: color }} />}
     <span style={{ position: 'relative' }}>{score}</span>
+    {teamId != null && <TeamEmblem teamId={teamId} towardCenter={towardCenter} />}
   </span>
+}
+
+/**
+ * TeamEmblem: the team's emblem at the bar's OUTER end (the left bar's left, the right
+ * bar's right), the game's own proportions (cusc 21a7dab4): 1.55 x the bar's height, a gap
+ * of 0.27 x the bar's height beyond the bar's end, vertically centered on the bar, untinted
+ * at opacity 0.7. The bar is 1.15em tall (`ScoreBar`); a set built before the emblems (a
+ * failed load) renders nothing.
+ */
+function TeamEmblem({ teamId, towardCenter = false }: { teamId: number; towardCenter?: boolean }) {
+  const url = teamEmblemUrl(teamId)
+  if (!url) return null
+  return <img src={url} alt="" aria-hidden="true" onError={(e) => { e.currentTarget.style.display = 'none' }} style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', height: `${1.15 * TEAM_EMBLEM_HEIGHT_SHARE}em`, [towardCenter ? 'right' : 'left']: '100%', [towardCenter ? 'marginRight' : 'marginLeft']: `${1.15 * TEAM_EMBLEM_GAP_SHARE}em`, opacity: 0.7, pointerEvents: 'none' }} />
 }
