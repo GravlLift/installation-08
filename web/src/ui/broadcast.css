@@ -256,12 +256,15 @@ body.bc-has-optimize-bar .bc-stage, body.bc-has-optimize-bar .bc-player { top: v
 
 /* Pre-game: the match's map sharp as the backdrop, the rosters against each other, one
  * progress line, and the 3-2-1 countdown (brief 125). */
-.bc-pregame { display: grid; place-items: center; height: 100%; }
-.bc-pregame-panel { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px;
+/* The panel scales with the window's height as well as its width, and when it still does not
+ * fit (a 12-a-side roster on a short window) the screen scrolls instead of pushing the build
+ * button off the bottom; `safe center` keeps an overflowing panel's top reachable. */
+.bc-pregame { display: grid; place-items: safe center; height: 100%; min-height: 0; overflow-y: auto; }
+.bc-pregame-panel { text-align: center; display: flex; flex-direction: column; align-items: center; gap: clamp(6px, 1.2vh, 12px);
   padding: 3vh 4vw 4vh; background: radial-gradient(ellipse at center, rgba(5,8,13,0.72) 0, rgba(5,8,13,0.4) 60%, transparent 78%); }
-.bc-pregame .bc-eyebrow { font-size: 16px; }
-.bc-pregame .bc-title { font-size: clamp(72px, 9vw, 150px); }
-.bc-versus { display: grid; grid-template-columns: 1fr auto 1fr; gap: 36px; align-items: start; margin: 18px 0 8px;
+.bc-pregame .bc-eyebrow { font-size: clamp(12px, 1.6vh, 16px); }
+.bc-pregame .bc-title { font-size: clamp(48px, min(9vw, 13vh), 150px); }
+.bc-versus { display: grid; grid-template-columns: 1fr auto 1fr; gap: 36px; align-items: start; margin: clamp(6px, 1.8vh, 18px) 0 8px;
   width: min(1000px, 92vw); }
 .bc-versus .bc-side { text-align: left; }
 .bc-versus .bc-ally { text-align: right; }
@@ -269,8 +272,10 @@ body.bc-has-optimize-bar .bc-stage, body.bc-has-optimize-bar .bc-player { top: v
   text-transform: uppercase; font-weight: 600; }
 .bc-versus .bc-ally h4 { color: var(--team-ally); }
 .bc-versus .bc-enemy h4 { color: var(--team-enemy); }
-.bc-versus .bc-side div { padding: 8px 0; font-family: var(--display); font-stretch: 85%; letter-spacing: 0.04em;
-  font-size: clamp(16px, 1.5vw, 24px); color: var(--ink); border-bottom: 1px solid rgba(255,255,255,0.12); }
+.bc-versus .bc-side div { padding: clamp(3px, 0.8vh, 8px) 0; font-family: var(--display); font-stretch: 85%; letter-spacing: 0.04em;
+  font-size: clamp(14px, min(1.5vw, 2.4vh), 24px); color: var(--ink); border-bottom: 1px solid rgba(255,255,255,0.12); }
+/* Big Team Battle (more than 8 a side): tighter rows so both rosters fit a 1080p window. */
+.bc-versus.bc-versus-big .bc-side div { padding: clamp(2px, 0.45vh, 5px) 0; font-size: clamp(13px, min(1.25vw, 1.9vh), 20px); }
 .bc-versus .bc-vs { font-family: var(--display); font-stretch: 75%; font-weight: 700; font-size: 44px;
   letter-spacing: 0.08em; color: var(--ink-faint); line-height: 1; padding-top: 4px; }
 .bc-progress { width: min(560px, 80vw); margin-top: 22px; }

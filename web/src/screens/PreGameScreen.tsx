@@ -383,7 +383,7 @@ export function PreGameScreen({ matchId, onBack }: { matchId: string; onBack: ()
           {eyebrow ? <div className="bc-eyebrow">{eyebrow}</div> : null}
           <h1 className="bc-title">{mapName}</h1>
           {roster ? (
-            <div className="bc-versus">
+            <div className={'bc-versus' + (Math.max(roster.ally.length, roster.enemy.length) > 8 ? ' bc-versus-big' : '')}>
               <div className="bc-side bc-ally">
                 <h4>{roster.own}</h4>
                 {roster.ally.map((name, i) => (
