@@ -133,6 +133,78 @@ describe('ClipRig.apply', () => {
   })
 })
 
+describe('ClipRig.ensureClip', () => {
+  /** Three bones at rest: b_a and b_b (the catalog's), b_c (a pose-only bone, never in the catalog). */
+  function threeBones(): { root: THREE.Group; a: THREE.Bone; b: THREE.Bone; c: THREE.Bone } {
+    const root = new THREE.Group()
+    const a = new THREE.Bone()
+    a.name = 'b_a'
+    const b = new THREE.Bone()
+    b.name = 'b_b'
+    b.position.set(0, 1, 0)
+    const c = new THREE.Bone()
+    c.name = 'b_c'
+    c.position.set(0, 0, 2)
+    root.add(a)
+    a.add(b)
+    a.add(c)
+    return { root, a, b, c }
+  }
+
+  const gameplay = fakeClip('combat:idle', 1, { tracks: [turn('b_a', [90]), turn('b_b', [30])] })
+  const pose = fakeClip('pose:stance', 1, { tracks: [turn('b_c', [60])] })
+
+  it('drives a bone the catalog never animated, and lets it rest', () => {
+    const { root, c } = threeBones()
+    const rig = new ClipRig(root, new SpartanClips([gameplay]))
+    expect(rig.bones.length).toBe(2)
+    rig.ensureClip(pose)
+    expect(rig.bones.length).toBe(3)
+    // At weight 1 the third bone takes the clip's pose...
+    const m = newClipMix(1, 0)
+    Object.assign(m.base[0], { clip: pose, time: 0, weight: 1, loop: false })
+    m.baseCount = 1
+    rig.apply(m)
+    expect(yaw(c)).toBeCloseTo(60, 4)
+    // ...and with no weight it returns to its rest (the pose was captured from that rest).
+    Object.assign(m.base[0], { weight: 0 })
+    rig.apply(m)
+    expect(yaw(c)).toBeCloseTo(0, 6)
+    expect(c.position.z).toBe(2)
+  })
+
+  it('keeps the original bones working after a clip is added', () => {
+    const { root, a, b } = threeBones()
+    const rig = new ClipRig(root, new SpartanClips([gameplay]))
+    rig.ensureClip(pose)
+    const m = newClipMix(1, 0)
+    Object.assign(m.base[0], { clip: gameplay, time: 0, weight: 1, loop: false })
+    m.baseCount = 1
+    rig.apply(m)
+    expect(yaw(a)).toBeCloseTo(90, 4)
+    expect(yaw(b)).toBeCloseTo(30, 4)
+  })
+
+  it('is a no-op for a clip already bound', () => {
+    const { root } = threeBones()
+    const rig = new ClipRig(root, new SpartanClips([gameplay]))
+    rig.ensureClip(pose)
+    const n = rig.bones.length
+    rig.ensureClip(pose)
+    expect(rig.bones.length).toBe(n)
+  })
+
+  it('binds a clip on the fly when it appears in a mix', () => {
+    const { root, c } = threeBones()
+    const rig = new ClipRig(root, new SpartanClips([gameplay]))
+    const m = newClipMix(1, 0)
+    Object.assign(m.base[0], { clip: pose, time: 0, weight: 1, loop: false })
+    m.baseCount = 1
+    rig.apply(m)
+    expect(yaw(c)).toBeCloseTo(60, 4)
+  })
+})
+
 describe('measureSyncPhases', () => {
   it('finds the frame where the left foot leads furthest; stationary clips stay at 0', () => {
     const root = spartanSkeleton()

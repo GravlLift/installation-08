@@ -52,14 +52,17 @@ export function newClipMix(baseCapacity = 16, overCapacity = 4): ClipMix {
 type Binding = Int16Array
 
 export class ClipRig {
+  private _bones: THREE.Bone[]
   /** Bones animated by at least one clip, in buffer order. */
-  readonly bones: THREE.Bone[]
-  private readonly restQ: Float32Array
-  private readonly restT: Float32Array
-  private readonly q: Float32Array
-  private readonly t: Float32Array
-  private readonly wq: Float32Array
-  private readonly wt: Float32Array
+  get bones(): readonly THREE.Bone[] { return this._bones }
+  private restQ: Float32Array
+  private restT: Float32Array
+  private q: Float32Array
+  private t: Float32Array
+  private wq: Float32Array
+  private wt: Float32Array
+  private readonly byName: Map<string, THREE.Bone>
+  private readonly index: Map<string, number>
   private readonly bindings = new Map<SpartanClip, Binding>()
   private readonly sample = new Float32Array(4)
   readonly clips: SpartanClips
@@ -67,15 +70,15 @@ export class ClipRig {
   /** `root`: the copy at rest; `clips`: its source's catalog. */
   constructor(root: THREE.Object3D, clips: SpartanClips) {
     this.clips = clips
-    const byName = new Map<string, THREE.Bone>()
+    this.byName = new Map<string, THREE.Bone>()
     root.traverse((o) => {
-      if (o instanceof THREE.Bone && !byName.has(o.name)) byName.set(o.name, o)
+      if (o instanceof THREE.Bone && !this.byName.has(o.name)) this.byName.set(o.name, o)
     })
-    this.bones = clips.bones().flatMap((n) => byName.get(n) ?? [])
-    const n = this.bones.length
+    this._bones = clips.bones().flatMap((n) => this.byName.get(n) ?? [])
+    const n = this._bones.length
     this.restQ = new Float32Array(4 * n)
     this.restT = new Float32Array(3 * n)
-    this.bones.forEach((b, i) => {
+    this._bones.forEach((b, i) => {
       b.quaternion.toArray(this.restQ, 4 * i)
       b.position.toArray(this.restT, 3 * i)
     })
@@ -83,20 +86,83 @@ export class ClipRig {
     this.t = new Float32Array(3 * n)
     this.wq = new Float32Array(n)
     this.wt = new Float32Array(n)
-    const index = new Map(this.bones.map((b, i) => [b.name, i]))
+    this.index = new Map(this._bones.map((b, i) => [b.name, i]))
     for (const name of clips.names()) {
       const clip = clips.get(name) as SpartanClip
-      this.bindings.set(clip, Int16Array.from(clip.tracks, (tr) => index.get(tr.bone) ?? -1))
+      this.bindings.set(clip, this.bind(clip))
     }
+  }
+
+  /** bind: the clip's tracks' bone indices (-1 when the bone is absent from the copy). */
+  private bind(clip: SpartanClip): Binding {
+    return Int16Array.from(clip.tracks, (tr) => this.index.get(tr.bone) ?? -1)
+  }
+
+  /**
+   * ensureClip makes `clip` driveable on this rig: a no-op when it is already bound. Otherwise it
+   * finds, by name under the rig's root, every bone its tracks name that this rig does not drive
+   * yet, appends them (their rest is captured from their current pose: they have never been driven
+   * by a clip), grows the per-bone buffers, and binds the clip.
+   */
+  ensureClip(clip: SpartanClip): void {
+    if (this.bindings.has(clip)) return
+    const fresh: THREE.Bone[] = []
+    for (const tr of clip.tracks) {
+      if (this.index.has(tr.bone)) continue
+      const bone = this.byName.get(tr.bone)
+      if (!bone) continue
+      this.index.set(tr.bone, this._bones.length)
+      this._bones.push(bone)
+      fresh.push(bone)
+    }
+    if (fresh.length > 0) this.grow(fresh)
+    this.bindings.set(clip, this.bind(clip))
+  }
+
+  /** grow: the per-bone buffers grown to cover `fresh` (their rest captured from the current pose). */
+  private grow(fresh: THREE.Bone[]): void {
+    const n0 = this._bones.length - fresh.length
+    const n = this._bones.length
+    const restQ = new Float32Array(4 * n)
+    const restT = new Float32Array(3 * n)
+    restQ.set(this.restQ.subarray(0, 4 * n0))
+    restT.set(this.restT.subarray(0, 3 * n0))
+    fresh.forEach((bone, j) => {
+      const i = n0 + j
+      bone.quaternion.toArray(restQ, 4 * i)
+      bone.position.toArray(restT, 3 * i)
+    })
+    const q = new Float32Array(4 * n)
+    const t = new Float32Array(3 * n)
+    q.set(this.q.subarray(0, 4 * n0))
+    t.set(this.t.subarray(0, 3 * n0))
+    const wq = new Float32Array(n)
+    const wt = new Float32Array(n)
+    wq.set(this.wq.subarray(0, n0))
+    wt.set(this.wt.subarray(0, n0))
+    this.restQ = restQ
+    this.restT = restT
+    this.q = q
+    this.t = t
+    this.wq = wq
+    this.wt = wt
   }
 
   /** apply poses the copy's bones for mix `mix` (see the header). */
   apply(mix: ClipMix): void {
     this.wq.fill(0)
     this.wt.fill(0)
-    for (let i = 0; i < mix.baseCount; i++) this.blendBase(mix.base[i])
+    for (let i = 0; i < mix.baseCount; i++) {
+      const c = mix.base[i].clip
+      if (c) this.ensureClip(c)
+      this.blendBase(mix.base[i])
+    }
     this.settleBase()
-    for (let i = 0; i < mix.overCount; i++) this.blendOver(mix.over[i])
+    for (let i = 0; i < mix.overCount; i++) {
+      const c = mix.over[i].clip
+      if (c) this.ensureClip(c)
+      this.blendOver(mix.over[i])
+    }
     this.bones.forEach((b, i) => {
       b.quaternion.fromArray(this.q, 4 * i)
       b.position.fromArray(this.t, 3 * i)
