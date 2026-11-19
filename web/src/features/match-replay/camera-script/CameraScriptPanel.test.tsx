@@ -2,22 +2,38 @@
 /**
  * CameraScriptPanel.test.tsx — the camera panel's view over a hand-built fake editor (unit 4b-2):
  * opening/creating/saving/deleting scripts, the two-step delete, capture controls, the key rows
- * (ease, fov, roll, go to, set from camera, delete), the `c` shortcut, Escape, and that a click
- * outside does NOT close it.
+ * (ease, fov, roll, go to, set from camera, delete), the hold section (add, clip select, loop,
+ * weapon, blend, heading, until, hold here, face camera, remove, freeze), the `c` shortcut,
+ * Escape, and that a click outside does NOT close it.
  */
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { expect, it, vi } from 'vitest'
 
 import { CameraScriptPanel } from './CameraScriptPanel'
 import type { CameraScriptEditor } from './useCameraScriptEditor'
 import type { CameraScript, CameraKey } from '../scene3d/cameraScript3d'
 import type { CameraScriptSummary } from './cameraScriptApi'
+import type { Hold } from '../scene3d/hold3d'
 
 const summary = (name: string): CameraScriptSummary => ({ name, modified: '2026-01-01T00:00:00Z', keys: 1 })
 
 const KEY_0: CameraKey = { t: 0, pos: { at: 'world', point: [0, 0, 0] }, look: { at: 'world', point: [1, 0, 0] }, ease: 'smooth', fov: 45 }
 const KEY_1: CameraKey = { t: 1000, pos: { at: 'world', point: [2, 0, 0] }, look: { at: 'world', point: [3, 0, 0] } }
 const SCRIPT: CameraScript = { version: 1, matchId: 'm', name: 'intro', keys: [KEY_0, KEY_1] }
+
+const HOLD_0: Hold = {
+  xuid: 'A',
+  at: 1000,
+  clip: 'combat:rifle:idle',
+  loop: false,
+  blendMs: 250,
+  heading: null,
+  turnMs: 400,
+  pitch: 0,
+  weapon: 'keep',
+  until: null,
+}
+const SCRIPT_HOLD: CameraScript = { version: 1, matchId: 'm', name: 'intro', keys: [KEY_0], holds: [HOLD_0] }
 
 function makeEditor(overrides: Partial<CameraScriptEditor> = {}): CameraScriptEditor {
   return {
@@ -175,4 +191,89 @@ it('a pointerdown outside does NOT close the panel', () => {
   renderPanel(makeEditor(), onClose)
   fireEvent.pointerDown(document.body)
   expect(onClose).not.toHaveBeenCalled()
+})
+
+it('Add hold lists players without a hold, omits the held one, and calls addHold with the choice', () => {
+  const editor = makeEditor({ script: SCRIPT_HOLD })
+  renderPanel(editor)
+  const select = screen.getByRole('combobox', { name: 'Add hold player' })
+  expect(within(select).getByRole('option', { name: 'Bravo' })).toBeInTheDocument()
+  expect(within(select).queryByRole('option', { name: 'Alpha' })).toBeNull()
+  fireEvent.change(select, { target: { value: 'B' } })
+  expect(editor.addHold).toHaveBeenCalledWith('B')
+})
+
+it('Add hold is disabled when every player already has a hold', () => {
+  const allHeld: CameraScript = {
+    ...SCRIPT_HOLD,
+    holds: [HOLD_0, { ...HOLD_0, xuid: 'B', at: 2000 }],
+  }
+  renderPanel(makeEditor({ script: allHeld }))
+  expect(screen.getByRole('combobox', { name: 'Add hold player' })).toBeDisabled()
+})
+
+it('the clip select lists the gameplay group and the poses grouped by kind, and calls updateHold with the clip', () => {
+  const editor = makeEditor({
+    script: SCRIPT_HOLD,
+    poses: [
+      { id: 'emote:wave', kind: 'emote', name: 'Wave' },
+      { id: 'stance:guard', kind: 'stance', name: 'Guard' },
+      { id: 'idle:rest', kind: 'idle', name: 'Rest' },
+    ],
+  })
+  renderPanel(editor)
+  expect(screen.getByRole('option', { name: 'Rifle idle' })).toBeInTheDocument()
+  expect(screen.getByRole('option', { name: 'Crouch idle' })).toBeInTheDocument()
+  expect(screen.getByRole('option', { name: 'Wave' }).closest('optgroup')).toHaveAttribute('label', 'Emotes')
+  expect(screen.getByRole('option', { name: 'Guard' }).closest('optgroup')).toHaveAttribute('label', 'Stances')
+  expect(screen.getByRole('option', { name: 'Rest' }).closest('optgroup')).toHaveAttribute('label', 'Idles')
+  fireEvent.change(screen.getByRole('combobox', { name: 'Hold 1 clip' }), { target: { value: 'emote:wave' } })
+  expect(editor.updateHold).toHaveBeenCalledWith(0, { clip: 'emote:wave' })
+})
+
+it('the clip select shows a no-poses note when the pose catalog is empty', () => {
+  renderPanel(makeEditor({ script: SCRIPT_HOLD }))
+  expect(screen.getByText('Poses need the game installed; gameplay idles only.')).toBeInTheDocument()
+})
+
+it('Loop, Hide weapon, Blend, Heading and Until call updateHold with the right patch', () => {
+  // heading and until start non-null so clearing the fields is a real change event.
+  const editor = makeEditor({
+    script: { ...SCRIPT_HOLD, holds: [{ ...HOLD_0, heading: 90, until: 5000 }] },
+  })
+  renderPanel(editor)
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Loop' }))
+  expect(editor.updateHold).toHaveBeenLastCalledWith(0, { loop: true })
+  fireEvent.click(screen.getByRole('checkbox', { name: 'Hide weapon' }))
+  expect(editor.updateHold).toHaveBeenLastCalledWith(0, { weapon: 'hide' })
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Hold 1 blend' }), { target: { value: '500' } })
+  expect(editor.updateHold).toHaveBeenLastCalledWith(0, { blendMs: 500 })
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Hold 1 heading' }), { target: { value: '45' } })
+  expect(editor.updateHold).toHaveBeenLastCalledWith(0, { heading: 45 })
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Hold 1 heading' }), { target: { value: '' } })
+  expect(editor.updateHold).toHaveBeenLastCalledWith(0, { heading: null })
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Hold 1 until' }), { target: { value: '8000' } })
+  expect(editor.updateHold).toHaveBeenLastCalledWith(0, { until: 8000 })
+  fireEvent.change(screen.getByRole('spinbutton', { name: 'Hold 1 until' }), { target: { value: '' } })
+  expect(editor.updateHold).toHaveBeenLastCalledWith(0, { until: null })
+})
+
+it('a hold row\'s Hold here, Face camera and Remove call their actions', () => {
+  const editor = makeEditor({ script: SCRIPT_HOLD })
+  renderPanel(editor)
+  fireEvent.click(screen.getByRole('button', { name: 'Hold 1 hold here' }))
+  expect(editor.holdHere).toHaveBeenCalledWith(0)
+  fireEvent.click(screen.getByRole('button', { name: 'Hold 1 face camera' }))
+  expect(editor.faceCamera).toHaveBeenCalledWith(0)
+  fireEvent.click(screen.getByRole('button', { name: 'Hold 1 remove' }))
+  expect(editor.removeHold).toHaveBeenCalledWith(0)
+})
+
+it('the freeze checkbox reflects frozen and calls setFreeze', () => {
+  const editor = makeEditor({ script: SCRIPT_HOLD, frozen: () => true })
+  renderPanel(editor)
+  const freeze = screen.getByRole('checkbox', { name: 'Freeze world here' })
+  expect(freeze).toBeChecked()
+  fireEvent.click(freeze)
+  expect(editor.setFreeze).toHaveBeenCalledWith(0, false)
 })

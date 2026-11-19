@@ -13,10 +13,27 @@ import { useEffect, useRef, useState } from 'react'
 import { keySummary } from './cameraScriptModel'
 import type { CameraScriptEditor } from './useCameraScriptEditor'
 import { scriptClockOf, type Ease } from '../scene3d/cameraScript3d'
+import type { PoseSummary } from './cameraScriptApi'
 import { isEditableTarget } from '../../../lib/dom/editableTarget'
 
 const PANEL_WIDTH = 360
 const EASES: readonly Ease[] = ['smooth', 'linear', 'in', 'out', 'cut']
+
+/** The gameplay idle clips that play with the game not installed (id, label). */
+const GAMEPLAY_CLIPS: readonly (readonly [string, string])[] = [
+  ['combat:rifle:idle', 'Rifle idle'],
+  ['combat:pistol:idle', 'Pistol idle'],
+  ['combat:sword:idle', 'Sword idle'],
+  ['combat:hammer:idle', 'Hammer idle'],
+  ['crouch:rifle:idle', 'Crouch idle'],
+]
+
+/** The pose catalog's kinds, in the clip select's order (kind, group label). */
+const POSE_KINDS: readonly (readonly [PoseSummary['kind'], string])[] = [
+  ['emote', 'Emotes'],
+  ['stance', 'Stances'],
+  ['idle', 'Idles'],
+]
 
 /** A script time in ms as m:ss.mmm. */
 function formatScriptMs(ms: number): string {
@@ -103,6 +120,9 @@ export function CameraScriptPanel({ editor, players, nameOfXuid, onClose }: Came
   }
 
   const script = editor.script
+  const holds = script?.holds ?? []
+  const heldXuids = new Set(holds.map((h) => h.xuid))
+  const addHeldPlayers = players.filter((p) => !heldXuids.has(p.xuid))
   const canPlay = script !== null && script.keys.length > 0
   const canStop = editor.previewing || editor.scriptPlaying
   const canSave = script !== null && editor.dirty
@@ -290,6 +310,64 @@ export function CameraScriptPanel({ editor, players, nameOfXuid, onClose }: Came
           : <p className="text-xs text-muted-foreground">No keys</p>}
       </section>
 
+      {script !== null && (
+        <section className="space-y-1.5">
+          <h3 className="text-xs font-medium text-muted-foreground">Hold</h3>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-foreground">Add hold</span>
+            <select
+              className={SELECT}
+              aria-label="Add hold player"
+              value=""
+              disabled={addHeldPlayers.length === 0}
+              onChange={(e) => {
+                const xuid = e.target.value
+                if (xuid !== '') editor.addHold(xuid)
+              }}
+            >
+              <option value="" disabled>
+                {addHeldPlayers.length === 0 ? 'All players are held' : 'Choose a player'}
+              </option>
+              {addHeldPlayers.map((p) => (
+                <option key={p.xuid} value={p.xuid}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {holds.map((hold, i) => (
+            <HoldRow
+              key={hold.xuid}
+              index={i}
+              name={nameOfXuid(hold.xuid)}
+              at={hold.at}
+              clip={hold.clip}
+              loop={hold.loop}
+              weapon={hold.weapon}
+              blendMs={hold.blendMs}
+              turnMs={hold.turnMs}
+              pitch={hold.pitch}
+              heading={hold.heading}
+              until={hold.until}
+              poses={editor.poses}
+              frozen={editor.frozen(i)}
+              onClip={(clip) => editor.updateHold(i, { clip })}
+              onLoop={(loop) => editor.updateHold(i, { loop })}
+              onWeapon={(weapon) => editor.updateHold(i, { weapon })}
+              onBlendMs={(blendMs) => editor.updateHold(i, { blendMs })}
+              onTurnMs={(turnMs) => editor.updateHold(i, { turnMs })}
+              onPitch={(pitch) => editor.updateHold(i, { pitch })}
+              onHeading={(heading) => editor.updateHold(i, { heading })}
+              onUntil={(until) => editor.updateHold(i, { until })}
+              onHoldHere={() => editor.holdHere(i)}
+              onFaceCamera={() => editor.faceCamera(i)}
+              onFreeze={(frozen) => editor.setFreeze(i, frozen)}
+              onRemove={() => editor.removeHold(i)}
+            />
+          ))}
+        </section>
+      )}
+
       {editor.error !== null && <p className="text-xs text-destructive">{editor.error}</p>}
       {editor.notice !== null && <p className="text-xs text-muted-foreground">{editor.notice}</p>}
     </div>
@@ -365,6 +443,186 @@ function KeyRow({ index, t, summary, ease, fov, roll, canCapture, onEase, onFov,
           Delete
         </button>
       </div>
+    </div>
+  )
+}
+
+interface HoldRowProps {
+  index: number
+  name: string
+  at: number
+  clip: string
+  loop: boolean
+  weapon: 'keep' | 'hide'
+  blendMs: number
+  turnMs: number
+  pitch: number
+  heading: number | null
+  until: number | null
+  poses: PoseSummary[]
+  frozen: boolean
+  onClip: (clip: string) => void
+  onLoop: (loop: boolean) => void
+  onWeapon: (weapon: 'keep' | 'hide') => void
+  onBlendMs: (blendMs: number | undefined) => void
+  onTurnMs: (turnMs: number | undefined) => void
+  onPitch: (pitch: number | undefined) => void
+  onHeading: (heading: number | null) => void
+  onUntil: (until: number | null) => void
+  onHoldHere: () => void
+  onFaceCamera: () => void
+  onFreeze: (frozen: boolean) => void
+  onRemove: () => void
+}
+
+function HoldRow({
+  index,
+  name,
+  at,
+  clip,
+  loop,
+  weapon,
+  blendMs,
+  turnMs,
+  pitch,
+  heading,
+  until,
+  poses,
+  frozen,
+  onClip,
+  onLoop,
+  onWeapon,
+  onBlendMs,
+  onTurnMs,
+  onPitch,
+  onHeading,
+  onUntil,
+  onHoldHere,
+  onFaceCamera,
+  onFreeze,
+  onRemove,
+}: HoldRowProps) {
+  const label = `Hold ${index + 1}`
+  // A clip outside the lists (a hand-edited name) keeps its own option so the select stays honest.
+  const clipKnown =
+    GAMEPLAY_CLIPS.some(([id]) => id === clip) || poses.some((p) => p.id === clip)
+
+  function onOptionalNumber(raw: string, set: (value: number | null) => void): void {
+    const value = readNumberField(raw)
+    if (value === undefined) set(null) // empty: keep the film's value / stay held
+    else if (value !== null) set(value) // non-numeric text is ignored, as in the key rows
+  }
+
+  return (
+    <div role="group" aria-label={label} className="space-y-1 rounded border border-border p-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate text-xs text-foreground">{name}</span>
+        <button type="button" className={BTN} aria-label={`${label} remove`} onClick={onRemove}>
+          Remove
+        </button>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">At {formatScriptMs(at)}</span>
+        <button type="button" className={BTN} aria-label={`${label} hold here`} onClick={onHoldHere}>
+          Hold here
+        </button>
+      </div>
+      <select className={SELECT} aria-label={`${label} clip`} value={clip} onChange={(e) => onClip(e.target.value)}>
+        {!clipKnown && <option value={clip}>{clip}</option>}
+        <optgroup label="Gameplay">
+          {GAMEPLAY_CLIPS.map(([id, clipName]) => (
+            <option key={id} value={id}>
+              {clipName}
+            </option>
+          ))}
+        </optgroup>
+        {POSE_KINDS.map(([kind, groupLabel]) => {
+          const inKind = poses.filter((p) => p.kind === kind)
+          if (inKind.length === 0) return null
+          return (
+            <optgroup key={kind} label={groupLabel}>
+              {inKind.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </optgroup>
+          )
+        })}
+      </select>
+      {poses.length === 0 && (
+        <p className="text-xs text-muted-foreground">Poses need the game installed; gameplay idles only.</p>
+      )}
+      <div className="flex items-center gap-2.5">
+        <label className="flex items-center gap-1.5 text-xs text-foreground">
+          <input type="checkbox" checked={loop} onChange={(e) => onLoop(e.target.checked)} />
+          Loop
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-foreground">
+          <input
+            type="checkbox"
+            checked={weapon === 'hide'}
+            onChange={(e) => onWeapon(e.target.checked ? 'hide' : 'keep')}
+          />
+          Hide weapon
+        </label>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <input
+          className={INPUT}
+          type="number"
+          aria-label={`${label} blend`}
+          value={String(blendMs)}
+          onChange={(e) => {
+            const value = readNumberField(e.target.value)
+            if (value !== null) onBlendMs(value)
+          }}
+        />
+        <input
+          className={INPUT}
+          type="number"
+          aria-label={`${label} turn`}
+          value={String(turnMs)}
+          onChange={(e) => {
+            const value = readNumberField(e.target.value)
+            if (value !== null) onTurnMs(value)
+          }}
+        />
+        <input
+          className={INPUT}
+          type="number"
+          aria-label={`${label} pitch`}
+          value={String(pitch)}
+          onChange={(e) => {
+            const value = readNumberField(e.target.value)
+            if (value !== null) onPitch(value)
+          }}
+        />
+      </div>
+      <div className="flex items-center gap-1.5">
+        <input
+          className={INPUT}
+          type="number"
+          aria-label={`${label} heading`}
+          value={heading === null ? '' : String(heading)}
+          onChange={(e) => onOptionalNumber(e.target.value, onHeading)}
+        />
+        <input
+          className={INPUT}
+          type="number"
+          aria-label={`${label} until`}
+          value={until === null ? '' : String(until)}
+          onChange={(e) => onOptionalNumber(e.target.value, onUntil)}
+        />
+        <button type="button" className={BTN} aria-label={`${label} face camera`} onClick={onFaceCamera}>
+          Face camera
+        </button>
+      </div>
+      <label className="flex items-center gap-1.5 text-xs text-foreground">
+        <input type="checkbox" checked={frozen} onChange={(e) => onFreeze(e.target.checked)} />
+        Freeze world here
+      </label>
+      <p className="text-xs text-muted-foreground">The world stops at this hold; the camera keeps moving.</p>
     </div>
   )
 }
