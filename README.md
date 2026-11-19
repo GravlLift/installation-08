@@ -33,13 +33,15 @@ anywhere.
 - Windows 10 or 11 (64-bit).
 - Halo Infinite installed through Steam or the Xbox app. The app finds either install on any
   drive. If yours lives somewhere unusual, set `LEVELUP_HALO_DEPLOY` to its `deploy` folder.
-- Disk space: each map you watch is built once, at about 600 to 900 MB (up to 1.4 GB at High
-  textures).
+- A capable GPU: it is developed on an RTX 4080 with 64 GB of RAM. On a weaker card, use
+  Standard textures rather than High.
+- Disk space: each map you watch is built once per texture quality, at roughly 600 MB to
+  1.5 GB per map per quality.
 
 ### Run it
 
 1. Download the release zip, unzip it anywhere, and double-click `installation-08.exe`.
-   It starts a small local server and opens the viewer in your browser.
+   It starts a small local server and opens the viewer in its own window.
 
    The app is not code-signed, so the first time Windows shows **"Windows protected your PC"**.
    Click **More info**, then **Run anyway**. That is the normal prompt for unsigned software.
@@ -54,13 +56,17 @@ anywhere.
    film and stats.
 
 4. **Watch.** The first time you open a match on a map, the app builds that map from your game
-   files. This takes a few minutes for a big map; after that it opens right away.
+   files, once per texture quality. This takes a few minutes per map (longer at High); after
+   that it opens right away.
 
 On the very first start the app also prepares, in the background, the things every match
 shares: weapons, armor, first-person arms, coatings and the announcer. The home screen's
 **Getting ready** panel shows their progress. You can sign in and fetch matches meanwhile.
 
 Your matches and builds live in `%LOCALAPPDATA%\infinite-theater-3d\data`.
+
+The app tells you when a new release is out. To report a bug, use **Help > Report an issue**
+in the app's menu.
 
 ### Checking a download
 

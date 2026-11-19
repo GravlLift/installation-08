@@ -82,6 +82,9 @@ engineering backlog; this page keeps only the user-visible parts of it.
 
 ## Viewer
 
+- Dragging the window to another monitor while a match is open can hang the whole PC (seen
+  once, moving to a monitor with a different resolution; the cause is not yet known). Open
+  the app on the monitor you want to use instead.
 - The 2D map view is one fixed picture of the whole map, cut over its highest walked floor:
   interiors under a walked roof are hidden (players there show as markers over the roof).
   It leaves out foliage, coarse decor, decals and every see-through surface (glass
