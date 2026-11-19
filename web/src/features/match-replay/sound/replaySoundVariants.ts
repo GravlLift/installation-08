@@ -19,6 +19,7 @@
  * variant is meant to avoid.
  */
 
+import type { SoundFalloff } from './soundSpatial'
 import { VEHICLE_BOOM_SOUND_VARIANTS } from './vehicleDestructionSound'
 import { VEHICLE_SHOT_SOUND_VARIANTS } from './vehicleShotSound'
 
@@ -57,11 +58,17 @@ export interface ReplaySoundEvent {
    */
   gainDb?: number
   /**
-   * Where the sound comes from, in map coordinates (x, y): the horizontal plane of spatial
-   * sound (`soundSpatial.ts`). Absent = a sound without a place, played as is whatever the
-   * listener.
+   * Where the sound comes from, in map coordinates (x, y, and z when the source has a height):
+   * the place of spatial sound (`soundSpatial.ts`). Absent = a sound without a place, played as
+   * is whatever the listener.
    */
-  at?: { x: number; y: number }
+  at?: { x: number; y: number; z?: number }
+  /**
+   * THE GAME'S DISTANCE FALLOFF of this sound (`SoundFalloff`, read from the Wwise attenuation
+   * its node chain names): when present, the level by distance follows it, cut at its end,
+   * instead of the generic 1/d (`spatialOf`).
+   */
+  falloff?: SoundFalloff
   /**
    * A FOOT OR MOVEMENT SOUND (`footstepSound.ts`): at a full voice ceiling it may take only another
    * such sound's slot (`admitVoice`), never a shot's. Absent = any other sound.

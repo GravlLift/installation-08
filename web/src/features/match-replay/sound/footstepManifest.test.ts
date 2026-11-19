@@ -8,7 +8,7 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 
-import { FOOTSTEP_MANIFEST_URL, footStems, loadFootstepManifest, movementStems, parseFootstepManifest } from './footstepManifest'
+import { falloffOf, FOOTSTEP_MANIFEST_URL, footStems, layersOf, loadFootstepManifest, movementStems, parseFootstepManifest } from './footstepManifest'
 
 const GOOD = {
   version: 1,
@@ -59,6 +59,29 @@ describe('parseFootstepManifest', () => {
       }
     })()
     expect(parseFootstepManifest(bad)).toBeNull()
+  })
+})
+
+describe('layersOf and falloffOf (version 3)', () => {
+  const takes = [
+    { file: 'foot_00000001.ogg', media: 1, durationMs: 1, gainDb: -11, falloff: 'aa' },
+    { file: 'foot_00000002.ogg', media: 2, durationMs: 1, gainDb: -20 },
+  ]
+  it('groups the takes by layer, each with its stem', () => {
+    const layers = layersOf({ takes, layers: [[0], [1], [7]] })
+    expect(layers?.map((l) => l.map((t) => t.stem))).toEqual([['foot_00000001'], ['foot_00000002']])
+  })
+
+  it('reads an entry without layers as one layer of every take, and an empty one as nothing', () => {
+    expect(layersOf({ takes })?.map((l) => l.length)).toEqual([2])
+    expect(layersOf({ takes: [] })).toBeNull()
+    expect(layersOf(undefined)).toBeNull()
+  })
+
+  it('finds the falloff a take names', () => {
+    const m = parseFootstepManifest({ ...GOOD, version: 3, falloffs: { aa: { volume: [[0, 0, 4], [5, -1, 4]] } } })!
+    expect(falloffOf(m, takes[0])).toEqual([[0, 0, 4], [5, -1, 4]])
+    expect(falloffOf(m, takes[1])).toBeUndefined()
   })
 })
 

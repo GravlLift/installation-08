@@ -210,6 +210,13 @@ describe('applyVoiceCap — the same accounting as the real-time player', () => 
     expect(applyVoiceCap(simultanes(SOUND_MAX_VOICES), UNE_SECONDE)).toHaveLength(SOUND_MAX_VOICES)
   })
 
+  it('drops a placed sound out of earshot without spending a voice', () => {
+    const [far, ...rest] = simultanes(SOUND_MAX_VOICES + 1)
+    const kept = applyVoiceCap([{ ...far, place: { gain: 0, pan: 0 } }, ...rest], UNE_SECONDE)
+    expect(kept).toHaveLength(SOUND_MAX_VOICES)
+    expect(kept.some((s) => s.place?.gain === 0)).toBe(false)
+  })
+
   it('refuses beyond the ceiling', () => {
     // Without that the export would sound louder and more confused than the page.
     expect(applyVoiceCap(simultanes(SOUND_MAX_VOICES + 5), UNE_SECONDE)).toHaveLength(

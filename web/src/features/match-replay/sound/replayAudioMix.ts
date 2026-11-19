@@ -53,7 +53,7 @@ import {
 } from './replayAudio'
 import { WEAPON_SOUND_VARIATIONS } from './weaponSoundVariations'
 import { pickVariantStem, type ReplaySoundEvent } from './replaySoundVariants'
-import { placeOf, type SoundListener, type SoundPlacement } from './soundSpatial'
+import { INAUDIBLE_LEVEL, placeOf, type SoundListener, type SoundPlacement } from './soundSpatial'
 import {
   engineStemsOf,
   engineTailSeconds,
@@ -310,6 +310,8 @@ export function applyVoiceCap(
     const atS = s.atMs / 1000
     busy = busy.filter((v) => v.endS > atS)
     const level = voiceLevelOf(s.draw, s.place)
+    // Out of earshot, as in the page player: not played, no voice spent.
+    if (s.place && level < INAUDIBLE_LEVEL) continue
     // THE SAME RULE AS THE PAGE (`admitVoice`): at the ceiling, a louder sound takes the slot of
     // the quietest voice, which then fades out there — the cut is written into its shape.
     const footstep = s.footstep === true

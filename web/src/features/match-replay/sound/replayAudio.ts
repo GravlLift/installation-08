@@ -33,7 +33,7 @@ import {
   type DistanceChain,
   type SoundDraw,
 } from './weaponSoundLogic'
-import { type SoundPlacement } from './soundSpatial'
+import { INAUDIBLE_LEVEL, type SoundPlacement } from './soundSpatial'
 
 /**
  * CEILING of played duration, in seconds — not the cut: the duration of a sound is that of its
@@ -565,6 +565,8 @@ export class ReplayAudioPlayer {
     // (`place`) multiplies it: a spatialized sound is lower according to its distance, at the same
     // wiring as a non-spatialized sound when we do not ask for one. It is also the voice's rank.
     const tenue = voiceLevelOf(draw, place)
+    // A placed sound out of earshot (past its falloff) is not played and spends no voice.
+    if (place && tenue < INAUDIBLE_LEVEL) return
     if (voix) {
       const verdict = admitVoice(this.slotsAt(now), t0, tenue, footstep)
       if (!verdict.admit) return

@@ -13,6 +13,8 @@
  * "jumpup") are a flat map alongside. Each entry is a set of takes, one of which the viewer draws.
  */
 
+import type { SoundFalloff } from './soundSpatial'
+
 /** The surfaces the extraction knows. */
 export type FootstepSurface =
   | 'default'
@@ -42,11 +44,20 @@ export interface FootstepTake {
   file: string
   media: number
   durationMs: number
+  /** The volume the game's mix hierarchy authors for it, in dB (version 3). */
+  gainDb?: number
+  /** The key in `falloffs` of the distance falloff it plays with (version 3). */
+  falloff?: string
 }
 
 /** The set of takes one sound draws from. */
 export interface FootstepEntry {
   takes: ReadonlyArray<FootstepTake>
+  /**
+   * What the game plays together (version 3): one take of every layer sounds at once, each layer
+   * a list of indexes into `takes`. Absent: one layer of every take.
+   */
+  layers?: ReadonlyArray<ReadonlyArray<number>>
 }
 
 /** The manifest `build-sounds` writes (`internal/footstepsounds/manifest.go`). */
@@ -54,6 +65,27 @@ export interface FootstepManifest {
   version: number
   feet: Readonly<Record<string, Readonly<Partial<Record<string, FootstepEntry>>>>>
   movement: Readonly<Record<string, FootstepEntry>>
+  /** The distance falloffs the takes name, by attenuation id (version 3). */
+  falloffs?: Readonly<Record<string, { volume: SoundFalloff }>>
+}
+
+/** One layer of a sound: the takes it draws one of, each with its stem. */
+export type FootstepLayer = ReadonlyArray<FootstepTake & { stem: string }>
+
+/** layersOf — the layers of an entry, each take with its stem; `null` when the entry is empty. */
+export function layersOf(entry: FootstepEntry | undefined): FootstepLayer[] | null {
+  const takes = entry?.takes
+  if (!takes || takes.length === 0) return null
+  const withStem = takes.map((t) => ({ ...t, stem: footTakeStem(t.file) }))
+  const layers = (entry.layers ?? [])
+    .map((l) => l.filter((i) => i >= 0 && i < withStem.length).map((i) => withStem[i]))
+    .filter((l) => l.length > 0)
+  return layers.length > 0 ? layers : [withStem]
+}
+
+/** falloffOf — the falloff a take names, if the manifest has it. */
+export function falloffOf(manifest: FootstepManifest, take: FootstepTake): SoundFalloff | undefined {
+  return take.falloff ? manifest.falloffs?.[take.falloff]?.volume : undefined
 }
 
 /** Where the sound route serves the manifest. */

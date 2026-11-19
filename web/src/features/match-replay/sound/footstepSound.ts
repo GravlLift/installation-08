@@ -18,7 +18,7 @@
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { botKey } from '../../../lib/replay/rosterLogic'
 import { covers } from '../model/replaySpans'
-import { footStems, movementStems, type FootstepManifest } from './footstepManifest'
+import { falloffOf, layersOf, type FootstepEntry, type FootstepManifest } from './footstepManifest'
 import type { ReplaySoundEvent } from './replaySoundVariants'
 
 /** The gaits a ground step takes on. */
@@ -30,7 +30,7 @@ export interface FootstepTimedEvent {
   kind: 'step' | 'slide' | 'land' | 'jump'
   action: string
   xuid: string
-  position: { x: number; y: number }
+  position: { x: number; y: number; z?: number }
 }
 
 /** What the pure function reads for one player. */
@@ -42,28 +42,33 @@ export interface FootstepInput {
   surface: string
 }
 
-// -- SPEED THRESHOLDS (m/s). ESTIMATED: the film publishes a speed, not a gait; these split the
-//    gaits where the cadence reads right at typical Spartan speeds. --
-const RUN_MIN_SPEED = 3
-const SPRINT_MIN_SPEED = 5
+// -- SPEED THRESHOLDS, in world units per second (the film's positions are world units, 1 u =
+//    3.048 m). MEASURED on a 4v4 film (05dfe4e9, 111k frame-to-frame speeds): the horizontal speed
+//    peaks at 2.0-2.5 u/s (running) and 2.75-3.25 u/s (sprinting), with a shoulder at 1.5-1.75 u/s
+//    (crouching, strafing). The thresholds sit between the peaks; the game picks the gait from its
+//    animation, which the film does not publish. --
+const RUN_MIN_SPEED = 1.8
+const SPRINT_MIN_SPEED = 2.7
 // Below this horizontal speed a step is not heard (a shuffle, a slide in place). ESTIMATED.
 const MIN_STEP_SPEED = 0.5
 
-// -- STRIDE (m) BETWEEN TWO FOOT STEPS of a gait. ESTIMATED: the film gives the position, not the
-//    foot fall rate; a stride distance is the one quantity that turns a speed into a cadence, and
-//    these read as a natural stride per gait. --
+// -- STRIDE (world units) BETWEEN TWO FOOT STEPS of a gait. ESTIMATED: the film gives the position,
+//    not the foot fall rate; a stride distance is the one quantity that turns a speed into a
+//    cadence, and these give about two steps a second at each gait's measured speed. --
 const STRIDE: Record<FootstepGait, number> = { walk: 0.8, run: 1.1, sprint: 1.4 }
-// A slide foot-scrape every this distance (m). ESTIMATED, same reason as the strides.
+// A slide foot-scrape every this distance (world units). ESTIMATED, same reason as the strides.
 const SLIDE_STRIDE = 1
 
-// -- LANDING FALL HEIGHTS (m). ESTIMATED: a fall beyond LAND_SOFT plays the soft landing, beyond
-//    LAND_HARD the hard one. A track without Z never reaches here, so a landing is only ever
-//    detected where the film carries a vertical axis. --
+// -- LANDING FALL HEIGHTS (world units). ESTIMATED: a fall beyond LAND_SOFT plays the soft
+//    landing, beyond LAND_HARD the hard one. A track without Z never reaches here, so a landing is
+//    only ever detected where the film carries a vertical axis. --
 const LAND_SOFT = 0.4
 const LAND_HARD = 1.8
 
-// -- THE LEVEL OF THE FOOT STEPS in the mix. A fixed duck, NOT a measurement: it is a placement
-//    choice, the footsteps sitting in the effects family a touch under the gunfire. --
+// -- THE LEVEL OF A TAKE WITHOUT ITS OWN (a manifest older than version 3, which did not carry the
+//    game's authored volumes). A placement choice, not a measurement. Version 3 takes play at the
+//    volume the game's mix hierarchy authors for them (walk -29 dB, run -11 and -20 dB, sprint
+//    -9.5 and -14 dB, slides -7 dB). --
 export const FOOTSTEP_GAIN_DB = -3
 
 /** gaitOf — the gait of a horizontal ground speed. */
@@ -71,6 +76,11 @@ function gaitOf(speed: number): FootstepGait {
   if (speed >= SPRINT_MIN_SPEED) return 'sprint'
   if (speed >= RUN_MIN_SPEED) return 'run'
   return 'walk'
+}
+
+/** at — a track point as a sound's place: x, y, and z when the film carries it. */
+function at(p: { x: number; y: number; z?: number }): FootstepTimedEvent['position'] {
+  return p.z === undefined ? { x: p.x, y: p.y } : { x: p.x, y: p.y, z: p.z }
 }
 
 /** coversAny — does any span cover the frame? */
@@ -111,14 +121,14 @@ export function footstepTimedEvents(input: FootstepInput): FootstepTimedEvent[] 
     if (air) {
       if (!inAir) {
         // Entering the air: the jump-up, at the take-off frame.
-        out.push({ timeMs: prev.t * frameIntervalMs, kind: 'jump', action: 'jumpup', xuid, position: { x: prev.x, y: prev.y } })
+        out.push({ timeMs: prev.t * frameIntervalMs, kind: 'jump', action: 'jumpup', xuid, position: at(prev) })
         inAir = true
         peakZ = p.z ?? null
       } else if (p.z !== undefined && (peakZ === null || p.z > peakZ)) {
         peakZ = p.z
       }
       // The slide span ends at the take-off: the slide_outof.
-      if (sliding) out.push({ timeMs, kind: 'slide', action: 'slide_outof', xuid, position: { x: p.x, y: p.y } })
+      if (sliding) out.push({ timeMs, kind: 'slide', action: 'slide_outof', xuid, position: at(p) })
       stepAcc = 0
       slideAcc = 0
       sliding = false
@@ -129,8 +139,8 @@ export function footstepTimedEvents(input: FootstepInput): FootstepTimedEvent[] 
       // Landing: judge the fall by the height gained in the air and the ground regained.
       if (peakZ !== null && p.z !== undefined) {
         const fall = peakZ - p.z
-        if (fall > LAND_HARD) out.push({ timeMs, kind: 'land', action: 'landhard', xuid, position: { x: p.x, y: p.y } })
-        else if (fall > LAND_SOFT) out.push({ timeMs, kind: 'land', action: 'land', xuid, position: { x: p.x, y: p.y } })
+        if (fall > LAND_HARD) out.push({ timeMs, kind: 'land', action: 'landhard', xuid, position: at(p) })
+        else if (fall > LAND_SOFT) out.push({ timeMs, kind: 'land', action: 'land', xuid, position: at(p) })
       }
       inAir = false
       peakZ = null
@@ -141,25 +151,25 @@ export function footstepTimedEvents(input: FootstepInput): FootstepTimedEvent[] 
     if (slide) {
       if (!sliding) {
         // The slide begins: the slide_into, then the surface slide scrape per distance.
-        out.push({ timeMs, kind: 'slide', action: 'slide_into', xuid, position: { x: p.x, y: p.y } })
+        out.push({ timeMs, kind: 'slide', action: 'slide_into', xuid, position: at(p) })
         sliding = true
         slideAcc = 0
       }
       slideAcc += dist
       if (slideAcc >= SLIDE_STRIDE) {
         slideAcc -= SLIDE_STRIDE
-        out.push({ timeMs, kind: 'slide', action: 'slide', xuid, position: { x: p.x, y: p.y } })
+        out.push({ timeMs, kind: 'slide', action: 'slide', xuid, position: at(p) })
       }
     } else {
       // The slide ends: the slide_outof, at the last sliding frame.
-      if (sliding) out.push({ timeMs, kind: 'slide', action: 'slide_outof', xuid, position: { x: p.x, y: p.y } })
+      if (sliding) out.push({ timeMs, kind: 'slide', action: 'slide_outof', xuid, position: at(p) })
       sliding = false
       if (speed >= MIN_STEP_SPEED) {
         const gait = gaitOf(speed)
         stepAcc += dist
         if (stepAcc >= STRIDE[gait]) {
           stepAcc -= STRIDE[gait]
-          out.push({ timeMs, kind: 'step', action: gait, xuid, position: { x: p.x, y: p.y } })
+          out.push({ timeMs, kind: 'step', action: gait, xuid, position: at(p) })
         }
       } else {
         stepAcc = 0
@@ -169,26 +179,25 @@ export function footstepTimedEvents(input: FootstepInput): FootstepTimedEvent[] 
   return out
 }
 
-/** stemsFor — the playable stems of a timed event for a surface, or `null` when none were extracted. */
-function stemsFor(manifest: FootstepManifest, surface: string, kind: FootstepTimedEvent['kind'], action: string): string[] | null {
+/** entryFor — the manifest entry of a timed event for a surface. */
+function entryFor(manifest: FootstepManifest, surface: string, kind: FootstepTimedEvent['kind'], action: string): FootstepEntry | undefined {
   switch (kind) {
     case 'step':
-      return footStems(manifest, surface, action)
+      return manifest.feet[surface]?.[action]
     case 'slide':
-      if (action === 'slide_into') return movementStems(manifest, 'slide_into')
-      if (action === 'slide_outof') return movementStems(manifest, 'slide_outof')
-      return footStems(manifest, surface, 'slide')
+      if (action === 'slide_into' || action === 'slide_outof') return manifest.movement[action]
+      return manifest.feet[surface]?.slide
     case 'land':
-      return movementStems(manifest, action)
+      return manifest.movement[action]
     case 'jump':
-      return movementStems(manifest, 'jumpup')
+      return manifest.movement.jumpup
   }
 }
 
-/** pickFootstem — the take of an event, DETERMINISTIC: seeded by time and xuid, so live and export agree. */
-function pickFootstem(e: FootstepTimedEvent, stems: string[]): string {
-  if (stems.length <= 1) return stems[0]
-  return stems[fnv1a(e.timeMs, e.xuid, e.kind, e.action) % stems.length]
+/** pickTake — the take of an event's layer, DETERMINISTIC: seeded by time, xuid and layer, so live and export agree. */
+function pickTake<T>(e: FootstepTimedEvent, layer: number, takes: readonly T[]): T {
+  if (takes.length <= 1) return takes[0]
+  return takes[fnv1a(e.timeMs, e.xuid, e.kind, layer === 0 ? e.action : `${e.action}#${layer}`) % takes.length]
 }
 
 /** fnv1a — a 32-bit FNV-1a fold of the event's identity, stable across runs and builds. */
@@ -205,9 +214,11 @@ function fnv1a(timeMs: number, xuid: string, kind: string, action: string): numb
 }
 
 /**
- * footstepReplayEvents — the timed events as the track plays them: one take drawn, a fixed level
- * gain, and a place for every player but the followed one (whose own footsteps are his: full and
- * centered, no place).
+ * footstepReplayEvents — the timed events as the track plays them, as the game plays them: one
+ * take drawn from every layer the game sounds together (a run step is three), each at the volume
+ * the game authors for it and with its own distance falloff. Every player's steps are placed but
+ * the followed player's own (full and centered, no place); with nobody followed (the free camera,
+ * the 2D view) every step is placed, so none plays full and centered behind the camera.
  */
 export function footstepReplayEvents(
   manifest: FootstepManifest,
@@ -217,11 +228,19 @@ export function footstepReplayEvents(
 ): ReplaySoundEvent[] {
   const out: ReplaySoundEvent[] = []
   for (const e of events) {
-    const stems = stemsFor(manifest, surface, e.kind, e.action)
-    if (!stems) continue
-    const ev: ReplaySoundEvent = { ms: e.timeMs, stem: pickFootstem(e, stems), gainDb: FOOTSTEP_GAIN_DB, footstep: true }
-    if (followed !== null && e.xuid !== followed) ev.at = e.position
-    out.push(ev)
+    const layers = layersOf(entryFor(manifest, surface, e.kind, e.action))
+    if (!layers) continue
+    const own = followed !== null && e.xuid === followed
+    layers.forEach((takes, i) => {
+      const take = pickTake(e, i, takes)
+      const ev: ReplaySoundEvent = { ms: e.timeMs, stem: take.stem, gainDb: take.gainDb ?? FOOTSTEP_GAIN_DB, footstep: true }
+      if (!own) {
+        ev.at = e.position
+        const falloff = falloffOf(manifest, take)
+        if (falloff) ev.falloff = falloff
+      }
+      out.push(ev)
+    })
   }
   return out
 }

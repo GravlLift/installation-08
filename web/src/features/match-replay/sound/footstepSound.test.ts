@@ -61,9 +61,10 @@ describe('footstepTimedEvents — cadence', () => {
     expect(sprint.length).toBeGreaterThan(walk.length)
   })
 
-  it('names the gait by speed: walk below the run threshold, sprint above it', () => {
-    expect(footstepTimedEvents(horizontal(2, 60)).find((e) => e.kind === 'step')?.action).toBe('walk')
-    expect(footstepTimedEvents(horizontal(8, 60)).find((e) => e.kind === 'step')?.action).toBe('sprint')
+  it('names the gait by speed in world units per second: walk, run at 2-2.5, sprint at 3', () => {
+    expect(footstepTimedEvents(horizontal(1, 60)).find((e) => e.kind === 'step')?.action).toBe('walk')
+    expect(footstepTimedEvents(horizontal(2.2, 60)).find((e) => e.kind === 'step')?.action).toBe('run')
+    expect(footstepTimedEvents(horizontal(3, 60)).find((e) => e.kind === 'step')?.action).toBe('sprint')
   })
 })
 
@@ -156,11 +157,51 @@ describe('footstepReplayEvents — the take and the place', () => {
       feet: { default: { walk: { takes: [{ file: 'foot_a.ogg', media: 1, durationMs: 1 }, { file: 'foot_b.ogg', media: 2, durationMs: 1 }, { file: 'foot_c.ogg', media: 3, durationMs: 1 }] } } },
       movement: {},
     }
-    const timed = footstepTimedEvents(horizontal(2, 200))
+    const timed = footstepTimedEvents(horizontal(1, 200))
     const stems = footstepReplayEvents(manifest, 'default', timed, null).map((e) => e.stem)
     expect(new Set(stems).size).toBeGreaterThan(1)
     // Stable: the same input draws the same sequence again.
     expect(footstepReplayEvents(manifest, 'default', timed, null).map((e) => e.stem)).toEqual(stems)
+  })
+
+  it('plays one take of every layer, at the game\'s volume and with its falloff', () => {
+    const fall: FootstepManifest['falloffs'] = { aa: { volume: [[0, 0, 4], [10, -1, 4]] }, bb: { volume: [[0, 0, 4], [18, -1, 4]] } }
+    const manifest: FootstepManifest = {
+      version: 3,
+      feet: {
+        default: {
+          run: {
+            takes: [
+              { file: 'foot_a.ogg', media: 1, durationMs: 1, gainDb: -11, falloff: 'aa' },
+              { file: 'foot_b.ogg', media: 2, durationMs: 1, gainDb: -11, falloff: 'aa' },
+              { file: 'foot_c.ogg', media: 3, durationMs: 1, gainDb: -20, falloff: 'bb' },
+            ],
+            layers: [[0, 1], [2]],
+          },
+        },
+      },
+      movement: {},
+      falloffs: fall,
+    }
+    const timed = footstepTimedEvents(horizontal(2.2, 60)).filter((e) => e.kind === 'step').slice(0, 1)
+    const placed = footstepReplayEvents(manifest, 'default', timed, null)
+    expect(placed).toHaveLength(2)
+    expect(placed[0].gainDb).toBe(-11)
+    expect(['foot_a', 'foot_b']).toContain(placed[0].stem)
+    expect(placed[0].falloff).toBe(fall.aa.volume)
+    expect(placed[1]).toMatchObject({ stem: 'foot_c', gainDb: -20, falloff: fall.bb.volume })
+    expect(placed.every((e) => e.at !== undefined && e.ms === placed[0].ms)).toBe(true)
+    // The followed player's own steps: the same layers, unplaced, no falloff.
+    const own = footstepReplayEvents(manifest, 'default', timed, 'P')
+    expect(own).toHaveLength(2)
+    expect(own.every((e) => e.at === undefined && e.falloff === undefined)).toBe(true)
+  })
+
+  it('with nobody followed, every step is placed', () => {
+    const timed = footstepTimedEvents(horizontal(1, 120))
+    const events = footstepReplayEvents(MANIFEST, 'default', timed, null)
+    expect(events.length).toBeGreaterThan(0)
+    expect(events.every((e) => e.at !== undefined)).toBe(true)
   })
 
   it('the followed player is unplaced; every other player is', () => {
