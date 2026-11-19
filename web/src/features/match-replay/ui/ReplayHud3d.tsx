@@ -85,6 +85,11 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
   }, [weaponId, zoom.level])
   const reticle = ath ? reticleGeometry(ath.shape, ath.elimination, ath.hit) : null
   const icon = ath?.label?.img ? weaponFullIcon(ath.label.img) : null
+  // The away weapon (small, dimmed, left of the upper row) and the selected grenade's label
+  // (rank null = the selection is indeterminate, the box carries the generic text).
+  const away = ath?.away ?? null
+  const awayIcon = away?.label?.img ? weaponFullIcon(away.label.img) : null
+  const grenadeLabel = ath?.grenade.rank != null ? doc.grenadeLabels?.[ath.grenade.rank] : undefined
   const reticleColor = ath?.weaponId && onEnemy ? tokenCssVar('reticle-hostile') : undefined
   const banner = score && leftSide && rightSide ? <ScoreBanner locale={locale} frame={frame} doc={doc} playWindow={playWindow} timeLimitMs={timeLimitMs} leftSide={leftSide} rightSide={rightSide} /> : null
   // The levels (`hudLevel`): 2D keeps the score strip, free view adds the kill feed, third person
@@ -112,21 +117,29 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
     )}
     <ReplayKillPopup3d popups={popups} locale={locale} />
     {place && <div data-hud-callout style={{ position: 'absolute', left: `${CALLOUT_LABEL.left * 100}%`, bottom: `${CALLOUT_LABEL.bottom * 100}%`, fontSize: `${CALLOUT_LABEL.em}em`, fontWeight: CALLOUT_LABEL.weight, letterSpacing: `${CALLOUT_LABEL.tracking}em`, textTransform: 'uppercase', lineHeight: 1 }}>{place}</div>}
-    {/* The game's bottom-right corner: grenades above, then mag | reserve and the weapon to their right, barrel pointing left (the atlas's native direction; artwork outside the atlas is flipped). */}
+    {/* The game's bottom-right corner: the away weapon (small, dimmed), the one grenade box and
+        the equipment on the upper row; mag | reserve and the in-hand weapon below; the in-hand
+        weapon's name under it, only right after a swap, fading as the game fades it. */}
     {ath && <div style={{ position: 'absolute', right: '3%', bottom: '6%', display: 'flex', flexDirection: 'column', alignItems: 'end', gap: '0.35em', lineHeight: 1, color: tokenCssVar('replay-hud-weapon') }}>
-      <div style={{ display: 'flex', gap: '0.25em', fontSize: '0.6em' }}>{ath.equipment && <EquipmentHud3d doc={doc} rank={ath.equipment.rank} uses={ath.equipment.uses} locale={locale} />}{ath.grenades.map((g) => <span key={g.rank} style={{ display: 'flex', alignItems: 'center', gap: '0.25em', padding: '0.2em 0.4em', border: '1px solid currentColor', background: 'var(--replay-hud-shadow)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{doc.grenadeLabels?.[g.rank]?.img ? <WeaponIcon imageUrl={doc.grenadeLabels[g.rank].img} tinted={doc.grenadeLabels[g.rank].tinted} label={g.name} width="1.3em" height="1.3em" /> : g.name} {g.count}</span>)}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25em', fontSize: '0.6em' }}>
+        {awayIcon && away && <WeaponIcon imageUrl={awayIcon.url} tinted={away.label?.tinted} label={catalogText(away.label, locale) ?? ''} width="2.8em" height="1.1em" style={awayIcon.mirrored ? { opacity: 0.5 } : { ...MIRROR_STYLE, opacity: 0.5 }} />}
+        <span style={{ display: 'flex', alignItems: 'center', gap: '0.25em', padding: '0.2em 0.4em', border: '1px solid currentColor', background: 'var(--replay-hud-shadow)', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{grenadeLabel?.img ? <WeaponIcon imageUrl={grenadeLabel.img} tinted={grenadeLabel.tinted} label={ath.grenade.name} width="1.3em" height="1.3em" /> : ath.grenade.name}{ath.grenade.count != null && <span>{ath.grenade.count}</span>}</span>
+        {ath.equipment && <EquipmentHud3d doc={doc} rank={ath.equipment.rank} uses={ath.equipment.uses} locale={locale} />}
+      </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.3em' }}>
         <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{ath.ammo?.mag}</span>
         {ath.ammo?.res != null && <span style={{ fontSize: '0.6em', opacity: 0.75, paddingLeft: '0.5em', borderLeft: '1px solid currentColor', fontVariantNumeric: 'tabular-nums' }}>{ath.ammo.res}</span>}
         {icon && <WeaponIcon imageUrl={icon.url} tinted={ath.label?.tinted} label={catalogText(ath.label, locale) ?? ''} width="2.8em" height="1.1em" style={icon.mirrored ? undefined : MIRROR_STYLE} />}
       </div>
+      {ath.nameTag && <div style={{ fontSize: '0.6em', fontWeight: 700, letterSpacing: '0.05em', opacity: ath.nameTag.opacity }}>{ath.nameTag.text}</div>}
     </div>}
   </div>
 }
 
 /**
- * The game's equipment slot, left of the grenades: the carried equipment's icon and its uses left
- * (`equipmentSlotHud`); spent down to zero uses, the icon dims until the equipment is gone.
+ * The game's equipment slot, rightmost of the upper row (right of the grenade box): the carried
+ * equipment's icon and its uses left (`equipmentSlotHud`); spent down to zero uses, the icon dims
+ * until the equipment is gone.
  */
 function EquipmentHud3d({ doc, rank, uses, locale }: { doc: ReplayDocumentReady; rank: number; uses: number | null; locale: ReplayLocale }) {
   const label = doc.abilityLabels?.[String(rank)]

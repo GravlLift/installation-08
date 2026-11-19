@@ -8,7 +8,7 @@ vi.mock('../model/hud3d_logic', () => ({
   prepareHud: () => ({}),
   readScoreHud: () => null,
   hudClock: () => 0,
-  readHud: () => ({ shield: null, label: { img: '/jeu/contour-01.png', tinted: true }, ammo: { mag: 12, res: 24 }, grenades: [{ rank: 0, name: 'Frag', count: 1 }] }),
+  readHud: () => ({ shield: null, label: { img: '/jeu/contour-01.png', tinted: true }, ammo: { mag: 12, res: 24 }, grenade: { rank: 0, name: 'Frag', count: 1 } }),
   readKillFeed: () => [
     { kill: { xuid: 'a', victimXuid: 'b', victimGamertag: 'Bravo', weaponImageUrl: '/weapon.png', weaponTinted: true }, opacity: 1, killer: true, victim: false },
     { kill: { xuid: 'a', victimXuid: 'b', victimGamertag: 'Bravo', weaponImageUrl: '/missing.png', weaponLabel: 'Bandit Evo / M392 Bandit' }, opacity: 1, killer: true, victim: false },

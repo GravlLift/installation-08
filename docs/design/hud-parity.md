@@ -80,7 +80,9 @@ come from the installed game (the same rule as icons: game data only, nothing in
 
 The video export draws the same HUD (`export/exportHud.ts`), so each phase updates it too.
 
-**Phase 1: the weapon corner (data is ready, UI only).**
+**Phase 1: the weapon corner (data is ready, UI only).** Live HUD done 2026-11-18 (`readHud`'s
+`away`, `grenade`, `nameTag`; `weaponAway` and `handChangeAt` in `weaponInHand.ts`), checked in the
+viewer on Live Fire 07157ce5 (pickup at frame 3458, swaps in life 596). Export pending.
 1. Weapon in hand and weapon away: the away weapon's icon goes small and dimmed at the left of the
    upper row, the in-hand row keeps mag | reserve and its icon. Both read the loadout row, so a swap
    trades them on the selector flip.
