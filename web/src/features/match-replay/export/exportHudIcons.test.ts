@@ -13,6 +13,9 @@ const { readHudMock } = vi.hoisted(() => ({
 }))
 
 vi.mock('../model/hud3d_logic', () => ({
+  NAME_TAG_EM: 0.43,
+  NAME_TAG_PAD_X: 0.45,
+  NAME_TAG_PAD_Y: 0.2,
   prepareHud: () => ({}),
   readScoreHud: () => null,
   hudClock: () => 0,
@@ -93,7 +96,7 @@ it('preloads and paints HUD icons, using a short label when an image is unavaila
   // fillText, at the tag's opacity.
   readHudMock.current = { ...MOCK_HUD, nameTag: { text: 'RIFLE', opacity: 0.4 } }
   paint(ctx, { width: 960, height: 540 }, 2)
-  const plate = rects.find((r) => r.alpha === 0.4 && Math.abs(r.h - 1.7 * size * 0.55) < 0.001)
+  const plate = rects.find((r) => r.alpha === 0.4 && Math.abs(r.h - (1 + 2 * 0.2) * size * 0.43) < 0.001)
   expect(plate).toBeDefined()
   const plateOp = ops.findIndex((o) => o.rect === plate)
   const tagOp = ops.findIndex((o, i) => i > plateOp && o.op === 'fillText' && o.args?.[0] === 'RIFLE')

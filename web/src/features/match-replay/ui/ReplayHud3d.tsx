@@ -6,7 +6,7 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
 import { catalogText } from '../i18n/catalogLabel'
 import type { ReplayKill } from '../model/killFeedLogic'
-import { hudClock, readHud, readKillFeed, readKillPopups, readScoreHud, prepareHud } from '../model/hud3d_logic'
+import { hudClock, readHud, readKillFeed, readKillPopups, readScoreHud, prepareHud, NAME_TAG_EM, NAME_TAG_PAD_X, NAME_TAG_PAD_Y } from '../model/hud3d_logic'
 import { magsForWeapon } from '../model/scopeLogic'
 import { adsAmmoText } from '../model/adsOverlay'
 import { aimHudAt, heldModelKey, RETICLE_DOT_R, RETICLE_HEIGHT_SHARE, RETICLE_KILL_STROKE, RETICLE_MIN_PX, RETICLE_STROKE, reticleGeometry, segmentsPath } from '../model/aimHud'
@@ -171,7 +171,7 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
         {ath.ammo?.res != null && <span style={{ fontSize: '0.6em', opacity: 0.75, paddingLeft: '0.5em', borderLeft: '1px solid currentColor', fontVariantNumeric: 'tabular-nums' }}>{ath.ammo.res}</span>}
         {icon && <WeaponIcon imageUrl={icon.url} tinted={ath.label?.tinted} label={catalogText(ath.label, locale) ?? ''} width="2.8em" height="1.1em" style={icon.mirrored ? undefined : MIRROR_STYLE} />}
       </div>
-      {ath.nameTag && <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '0.35em', fontSize: '0.55em', fontWeight: 600, letterSpacing: '0.08em', lineHeight: 1, padding: '0.35em 0.6em', background: 'rgba(0, 0, 0, 0.55)', color: '#fff', opacity: ath.nameTag.opacity }}>{ath.nameTag.text}</div>}
+      {ath.nameTag && <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '0.35em', fontSize: `${NAME_TAG_EM}em`, fontWeight: 600, letterSpacing: '0.08em', lineHeight: 1, padding: `${NAME_TAG_PAD_Y}em ${NAME_TAG_PAD_X}em`, background: 'rgba(0, 0, 0, 0.55)', color: '#fff', opacity: ath.nameTag.opacity }}>{ath.nameTag.text}</div>}
     </div>}
   </div>
 }

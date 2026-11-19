@@ -3,7 +3,7 @@ import { resolveToken } from '@/lib/accessibility/resolveToken'
 import { formatClock, frameToMs } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { ReplayLocale } from '../i18n/i18n'
-import { hudClock, readHud, readKillFeed, readScoreHud, prepareHud } from '../model/hud3d_logic'
+import { hudClock, readHud, readKillFeed, readScoreHud, prepareHud, NAME_TAG_EM, NAME_TAG_PAD_X, NAME_TAG_PAD_Y } from '../model/hud3d_logic'
 import { SHIELD_CHASE_INK, SHIELD_CHASE_URL, shieldFlash } from '../model/shieldHud'
 import { SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER } from '../ui/shieldBarGeometry'
 import type { ReplayKill } from '../model/killFeedLogic'
@@ -314,15 +314,19 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       // a dark translucent plate behind the letters, the whole thing at the tag's opacity.
       if (ath.nameTag) {
         ctx.save(); ctx.globalAlpha = ath.nameTag.opacity
-        const tagSize = size * 0.55, tagY = h * 0.94 + size * 0.45
+        // The live tag's box (`NAME_TAG_*`): text and padding in ems of the tag's text, the
+        // box's right edge flush with the corner, the text right-aligned inside its padding.
+        const tagSize = size * NAME_TAG_EM, tagY = h * 0.94 + size * 0.45
+        const padX = NAME_TAG_PAD_X * tagSize, boxH = (1 + 2 * NAME_TAG_PAD_Y) * tagSize
         ctx.font = `600 ${tagSize}px system-ui`
         ctx.letterSpacing = `${0.08 * tagSize}px`
         ctx.textAlign = 'right'
+        ctx.textBaseline = 'middle'
         const tagWidth = ctx.measureText(ath.nameTag.text).width
         ctx.fillStyle = 'rgba(0,0,0,0.55)'
-        ctx.fillRect(w * 0.97 - tagWidth - 1.2 * tagSize, tagY - 0.85 * tagSize, tagWidth + 1.2 * tagSize, 1.7 * tagSize)
+        ctx.fillRect(w * 0.97 - tagWidth - 2 * padX, tagY - boxH / 2, tagWidth + 2 * padX, boxH)
         ctx.fillStyle = white
-        ctx.fillText(ath.nameTag.text, w * 0.97, tagY)
+        ctx.fillText(ath.nameTag.text, w * 0.97 - padX, tagY)
         ctx.restore()
       }
     }

@@ -192,6 +192,16 @@ export function readHud(source: ReturnType<typeof prepareHud>, frame: number, lo
 export const NAME_TAG_HOLD_MS = 500
 /** The total life, from the frame of the change; the fade is linear over the rest. */
 export const NAME_TAG_TOTAL_MS = 2000
+/**
+ * The tag's size, in ems of the HUD font (live `HUD_STYLE`, export `size`): text size, then the
+ * vertical and horizontal padding in ems of the tag's own text. Measured on the owner's reference
+ * frame ("S7 SNIPER", 751 px tall): capitals 8 px (1.07% of the height), box 16 px (2.1%). At
+ * 1080 px our HUD font is 38.7 px, so capitals of 1.07% need a 0.43 em text, and a 2.1% box
+ * leaves 0.2 em of padding above and below. The horizontal padding is read off the same frame.
+ */
+export const NAME_TAG_EM = 0.43
+export const NAME_TAG_PAD_Y = 0.2
+export const NAME_TAG_PAD_X = 0.45
 
 /** nameTagOpacity: the tag's opacity `ageMs` after the change; null before it and once faded. */
 export function nameTagOpacity(ageMs: number): number | null {
