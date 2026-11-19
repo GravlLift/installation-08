@@ -33,6 +33,7 @@ import {
   type DistanceChain,
   type SoundDraw,
 } from './weaponSoundLogic'
+import { masterCompressor } from './masterBus'
 import { INAUDIBLE_LEVEL, type SoundPlacement } from './soundSpatial'
 import { reverbSendOf } from './zoneReverb'
 
@@ -347,6 +348,12 @@ export class ReplayAudioPlayer {
    * The announcer, the intro music and the match conclusion stay dry: they are not in the world.
    */
   private send: GainNode
+  /**
+   * THE GAME'S MASTER BUS (`masterBus.ts`): every sound, bus and reverb return mixes here, into the
+   * game's master compressor, which feeds `master` (the volume). The compressor sits in front of
+   * the volume so the volume setting never changes how hard it works.
+   */
+  private mix: AudioNode
 
   /** `volume` is set AT CONSTRUCTION: a default gain at 1 would pass the first
    *  sound at full before the user's preference is applied. */
@@ -354,6 +361,9 @@ export class ReplayAudioPlayer {
     this.ctx = new AudioContext()
     this.master = this.ctx.createGain()
     this.master.gain.value = Math.min(Math.max(volume, 0), 1)
+    const bus = masterCompressor(this.ctx)
+    bus.output.connect(this.master)
+    this.mix = bus.input
     this.send = this.ctx.createGain()
     this.out = this.master
     this.connectOut(this.master)
@@ -361,7 +371,7 @@ export class ReplayAudioPlayer {
 
   /** reverbBus — the context, the send every world sound feeds, and the master to return into. */
   reverbBus(): { ctx: BaseAudioContext; send: AudioNode; out: AudioNode } {
-    return { ctx: this.ctx, send: this.send, out: this.master }
+    return { ctx: this.ctx, send: this.send, out: this.mix }
   }
 
   /**
@@ -441,7 +451,7 @@ export class ReplayAudioPlayer {
   engineBus(gain: number, wet = false): { ctx: BaseAudioContext; out: AudioNode; bufferOf: (url: string) => AudioBuffer | null | undefined } {
     const bus = this.ctx.createGain()
     bus.gain.value = gain
-    bus.connect(this.master)
+    bus.connect(this.mix)
     if (wet) bus.connect(this.send)
     return { ctx: this.ctx, out: bus, bufferOf: (url) => this.buffers.get(url) }
   }
@@ -592,7 +602,7 @@ export class ReplayAudioPlayer {
       gain.connect(panner)
       out = panner
     }
-    out.connect(this.master)
+    out.connect(this.mix)
     // THE REVERB SEND: at the common level, or at the sound's own game send against it
     // (`reverbSendOf`): a node only when it differs, none at all when it is dry.
     const sendLevel = opts.wet ? reverbSendOf(opts.reverbDb) : 0

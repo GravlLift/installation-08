@@ -56,6 +56,18 @@ export class FakeFilter {
   disconnect() { this.connections.length = 0 }
 }
 
+/** The game's master compressor (`masterBus.ts`): its settings and connections, recorded. */
+export class FakeCompressor {
+  threshold = new FakeParam()
+  knee = new FakeParam()
+  ratio = new FakeParam()
+  attack = new FakeParam()
+  release = new FakeParam()
+  connections: unknown[] = []
+  connect(dest?: unknown) { this.connections.push(dest) }
+  disconnect() { this.connections.length = 0 }
+}
+
 /** The recording tap: an output node that exposes an audio track. */
 export class FakeStreamDestination {
   track = { kind: 'audio' } as unknown as MediaStreamTrack
@@ -87,12 +99,14 @@ export class FakeContext {
   panners: FakeStereoPanner[] = []
   sources: FakeSource[] = []
   filters: FakeFilter[] = []
+  compressors: FakeCompressor[] = []
   streamDests: FakeStreamDestination[] = []
   resumed = 0
   closed = 0
   createGain() { const g = new FakeGain(); this.gains.push(g); return g }
   createStereoPanner() { const p = new FakeStereoPanner(); this.panners.push(p); return p }
   createBiquadFilter() { const f = new FakeFilter(); this.filters.push(f); return f }
+  createDynamicsCompressor() { const c = new FakeCompressor(); this.compressors.push(c); return c }
   createMediaStreamDestination() {
     const d = new FakeStreamDestination()
     this.streamDests.push(d)
