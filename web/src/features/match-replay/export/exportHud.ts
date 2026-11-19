@@ -292,7 +292,7 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
         left = box(left, h * 0.86, catalogText(label, locale) ?? `rank ${ath.equipment.rank}`, label?.img, !!label?.tinted, ath.equipment.uses, ath.equipment.uses === 0 ? 0.45 : 1) - size * 0.3
       }
       // The one grenade box the game draws at a time (`ath.grenade`).
-      const grenadeLabel = ath.grenade.rank != null ? doc.grenadeLabels?.[ath.grenade.rank] : undefined
+      const grenadeLabel = doc.grenadeLabels?.[ath.grenade.rank]
       left = box(left, h * 0.86, ath.grenade.name, grenadeLabel?.img, !!grenadeLabel?.tinted, ath.grenade.count, 1) - size * 0.3
       // The away weapon: small (60% of the in-hand icon), dimmed, the silhouette the same way
       // the in-hand icon is painted.

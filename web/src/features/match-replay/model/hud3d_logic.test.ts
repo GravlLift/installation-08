@@ -571,7 +571,7 @@ describe('HUD 3D weapon corner: away weapon, one grenade box, name tag', () => {
     expect(readHud(prepareHud(flipped, 'A', []), 60, 'en')?.away?.id).toBe('0x6ACDC44D')
   })
 
-  it('shows one grenade box: the read selection, the deduced single type, the indeterminate, and rank 0 without counters', () => {
+  it('shows one grenade box: the read selection, the deduced single type, frag when indeterminate, and rank 0 without counters', () => {
     const read = cornerDoc({ inventory: [{ t: 20, slot: 530, d: 0, am: [{ mag: 13, res: 54 }, { mag: 30, res: 90 }], g: [1, 3], gs: 1 }] })
     expect(readHud(prepareHud(read, 'A', []), 30, 'en')?.grenade).toEqual({ rank: 1, name: 'Plasma', count: 3 })
 
@@ -579,7 +579,11 @@ describe('HUD 3D weapon corner: away weapon, one grenade box, name tag', () => {
     expect(readHud(prepareHud(deduced, 'A', []), 30, 'en')?.grenade).toEqual({ rank: 1, name: 'Plasma', count: 3 })
 
     const indeterminate = cornerDoc({ inventory: [{ t: 20, slot: 530, d: 0, am: [{ mag: 13, res: 54 }, { mag: 30, res: 90 }], g: [2, 3] }] })
-    expect(readHud(prepareHud(indeterminate, 'A', []), 30, 'en')?.grenade).toEqual({ rank: null, name: 'Grenades', count: null })
+    expect(readHud(prepareHud(indeterminate, 'A', []), 30, 'en')?.grenade).toEqual({ rank: 0, name: 'Frag', count: 2 })
+
+    // Indeterminate without frags: the lowest carried rank.
+    const noFrag = cornerDoc({ inventory: [{ t: 20, slot: 530, d: 0, am: [{ mag: 13, res: 54 }, { mag: 30, res: 90 }], g: [0, 3, 1] }] })
+    expect(readHud(prepareHud(noFrag, 'A', []), 30, 'en')?.grenade).toEqual({ rank: 1, name: 'Plasma', count: 3 })
 
     const noCounters = cornerDoc({ inventory: [{ t: 20, slot: 530, d: 0, am: [{ mag: 13, res: 54 }, { mag: 30, res: 90 }], g: [] }] })
     expect(readHud(prepareHud(noCounters, 'A', []), 30, 'en')?.grenade).toEqual({ rank: 0, name: 'Frag', count: 0 })
@@ -594,12 +598,13 @@ describe('HUD 3D weapon corner: away weapon, one grenade box, name tag', () => {
     ] })
     expect(readHud(prepareHud(doc, 'A', []), 60, 'en')?.grenade).toEqual({ rank: 0, name: 'Frag', count: 1 })
 
-    // Never across lives: a selector read in an earlier life of the slot does not carry over.
+    // Never across lives: a plasma selector read before this life (frame 10, the life starts at
+    // 20) does not carry over; the delta's selection stays indeterminate and shows as frag.
     const otherLife = cornerDoc({ grenadeReads: [
-      { t: 10, slot: 530, g: [2, 1], gs: 0, src: 'kf' },
+      { t: 10, slot: 530, g: [0, 2], gs: 1, src: 'kf' },
       { t: 50, slot: 530, g: [1, 1], src: 'delta' },
     ] })
-    expect(readHud(prepareHud(otherLife, 'A', []), 60, 'en')?.grenade).toEqual({ rank: null, name: 'Grenades', count: null })
+    expect(readHud(prepareHud(otherLife, 'A', []), 60, 'en')?.grenade).toEqual({ rank: 0, name: 'Frag', count: 1 })
   })
 
   it('builds each slot\'s change list from that slot\'s events alone', () => {

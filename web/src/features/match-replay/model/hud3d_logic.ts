@@ -211,14 +211,16 @@ export function nameTagOpacity(ageMs: number): number | null {
 
 /**
  * The single grenade box of the HUD's upper row: the game draws ONE grenade type at a time
- * (the selected one). `rank` null = the selection is indeterminate (several types carried,
- * selector unread) and the box carries the generic grenade text with no count; a null box
- * (counters not read, or nothing carried) keeps the rank-0 counter, as before.
+ * (the selected one). When the selection is indeterminate (several types carried, no selector
+ * read in the life), the box shows frag (rank 0) with its count, or the lowest carried rank when
+ * no frag is carried (owner's call, 2026-11-19: a plain grenade box blends in during those rare
+ * moments, where generic text stood out). A null box (counters not read, or nothing carried)
+ * keeps the rank-0 counter, as before.
  */
 export interface HudGrenade {
-  rank: number | null
+  rank: number
   name: string
-  count: number | null
+  count: number
 }
 
 /** grenadeHudFrom: the one grenade box the game draws, from the box's counters and selector
@@ -227,7 +229,10 @@ export function grenadeHudFrom(box: GrenadeBox | null, labels: CatalogLabel[] | 
   const generic = REPLAY_TEXT[locale].soundCategory.grenade
   if (!box) return { rank: 0, name: catalogText(labels?.[0], locale) ?? generic, count: 0 }
   const sel = selectedGrenadeFrom(box.g, box.gs)
-  if (sel === 'indeterminate') return { rank: null, name: generic, count: null }
+  if (sel === 'indeterminate') {
+    const rank = (box.g[0] ?? 0) > 0 ? 0 : box.g.findIndex((c) => c > 0)
+    return { rank, name: catalogText(labels?.[rank], locale) ?? `rank ${rank}`, count: box.g[rank] }
+  }
   const rank = sel ? sel.rank : 0
   return { rank, name: catalogText(labels?.[rank], locale) ?? (sel ? `rank ${rank}` : generic), count: sel ? box.g[rank] : box.g[0] ?? 0 }
 }
