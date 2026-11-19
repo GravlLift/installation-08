@@ -6,6 +6,8 @@
 - The score bars show the team emblems from the game, the eagle and the cobra (and the other teams' emblems in matches that use them), at the outer end of each bar. In the viewer and the video export.
 - The score bars fill with the game's own meter art, a striped bar with rounded ends, growing from the center as before. In the viewer and the video export.
 - The first start after updating rebuilds the HUD icons once to add the emblems and the meter; until then the bars draw as before.
+- Reflections come from the right place. Many map surfaces are one piece across the whole map (Streets' road is about 74 units wide), and each piece reflected a single capture point, often a bright room in the middle of the map. So Streets' roads read white and its walls grey. Each part of a surface now reflects the capture point nearest to it, which leaves Arc Street's road dark wet asphalt. On every map.
+- Reflections no longer outshine the game's own light. Where the map's baked light is darker than the reflection captures suggest, reflections dim by the same amount, which takes the white glare off the subway floor on Streets. On every map with baked light.
 
 ## 0.1.1-test.11
 
