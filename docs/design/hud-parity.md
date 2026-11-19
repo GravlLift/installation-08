@@ -188,6 +188,18 @@ BC7 pixels sit inside the tag, as the CUI bitmaps' do).
     the band holds 0.2 s, then closes on the live value with a cubic ease-out, reaching it at 1 s.
     Checked in the viewer at frames 4878, 4888 (shield broken) and 4903. The health chase is not drawn:
     our bar shows no health, and its color comes from an undecoded named color resource.
+  - Since 2026-11-19 the band draws the game's own chase bitmap (`ShieldChase.png`, built from tag
+    1a61d06e, whose 940x64 b8g8r8a8 pixels are a resource in the `pc` variant), tinted
+    rgb(255,129,129) at its own alpha, revealed by clipping to the band's x ranges (inferred
+    equivalent of the bitmap's blue-ramp reveal, which is linear in x). The flat band remains the
+    fallback when the image is not loaded.
+  - Open gap, seen on export frames 4876 to 4895: the game's bar is shallower in the middle than at
+    its ends, and the chase art covers only that upper region (rows 14 to 44 of 64 at the
+    center). The mask (43cb4f34, 940x64, pixels inline in the `pc` tag) shows a separate lower
+    strip there, likely the health display (inferred). Our hand-drawn fill covers the whole bar
+    height, so the band sits in the top part of our fill. Matching it means shaping our fill
+    like the game's shield quad (1a9b2c75, 940x80 BC7, whose resource is a 316-byte header with no
+    pixels: not decoded yet).
 
 **Phase 4: pings (decoder research, open-ended).**
 9. Find out whether the film carries pings at all. The only lead is the unexported `managed-navpoint`

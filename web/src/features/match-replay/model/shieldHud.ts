@@ -157,6 +157,8 @@ export const SHIELD_CHASE_MS = 1000
  * ARGB (1, 1, 0.506, 0.506) = rgb(255, 129, 129), opacity 1.
  */
 export const SHIELD_CHASE_INK = 'rgb(255, 129, 129)'
+/** The game's chase-band bitmap, served by the app (game bitmap 1a61d06e). */
+export const SHIELD_CHASE_URL = '/static/weapons-assets/halo_infinite/hud/ShieldChase.png'
 
 /** The animator's curve: hold, then cubic ease-out reaching the live value at `SHIELD_CHASE_MS`. */
 function chaseEase(ageMs: number): number {
