@@ -5,6 +5,7 @@
 Changes since 0.1.1-test.4.
 
 - Sounds in the world (gunfire, footsteps, impacts, engines, shields) now reverberate like the zone the camera is in. Each zone of a map names one of the game's reverb presets (Streets and Live Fire share four), and the viewer applies that preset's decay, tone and wet level from your install. It crossfades to the next zone's reverb when the camera moves. The game's exact recorded reverb is not decoded yet, so each preset is rebuilt from its measured energy over time and frequency. The announcer, the music and the ambient loops stay dry. The first start after updating extracts the reverbs once. Video export has no reverb yet.
+- The video export draws the new HUD weapon corner too: the weapon put away, the one grenade slot, the fading weapon name tag, and the equipment box, which the export used to leave out.
 
 ## 0.1.1-test.4
 
@@ -20,7 +21,7 @@ Changes since 0.1.0.
 - Moving the window to a monitor with a different display scale now redraws the 3D view at that monitor's sharpness. Before, it kept the scale it opened at: moved from a 150 % monitor to a 100 % one, it drew about 2.25 times the pixels the screen needed.
 - A match whose Forge objects (crates, props, weapon pads) were built by an older version of the app now rebuilds them when it opens, showing their build progress. Before, the viewer silently left them out until they were rebuilt by hand.
 - While the window is being resized (or rescaled by a monitor move), the 3D view now rebuilds its full-screen drawing buffers once, after the size settles, instead of for every intermediate size. For that moment the picture stretches slightly. This takes a burst of graphics-memory allocations off a machine that is already busy.
-- The HUD's weapon corner matches the game more closely. The weapon that is put away now shows as a small dimmed icon beside the grenade, and it trades places with the weapon in hand on a swap. The name of the weapon just taken out appears under the ammo and fades out over 2 seconds. Only the selected grenade type shows, with its count, where before every type carried had its own box. The equipment box sits at the far right. The video export draws the same corner, and now includes the equipment box, which it used to leave out.
+- The HUD's weapon corner matches the game more closely. The weapon that is put away now shows as a small dimmed icon beside the grenade, and it trades places with the weapon in hand on a swap. The name of the weapon just taken out appears under the ammo and fades out over 2 seconds. Only the selected grenade type shows, with its count, where before every type carried had its own box. The equipment box sits at the far right.
 
 ## 0.1.0-test.22
 
