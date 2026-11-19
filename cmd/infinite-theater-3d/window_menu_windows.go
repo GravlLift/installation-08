@@ -197,15 +197,15 @@ func (s *fullScreenState) toggle(hwnd windows.Handle) {
 	}
 	var r windows.Rect
 	_, _, _ = procGetWindowRect.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&r)))
-	s.prevRect = r
-	s.active = true
-	var hMon uintptr
-	_, _, _ = procMonitorFromWindow.Call(uintptr(hwnd), hMon, monitorDefaultTonearest)
+	hMon, _, _ := procMonitorFromWindow.Call(uintptr(hwnd), monitorDefaultTonearest)
 	var mi monitorInfo
 	mi.CbSize = uint32(unsafe.Sizeof(mi))
 	if _, _, _ = procGetMonitorInfoW.Call(hMon, uintptr(unsafe.Pointer(&mi))); mi.RcWork.Right-mi.RcWork.Left <= 0 {
+		// No monitor answered: stay windowed (and say so), never "active" with nothing done.
 		return
 	}
+	s.prevRect = r
+	s.active = true
 	wa := mi.RcWork
 	_, _, _ = procSetWindowPos.Call(uintptr(hwnd), 0,
 		uintptr(wa.Left), uintptr(wa.Top),
@@ -298,6 +298,11 @@ func installAppWindowMenu(w webview.WebView, a menuActions, guard *closeGuard) {
 			saveWindowPlacement(captureWindowPlacement(hwnd))
 		}
 		r, _, _ := procCallWindowProcW.Call(orig, uintptr(hwnd), uintptr(msg), wParam, lParam)
+		if msg == wmGetMinMaxInfo {
+			// The original procedure fills the defaults first; the app's limits then win
+			// (window_limits_windows.go).
+			applyWindowLimits(hwnd, lParam)
+		}
 		return r
 	})
 	if ret, _, err := procSetWindowLongPtrW.Call(uintptr(hwnd), gwlWndProc, subclass); ret == 0 {
