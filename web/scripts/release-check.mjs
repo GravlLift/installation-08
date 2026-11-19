@@ -112,17 +112,38 @@ async function startPreview(apiTarget) {
   return null
 }
 
+/** The texture qualities a map is built at, lighter first (the page's quality picker values). */
+const QUALITIES = ['standard', 'high']
+const qualityQuery = (q) => (q === 'high' ? '?quality=high' : '')
+
+/** The first quality `id`'s map is built at (`ready`), or null. */
+async function builtQuality(base, id) {
+  for (const q of QUALITIES) {
+    try {
+      const st = await (await fetch(`${base}/api/matches/${encodeURIComponent(id)}/mesh/state${qualityQuery(q)}`)).json()
+      if (st?.state === 'ready') return q
+    } catch {
+      // A state that cannot be read counts as not built.
+    }
+  }
+  return null
+}
+
+/**
+ * pickMatch: the match to load and the texture quality its map is built at. The page loads the
+ * map at its stored quality preference (default Standard) and, when the map is not built at it,
+ * waits on the quality picker forever: so the quality the map IS built at is chosen here and set
+ * as the page's preference (`loadMatch`). A map built only at High (the app's usual pick) is fine.
+ */
 async function pickMatch(base, wanted) {
-  if (wanted) return wanted
+  if (wanted) {
+    const quality = await builtQuality(base, wanted)
+    return quality ? { id: wanted, quality } : { id: wanted, quality: null }
+  }
   const matches = await (await fetch(`${base}/api/matches`)).json()
   for (const m of (Array.isArray(matches) ? matches : []).slice(0, 30)) {
-    const id = m.matchId
-    try {
-      const st = await (await fetch(`${base}/api/matches/${encodeURIComponent(id)}/mesh/state`)).json()
-      if (st?.state === 'ready') return id
-    } catch {
-      // A match whose state cannot be read is skipped.
-    }
+    const quality = await builtQuality(base, m.matchId)
+    if (quality) return { id: m.matchId, quality }
   }
   return null
 }
@@ -139,7 +160,7 @@ function bundledChromium() {
   return null
 }
 
-async function loadMatch(base, matchId, timeoutS) {
+async function loadMatch(base, matchId, quality, timeoutS) {
   const profile = join(tmpdir(), 'it3d-release-check-chrome-profile')
   mkdirSync(profile, { recursive: true })
   const executablePath = bundledChromium() ?? undefined
@@ -151,14 +172,20 @@ async function loadMatch(base, matchId, timeoutS) {
   })
   const viewerErrors = []
   const pageErrors = []
+  const consoleErrors = []
   try {
     await context.clearCookies()
     const page = context.pages()[0] ?? (await context.newPage())
+    // The page's texture-quality preference (useTextureQuality's key): the quality the map is
+    // built at, so the pre-game loads it instead of offering a build.
+    await context.addInitScript((q) => { try { localStorage.setItem('replay-texture-quality', q) } catch { /* no storage */ } }, quality)
     await page.route('**/api/client-log', async (route) => {
       viewerErrors.push(route.request().postData() ?? '')
       await route.continue()
     })
     page.on('pageerror', (err) => pageErrors.push(String(err?.stack ?? err)))
+    page.on('console', (msg) => { if (msg.type() === 'error') consoleErrors.push(msg.text()) })
+    page.on('requestfailed', (req) => consoleErrors.push(`request failed: ${req.url()} (${req.failure()?.errorText ?? '?'})`))
     const url = `${base}/#/matches/${encodeURIComponent(matchId)}`
     log(`loading ${url}`)
     const started = Date.now()
@@ -176,7 +203,15 @@ async function loadMatch(base, matchId, timeoutS) {
     }
     // A moment after ready for late errors (the first frames, the countdown).
     if (signal === 'ready') await sleep(3000)
-    return { signal, seconds: (Date.now() - started) / 1000, viewerErrors, pageErrors }
+    // On a failure, what the page was showing: its text and a screenshot.
+    let shown = ''
+    let shot = ''
+    if (signal !== 'ready') {
+      shown = ((await page.evaluate(() => document.body?.innerText ?? '').catch(() => '')) || '').replace(/\s+/g, ' ').trim().slice(0, 400)
+      shot = join(tmpdir(), 'it3d-release-check-failure.png')
+      await page.screenshot({ path: shot }).catch(() => { shot = '' })
+    }
+    return { signal, seconds: (Date.now() - started) / 1000, viewerErrors, pageErrors, consoleErrors, shown, shot }
   } finally {
     await context.close()
   }
@@ -201,12 +236,18 @@ async function main() {
   }
   log(`server: ${server.how}`)
   try {
-    const matchId = await pickMatch(server.base, args.match)
-    if (!matchId) {
+    const picked = await pickMatch(server.base, args.match)
+    if (!picked) {
       log('SKIP: no stored match with a built map to load (open one match in the app once, then package again)')
       return 2
     }
-    const r = await loadMatch(server.base, matchId, args.timeoutS)
+    if (!picked.quality) {
+      log(`FAIL: match ${picked.id} has no map built at any quality (${QUALITIES.join(', ')})`)
+      return 1
+    }
+    const matchId = picked.id
+    log(`match ${matchId}, map built at ${picked.quality}`)
+    const r = await loadMatch(server.base, matchId, picked.quality, args.timeoutS)
     const problems = []
     if (r.signal !== 'ready') problems.push(`scene ended as "${r.signal || 'never mounted'}" after ${r.seconds.toFixed(0)} s`)
     for (const e of r.viewerErrors) problems.push(`viewer error: ${e}`)
@@ -214,6 +255,9 @@ async function main() {
     if (problems.length) {
       log(`FAIL loading match ${matchId}:`)
       for (const p of problems) log(`  ${p}`)
+      if (r.shown) log(`  the page showed: ${r.shown}`)
+      for (const e of r.consoleErrors.slice(0, 10)) log(`  console: ${e}`)
+      if (r.shot) log(`  screenshot: ${r.shot}`)
       return 1
     }
     log(`PASS: match ${matchId} ready in ${r.seconds.toFixed(1)} s, no errors`)
