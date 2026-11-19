@@ -38,6 +38,17 @@ reference only, gitignored: `data/reference/hud/infinite-hud-weapons-killfeed.pn
   from somewhere else (not found yet). 128bc424 owns resources 11602 to 11604; 11604 (409600
   bytes) decodes as BC7 1600x256 into a blue-to-cyan striped bar with rounded corners, likely
   the score meter's ramp (inferred; the declared 800x64 does not match its storage).
+- Found later on 2026-11-19 (corrects the line above): the emblems are bitmap `7df5eede`, nine
+  64x64 BC7 resources owned by its `pc` entry, white on transparent: 0 eagle, 1 cobra, then seven
+  more team emblems. They are drawn by the score bar ITEM screen (`cusc` 21a7dab4,
+  `scorebaritem`), not by the center scoreboard, with `prop_sprite_frame` bound to `teamindex`
+  (so resource k = team index, inferred from the eagle/cobra order). The item (confirmed from
+  the dump): a 390x50 stacked layout; a 256-wide meter area over a 430x39 gray polygon at 0.65
+  opacity, filled by three two-tone gradient quads of bitmap `8bec9da9` (256x64, pixels inline,
+  a red-to-magenta channel-packed ramp, inferred); then a 44x40 emblem slot (margin left 2,
+  right 40) holding the 62x62 emblem, right-aligned with margin right -27, opacity 0.7, untinted
+  (tint blend alpha 0). Mode-7 BC7 blocks need the next mip as a witness (`mipGuide`), or they
+  decode as gray squares. Built into the HUD set as `TeamEmblem0.png` .. `TeamEmblem8.png`.
 
 ## Top center: shield and damage
 
@@ -156,8 +167,8 @@ local worker; the probe and raw dumps stay in the gitignored `data/probe/`.
   62 `uiwi`, 738 `uslg` tags, whose body format no reader here decodes. The damage arc's geometry
   and lifetime and the red glow over the shield almost certainly live there (inferred). Decoding
   that format is the real cost behind items 5 (drawing), 6 and 7.
-- Team emblems: not found. The one `embl` tag (a47c83f7) is a property table, not a bitmap
-  atlas. Sampled UI tags reference no `bitm` tag directly.
+- Team emblems: not found in this first scan (the one `embl` tag, a47c83f7, is a property
+  table). Found 2026-11-19 through the CUI screens: bitmap `7df5eede`, see "Bottom center".
 - Font: found. 104 `font` tags plus the `fntf` registry (d35037d1) name the UI families: Normative
   Pro (Light to Bold, the primary family; inferred to be the HUD's), Industry, Baksheesh, Consolas.
   The glyphs are in `maps/fonts/font_package.bin` (344 KB, plus per-locale packages), a binary
