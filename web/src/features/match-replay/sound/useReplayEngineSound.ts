@@ -60,7 +60,7 @@ export function useReplayEngineSound(doc: ReplayDocumentReady): ReplayEngineSoun
 
   const attach = useCallback((player: ReplayAudioPlayer) => {
     if (engineRef.current) return
-    const bus = player.engineBus(VEHICLE_ENGINE_BUS_GAIN)
+    const bus = player.engineBus(VEHICLE_ENGINE_BUS_GAIN, true)
     const engine = new VehicleEnginePlayer({
       ctx: bus.ctx,
       out: bus.out,

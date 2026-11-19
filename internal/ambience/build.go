@@ -64,7 +64,7 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	}
 	res := &Result{Manifest: &Manifest{Version: ManifestVersion, Maps: map[string]Bed{}}, Skipped: map[string][]string{}}
 	b := &builder{root: opts.GameRoot, out: opts.OutDir, res: res,
-		streams: &streams{dir: filepath.Join(announcer.SoundRoot(opts.GameRoot), "SFX")}, written: map[uint32]Take{}}
+		streams: &streams{dir: filepath.Join(announcer.SoundRoot(opts.GameRoot), "SFX")}, written: map[uint32]Take{}, reverbs: map[uint32]Reverb{}}
 	for _, key := range keys {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -121,7 +121,8 @@ type builder struct {
 	root    string
 	out     string
 	streams *streams
-	written map[uint32]Take // by media id
+	written map[uint32]Take   // by media id
+	reverbs map[uint32]Reverb // by sound environment tag id
 	res     *Result
 }
 
@@ -199,19 +200,87 @@ func (b *builder) mapBed(key string) (Bed, string, error) {
 	for l, takes := range takesOf {
 		bed.Loops[fmt.Sprintf("%08x", l)] = takes
 	}
+	// The zones' reverbs: every distinct sound environment, once; one that cannot be read is left
+	// out (its zones play dry) rather than failing the map.
+	envs := zoneEnvs(level)
+	reverbOf := map[int]string{}
+	fallbackVol := -1.0
+	for _, z := range envs {
+		id := fmt.Sprintf("%08x", z.Env)
+		if _, ok := bed.Reverbs[id]; !ok {
+			rv, err := b.reverb(ix, z.Env)
+			if err != nil {
+				var wf writeFailure
+				if errors.As(err, &wf) {
+					return Bed{}, "", err
+				}
+				slog.Warn("ambience: zone reverb skipped", "map", key, "env", id, "err", err)
+				continue
+			}
+			if bed.Reverbs == nil {
+				bed.Reverbs = map[string]Reverb{}
+			}
+			bed.Reverbs[id] = rv
+		}
+		reverbOf[z.Zone] = id
+		if len(z.Points) >= 3 {
+			if v := polygonArea(z.Points) * z.Height; v > fallbackVol {
+				fallbackVol, bed.FallbackReverb = v, id
+			}
+		}
+	}
+	shaped := map[int]bool{}
 	for _, z := range zones {
 		if _, ok := takesOf[z.Loop]; !ok || len(z.Points) < 3 {
 			continue
 		}
+		shaped[z.Zone] = true
 		bed.Shapes = append(bed.Shapes, Shape{
 			Zone:   z.Zone,
 			Loop:   fmt.Sprintf("%08x", z.Loop),
+			Reverb: reverbOf[z.Zone],
 			Floor:  round3(z.Floor),
 			Height: round3(z.Height),
 			Points: roundPoints(z.Points),
 		})
 	}
+	// Zones whose loop was not extracted (or that name none) still shape their reverb.
+	for _, z := range envs {
+		if shaped[z.Zone] || reverbOf[z.Zone] == "" || len(z.Points) < 3 {
+			continue
+		}
+		bed.Shapes = append(bed.Shapes, Shape{
+			Zone:   z.Zone,
+			Reverb: reverbOf[z.Zone],
+			Floor:  round3(z.Floor),
+			Height: round3(z.Height),
+			Points: roundPoints(z.Points),
+		})
+	}
+	sort.Slice(bed.Shapes, func(i, j int) bool { return bed.Shapes[i].Zone < bed.Shapes[j].Zone })
 	return bed, "", nil
+}
+
+// reverb synthesizes and writes one sound environment's impulse response, once per build.
+func (b *builder) reverb(tags tagSource, env uint32) (Reverb, error) {
+	if r, ok := b.reverbs[env]; ok {
+		return r, nil
+	}
+	er, err := readEnvReverb(tags, env)
+	if err != nil {
+		return Reverb{}, err
+	}
+	ir := synthIR(er, uint64(env))
+	name := reverbName(env)
+	wav := wavFloat32(ir)
+	if err := os.WriteFile(filepath.Join(b.out, name), wav, 0o644); err != nil {
+		return Reverb{}, writeFailure{err}
+	}
+	b.res.Files++
+	b.res.Bytes += int64(len(wav))
+	r := Reverb{File: name, DurationMs: len(ir[0]) * 1000 / irRate, WetDB: er.WetDB}
+	b.reverbs[env] = r
+	return r, nil
 }
 
 // levelTag returns the parsed level tag of the map: the one the map's own modules hold.

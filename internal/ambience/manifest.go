@@ -28,7 +28,7 @@ const ManifestName = "ambience.json"
 
 // ManifestVersion is the manifest's format version; a manifest of an older version is stale and
 // the extraction runs again.
-const ManifestVersion = 3
+const ManifestVersion = 4
 
 // takeFile is the name of every take file a manifest lists: ambience_<media id, 8 hex digits>.ogg.
 // A rebuild removes the ones its manifest no longer lists, and no other file.
@@ -36,6 +36,13 @@ var takeFile = regexp.MustCompile(`^ambience_[0-9a-f]{8}\.ogg$`)
 
 // takeName is the file name of a media's take.
 func takeName(mediaID uint32) string { return fmt.Sprintf("ambience_%08x.ogg", mediaID) }
+
+// reverbFile is the name of every impulse response a manifest lists: reverb_<sound environment
+// tag id, 8 hex digits>.wav. A rebuild removes the ones its manifest no longer lists.
+var reverbFile = regexp.MustCompile(`^reverb_[0-9a-f]{8}\.wav$`)
+
+// reverbName is the file name of a sound environment's impulse response.
+func reverbName(env uint32) string { return fmt.Sprintf("reverb_%08x.wav", env) }
 
 // Manifest lists the extracted beds by map module key (e.g. "fo09_academy").
 type Manifest struct {
@@ -47,20 +54,36 @@ type Manifest struct {
 // largest volume), how many palette zones name a background sound and how many distinct ones
 // they name, the takes the fallback's event plays, every extracted loop, and the shapes of the
 // zones whose loop was extracted.
+//
+// Reverbs holds the impulse response of every sound environment the zones name, by environment
+// tag id; FallbackReverb is the one of the largest zone that names one, used where no zone holds
+// the listener.
 type Bed struct {
-	Loop   string            `json:"loop"`
-	Zones  int               `json:"zones"`
-	Beds   int               `json:"beds"`
-	Takes  []Take            `json:"takes"`
-	Loops  map[string][]Take `json:"loops"`
-	Shapes []Shape           `json:"shapes"`
+	Loop           string            `json:"loop"`
+	Zones          int               `json:"zones"`
+	Beds           int               `json:"beds"`
+	Takes          []Take            `json:"takes"`
+	Loops          map[string][]Take `json:"loops"`
+	Shapes         []Shape           `json:"shapes"`
+	Reverbs        map[string]Reverb `json:"reverbs,omitempty"`
+	FallbackReverb string            `json:"fallbackReverb,omitempty"`
+}
+
+// Reverb is one sound environment's synthesized impulse response (reverb.go): the WAV file, its
+// length, and the wet level the game's share set applies to it.
+type Reverb struct {
+	File       string  `json:"file"`
+	DurationMs int     `json:"durationMs"`
+	WetDB      float64 `json:"wetDb"`
 }
 
 // Shape is one acoustic zone's floor polygon and volume: what the viewer tests the camera
-// position against to pick a bed.
+// position against to pick a bed and a reverb. Loop is empty for a zone with no extracted loop
+// (a reverb-only room); Reverb is empty for a zone with no extracted reverb.
 type Shape struct {
 	Zone   int          `json:"zone"`
 	Loop   string       `json:"loop"`
+	Reverb string       `json:"reverb,omitempty"`
 	Floor  float64      `json:"floor"`
 	Height float64      `json:"height"`
 	Points [][2]float64 `json:"points"`
@@ -70,10 +93,12 @@ type Shape struct {
 // where no zone holds the camera), the first take file of every extracted loop, and the zone
 // shapes.
 type Layout struct {
-	Fallback string // loop id, a key of Files
-	Files    map[string]string
-	Gains    map[string]float64
-	Zones    []Shape
+	Fallback       string // loop id, a key of Files
+	Files          map[string]string
+	Gains          map[string]float64
+	Zones          []Shape
+	Reverbs        map[string]Reverb
+	FallbackReverb string
 }
 
 // Take is one extracted media.
@@ -138,7 +163,7 @@ func (m *Manifest) Layout(mapKey string) (Layout, bool) {
 		files[bed.Loop] = bed.Takes[0].File
 		gains[bed.Loop] = bed.Takes[0].GainDB
 	}
-	return Layout{Fallback: bed.Loop, Files: files, Gains: gains, Zones: bed.Shapes}, true
+	return Layout{Fallback: bed.Loop, Files: files, Gains: gains, Zones: bed.Shapes, Reverbs: bed.Reverbs, FallbackReverb: bed.FallbackReverb}, true
 }
 
 // writeManifest writes the manifest into dir.
@@ -150,8 +175,8 @@ func writeManifest(dir string, m *Manifest) error {
 	return os.WriteFile(filepath.Join(dir, ManifestName), raw, 0o644)
 }
 
-// removeStaleTakes deletes the regular files of dir named like a take that m does not list, and
-// returns how many it deleted. Nothing else in dir is touched, and nothing below it.
+// removeStaleTakes deletes the regular files of dir named like a take or an impulse response that
+// m does not list, and returns how many it deleted. Nothing else in dir is touched, and nothing below it.
 func removeStaleTakes(dir string, m *Manifest) (int, error) {
 	keep := map[string]bool{}
 	for _, bed := range m.Maps {
@@ -163,6 +188,9 @@ func removeStaleTakes(dir string, m *Manifest) (int, error) {
 				keep[t.File] = true
 			}
 		}
+		for _, r := range bed.Reverbs {
+			keep[r.File] = true
+		}
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -170,7 +198,7 @@ func removeStaleTakes(dir string, m *Manifest) (int, error) {
 	}
 	removed := 0
 	for _, e := range entries {
-		if !e.Type().IsRegular() || !takeFile.MatchString(e.Name()) || keep[e.Name()] {
+		if !e.Type().IsRegular() || !(takeFile.MatchString(e.Name()) || reverbFile.MatchString(e.Name())) || keep[e.Name()] {
 			continue
 		}
 		if err := os.Remove(filepath.Join(dir, e.Name())); err != nil {

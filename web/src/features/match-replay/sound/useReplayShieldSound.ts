@@ -52,7 +52,7 @@ export function useReplayShieldSound(doc: ReplayDocumentReady, followed: string 
 
   const attach = useCallback((player: ReplayAudioPlayer) => {
     if (shieldRef.current) return
-    const bus = player.engineBus(SHIELD_BUS_GAIN)
+    const bus = player.engineBus(SHIELD_BUS_GAIN, true)
     shieldRef.current = new ShieldSoundPlayer({ ctx: bus.ctx, out: bus.out, bufferOf: (stem) => bus.bufferOf(soundUrlOf(stem)) })
   }, [])
 

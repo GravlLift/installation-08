@@ -1,6 +1,8 @@
 # Zone reverb: what the game stores (research notes, 2026-11-18)
 
-Status: the reverb data is located and partly decoded; the impulse response is not yet turned back into audio. Nothing ships from this yet.
+Status: the reverb data is located and partly decoded; the game's exact impulse response is not yet turned back into audio. What ships (0.1.1-test.5) is a stand-in per preset: `internal/ambience/reverb.go` keeps each partition's per-bin energy (exact whatever the bin order within a partition, as long as bins run low to high) and draws random phases, at the scale an unnormalized 2048-point FFT implies (stored energy / 1024 per partition), and the viewer (`zoneReverb.ts`) convolves world sounds with it at the share set's wet level.
+
+Measured on the stand-ins (energy of the response plus the wet level, the reverb's level against the dry sound for a steady input): `71d2752f` -26 dB, `88f39f4a` -23 dB, `0f717847` -23 dB, `9c9aa2e8` (the outdoor fallback of Streets and Live Fire) -33 dB, Academy's `a519ed76` -37 dB. Not read: each sound's send level into the reverb bus, that bus's volume, and the share set's other parameters (indexes 0 to 2 look like a delay in ms and two widths in degrees; not applied).
 
 ## Confirmed (probed on sgh_streets and sgh_interlock)
 

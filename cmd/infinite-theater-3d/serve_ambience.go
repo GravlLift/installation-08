@@ -18,7 +18,7 @@ import (
 )
 
 // ambienceLayout answers GET /api/matches/{id}/ambience.json with the match's map layout:
-// {"fallback", "files", "gains", "zones"}. A match whose map has no extracted bed (library not built yet,
+// {"fallback", "files", "gains", "zones", "reverbs", "fallbackReverb"}. A match whose map has no extracted bed (library not built yet,
 // or a map the game gives none) is a JSON 404 naming the module; nothing is enqueued.
 func (h serverHandlers) ambienceLayout(w http.ResponseWriter, r *http.Request) {
 	m, module, ok := h.ambienceLookup(w, r)
@@ -30,12 +30,19 @@ func (h serverHandlers) ambienceLayout(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "ambience_not_built", "moduleKey": module})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"fallback": lay.Fallback, "files": lay.Files, "gains": lay.Gains, "zones": lay.Zones})
+	reverbs := lay.Reverbs
+	if reverbs == nil {
+		reverbs = map[string]ambience.Reverb{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"fallback": lay.Fallback, "files": lay.Files, "gains": lay.Gains, "zones": lay.Zones,
+		"reverbs": reverbs, "fallbackReverb": lay.FallbackReverb,
+	})
 }
 
-// ambienceTake answers GET /api/matches/{id}/ambience/{file} with one take file
-// (range-capable via http.ServeContent), only when that file is listed in the match's map
-// layout; otherwise a JSON 404 ambience_not_built.
+// ambienceTake answers GET /api/matches/{id}/ambience/{file} with one take file or one zone
+// reverb's impulse response (range-capable via http.ServeContent), only when that file is listed
+// in the match's map layout; otherwise a JSON 404 ambience_not_built.
 func (h serverHandlers) ambienceTake(w http.ResponseWriter, r *http.Request) {
 	m, module, ok := h.ambienceLookup(w, r)
 	if !ok {
@@ -48,10 +55,16 @@ func (h serverHandlers) ambienceTake(w http.ResponseWriter, r *http.Request) {
 	}
 	file := r.PathValue("file")
 	notBuilt := map[string]string{"error": "ambience_not_built", "moduleKey": module}
-	listed := false
+	listed, contentType := false, "audio/ogg"
 	for _, name := range lay.Files {
 		if name == file {
 			listed = true
+			break
+		}
+	}
+	for _, rv := range lay.Reverbs {
+		if rv.File == file {
+			listed, contentType = true, "audio/wav"
 			break
 		}
 	}
@@ -74,7 +87,7 @@ func (h serverHandlers) ambienceTake(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer f.Close()
-	w.Header().Set("Content-Type", "audio/ogg")
+	w.Header().Set("Content-Type", contentType)
 	http.ServeContent(w, r, file, time.Time{}, f)
 }
 

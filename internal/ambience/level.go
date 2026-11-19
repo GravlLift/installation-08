@@ -8,8 +8,8 @@ package ambience
 //
 //	root +0x3d0  background sound palette, 276 B per zone. Entry z (bytes [z*276, z*276+276)):
 //	  +0x28  tag reference to the zone's looping sound (`lsnd`); its sound environment (`snde`,
-//	          the reverb) is the tag reference at +0x64. Some zones name no loop (reverb-only);
-//	          they are skipped.
+//	          the reverb, reverb.go) is the tag reference at +0x64. Some zones name no loop
+//	          (reverb-only); they have no bed but keep their reverb.
 //	  +0xac  a tag block whose child block holds the zone's floor polygon: N points of 12 B
 //	          each, float32 little-endian x, y, z; z is the same for every point and is the
 //	          zone's floor.
@@ -35,11 +35,13 @@ const (
 	levelOffPalette  = 0x3d0
 	paletteStride    = 276
 	paletteOffLoop   = 0x28
+	paletteOffEnv    = 0x64
 	paletteOffPoly   = 0xac
 	paletteOffHeight = 0xd4
 	pointStride      = 12
 	structTagBlock   = 1
 	groupLoop        = "lsnd"
+	groupEnv         = "snde"
 )
 
 // zoneLoop is one palette zone's background sound and, when the zone carries a readable floor
@@ -133,6 +135,52 @@ func zoneShape(t *announcer.Tag, palette, zone int) (points [][2]float64, floor,
 		}
 	}
 	return points, floor, height
+}
+
+// zoneEnv is one palette zone's sound environment (its reverb) and its shape.
+type zoneEnv struct {
+	Zone   int
+	Env    uint32
+	Floor  float64
+	Height float64
+	Points [][2]float64
+}
+
+// zoneEnvs returns, in palette order, the zones of the level that name a sound environment,
+// each with its floor polygon and height when the zone carries a readable shape. Zones that name
+// no loop (reverb-only rooms) are included. A level without a palette has none.
+func zoneEnvs(t *announcer.Tag) []zoneEnv {
+	root := -1
+	for _, s := range t.Structs {
+		if s.FieldBlock == -1 && s.Target >= 0 {
+			root = s.Target
+			break
+		}
+	}
+	palette := -1
+	for _, s := range t.Structs {
+		if root >= 0 && s.FieldBlock == root && s.FieldOffset == levelOffPalette && s.Type == structTagBlock {
+			palette = s.Target
+			break
+		}
+	}
+	if palette < 0 || palette >= len(t.Blocks) || t.Blocks[palette].Size%paletteStride != 0 {
+		return nil
+	}
+	var out []zoneEnv
+	for _, r := range t.Refs {
+		if r.FieldBlock != palette || r.FieldOffset%paletteStride != paletteOffEnv || r.Dep < 0 || r.Dep >= len(t.Deps) {
+			continue
+		}
+		if d := t.Deps[r.Dep]; d.Group == groupEnv {
+			zone := r.FieldOffset / paletteStride
+			z := zoneEnv{Zone: zone, Env: d.GlobalID}
+			z.Points, z.Floor, z.Height = zoneShape(t, palette, zone)
+			out = append(out, z)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Zone < out[j].Zone })
+	return out
 }
 
 // polygonArea is the absolute shoelace area of a floor polygon.

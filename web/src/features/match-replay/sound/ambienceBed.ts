@@ -31,6 +31,7 @@
  */
 import { prepareAmbienceZones, ambienceLoopAt, type PreparedAmbience } from './ambienceZones'
 import type { SoundListener } from './soundSpatial'
+import type { ZoneReverbPlayer } from './zoneReverb'
 
 /**
  * Unity: each loop's level is the game's own, the summed Wwise volume of its sound and every
@@ -116,9 +117,18 @@ export class AmbienceZonesPlayer {
   private readonly loading = new Set<string>()
   private audible = false
   private disposed = false
+  /** The zone reverb rides on the beds' layout and listener (`zoneReverb.ts`); optional. */
+  private readonly reverb: ZoneReverbPlayer | null
 
-  constructor(bus: AmbienceBus, layoutUrl: string, fileUrl: (file: string) => string, fetcher: (url: string) => Promise<Response> = (u) => fetch(u)) {
+  constructor(
+    bus: AmbienceBus,
+    layoutUrl: string,
+    fileUrl: (file: string) => string,
+    fetcher: (url: string) => Promise<Response> = (u) => fetch(u),
+    reverb: ZoneReverbPlayer | null = null,
+  ) {
     this.bus = bus
+    this.reverb = reverb
     this.layoutUrl = layoutUrl
     this.fileUrl = fileUrl
     this.fetcher = fetcher
@@ -128,6 +138,7 @@ export class AmbienceZonesPlayer {
   /** setListener tells where the listener stands (or that there is none, 2D view); cheap to call
    * every frame. A new zone must hold for `AMBIENCE_SWITCH_HOLD_S` before the bed switches. */
   setListener(pos: SoundListener | null): void {
+    this.reverb?.setListener(pos)
     if (this.disposed || !this.prepared) return
     const want = ambienceLoopAt(this.prepared, pos)
     if (want === this.target) {
@@ -161,6 +172,7 @@ export class AmbienceZonesPlayer {
   /** dispose stops everything for good (unmount, another match). */
   dispose(): void {
     for (const [loop] of [...this.voices]) this.stopVoice(loop, AMBIENCE_FADE_OUT_S)
+    this.reverb?.dispose()
     this.disposed = true
   }
 
@@ -180,6 +192,7 @@ export class AmbienceZonesPlayer {
       this.prepared = prepareAmbienceZones(layout)
       this.files = layout.files
       this.gains = layout.gains ?? {}
+      this.reverb?.setLayout(layout)
       this.target = layout.fallback
       this.ensureLoaded(layout.fallback)
     } catch (err) {

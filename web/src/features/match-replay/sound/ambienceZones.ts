@@ -15,13 +15,22 @@
  */
 import { inPolygon } from '../model/mapCallouts'
 
-/** One acoustic zone as the server's layout JSON says it. */
+/** One acoustic zone as the server's layout JSON says it. `loop` is empty for a zone with no bed
+ * (a reverb-only room); `reverb` names its sound environment, a key of the layout's `reverbs`. */
 export interface AmbienceZone {
   zone: number
   loop: string
+  reverb?: string
   floor: number
   height: number
   points: [number, number][]
+}
+
+/** One sound environment's impulse response: its file and the game's wet level (dB). */
+export interface AmbienceReverb {
+  file: string
+  wetDb: number
+  durationMs?: number
 }
 
 /** The layout served at `/api/matches/<id>/ambience.json`. */
@@ -30,6 +39,8 @@ export interface AmbienceLayout {
   files: Record<string, string>
   gains?: Record<string, number>
   zones: AmbienceZone[]
+  reverbs?: Record<string, AmbienceReverb>
+  fallbackReverb?: string
 }
 
 /** A zone prepared for many lookups: volume, XY box and the polygon to test. */
@@ -54,8 +65,22 @@ export interface PreparedAmbience {
 /** prepareAmbienceZones precomputes each zone's volume and XY box; broken zones are dropped
  * (fewer than 3 points, no height, a loop with no served file). */
 export function prepareAmbienceZones(layout: AmbienceLayout): PreparedAmbience {
-  const zones = layout.zones
-    .filter((z) => z.points.length >= 3 && z.height > 0 && layout.files[z.loop] !== undefined)
+  return prepareZones(layout.fallback, layout.zones, (z) => (layout.files[z.loop] !== undefined ? z.loop : null))
+}
+
+/**
+ * prepareReverbZones — the same lookup keyed by sound environment: `ambienceLoopAt` on the result
+ * answers the reverb of the smallest containing zone that names one, `fallbackReverb` elsewhere
+ * (empty when the map names none). Zones whose reverb was not extracted are dropped.
+ */
+export function prepareReverbZones(layout: AmbienceLayout): PreparedAmbience {
+  const reverbs = layout.reverbs ?? {}
+  return prepareZones(layout.fallbackReverb ?? '', layout.zones, (z) => (z.reverb && reverbs[z.reverb] ? z.reverb : null))
+}
+
+function prepareZones(fallback: string, all: AmbienceZone[], keyOf: (z: AmbienceZone) => string | null): PreparedAmbience {
+  const zones = all
+    .filter((z) => z.points.length >= 3 && z.height > 0 && keyOf(z) !== null)
     .map((z) => {
       let area = 0
       let minX = Infinity
@@ -71,7 +96,7 @@ export function prepareAmbienceZones(layout: AmbienceLayout): PreparedAmbience {
         maxY = Math.max(maxY, p[i][1])
       }
       return {
-        loop: z.loop,
+        loop: keyOf(z) as string,
         volume: (Math.abs(area) / 2) * z.height,
         floor: z.floor,
         top: z.floor + z.height,
@@ -82,7 +107,7 @@ export function prepareAmbienceZones(layout: AmbienceLayout): PreparedAmbience {
         points: p,
       }
     })
-  return { fallback: layout.fallback, zones }
+  return { fallback, zones }
 }
 
 /**

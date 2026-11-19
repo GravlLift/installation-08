@@ -13,6 +13,7 @@ import { useCallback, useEffect, useRef } from 'react'
 import type { ReplayAudioPlayer } from './replayAudio'
 import { AMBIENCE_BUS_GAIN, AmbienceZonesPlayer } from './ambienceBed'
 import type { SoundListener } from './soundSpatial'
+import { ZoneReverbPlayer } from './zoneReverb'
 
 /** The two ambience routes of a match: the layout and one file per loop. */
 export interface AmbienceUrls {
@@ -36,7 +37,10 @@ export function useReplayAmbience(urls: AmbienceUrls | null | undefined): Replay
 
   const create = useCallback((player: ReplayAudioPlayer) => {
     const u = urlsRef.current
-    bedsRef.current = u ? new AmbienceZonesPlayer(player.engineBus(AMBIENCE_BUS_GAIN), u.layoutUrl, u.fileUrl) : null
+    // The zone reverb listens on the player's send and follows the beds' layout and listener.
+    bedsRef.current = u
+      ? new AmbienceZonesPlayer(player.engineBus(AMBIENCE_BUS_GAIN), u.layoutUrl, u.fileUrl, undefined, new ZoneReverbPlayer(player.reverbBus(), u.fileUrl))
+      : null
   }, [])
 
   // Another match under a living player: the old beds stop, the new ones load on the same player.

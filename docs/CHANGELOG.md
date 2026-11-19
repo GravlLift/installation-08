@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1-test.5
+
+Changes since 0.1.1-test.4.
+
+- Sounds in the world (gunfire, footsteps, impacts, engines, shields) now reverberate like the zone the camera is in. Each zone of a map names one of the game's reverb presets (Streets and Live Fire share four), and the viewer applies that preset's decay, tone and wet level from your install. It crossfades to the next zone's reverb when the camera moves. The game's exact recorded reverb is not decoded yet, so each preset is rebuilt from its measured energy over time and frequency. The announcer, the music and the ambient loops stay dry. The first start after updating extracts the reverbs once. Video export has no reverb yet.
+
 ## 0.1.1-test.4
 
 Changes since 0.1.0.

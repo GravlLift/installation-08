@@ -10,6 +10,7 @@ import {
   type AmbienceBus,
 } from './ambienceBed'
 import type { AmbienceLayout } from './ambienceZones'
+import type { ZoneReverbPlayer } from './zoneReverb'
 
 /** A fake AudioBuffer the player can downmix and start voices on. */
 function fakeBuffer(channels: number, seconds = 10, sampleRate = 44100): AudioBuffer {
@@ -141,6 +142,19 @@ describe('bedOffsetS', () => {
 })
 
 describe('AmbienceZonesPlayer', () => {
+  it('forwards the loaded layout, every listener update, and disposal to reverb', async () => {
+    const { bus } = fakeBus()
+    const { layout, inA } = zoneLayout()
+    const { fetcher } = layoutFetcher({ layout })
+    const reverb = { setLayout: vi.fn(), setListener: vi.fn(), dispose: vi.fn() }
+    const player = new AmbienceZonesPlayer(bus, LAYOUT_URL, fileUrlOf, fetcher, reverb as unknown as ZoneReverbPlayer)
+    player.setListener(inA)
+    await vi.waitFor(() => expect(reverb.setLayout).toHaveBeenCalledWith(layout))
+    player.setListener(null)
+    expect(reverb.setListener.mock.calls).toEqual([[inA], [null]])
+    player.dispose()
+    expect(reverb.dispose).toHaveBeenCalledOnce()
+  })
   it('fades each loop to its Wwise gain, defaulting to unity', async () => {
     buffers['fb.ogg'] = fakeBuffer(2)
     buffers['a.ogg'] = fakeBuffer(2)

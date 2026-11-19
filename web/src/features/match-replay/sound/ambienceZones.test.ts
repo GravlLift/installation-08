@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it } from 'vitest'
 
-import { ambienceLoopAt, prepareAmbienceZones, type AmbienceLayout } from './ambienceZones'
+import { ambienceLoopAt, prepareAmbienceZones, prepareReverbZones, type AmbienceLayout } from './ambienceZones'
 
 function layout(overrides: Partial<AmbienceLayout> = {}): AmbienceLayout {
   return {
@@ -20,6 +20,10 @@ function layout(overrides: Partial<AmbienceLayout> = {}): AmbienceLayout {
 }
 
 describe('prepareAmbienceZones', () => {
+  it('drops a reverb-only zone with an empty loop', () => {
+    const l = layout({ zones: [{ zone: 1, loop: '', reverb: 'room', floor: 0, height: 2, points: [[0, 0], [4, 0], [4, 4], [0, 4]] }] })
+    expect(prepareAmbienceZones(l).zones).toHaveLength(0)
+  })
   it('drops zones with fewer than 3 points, no height, and a loop with no file entry', () => {
     const l = layout({
       zones: [
@@ -31,6 +35,25 @@ describe('prepareAmbienceZones', () => {
     const prepared = prepareAmbienceZones(l)
     expect(prepared.zones).toHaveLength(1)
     expect(prepared.zones[0].loop).toBe('big')
+  })
+})
+
+describe('prepareReverbZones', () => {
+  it('keeps reverb-only zones and selects the smallest containing room or fallback', () => {
+    const l = layout({
+      fallbackReverb: 'outside',
+      reverbs: { big: { file: 'big.wav', wetDb: 0 }, small: { file: 'small.wav', wetDb: 0 } },
+      zones: [
+        { zone: 1, loop: '', reverb: 'big', floor: 0, height: 10, points: [[0, 0], [20, 0], [20, 20], [0, 20]] },
+        { zone: 2, loop: '', reverb: 'small', floor: 0, height: 2, points: [[8, 8], [12, 8], [12, 12], [8, 12]] },
+      ],
+    })
+    const prepared = prepareReverbZones(l)
+    expect(prepared.zones).toHaveLength(2)
+    expect(ambienceLoopAt(prepared, { x: 10, y: 10, z: 1 })).toBe('small')
+    expect(ambienceLoopAt(prepared, { x: 3, y: 3, z: 1 })).toBe('big')
+    expect(ambienceLoopAt(prepared, { x: 50, y: 50 })).toBe('outside')
+    expect(ambienceLoopAt(prepareReverbZones({ ...l, fallbackReverb: undefined }), null)).toBe('')
   })
 })
 

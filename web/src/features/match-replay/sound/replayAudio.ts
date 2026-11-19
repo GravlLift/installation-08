@@ -339,6 +339,13 @@ export class ReplayAudioPlayer {
    * while the distance chain is set would record a sound that no one hears.
    */
   private out: AudioNode
+  /**
+   * THE REVERB SEND (`zoneReverb.ts`): every world sound (`play`, and the buses asked `wet`) feeds
+   * it as well as the master; the zone reverb hangs its convolvers on it and returns them to the
+   * master. Nothing hangs on it until a map's reverbs load, and an unconnected gain costs nothing.
+   * The announcer, the intro music and the match conclusion stay dry: they are not in the world.
+   */
+  private send: GainNode
 
   /** `volume` is set AT CONSTRUCTION: a default gain at 1 would pass the first
    *  sound at full before the user's preference is applied. */
@@ -346,8 +353,14 @@ export class ReplayAudioPlayer {
     this.ctx = new AudioContext()
     this.master = this.ctx.createGain()
     this.master.gain.value = Math.min(Math.max(volume, 0), 1)
+    this.send = this.ctx.createGain()
     this.out = this.master
     this.connectOut(this.master)
+  }
+
+  /** reverbBus — the context, the send every world sound feeds, and the master to return into. */
+  reverbBus(): { ctx: BaseAudioContext; send: AudioNode; out: AudioNode } {
+    return { ctx: this.ctx, send: this.send, out: this.master }
   }
 
   /**
@@ -421,12 +434,14 @@ export class ReplayAudioPlayer {
    * The bus goes through `master` and not through the output: the engines thus follow the volume
    * set, the distance chain AND the recording faucet without any of the three having
    * to know their existence. The bus gain (0.85, user decision of 2026-09-04) is
-   * set by the caller — this player knows no engine rule.
+   * set by the caller — this player knows no engine rule. `wet` also feeds the bus to the zone
+   * reverb's send (world sounds: engines, shields; not the ambient beds, which are room tone).
    */
-  engineBus(gain: number): { ctx: BaseAudioContext; out: AudioNode; bufferOf: (url: string) => AudioBuffer | null | undefined } {
+  engineBus(gain: number, wet = false): { ctx: BaseAudioContext; out: AudioNode; bufferOf: (url: string) => AudioBuffer | null | undefined } {
     const bus = this.ctx.createGain()
     bus.gain.value = gain
     bus.connect(this.master)
+    if (wet) bus.connect(this.send)
     return { ctx: this.ctx, out: bus, bufferOf: (url) => this.buffers.get(url) }
   }
 
@@ -475,7 +490,7 @@ export class ReplayAudioPlayer {
    * worse than a missed sound.
    */
   play(url: string, draw?: SoundDraw, shape?: SoundShape, place?: SoundPlacement, slot: { when?: number; footstep?: boolean } = {}): void {
-    this.start(url, soundKindOf({}), { draw, shape, place, when: slot.when, footstep: slot.footstep })
+    this.start(url, soundKindOf({}), { draw, shape, place, when: slot.when, footstep: slot.footstep, wet: true })
   }
 
   /**
@@ -530,7 +545,7 @@ export class ReplayAudioPlayer {
   private start(
     url: string,
     kind: SoundKind,
-    opts: { draw?: SoundDraw; shape?: SoundShape; offsetS?: number; place?: SoundPlacement; when?: number; footstep?: boolean } = {},
+    opts: { draw?: SoundDraw; shape?: SoundShape; offsetS?: number; place?: SoundPlacement; when?: number; footstep?: boolean; wet?: boolean } = {},
   ): void {
     const footstep = opts.footstep === true
     const { draw, shape, place } = opts
@@ -572,8 +587,10 @@ export class ReplayAudioPlayer {
       panner.pan.value = place.pan
       gain.connect(panner)
       panner.connect(this.master)
+      if (opts.wet) panner.connect(this.send)
     } else {
       gain.connect(this.master)
+      if (opts.wet) gain.connect(this.send)
     }
     // A HELD SOUND (`loop`) is held back: the pause and the jump cut it (`stopHeld`), otherwise a
     // burst of ten seconds would keep firing on a stopped image.
