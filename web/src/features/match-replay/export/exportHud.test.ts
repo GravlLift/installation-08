@@ -12,7 +12,7 @@ import type { KillEvent } from '../../match-view/_momentum'
 import { toReplayKills } from '../model/killFeedLogic'
 import { prepareCallouts } from '../model/mapCallouts'
 import { testReplayDoc } from '../test/testDoc'
-import { SHIELD_CHASE_INK } from '../model/shieldHud'
+import { SHIELD_CHASE_INK, SHIELD_QUAD_URL } from '../model/shieldHud'
 import { createExportHud } from './exportHud'
 
 it('draws the requested player HUD without inventing an unknown player state', async () => {
@@ -80,14 +80,25 @@ function recordingCtx() {
 
 const VIEW = { width: 1280, height: 720 }
 
+/** A loading `Image` that fails on the quad bitmap (jsdom never fires load on its own):
+ * this file's tests pin the legacy hand-made bar; the quad mode is its own test and stubs
+ * its own `Image`. */
+class FakeQuadFailingImage {
+  onload: (() => void) | null = null
+  onerror: (() => void) | null = null
+  set src(url: string) { queueMicrotask(() => (url === SHIELD_QUAD_URL ? this.onerror?.() : this.onload?.())) }
+}
+
 beforeEach(() => {
   localStorage.clear()
   // jsdom does not load index.css: pose the defaults the way the app does.
   document.documentElement.style.setProperty('--team-ally', '#22c55e')
   document.documentElement.style.setProperty('--team-enemy', '#ef4444')
+  vi.stubGlobal('Image', FakeQuadFailingImage)
 })
 
 afterEach(() => {
+  vi.unstubAllGlobals()
   document.documentElement.style.removeProperty('--team-ally')
   document.documentElement.style.removeProperty('--team-enemy')
 })
@@ -381,11 +392,12 @@ describe('createExportHud', () => {
 
     it('with the bitmap loaded, draws the tinted band under a clip, not the flat rects', async () => {
       // The bitmap preloads only when the match has damage events, and it loads (jsdom never
-      // fires load on its own): the same microtask stub the icon tests use.
+      // fires load on its own): the same microtask stub the icon tests use. The quad bitmap is
+      // FAILED on purpose: this test pins the legacy hand-made bar (the quad mode is its own test).
       class FakeImage {
         onload: (() => void) | null = null
         onerror: (() => void) | null = null
-        set src(_url: string) { queueMicrotask(() => this.onload?.()) }
+        set src(url: string) { queueMicrotask(() => (url === SHIELD_QUAD_URL ? this.onerror?.() : this.onload?.())) }
       }
       vi.stubGlobal('Image', FakeImage)
       // The bitmap read by `tintedChase`: a canvas stub over a buffer of the bitmap's own size.
@@ -413,6 +425,60 @@ describe('createExportHud', () => {
       const rectsAtBar = dropped.named('fillRect').filter((c) => c.args[1] === 720 * 0.08)
       expect(rectsAtBar.some((c) => c.args[2] === 200 * 0.36)).toBe(false)
       expect(dropped.sets.some((s) => s.prop === 'fillStyle' && s.value === SHIELD_CHASE_INK)).toBe(false)
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+    })
+
+    it('with the quad loaded, masks the bar to the quad: the quad image drawn with destination-in', async () => {
+      // Both bitmaps load (jsdom never fires load on its own): the same microtask stub the
+      // legacy test uses, this time with the quad among them.
+      const made: FakeQuadImage[] = []
+      class FakeQuadImage {
+        onload: (() => void) | null = null
+        onerror: (() => void) | null = null
+        private _src = ''
+        constructor() { made.push(this) }
+        get src() { return this._src }
+        set src(url: string) { this._src = url; queueMicrotask(() => this.onload?.()) }
+      }
+      vi.stubGlobal('Image', FakeQuadImage)
+      // The offscreen canvas the quad mode composes on: a recording context (the same stub the
+      // legacy test uses for the chase bitmap's canvas; `getImageData` feeds `tintedChase`).
+      const events: { kind: 'op' | 'set'; name: string; args?: unknown[]; value?: unknown }[] = []
+      const octx = new Proxy({}, {
+        get(_t, prop) {
+          if (prop === 'createLinearGradient') return () => ({ addColorStop: () => {} })
+          if (prop === 'getImageData') return () => ({ data: new Uint8ClampedArray(940 * 64 * 4) })
+          return (...args: unknown[]) => { events.push({ kind: 'op', name: String(prop), args }); return undefined }
+        },
+        set(_t, prop, value) { events.push({ kind: 'set', name: String(prop), value }); return true },
+      }) as unknown as CanvasRenderingContext2D
+      vi.spyOn(document, 'createElement').mockImplementation((tag: string) =>
+        tag === 'canvas' ? ({ width: 0, height: 0, getContext: () => octx } as unknown as HTMLElement) : ({} as HTMLElement))
+      const hud = await createExportHud(shieldDocWithDamages(), 'A', [], null, null, 'en')
+      const dropped = callRecorder()
+      hud(dropped.ctx, VIEW, 100)
+      // The frame receives one drawImage: the offscreen canvas, at the bar's position and width
+      // with the quad's aspect (80/940), not the legacy 74/1000.
+      const draws = dropped.named('drawImage')
+      expect(draws).toHaveLength(1)
+      const [, dx, dy, dw, dh] = draws[0].args as [unknown, number, number, number, number]
+      expect(dx).toBe(460)
+      expect(dy).toBe(720 * 0.08)
+      expect(dw).toBe(360)
+      expect(dh).toBeCloseTo(360 * 80 / 940, 12)
+      // On the offscreen canvas: the chase band is additive, and the quad's alpha is applied
+      // as a mask with `destination-in`, drawing the quad image right after the mask is set.
+      const quad = made.find((img) => img.src === SHIELD_QUAD_URL)
+      expect(quad).toBeDefined()
+      const maskSet = events.findIndex((e) => e.kind === 'set' && e.name === 'globalCompositeOperation' && e.value === 'destination-in')
+      const quadDraw = events.findIndex((e) => e.kind === 'op' && e.name === 'drawImage' && e.args?.[0] === quad)
+      expect(maskSet).toBeGreaterThanOrEqual(0)
+      expect(quadDraw).toBeGreaterThan(maskSet)
+      expect(events.some((e) => e.kind === 'set' && e.name === 'globalCompositeOperation' && e.value === 'lighter')).toBe(true)
+      // The band sits at the chase's own offset in the 80-tall quad, at the bar's pixel width.
+      const u = 360 / 940
+      expect(events.some((e) => e.kind === 'op' && e.name === 'drawImage' && e.args?.[1] === 0 && Math.abs(e.args?.[2] as number - 8 * u) < 1e-9 && e.args?.[3] === 360 && Math.abs(e.args?.[4] as number - 64 * u) < 1e-9)).toBe(true)
       vi.unstubAllGlobals()
       vi.restoreAllMocks()
     })

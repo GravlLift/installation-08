@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1-test.11
+
+- The video export draws the shield bar in the game's own shape too, matching the viewer: the same angled ends, hex pattern, draining fill and red band. Exports made before the HUD icons rebuild still draw the old shape.
+
 ## 0.1.1-test.10
 
 Changes since 0.1.1-test.9.

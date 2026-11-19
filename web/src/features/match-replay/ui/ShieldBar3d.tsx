@@ -2,7 +2,7 @@
 import { useEffect, useId, useState } from 'react'
 import { tokenCssVar } from '@/lib/accessibility/semantic-tokens'
 import { SHIELD_CHASE_INK, SHIELD_CHASE_URL, SHIELD_QUAD_URL, type ShieldHudState } from '../model/shieldHud'
-import { shieldBarPath, shieldGlossPath, shieldStreakPaths, SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER } from './shieldBarGeometry'
+import { shieldBarPath, shieldGlossPath, shieldStreakPaths, SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER, SHIELD_QUAD_H, SHIELD_QUAD_W, SHIELD_QUAD_CENTER, SHIELD_QUAD_HALF, SHIELD_QUAD_CHASE_H, SHIELD_QUAD_CHASE_Y } from './shieldBarGeometry'
 import { tintedChaseUrl } from './shieldChaseArt'
 
 /** The game's chase-band bitmap, loaded once; the bar draws it tinted when it is ready. */
@@ -13,18 +13,9 @@ chaseImage.src = SHIELD_CHASE_URL
 const quadImage = new Image()
 quadImage.src = SHIELD_QUAD_URL
 
-// The bar's shape in the game's own units: the quad bitmap's size. When it is loaded the bar masks
-// to the quad's alpha and the chase band sits at its game size inside the 80-tall quad.
-const QUAD_W = 940
-const QUAD_H = 80
-const QUAD_CX = 470 // center: the fill drains from both ends toward it
-const QUAD_HALF = 470 // half-width: a full shield spans the whole quad
-const CHASE_H = 64 // the chase bitmap's own height
-// INFERRED: where the 64-tall chase sits vertically in the 80-tall quad. The screen dump does not
-// settle a clean nested offset (both quads render at the same 40-unit height from bitmaps of
-// different native heights, the main quad's margin_top -8 vs the chase's 0), so it is centered.
-const CHASE_Y = (QUAD_H - CHASE_H) / 2
-
+// The bar's shape in the game's own units: the quad bitmap's size (`SHIELD_QUAD_*`). When it is
+// loaded the bar masks to the quad's alpha and the chase band sits at its game size inside the
+// 80-tall quad.
 /**
  * ShieldBar3d — the first-person shield bar. When the game's own quad (`SHIELD_QUAD_URL`, a
  * 940x80 bitmap whose alpha is the bar's shape) is loaded, the bar masks to that shape in the
@@ -56,10 +47,10 @@ export function ShieldBar3d({ fraction, state, flash, chase, label }: { fraction
   }, [quadReady])
   // The game's own quad when it is loaded, the hand-made bar before that.
   const isQuad = quadReady
-  const W = isQuad ? QUAD_W : SHIELD_BAR_W
-  const H = isQuad ? QUAD_H : SHIELD_BAR_H
-  const cx = isQuad ? QUAD_CX : SHIELD_CENTER
-  const hw = isQuad ? QUAD_HALF : SHIELD_CENTER
+  const W = isQuad ? SHIELD_QUAD_W : SHIELD_BAR_W
+  const H = isQuad ? SHIELD_QUAD_H : SHIELD_BAR_H
+  const cx = isQuad ? SHIELD_QUAD_CENTER : SHIELD_CENTER
+  const hw = isQuad ? SHIELD_QUAD_HALF : SHIELD_CENTER
   const half = hw * Math.max(0, Math.min(1, fraction))
   // The chase band's edges: the game's `shield_chase` quad spans the just-lost shield, from the
   // live value out to the lagging value (`shieldChaseAt`), drawn additively (`SHIELD_CHASE_INK`).
@@ -76,12 +67,12 @@ export function ShieldBar3d({ fraction, state, flash, chase, label }: { fraction
   // the reveal is clipped to the band's two x ranges because the bitmap's B ramp is linear in x, so
   // the clip equals the game's B-threshold reveal to within a few pixels, flush with the fill edge.
   const chaseBand = chaseHalf > half && (chaseReady ? <g style={{ mixBlendMode: 'plus-lighter' }} clipPath={`url(#${id}-chase)`}>
-    <image href={tintedChaseUrl(chaseImage)} x={0} y={isQuad ? CHASE_Y : 0} width={W} height={isQuad ? CHASE_H : H} preserveAspectRatio="none" />
+    <image href={tintedChaseUrl(chaseImage)} x={0} y={isQuad ? SHIELD_QUAD_CHASE_Y : 0} width={W} height={isQuad ? SHIELD_QUAD_CHASE_H : H} preserveAspectRatio="none" />
   </g> : <g style={{ mixBlendMode: 'plus-lighter', fill: SHIELD_CHASE_INK }}>
     <rect x={cx - chaseHalf} y={0} width={chaseHalf - half} height={H} />
     <rect x={cx + half} y={0} width={chaseHalf - half} height={H} />
   </g>)
-  return <svg viewBox={isQuad ? `0 0 ${QUAD_W} ${QUAD_H}` : `0 0 ${SHIELD_BAR_W} ${SHIELD_BAR_H}`} role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(fraction * 100)} data-shield-state={state}
+  return <svg viewBox={isQuad ? `0 0 ${SHIELD_QUAD_W} ${SHIELD_QUAD_H}` : `0 0 ${SHIELD_BAR_W} ${SHIELD_BAR_H}`} role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(fraction * 100)} data-shield-state={state}
     style={{ display: 'block', width: '100%', height: 'auto', overflow: 'visible', filter: 'drop-shadow(0 1px 2px var(--replay-hud-shadow))' }}>
     <defs>
       {/* The bar's shape: the quad's alpha as an SVG mask, or the hand-made path as a clip. */}

@@ -4,8 +4,8 @@ import { formatClock, frameToMs } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { ReplayLocale } from '../i18n/i18n'
 import { hudClock, readHud, readKillFeed, readScoreHud, prepareHud, NAME_TAG_EM, NAME_TAG_PAD_X, NAME_TAG_PAD_Y } from '../model/hud3d_logic'
-import { SHIELD_CHASE_INK, SHIELD_CHASE_URL, shieldFlash } from '../model/shieldHud'
-import { SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER } from '../ui/shieldBarGeometry'
+import { SHIELD_CHASE_INK, SHIELD_CHASE_URL, SHIELD_QUAD_URL, shieldFlash } from '../model/shieldHud'
+import { SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER, SHIELD_QUAD_H, SHIELD_QUAD_W, SHIELD_QUAD_CENTER, SHIELD_QUAD_HALF, SHIELD_QUAD_CHASE_H, SHIELD_QUAD_CHASE_Y } from '../ui/shieldBarGeometry'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
 import { weaponFullIcon } from '../model/weaponFullIcon'
@@ -64,6 +64,10 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
   for (const label of Object.values(doc.grenadeLabels ?? {})) if (label.img) urls.add(label.img)
   for (const label of Object.values(doc.abilityLabels ?? {})) if (label.img) urls.add(label.img)
   for (const kill of kills) if (kill.weaponImageUrl) urls.add(weaponFullIcon(kill.weaponImageUrl).url)
+  // The game's shield bar quad, awaited with the icons so the first exported frame has it: the
+  // bar masks to the quad's alpha whenever the player's life carries shield samples (damage
+  // events are not involved, so this is not gated on them, as the chase bitmap below is).
+  urls.add(SHIELD_QUAD_URL)
   // The game's damage-arc bitmap, awaited with the icons so the first exported frame has it
   // (only when the match has damage events: without them no arc is ever drawn).
   if (doc.damages?.length) {
@@ -128,101 +132,173 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
     }
     if (ath) {
       if (ath.shieldState) {
-        // The shield bar, the same glass bar as `ShieldBar3d`: drawn in its 1000x74 unit box,
-        // scaled and centered where the export already put the old bar.
-        const bw = Math.min(h * 0.5, w * 0.9), bh = bw * SHIELD_BAR_H / SHIELD_BAR_W
+        // The shield bar, the same bar as `ShieldBar3d`: when the game's own quad bitmap is
+        // loaded, the bar is painted in the quad's 940x80 unit box and masked to the quad's
+        // alpha; before that it is the hand-made bar in its 1000x74 unit box. Both are scaled
+        // and centered where the export already put the old bar.
+        const bw = Math.min(h * 0.5, w * 0.9)
         const ox = (w - bw) / 2, oy = h * 0.08
-        const s = bw / SHIELD_BAR_W
         const state = ath.shieldState.state
         const low = state === 'low'
         const alert = low || state === 'broken'
         const flash = shieldFlash(frameToMs(ath.shieldState.since, doc), frameToMs(frame, doc))
-        const pulse = alert ? 0.35 + 0.65 * flash : 1
         const alertInk = resolveToken('replay-hud-shield-alert')
         const mainInk = low ? alertInk : resolveToken('replay-hud-shield')
         const deepInk = low ? mixSrgb(alertInk, 0.65) : resolveToken('replay-hud-shield-deep')
         const trackInk = resolveToken('replay-hud-shield-track')
         const rimInk = resolveToken('replay-hud-shield-rim')
-        const half = SHIELD_CENTER * Math.max(0, Math.min(1, ath.shieldState.fraction))
-        const toX = (u: number) => ox + u * s
-        const toY = (v: number) => oy + v * s
-        // The bar's glass: track fill under the bar outline.
-        const barPath = () => {
+        const quadBitmap = images.get(SHIELD_QUAD_URL)
+        if (quadBitmap) {
+          // QUAD MODE: the game's own 940x80 bitmap, the same layers as `ShieldBar3d`'s quad
+          // mode, composed on an offscreen canvas at the bar's pixel size and masked to the
+          // quad's alpha (a canvas has no SVG-style mask; `destination-in` keeps only the
+          // quad's opaque pixels).
+          const bh = bw * SHIELD_QUAD_H / SHIELD_QUAD_W
+          const pixelW = Math.max(1, Math.round(bw)), pixelH = Math.max(1, Math.round(bh))
+          const off = document.createElement('canvas')
+          off.width = pixelW; off.height = pixelH
+          const octx = off.getContext('2d')
+          if (octx) {
+            const u = pixelW / SHIELD_QUAD_W
+            // The bar's glass: the track fill over the whole box (the shape comes from the mask).
+            octx.fillStyle = trackInk; octx.fillRect(0, 0, pixelW, pixelH)
+            if (state === 'broken') { octx.fillStyle = alertInk; octx.globalAlpha = 0.18 * flash; octx.fillRect(0, 0, pixelW, pixelH); octx.globalAlpha = 1 }
+            const half = SHIELD_QUAD_HALF * Math.max(0, Math.min(1, ath.shieldState.fraction))
+            if (half > 0) {
+              // The fill: the center band, clipped to the fill's x range, bright at the center.
+              const grad = octx.createLinearGradient(0, 0, pixelW, 0)
+              grad.addColorStop(0, deepInk); grad.addColorStop(0.5, mainInk); grad.addColorStop(1, deepInk)
+              octx.save()
+              octx.beginPath(); octx.rect((SHIELD_QUAD_CENTER - half) * u, 0, 2 * half * u, pixelH); octx.clip()
+              octx.globalAlpha = low ? 0.45 + 0.45 * flash : 0.82
+              octx.fillStyle = grad; octx.fillRect(0, 0, pixelW, pixelH)
+              octx.restore()
+              // `recharging`: the fill's growing edges, marked with the rim color, as ShieldBar3d.
+              if (state === 'recharging' && half < SHIELD_QUAD_HALF) {
+                octx.save()
+                octx.globalAlpha = 0.9; octx.strokeStyle = rimInk; octx.lineWidth = 2
+                octx.beginPath()
+                octx.moveTo((SHIELD_QUAD_CENTER - half) * u, 0); octx.lineTo((SHIELD_QUAD_CENTER - half) * u, pixelH)
+                octx.moveTo((SHIELD_QUAD_CENTER + half) * u, 0); octx.lineTo((SHIELD_QUAD_CENTER + half) * u, pixelH)
+                octx.stroke()
+                octx.restore()
+              }
+            }
+            // The chase band: the shield just lost, from the live fill out to the lagging chase
+            // (`shieldHud.chase`), additive over the fill, the game's `shield_chase` quad at its
+            // own size in the 80-tall quad. Outside the fill's branch: a hit that empties the
+            // shield (fill 0) still shows the band it took off.
+            const chaseHalf = SHIELD_QUAD_HALF * Math.max(0, Math.min(1, ath.shieldState.chase))
+            if (chaseHalf > half) {
+              octx.save()
+              octx.globalCompositeOperation = 'lighter'
+              octx.beginPath()
+              octx.rect((SHIELD_QUAD_CENTER - chaseHalf) * u, 0, (chaseHalf - half) * u, pixelH)
+              octx.rect((SHIELD_QUAD_CENTER + half) * u, 0, (chaseHalf - half) * u, pixelH)
+              octx.clip()
+              const chaseBitmap = images.get(SHIELD_CHASE_URL)
+              if (chaseBitmap) {
+                octx.drawImage(tintedChase(chaseBitmap), 0, SHIELD_QUAD_CHASE_Y * u, pixelW, SHIELD_QUAD_CHASE_H * u)
+              } else {
+                // The bitmap not loaded: the flat tinted band it replaces.
+                octx.fillStyle = SHIELD_CHASE_INK
+                octx.fillRect((SHIELD_QUAD_CENTER - chaseHalf) * u, 0, (chaseHalf - half) * u, pixelH)
+                octx.fillRect((SHIELD_QUAD_CENTER + half) * u, 0, (chaseHalf - half) * u, pixelH)
+              }
+              octx.restore()
+            }
+            // The bar's shape: the quad's alpha, applied over the whole box.
+            octx.globalCompositeOperation = 'destination-in'
+            octx.drawImage(quadBitmap, 0, 0, pixelW, pixelH)
+            octx.globalCompositeOperation = 'source-over'
+            ctx.drawImage(off, ox, oy, bw, bh)
+          }
+        } else {
+          // LEGACY: the hand-made glass bar as `ShieldBar3d` draws it before the quad loads.
+          const bh = bw * SHIELD_BAR_H / SHIELD_BAR_W
+          const s = bw / SHIELD_BAR_W
+          const pulse = alert ? 0.35 + 0.65 * flash : 1
+          const half = SHIELD_CENTER * Math.max(0, Math.min(1, ath.shieldState.fraction))
+          const toX = (u: number) => ox + u * s
+          const toY = (v: number) => oy + v * s
+          // The bar's glass: track fill under the bar outline.
+          const barPath = () => {
+            ctx.beginPath()
+            ctx.moveTo(toX(20), toY(6)); ctx.quadraticCurveTo(toX(500), toY(34), toX(980), toY(6))
+            ctx.lineTo(toX(1000), toY(40)); ctx.lineTo(toX(988), toY(56))
+            ctx.quadraticCurveTo(toX(500), toY(86), toX(12), toY(56))
+            ctx.lineTo(toX(0), toY(40)); ctx.closePath()
+          }
+          barPath()
+          ctx.fillStyle = trackInk; ctx.fill()
+          if (state === 'broken') { ctx.fillStyle = alertInk; ctx.globalAlpha = 0.18 * flash; ctx.fill(); ctx.globalAlpha = 1 }
+          if (half > 0) {
+            // The fill: the center band, clipped to the bar, with the gradient bright at the center.
+            const grad = ctx.createLinearGradient(toX(0), 0, toX(1000), 0)
+            grad.addColorStop(0, deepInk); grad.addColorStop(0.5, mainInk); grad.addColorStop(1, deepInk)
+            ctx.save()
+            ctx.clip()
+            ctx.globalAlpha = low ? 0.45 + 0.45 * flash : 0.82
+            ctx.fillStyle = grad
+            ctx.fillRect(toX(SHIELD_CENTER - half), oy, 2 * half * s, bh)
+            ctx.globalAlpha = 1
+            // The glass light: a gloss line under the top edge and two faint streaks.
+            ctx.beginPath()
+            ctx.moveTo(toX(24), toY(11)); ctx.quadraticCurveTo(toX(500), toY(39), toX(976), toY(11))
+            ctx.strokeStyle = '#fff'; ctx.globalAlpha = 0.45; ctx.lineWidth = 6 * s; ctx.stroke()
+            ctx.globalAlpha = 0.1; ctx.lineWidth = 3 * s
+            ctx.beginPath()
+            ctx.moveTo(toX(0), toY(30)); ctx.quadraticCurveTo(toX(500), toY(58), toX(1000), toY(30))
+            ctx.moveTo(toX(0), toY(44)); ctx.quadraticCurveTo(toX(500), toY(72), toX(1000), toY(44))
+            ctx.stroke()
+            ctx.globalAlpha = 1
+            // `recharging`: the fill's growing edges, marked with the rim color.
+            if (state === 'recharging' && half < SHIELD_CENTER) {
+              ctx.globalAlpha = 0.9
+              ctx.strokeStyle = rimInk; ctx.lineWidth = 2
+              ctx.beginPath(); ctx.moveTo(toX(SHIELD_CENTER - half), toY(0)); ctx.lineTo(toX(SHIELD_CENTER - half), toY(SHIELD_BAR_H))
+              ctx.moveTo(toX(SHIELD_CENTER + half), toY(0)); ctx.lineTo(toX(SHIELD_CENTER + half), toY(SHIELD_BAR_H))
+              ctx.stroke()
+              ctx.globalAlpha = 1
+            }
+            ctx.restore()
+          }
+          // The chase band: the shield just lost, from the live fill out to the lagging chase
+          // (`shieldHud.chase`), additive over the fill, the game's `shield_chase` quad. Outside the
+          // fill's branch: a hit that empties the shield (fill 0) still shows the band it took off.
+          const chaseHalf = SHIELD_CENTER * Math.max(0, Math.min(1, ath.shieldState.chase))
+          if (chaseHalf > half) {
+            ctx.save()
+            barPath()
+            ctx.clip()
+            ctx.globalCompositeOperation = 'lighter'
+            const chaseBitmap = images.get(SHIELD_CHASE_URL)
+            if (chaseBitmap) {
+              // The game's bitmap stretched to the bar's box, revealed by clipping to the band's
+              // two x ranges: INFERRED the clip equals the game's B-threshold reveal (the ramp is
+              // linear in x, 128 at the center) to within a few pixels.
+              ctx.beginPath()
+              ctx.rect(toX(SHIELD_CENTER - chaseHalf), oy, (chaseHalf - half) * s, bh)
+              ctx.rect(toX(SHIELD_CENTER + half), oy, (chaseHalf - half) * s, bh)
+              ctx.clip()
+              ctx.drawImage(tintedChase(chaseBitmap), ox, oy, bw, bh)
+            } else {
+              // The bitmap not loaded: the flat tinted band it replaces.
+              ctx.fillStyle = SHIELD_CHASE_INK
+              ctx.fillRect(toX(SHIELD_CENTER - chaseHalf), oy, (chaseHalf - half) * s, bh)
+              ctx.fillRect(toX(SHIELD_CENTER + half), oy, (chaseHalf - half) * s, bh)
+            }
+            ctx.restore()
+          }
+          // The rim: the bar outline, pale blue at rest, pulsing red when low or broken.
           ctx.beginPath()
           ctx.moveTo(toX(20), toY(6)); ctx.quadraticCurveTo(toX(500), toY(34), toX(980), toY(6))
           ctx.lineTo(toX(1000), toY(40)); ctx.lineTo(toX(988), toY(56))
           ctx.quadraticCurveTo(toX(500), toY(86), toX(12), toY(56))
           ctx.lineTo(toX(0), toY(40)); ctx.closePath()
-        }
-        barPath()
-        ctx.fillStyle = trackInk; ctx.fill()
-        if (state === 'broken') { ctx.fillStyle = alertInk; ctx.globalAlpha = 0.18 * flash; ctx.fill(); ctx.globalAlpha = 1 }
-        if (half > 0) {
-          // The fill: the center band, clipped to the bar, with the gradient bright at the center.
-          const grad = ctx.createLinearGradient(toX(0), 0, toX(1000), 0)
-          grad.addColorStop(0, deepInk); grad.addColorStop(0.5, mainInk); grad.addColorStop(1, deepInk)
-          ctx.save()
-          ctx.clip()
-          ctx.globalAlpha = low ? 0.45 + 0.45 * flash : 0.82
-          ctx.fillStyle = grad
-          ctx.fillRect(toX(SHIELD_CENTER - half), oy, 2 * half * s, bh)
+          ctx.strokeStyle = alert ? alertInk : rimInk; ctx.lineWidth = 1.25; ctx.lineJoin = 'round'; ctx.globalAlpha = alert ? pulse : 0.9; ctx.stroke()
           ctx.globalAlpha = 1
-          // The glass light: a gloss line under the top edge and two faint streaks.
-          ctx.beginPath()
-          ctx.moveTo(toX(24), toY(11)); ctx.quadraticCurveTo(toX(500), toY(39), toX(976), toY(11))
-          ctx.strokeStyle = '#fff'; ctx.globalAlpha = 0.45; ctx.lineWidth = 6 * s; ctx.stroke()
-          ctx.globalAlpha = 0.1; ctx.lineWidth = 3 * s
-          ctx.beginPath()
-          ctx.moveTo(toX(0), toY(30)); ctx.quadraticCurveTo(toX(500), toY(58), toX(1000), toY(30))
-          ctx.moveTo(toX(0), toY(44)); ctx.quadraticCurveTo(toX(500), toY(72), toX(1000), toY(44))
-          ctx.stroke()
-          ctx.globalAlpha = 1
-          // `recharging`: the fill's growing edges, marked with the rim color.
-          if (state === 'recharging' && half < SHIELD_CENTER) {
-            ctx.globalAlpha = 0.9
-            ctx.strokeStyle = rimInk; ctx.lineWidth = 2
-            ctx.beginPath(); ctx.moveTo(toX(SHIELD_CENTER - half), toY(0)); ctx.lineTo(toX(SHIELD_CENTER - half), toY(SHIELD_BAR_H))
-            ctx.moveTo(toX(SHIELD_CENTER + half), toY(0)); ctx.lineTo(toX(SHIELD_CENTER + half), toY(SHIELD_BAR_H))
-            ctx.stroke()
-            ctx.globalAlpha = 1
-          }
-          ctx.restore()
         }
-        // The chase band: the shield just lost, from the live fill out to the lagging chase
-        // (`shieldHud.chase`), additive over the fill, the game's `shield_chase` quad. Outside the
-        // fill's branch: a hit that empties the shield (fill 0) still shows the band it took off.
-        const chaseHalf = SHIELD_CENTER * Math.max(0, Math.min(1, ath.shieldState.chase))
-        if (chaseHalf > half) {
-          ctx.save()
-          barPath()
-          ctx.clip()
-          ctx.globalCompositeOperation = 'lighter'
-          const chaseBitmap = images.get(SHIELD_CHASE_URL)
-          if (chaseBitmap) {
-            // The game's bitmap stretched to the bar's box, revealed by clipping to the band's
-            // two x ranges: INFERRED the clip equals the game's B-threshold reveal (the ramp is
-            // linear in x, 128 at the center) to within a few pixels.
-            ctx.beginPath()
-            ctx.rect(toX(SHIELD_CENTER - chaseHalf), oy, (chaseHalf - half) * s, bh)
-            ctx.rect(toX(SHIELD_CENTER + half), oy, (chaseHalf - half) * s, bh)
-            ctx.clip()
-            ctx.drawImage(tintedChase(chaseBitmap), ox, oy, bw, bh)
-          } else {
-            // The bitmap not loaded: the flat tinted band it replaces.
-            ctx.fillStyle = SHIELD_CHASE_INK
-            ctx.fillRect(toX(SHIELD_CENTER - chaseHalf), oy, (chaseHalf - half) * s, bh)
-            ctx.fillRect(toX(SHIELD_CENTER + half), oy, (chaseHalf - half) * s, bh)
-          }
-          ctx.restore()
-        }
-        // The rim: the bar outline, pale blue at rest, pulsing red when low or broken.
-        ctx.beginPath()
-        ctx.moveTo(toX(20), toY(6)); ctx.quadraticCurveTo(toX(500), toY(34), toX(980), toY(6))
-        ctx.lineTo(toX(1000), toY(40)); ctx.lineTo(toX(988), toY(56))
-        ctx.quadraticCurveTo(toX(500), toY(86), toX(12), toY(56))
-        ctx.lineTo(toX(0), toY(40)); ctx.closePath()
-        ctx.strokeStyle = alert ? alertInk : rimInk; ctx.lineWidth = 1.25; ctx.lineJoin = 'round'; ctx.globalAlpha = alert ? pulse : 0.9; ctx.stroke()
-        ctx.globalAlpha = 1
       }
       // The directional damage ring (`damageArcs`): the game's DamageArc bitmap, the same
       // layer as the live HUD (under the reticle, over the rest of the HUD).
