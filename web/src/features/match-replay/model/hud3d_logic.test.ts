@@ -276,6 +276,56 @@ describe('HUD 3D display', () => {
       expect(hud?.ammo?.res).toBeUndefined()
     })
 
+    it('counts a weapon picked off the ground with the ammo the ground object holds', () => {
+      const doc = switchDoc({
+        weaponChanges: [{ t: 2440, slot: 530, kind: 'swapped', w: 'aaaa1111', from: '2b1824d5', k: 1 }],
+        groundWeapons: [{ t0: 2300, t1: 2440, t1max: 2440, x: 0, y: 0, w: 'aaaa1111', origin: 'dropped', dropper: 520, end: 'pickup', picker: 530, ammo: { mag: 5, res: 27 } }],
+        drawnWeapons: [{ t: 2440, slot: 530, d: 1 }],
+        shots: [{ t: 2600, slot: 530, x: 0, y: 0, w: '0xAAAA111142C9679F' }],
+      })
+      const source = prepareHud(doc, 'A', [])
+      expect(readHud(source, 2500, 'en')).toMatchObject({ weaponId: '0xAAAA1111', ammo: { mag: 5, res: 27 } })
+      // The first shot moves it, and no read of the film says by how much.
+      expect(readHud(source, 2601, 'en')?.ammo?.mag).toBeUndefined()
+    })
+
+    it('counts a weapon dropped without its ammo with the dropper\'s last read of it', () => {
+      const doc = switchDoc({
+        tracks: [
+          { slot: 520, xuid: 'B', team: 0, startFrame: 100, endFrame: 2300, points: [{ t: 100, x: 0, y: 0 }, { t: 2300, x: 0, y: 0 }] },
+          { slot: 530, xuid: 'A', team: 1, startFrame: 2376, endFrame: 2732, points: [{ t: 2376, x: 0, y: 0 }, { t: 2732, x: 0, y: 0 }] },
+        ],
+        weaponChanges: [
+          { t: 1000, slot: 520, kind: 'swapped', w: 'aaaa1111', from: '2b1824d5', k: 1 },
+          { t: 2440, slot: 530, kind: 'swapped', w: 'aaaa1111', from: '2b1824d5', k: 1 },
+        ],
+        ammoReads: [{ t: 1200, ms: 39600, slot: 520, w: 1, mag: 9, res: 18, src: 'delta' }],
+        groundWeapons: [{ t0: 2300, t1: 2440, t1max: 2440, x: 0, y: 0, w: 'aaaa1111', origin: 'dropped', dropper: 520, end: 'pickup', picker: 530 }],
+        drawnWeapons: [{ t: 2440, slot: 530, d: 1 }],
+      })
+      expect(readHud(prepareHud(doc, 'A', []), 2500, 'en')?.ammo).toMatchObject({ mag: 9, res: 18 })
+    })
+
+    it('counts a weapon fresh from a pad with what the film reads at its pad pickups', () => {
+      const doc = switchDoc({
+        weaponPads: [{ weapon: '0xAAAA1111', x: 0, y: 0, presence: [], spawns: [] }],
+        padPickups: [
+          { pad: 0, t: 150, tLow: 140, tHigh: 160, xuid: 'B' },
+          { pad: 0, t: 2440, tLow: 2430, tHigh: 2450, xuid: 'A' },
+        ],
+        weaponChanges: [
+          { t: 150, slot: 520, kind: 'swapped', w: 'aaaa1111', from: '2b1824d5', k: 1 },
+          { t: 2440, slot: 530, kind: 'swapped', w: 'aaaa1111', from: '2b1824d5', k: 1 },
+        ],
+        ammoReads: [{ t: 150, ms: 4950, slot: 520, w: 1, mag: 20, res: 40, src: 'delta' }],
+        drawnWeapons: [{ t: 2440, slot: 530, d: 1 }],
+      })
+      expect(readHud(prepareHud(doc, 'A', []), 2500, 'en')?.ammo).toMatchObject({ mag: 20, res: 40 })
+      // A pickup the film links to neither a ground object nor a pad stays blank.
+      const unlinked = switchDoc({ weaponChanges: [{ t: 2440, slot: 530, kind: 'swapped', w: 'aaaa1111', from: '2b1824d5', k: 1 }], drawnWeapons: [{ t: 2440, slot: 530, d: 1 }] })
+      expect(readHud(prepareHud(unlinked, 'A', []), 2500, 'en')?.ammo?.mag).toBeUndefined()
+    })
+
     it('keeps the carried weapon when a new weapon fills the empty emplacement', () => {
       const doc = switchDoc({
         loadouts: [

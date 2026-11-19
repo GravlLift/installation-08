@@ -14,6 +14,7 @@ import { equipmentSlotAt } from './equipmentSlotHud'
 import { grenadeBoxAt, grenadesCarriedFrom, inventoryAt } from './inventoryReading'
 import { weaponClassOfKey } from '../scene3d/weaponClass3d'
 import { spawnAmmoAt, spawnAmmoIndex } from './spawnAmmo'
+import { pickupAmmoAt, pickupAmmoIndex } from './pickupAmmo'
 
 export function reticleShape(key: string | undefined): 'circle' | 'precision' | 'pistol' | 'dot' | 'large' | 'default' {
   if (!key) return 'default'
@@ -48,7 +49,8 @@ export function prepareHud(doc: ReplayDocumentReady, xuid: string, kills: readon
   const players = buildPlayers(doc, [])
   const allegiance = buildFilmAllegiance(players, xuid)
   const feed = [...kills].sort((a, b) => a.replayMs - b.replayMs)
-  return { doc, xuid, allegiance, feed, score: scoreTimelineOf(doc), player: players.find((p) => p.xuid === xuid), presence: vitalityPresence(doc), impacts, eliminations, ammo: trackAmmo(doc), spawnAmmo: spawnAmmoIndex(doc), shields: new Map<ReplayTrackReady, ShieldHudTrack>() }
+  const spawnAmmo = spawnAmmoIndex(doc)
+  return { doc, xuid, allegiance, feed, score: scoreTimelineOf(doc), player: players.find((p) => p.xuid === xuid), presence: vitalityPresence(doc), impacts, eliminations, ammo: trackAmmo(doc), spawnAmmo, pickupAmmo: pickupAmmoIndex(doc, spawnAmmo), shields: new Map<ReplayTrackReady, ShieldHudTrack>() }
 }
 
 /** The shield bar of a life (`shieldHud`), built on its first read and kept for the source's life. */
@@ -154,7 +156,11 @@ export function readHud(source: ReturnType<typeof prepareHud>, frame: number, lo
   // refill tops up the reserve and keeps the magazine), the weapon's spawn ammo as the film measures
   // it (`spawnAmmo`): past information, so it outranks an upcoming keyframe, and it fills the field
   // a read leaves out (a refill's read carries the reserve only).
-  const spawn = held && !(inventory && inventory.age >= 0) ? spawnAmmoAt(source.spawnAmmo, state.life, frame, held) : null
+  // Likewise a weapon picked up since (`pickupAmmo`): the ammo the pickup gave it, while unmoved,
+  // until a keyframe of its own reads it.
+  const spawn = !held || (inventory && inventory.age >= 0 && keyframeValid) ? null
+    : into && into.last > -Infinity ? pickupAmmoAt(source.pickupAmmo, slot, into.last, frame, held)
+    : !(inventory && inventory.age >= 0) ? spawnAmmoAt(source.spawnAmmo, state.life, frame, held) : null
   const ammo = fine
     ? { ...keyframe, mag: fine.mag ?? spawn?.mag ?? keyframe?.mag, res: fine.res ?? spawn?.res ?? keyframe?.res }
     : spawn ? { ...keyframe, mag: spawn.mag ?? keyframe?.mag, res: spawn.res ?? keyframe?.res } : keyframe
