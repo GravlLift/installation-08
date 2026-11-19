@@ -18,6 +18,8 @@ import { ReplayKillPopup3d } from './ReplayKillPopup3d'
 import { ShieldBar3d } from './ShieldBar3d'
 import { DAMAGE_ARC_URL, paintDamageArcs } from './damageArcPaint'
 import { getScoreMeterMask, paintScoreMeter, type ScoreMeterMask } from './scoreMeter'
+import { hexRgb, shieldFloodAt, shieldFloodTint } from '../model/shieldFlood'
+import { SCORE_BAR_BAND_BOTTOM, SCORE_BAR_BAND_SHARE, SCORE_BAR_BAND_TOP, SCORE_BAR_BODY_SHARE } from '../model/scoreBarBand'
 import { ensureHudFonts, HUD_FONT_FAMILY, HUD_SCORE_FONT_FAMILY } from './hudFonts'
 import { shieldFlash } from '../model/shieldHud'
 import { TEAM_EMBLEM_GAP_SHARE, TEAM_EMBLEM_HEIGHT_SHARE, teamEmblemUrl } from '../model/teamEmblem'
@@ -148,7 +150,17 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
   const aim = hud === 'full'
   // The place name under the game's motion tracker (mapCallouts): bottom left, under the kill feed.
   const place = calloutName(calloutOfLivesAt(callouts, lives.get(xuid), frame), locale)
+  // The game's shield-break flood (`shieldFlood`): first person only, in the followed player's
+  // team color, brightening and tinting the scene behind the HUD for half a second.
+  const flood = aim && ath?.shieldState?.state === 'broken'
+    ? shieldFloodAt(frameToMs(frame, doc) - frameToMs(ath.shieldState.since, doc))
+    : null
+  const floodTint = flood ? shieldFloodTint(flood, hexRgb(resolveToken('team-ally'))) : null
   return <div className="pointer-events-none absolute inset-0" style={HUD_STYLE}>
+    {flood && floodTint && <>
+      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, backdropFilter: `brightness(${flood.exposure})`, WebkitBackdropFilter: `brightness(${flood.exposure})` }} />
+      <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: `rgb(${floodTint.join(',')})`, mixBlendMode: 'multiply' }} />
+    </>}
     <ReplayHudFeed3d fil={fil} locale={locale} nameOfXuid={nameOfXuid} />
     {banner}
     {/* The shield never sits under the player's top strip (its safe inset, `usePlayerChromeInsets`). */}
@@ -238,24 +250,30 @@ function ScoreBar({ team, score, part, towardCenter = false, teamId, meterMask }
     // on the right team's quad), so only it flips (`!towardCenter`).
     paintScoreMeter(ctx, meterMask, 0, 0, w, h, fraction, ink, !towardCenter)
   }, [meterMask, fraction, ink, towardCenter])
-  return <span data-score-bar={team} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: towardCenter ? 'flex-end' : 'flex-start', width: '6.5em', height: '1.15em', padding: '0 0.3em', background: `color-mix(in srgb, ${color} 28%, #000)`, [towardCenter ? 'borderRight' : 'borderLeft']: `2px solid ${color}` }}>
+  return <span data-score-bar={team} style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: towardCenter ? 'flex-end' : 'flex-start', width: '6.5em', height: '1.15em', padding: '0 0.3em', background: `color-mix(in srgb, ${color} ${SCORE_BAR_BODY_SHARE * 100}%, #000)`, [towardCenter ? 'borderRight' : 'borderLeft']: `2px solid ${color}` }}>
+    {/* The game's brighter band through the bar's middle (`scoreBarBand`), under the fill. */}
+    <span aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, top: `${SCORE_BAR_BAND_TOP * 100}%`, height: `${(SCORE_BAR_BAND_BOTTOM - SCORE_BAR_BAND_TOP) * 100}%`, background: `color-mix(in srgb, ${color} ${SCORE_BAR_BAND_SHARE * 100}%, #000)` }} />
     {meterMask
       ? <canvas ref={fillRef} aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
       : <span aria-hidden="true" style={{ position: 'absolute', top: 0, bottom: 0, [side]: 0, width: `${fraction * 100}%`, background: color }} />}
     <span style={{ position: 'relative' }}>{score}</span>
-    {teamId != null && <TeamEmblem teamId={teamId} towardCenter={towardCenter} />}
+    {teamId != null && <TeamEmblem teamId={teamId} color={color} towardCenter={towardCenter} />}
   </span>
 }
 
 /**
  * TeamEmblem: the team's emblem at the bar's OUTER end (the left bar's left, the right
  * bar's right), the game's own proportions (cusc 21a7dab4): 1.55 x the bar's height, a gap
- * of 0.27 x the bar's height beyond the bar's end, vertically centered on the bar, untinted
- * at opacity 0.7. The bar is 1.15em tall (`ScoreBar`); a set built before the emblems (a
- * failed load) renders nothing.
+ * of 0.27 x the bar's height beyond the bar's end, vertically centered on the bar, at opacity
+ * 0.7, in the team's color (the white emblem used as a mask). The item screen sets no color of
+ * its own, so the game's team tint reaches it from the parent, as the owner's frames show
+ * (green cobra, red eagle). The bar is 1.15em tall (`ScoreBar`); a set built before the
+ * emblems (a failed load) masks everything out and renders nothing.
  */
-function TeamEmblem({ teamId, towardCenter = false }: { teamId: number; towardCenter?: boolean }) {
+function TeamEmblem({ teamId, color, towardCenter = false }: { teamId: number; color: string; towardCenter?: boolean }) {
   const url = teamEmblemUrl(teamId)
   if (!url) return null
-  return <img src={url} alt="" aria-hidden="true" onError={(e) => { e.currentTarget.style.display = 'none' }} style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', height: `${1.15 * TEAM_EMBLEM_HEIGHT_SHARE}em`, [towardCenter ? 'right' : 'left']: '100%', [towardCenter ? 'marginRight' : 'marginLeft']: `${1.15 * TEAM_EMBLEM_GAP_SHARE}em`, opacity: 0.7, pointerEvents: 'none' }} />
+  const size = `${1.15 * TEAM_EMBLEM_HEIGHT_SHARE}em`
+  const mask = `url("${url}") center / contain no-repeat`
+  return <span aria-hidden="true" style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)', width: size, height: size, [towardCenter ? 'right' : 'left']: '100%', [towardCenter ? 'marginRight' : 'marginLeft']: `${1.15 * TEAM_EMBLEM_GAP_SHARE}em`, background: color, mask, WebkitMask: mask, opacity: 0.7, pointerEvents: 'none' }} />
 }

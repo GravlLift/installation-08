@@ -3,7 +3,9 @@
 ## 0.1.1-test.12
 
 - The shield bar is blue again. Since test.10 it read as a pale grey hex pattern: the game's bar bitmap leaves the inside of its hex cells mostly see-through, so our blue fill barely showed. The bar now keeps the game's shape and hex pattern with a solid, brighter blue fill, in the viewer and the video export. The blue is set by eye, not taken from the game.
-- The score bars show the team emblems from the game, the eagle and the cobra (and the other teams' emblems in matches that use them), at the outer end of each bar. In the viewer and the video export.
+- The score bars show the team emblems from the game, the eagle and the cobra (and the other teams' emblems in matches that use them), at the outer end of each bar, in their team's color. In the viewer and the video export.
+- Each score bar has the game's brighter band through its middle over a dim team-colored body. In the viewer and the video export.
+- In first person, the view floods with your team's color for half a second when your shield breaks, as in the game. In the viewer and the video export.
 - The score bars fill with the game's own meter art, a striped bar with rounded ends, growing from the center as before. In the viewer and the video export.
 - When your shield is empty, the frame above the shield bar glows red and the bar's outline flashes red, as in the game, and a red burst drops away from the bar the moment it breaks. In the viewer and the video export.
 - An orange health strip shows inside the shield bar whenever the shield is not full, shrinking toward the center as health drops. Its color is matched to game footage because the game's own color setting for it is not decoded yet.

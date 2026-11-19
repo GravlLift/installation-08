@@ -32,6 +32,12 @@ reference only, gitignored: `data/reference/hud/infinite-hud-weapons-killfeed.pn
 - Present today: both team bars with their scores and the clock.
 - Missing: the gradient effect behind the center, and the team emblems (the eagle at the left
   end, the cobra at the right).
+- Since 2026-11-19 (owner's call on "the gradient": the bar's brighter middle band): each bar's
+  body is a dim team color with a brighter band through its middle (`model/scoreBarBand.ts`),
+  the band's place measured in the item screen's bitmap 8bec9da9 (alpha 255 in rows 27..36 of
+  the 12..51 body), its brightness measured on the owner's frames. The emblems take their
+  team's color, as the owner's frames show (the item screen sets no color, so the tint comes
+  from its parent).
 - Found 2026-11-19: the center scoreboard screen (`cusc` fb8c6614) references only four bitmaps
   (0041107b and f09bdfde, 36x36 BC7 declared; 128bc424, 800x64; ddcfa2a6, 1x1) and no emblem;
   its property names include no emblem or team icon either. The emblems are bound at run time
@@ -55,8 +61,13 @@ reference only, gitignored: `data/reference/hud/infinite-hud-weapons-killfeed.pn
 - Present today: the shield bar.
 - Present since 2026-11-19: the red empty-shield alert (the glow over the frame, the bar's red
   outline, the break burst) and the orange health strip inside the bar. See Plan item 6.
-- Missing: the full-screen team-colored flash when the shield breaks (seen in the owner's frame of
-  a break, green with a green team color). It is a screen effect, not part of the HUD screens.
+- Present since 2026-11-19: the full-screen team-colored flood when the shield breaks, first
+  person only (`model/shieldFlood.ts`). Traced in the tags: the Spartan model `hlmt` 09ab2219's
+  shield section's instant response plays `effe` 85659616, whose screen effect `sefc` 8c2ba62e
+  has three first-person layers: "flash" (0.35 s, exposure boost 2, team-color filter), "grid"
+  (0.5 s, team-color filter and a shader material, not drawn) and "blur" (0.2 s radial blur, not
+  drawn), each fading on a cubic stored in the tag. Inferred: the response is the depletion, the
+  filter is a multiply by lerp(white, team color, strength), the exposure boost is in stops.
 - Present since 2026-11-19: the directional damage arc around the reticle, a red arc pointing
   toward where the player was hit from (the arc left of the reticle in frame 2). See Plan item 5.
 

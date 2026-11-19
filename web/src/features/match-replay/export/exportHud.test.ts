@@ -543,6 +543,9 @@ describe('createExportHud', () => {
       class FakeImage {
         onload: (() => void) | null = null
         onerror: (() => void) | null = null
+        // The emblems' size (the tinted scratch canvas takes it).
+        naturalWidth = 64
+        naturalHeight = 64
         private _src = ''
         get src() { return this._src }
         set src(url: string) {
@@ -556,8 +559,30 @@ describe('createExportHud', () => {
       return { made, requested }
     }
 
-    it('draws each side emblem at the bar outer end, at 0.7, when its image loaded', async () => {
+    it('draws each side emblem at the bar outer end, at 0.7, in its team color, when its image loaded', async () => {
       const { made } = fakeImages(() => false)
+      // The emblem is tinted through a scratch canvas (`tintedIconCanvas`): record each scratch
+      // canvas with the image drawn into it and the color filled over it.
+      const tinted: { canvas: { width: number; height: number }; img?: unknown; color?: string }[] = []
+      vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+        if (tag !== 'canvas') return {} as HTMLElement
+        const entry: { canvas: { width: number; height: number; getContext: () => unknown }; img?: unknown; color?: string } = { canvas: { width: 0, height: 0, getContext: () => octx } }
+        const state: Record<string, unknown> = { fillStyle: '' }
+        // Every other canvas call (the meter mask read, the shield art) is a no-op returning nothing.
+        const octx: Record<string, unknown> = new Proxy(state, {
+          get(target, prop) {
+            if (prop === 'drawImage') return (img: unknown) => { entry.img = img }
+            if (prop === 'fillRect') return () => { entry.color = target.fillStyle as string }
+            if (prop === 'getImageData') return (_x: number, _y: number, w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) })
+            if (prop === 'createImageData') return (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) })
+            if (typeof prop === 'string' && prop in target) return target[prop]
+            return () => undefined
+          },
+          set(target, prop, value) { target[prop as string] = value; return true },
+        })
+        tinted.push(entry)
+        return entry.canvas as unknown as HTMLElement
+      })
       const hud = await createExportHud(scoreDoc(), 'A', [], null, null, 'en')
       const { ctx, draws } = emblemCtx()
       hud(ctx, VIEW, 100)
@@ -574,9 +599,16 @@ describe('createExportHud', () => {
       const enemyEmblem = made.find((img) => img.src === teamEmblemUrl(1))
       expect(allyEmblem).toBeDefined()
       expect(enemyEmblem).toBeDefined()
-      expect(draws.some((d) => d.img === allyEmblem && d.alpha === 0.7 && d.w === emblemH && d.h === emblemH && d.x === leftBar - gap - emblemH && d.y === y - emblemH / 2)).toBe(true)
-      expect(draws.some((d) => d.img === enemyEmblem && d.alpha === 0.7 && d.w === emblemH && d.h === emblemH && d.x === rightBar + bar + gap && d.y === y - emblemH / 2)).toBe(true)
+      const allyTint = tinted.find((t) => t.img === allyEmblem)
+      const enemyTint = tinted.find((t) => t.img === enemyEmblem)
+      // Tinted in the team colors (the test tokens: ally green, enemy red).
+      expect(allyTint?.color).toBe('#22c55e')
+      expect(enemyTint?.color).toBe('#ef4444')
+      const near = (a: number, b: number) => Math.abs(a - b) < 1e-6
+      expect(draws.some((d) => d.img === allyTint?.canvas && d.alpha === 0.7 && near(d.w, emblemH) && near(d.h, emblemH) && near(d.x, leftBar - gap - emblemH) && near(d.y, y - emblemH / 2))).toBe(true)
+      expect(draws.some((d) => d.img === enemyTint?.canvas && d.alpha === 0.7 && near(d.w, emblemH) && near(d.h, emblemH) && near(d.x, rightBar + bar + gap) && near(d.y, y - emblemH / 2))).toBe(true)
       vi.unstubAllGlobals()
+      vi.restoreAllMocks()
     })
 
     it('draws no emblem when its image failed to load, though it was preloaded', async () => {
@@ -624,6 +656,9 @@ describe('createExportHud', () => {
         getImageData: () => ({ data: buffer }),
         createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
         putImageData: () => {},
+        // The tinted emblem's scratch canvas (`tintedIconCanvas`).
+        setTransform: () => {},
+        fillRect: () => {},
       }
       vi.spyOn(document, 'createElement').mockImplementation((tag: string) =>
         tag === 'canvas' ? ({ width: 0, height: 0, getContext: () => octx } as unknown as HTMLElement) : ({} as HTMLElement))

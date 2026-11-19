@@ -5,6 +5,8 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { ReplayLocale } from '../i18n/i18n'
 import { hudClock, readHud, readKillFeed, readScoreHud, prepareHud, NAME_TAG_EM, NAME_TAG_PAD_X, NAME_TAG_PAD_Y } from '../model/hud3d_logic'
 import { SHIELD_CHASE_INK, SHIELD_CHASE_URL, SHIELD_QUAD_URL, shieldFlash } from '../model/shieldHud'
+import { hexRgb, shieldFloodAt, shieldFloodTint } from '../model/shieldFlood'
+import { SCORE_BAR_BAND_BOTTOM, SCORE_BAR_BAND_SHARE, SCORE_BAR_BAND_TOP, SCORE_BAR_BODY_SHARE } from '../model/scoreBarBand'
 import { TEAM_EMBLEM_GAP_SHARE, TEAM_EMBLEM_HEIGHT_SHARE, teamEmblemUrl } from '../model/teamEmblem'
 import { SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER, SHIELD_QUAD_H, SHIELD_QUAD_W, SHIELD_QUAD_CENTER, SHIELD_QUAD_HALF, SHIELD_QUAD_CHASE_H, SHIELD_QUAD_CHASE_Y, SHIELD_QUAD_SHAPE_GAIN, SHIELD_QUAD_HEX_OPACITY, SHIELD_QUAD_FILL_OPACITY } from '../ui/shieldBarGeometry'
 import type { ReplayKill } from '../model/killFeedLogic'
@@ -159,6 +161,27 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
     const size = Math.max(19, Math.min(39, 7.7 + h * 0.0287))
     const ath = readHud(source, frame, locale)
     const score = readScoreHud(source, frame)
+    // The game's shield-break flood (`shieldFlood`), first person only, on the scene already in the
+    // canvas, before any HUD element: brightened, then multiplied by the team-color tint.
+    const flood = aimOn && ath?.shieldState?.state === 'broken'
+      ? shieldFloodAt(frameToMs(frame, doc) - frameToMs(ath.shieldState.since, doc))
+      : null
+    if (flood) {
+      ctx.save()
+      const canvas = (ctx as Partial<CanvasRenderingContext2D>).canvas
+      if (canvas && flood.exposure > 1) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0)
+        ctx.filter = `brightness(${flood.exposure})`
+        ctx.globalCompositeOperation = 'copy'
+        ctx.drawImage(canvas, 0, 0)
+        ctx.restore()
+        ctx.save()
+      }
+      ctx.globalCompositeOperation = 'multiply'
+      ctx.fillStyle = `rgb(${shieldFloodTint(flood, hexRgb(ally)).join(',')})`
+      ctx.fillRect(0, 0, w, h)
+      ctx.restore()
+    }
     ctx.save()
     ctx.fillStyle = white
     ctx.strokeStyle = white
@@ -178,7 +201,11 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       ctx.fillText(formatClock(hudClock(timeLimitMs, displayClockMs(frameToMs(frame, doc), playWindow))), w / 2, y)
       for (const [index, side] of [left, right].entries()) {
         const x = index === 0 ? w / 2 - size * 1.6 - bar : w / 2 + size * 1.6
-        ctx.fillStyle = 'rgba(0,0,0,.8)'; ctx.fillRect(x, y - size * 0.4, bar, size * 0.8)
+        // The bar's body and its brighter middle band (`scoreBarBand`, as the live ScoreBar).
+        const barTop = y - size * 0.4, barH = size * 0.8
+        ctx.fillStyle = mixSrgb(colors[index], SCORE_BAR_BODY_SHARE); ctx.fillRect(x, barTop, bar, barH)
+        ctx.fillStyle = mixSrgb(colors[index], SCORE_BAR_BAND_SHARE)
+        ctx.fillRect(x, barTop + barH * SCORE_BAR_BAND_TOP, bar, barH * (SCORE_BAR_BAND_BOTTOM - SCORE_BAR_BAND_TOP))
         const fraction = Math.max(0, Math.min(1, side.fill))
         ctx.globalAlpha = 0.7
         if (meterMask) {
@@ -193,15 +220,14 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
         ctx.globalAlpha = 1; ctx.fillStyle = white; ctx.textAlign = index === 0 ? 'right' : 'left'; ctx.fillText(String(side.score), index === 0 ? x + bar - 5 : x + 5, y)
         // The game's team emblem at the bar's OUTER end (cusc 21a7dab4): 1.55 x the bar's
         // height (`size * 0.8` here), a gap of 0.27 x the bar's height beyond the end,
-        // centered on the bar, untinted at opacity 0.7. A set built before the emblems
-        // preloaded no image, and nothing is drawn then.
+        // centered on the bar, at opacity 0.7, in the team's color (as the live TeamEmblem). A
+        // set built before the emblems preloaded no image, and nothing is drawn then.
         const emblemUrl = teamEmblemUrl(side.teamId)
-        const emblem = emblemUrl ? images.get(emblemUrl) : undefined
-        if (emblem) {
+        if (emblemUrl) {
           const emblemSize = size * 0.8 * TEAM_EMBLEM_HEIGHT_SHARE
           const gap = size * 0.8 * TEAM_EMBLEM_GAP_SHARE
           ctx.globalAlpha = 0.7
-          ctx.drawImage(emblem, index === 0 ? x - gap - emblemSize : x + bar + gap, y - emblemSize / 2, emblemSize, emblemSize)
+          icon(ctx, emblemUrl, colors[index], true, false, index === 0 ? x - gap - emblemSize : x + bar + gap, y - emblemSize / 2, emblemSize, emblemSize)
           ctx.globalAlpha = 1
         }
       }
