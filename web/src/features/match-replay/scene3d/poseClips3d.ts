@@ -52,6 +52,13 @@ export class PoseClips {
     return null
   }
 
+  /** pending: the loads in flight, or null when none (an export waits on them before a frame). */
+  pending(): Promise<unknown> | null {
+    const loads: Promise<unknown>[] = []
+    for (const e of this.entries.values()) if ('loading' in e) loads.push(e.loading)
+    return loads.length > 0 ? Promise.all(loads) : null
+  }
+
   /** load fetches and decodes pose `id`; resolves to the clip, or null on failure. */
   load(id: string): Promise<SpartanClip | null> {
     const e = this.entries.get(id)

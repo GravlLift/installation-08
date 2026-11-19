@@ -801,11 +801,20 @@ export class ReplayScene3d implements Replay3DExportSource {
   }
   exportFrame(frame: number): HTMLCanvasElement { return this.exportScene.exportFrame(frame) }
   exportTags(): readonly ExportTag3d[] { return this.exportScene.exportTags() }
-  /** Loads still in flight (one gate counts the weapon models, armor and rigs, cf. `loadGate3d`). */
+  /**
+   * Loads still in flight: one gate counts the weapon models, armor and rigs (cf. `loadGate3d`),
+   * and a held player's pose clip loads on its own (`poseClips`). Resolves true on a timeout.
+   */
   exportPendingLoads(): Promise<boolean> | null {
     const gate = this.weaponModels?.gate
-    if (!gate || gate.pending === 0) return null
-    return gate.idle(EXPORT_LOAD_WAIT_MS).then((r) => r.timedOut)
+    const gateWait = gate && gate.pending > 0 ? gate.idle(EXPORT_LOAD_WAIT_MS).then((r) => r.timedOut) : null
+    const poses = this.poseClips.pending()
+    if (!poses) return gateWait
+    const poseWait = Promise.race([
+      poses.then(() => false),
+      new Promise<boolean>((resolve) => setTimeout(() => resolve(true), EXPORT_LOAD_WAIT_MS)),
+    ])
+    return gateWait ? Promise.all([gateWait, poseWait]).then(([a, b]) => a || b) : poseWait
   }
   endExport(): void { this.exportScene.endExport() }
 
