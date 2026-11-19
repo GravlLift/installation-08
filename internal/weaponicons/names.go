@@ -26,7 +26,6 @@ package weaponicons
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -117,14 +116,7 @@ func nameVariants(s string) []string {
 // Returns an empty map (and no error) when the game binary is not found: the name is a
 // bonus, its absence must not fail the image extraction.
 func resolveIconNames(ix *tagIndex, canon map[uint32]bool, owned map[int]bool) (map[int][]string, error) {
-	fields, err := loadWeapPlugin()
-	if err != nil {
-		return nil, err
-	}
-	offSprite, offIndex, offName, ok := uiBlockOffsets(fields)
-	if !ok || offName < 0 {
-		return nil, fmt.Errorf("`name` / `sprite index` fields absent from the plugin")
-	}
+	offSprite, offIndex, offName := uiBlockOffsets()
 	exe := gameBinary()
 	if exe == "" {
 		return map[int][]string{}, nil

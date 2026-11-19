@@ -3,7 +3,7 @@
 // tagdump.go — a generic, plugin-driven tag dumper.
 //
 // Halo Infinite's HUD is described by data-driven UI tags. Their layout is NOT
-// hardcoded here: it is read from a community layout plugin (the format of weap.xml),
+// hardcoded here: it is read from a community layout plugin passed in at run time,
 // and the live tag's size is checked against the plugin's walked size on every block.
 // A mismatch is reported, never trusted.
 //

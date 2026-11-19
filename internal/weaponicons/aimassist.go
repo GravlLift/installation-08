@@ -3,22 +3,22 @@
 // aimassist.go — THE RED-RETICLE REACH OF A WEAPON, read from its `weap` tag.
 //
 // The reticle turns red when the target is inside the weapon's AUTOAIM RANGE: the
-// `Base Value` of `autoaim range` in the root's inline `aim assist` struct (weap.xml, the
-// struct after the `aim assist modes` block). That block is the plugin's "aim assist
-// deprecated" section: it is all zero in most installed weapons, so it is not read.
+// `Base Value` of `autoaim range` in the root's inline `aim assist` struct (the struct after
+// the `aim assist modes` block; offsets in weaplayout.go). That block is the deprecated aim
+// assist section: it is all zero in most installed weapons, so it is not read.
 //
 // While zoomed the range scales with the zoom's magnification unless the struct's flags set
 // "do not scale for magnification". The magnification of each zoom level comes from the root's
 // `magnification levels` and `magnification range` fields.
 //
-// INVARIANT (why the schema's root offsets are not used as is). The installed game has added
-// fields to the `weap` root since the plugin was dumped, so the plugin's absolute root offsets
-// are stale. The tag's struct table gives the LIVE offset of every block field of the root.
-// A stretch of the root between consecutive block fields keeps the plugin's layout exactly when
-// the live gaps between those block fields equal the plugin's gaps. So the fields read here are
+// INVARIANT (why the table's root offsets are not used as is). The installed game has added
+// fields to the `weap` root since the reference layout, so its absolute root offsets are
+// stale. The tag's struct table gives the LIVE offset of every block field of the root.
+// A stretch of the root between consecutive block fields keeps the reference layout exactly
+// when the live gaps between those block fields equal the reference gaps. So the fields read here are
 // located from the live offset of the block fields that bracket them (`melee damage parameters`,
 // `aim assist modes`, `target tracking`), found as the unique run of live block fields whose gaps
-// match the plugin's. If the run is absent or ambiguous (a later patch changed that stretch),
+// match the reference layout's. If the run is absent or ambiguous (a later patch changed that stretch),
 // the read is an error, never a guess.
 
 package weaponicons
@@ -42,7 +42,7 @@ type AimAssist struct {
 	ScalesWithZoom bool
 }
 
-// Plugin paths of the fields read, and the block fields that bracket them.
+// Names of the root fields read (keys of weapRootFields, weaplayout.go).
 const (
 	pathMagLevels   = "magnification levels"
 	pathMagRange    = "magnification range"
@@ -60,34 +60,26 @@ const maxZoomLevels = 8
 // maxAutoaimRange bounds a plausible autoaim range (world units); beyond it the read is refused.
 const maxAutoaimRange = 1000
 
-// aimLayout is where the fields read sit in the PLUGIN's root offsets, and the plugin offsets
+// aimLayout is where the fields read sit in the REFERENCE root offsets, and the reference offsets
 // of the root block fields from the one before the first field to the one after the last.
 type aimLayout struct {
 	fields map[string]int
 	run    []int
 }
 
-// loadAimLayout derives the aim-assist layout from the embedded plugin, once.
-var loadAimLayout = sync.OnceValues(aimLayoutOfPlugin)
+// loadAimLayout derives the aim-assist layout from the layout table, once.
+var loadAimLayout = sync.OnceValues(aimLayoutOfTable)
 
-func aimLayoutOfPlugin() (*aimLayout, error) {
-	all, err := loadWeapPlugin()
-	if err != nil {
-		return nil, err
-	}
+func aimLayoutOfTable() (*aimLayout, error) {
 	l := &aimLayout{fields: map[string]int{}}
-	var blocks []int
-	for _, f := range all {
-		if f.block {
-			blocks = append(blocks, f.off)
-		}
-		switch f.path {
-		case pathMagLevels, pathMagRange, pathAimFlags, pathAutoaimBase, pathAutoaimBnds:
-			l.fields[f.path] = f.off
+	blocks := weapRootBlockFields
+	for _, p := range []string{pathMagLevels, pathMagRange, pathAimFlags, pathAutoaimBase, pathAutoaimBnds} {
+		if off, ok := weapRootFields[p]; ok {
+			l.fields[p] = off
 		}
 	}
 	if len(l.fields) != 5 {
-		return nil, fmt.Errorf("aim assist fields absent from the plugin (%d of 5)", len(l.fields))
+		return nil, fmt.Errorf("aim assist fields absent from the layout table (%d of 5)", len(l.fields))
 	}
 	lo, hi := math.MaxInt, -1
 	for _, off := range l.fields {
@@ -129,8 +121,8 @@ func (w weapTag) rootBlockFields(root int) []int {
 	return offs
 }
 
-// runShift finds the unique run of consecutive live offsets whose gaps equal the plugin run's,
-// and returns live minus plugin offset for that stretch.
+// runShift finds the unique run of consecutive live offsets whose gaps equal the reference run's,
+// and returns live minus reference offset for that stretch.
 func runShift(run, live []int) (int, error) {
 	found, shift := 0, 0
 	for i := 0; i+len(run) <= len(live); i++ {

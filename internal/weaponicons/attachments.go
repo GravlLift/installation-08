@@ -9,10 +9,9 @@
 // functions: each exports a value read from an import (the weapon's `ready`, `is_reloading`...),
 // inverted or not, and turned off when another function is 0.
 //
-// The blocks sit in the root struct after fields whose sizes the community weap plugin gets right;
-// the block field is located like the aim-assist fields, by the run of the root block fields of
-// the plugin's around the block. The element layout is the plugin's (its walked size must be the
-// live element stride).
+// The block field is located like the aim-assist fields, by the run of the root block fields of
+// the layout table (weaplayout.go) around the block. The element layout is the table's (its
+// element size must divide the live block's size).
 
 package weaponicons
 
@@ -48,7 +47,7 @@ type ObjectFunction struct {
 	Mapping []byte
 }
 
-// Plugin names of the fields read.
+// Names of the fields read (keys of the layout table, weaplayout.go).
 const (
 	pathAttachments      = "item/object/attachments"
 	pathFunctions        = "item/object/functions"
@@ -85,51 +84,10 @@ type blockLayout struct {
 }
 
 var (
-	loadAttachLayout = sync.OnceValues(func() (*blockLayout, error) {
-		return blockLayoutOfPlugin(pathAttachments, fieldAttachType, fieldMarker, fieldPrimaryScale, fieldSecondaryScale)
-	})
-	loadMagazineLayout = sync.OnceValues(func() (*blockLayout, error) {
-		return blockLayoutOfPlugin(pathMagazines, fieldRoundsLoadedMax)
-	})
-	loadFunctionLayout = sync.OnceValues(func() (*blockLayout, error) {
-		return blockLayoutOfPlugin(pathFunctions, fieldFlags, fieldImport, fieldNoImport, fieldExport, fieldTurnOffWith, fieldMapping)
-	})
+	loadAttachLayout   = sync.OnceValues(func() (*blockLayout, error) { return weapBlockLayout(pathAttachments) })
+	loadMagazineLayout = sync.OnceValues(func() (*blockLayout, error) { return weapBlockLayout(pathMagazines) })
+	loadFunctionLayout = sync.OnceValues(func() (*blockLayout, error) { return weapBlockLayout(pathFunctions) })
 )
-
-// blockLayoutOfPlugin reads the layout of the root block field `path` and the offsets of its
-// fields `names` (the first field of each name).
-func blockLayoutOfPlugin(path string, names ...string) (*blockLayout, error) {
-	all, err := loadWeapPlugin()
-	if err != nil {
-		return nil, err
-	}
-	var blocks []int
-	l := &blockLayout{field: -1, at: map[string]int{}}
-	at := -1
-	for _, f := range all {
-		if !f.block {
-			continue
-		}
-		if f.path == path && at < 0 {
-			at, l.field = len(blocks), f.off
-			var inner []pfield
-			l.stride = walkFields(f.node, 0, &inner)
-			for _, g := range inner {
-				for _, n := range names {
-					if _, seen := l.at[n]; g.name == n && !seen {
-						l.at[n] = g.off
-					}
-				}
-			}
-		}
-		blocks = append(blocks, f.off)
-	}
-	if at <= 0 || at+1 >= len(blocks) || len(l.at) != len(names) {
-		return nil, fmt.Errorf("`%s` block or its fields absent from the plugin", path)
-	}
-	l.blocks, l.rank = blocks, at
-	return l, nil
-}
 
 // elements resolves the block of layout l in tag: its records' absolute offsets (nil: no block).
 func (l *blockLayout) elements(tag []byte) ([]int, error) {

@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// aimFixture describes a synthetic `weap` tag: the root's block fields at the plugin's offsets,
+// aimFixture describes a synthetic `weap` tag: the root's block fields at the table's offsets,
 // those from the aim-assist run on moved by `shift` (fields added before it, as in the installed
 // game), and the aim-assist values written at their live offsets.
 type aimFixture struct {
@@ -36,16 +36,7 @@ func (f aimFixture) build(t *testing.T) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	all, err := loadWeapPlugin()
-	if err != nil {
-		t.Fatal(err)
-	}
-	var blocks []int
-	for _, p := range all {
-		if p.block {
-			blocks = append(blocks, p.off)
-		}
-	}
+	blocks := weapRootBlockFields
 	structs := 1 + len(blocks)
 	header := 0x50 + 0x10 + structs*0x20
 	rootLen := 0x1200 + f.shift + f.runSkew

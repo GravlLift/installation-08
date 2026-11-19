@@ -34,14 +34,7 @@ const maxAtlasIndex = 128
 
 // weapTagsByIndex returns, per atlas index, the tags that claim it — sorted, deduplicated.
 func weapTagsByIndex(ix *tagIndex) (map[int][]string, error) {
-	fields, err := loadWeapPlugin()
-	if err != nil {
-		return nil, err
-	}
-	offSprite, offIndex, _, ok := uiBlockOffsets(fields)
-	if !ok {
-		return nil, fmt.Errorf("`sprite` / `sprite index` fields absent from the plugin")
-	}
+	offSprite, offIndex, _ := uiBlockOffsets()
 	seen := map[uint32]bool{}
 	byIndex := map[int]map[string]bool{}
 	for group, refs := range ix.byGroup {

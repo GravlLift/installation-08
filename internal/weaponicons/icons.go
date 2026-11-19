@@ -29,14 +29,7 @@ type weaponIcon struct {
 // result rather than present with an arbitrary index — the inverse would be invisible and
 // false.
 func resolveWeaponIcons(ix *tagIndex) ([]weaponIcon, error) {
-	fields, err := loadWeapPlugin()
-	if err != nil {
-		return nil, fmt.Errorf("weap plugin unreadable: %w", err)
-	}
-	offSprite, offIndex, offName, ok := uiBlockOffsets(fields)
-	if !ok {
-		return nil, fmt.Errorf("`UI display info` block or its fields absent from the plugin")
-	}
+	offSprite, offIndex, offName := uiBlockOffsets()
 	// `alt sprite index` follows `alt sprite` (28 bytes) which follows `sprite index` (4).
 	offAlt := offIndex + 4 + 28
 	var out []weaponIcon

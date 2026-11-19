@@ -5,8 +5,9 @@
 // Reads the `UI display info` of a `weap` tag to get the pair (sprite = atlas bitmap,
 // sprite index = the icon's position in that atlas).
 //
-// The mechanics are a field-walker, version aware: the plugin gives the ORDER and the
-// SIZES of the fields, never hardcoded absolute offsets.
+// The offsets of the block's fields come from the layout table (weaplayout.go). The
+// field-walker below (walkFields) reads a layout description passed in at run time; it serves
+// the tag dumper (tagdump.go), whose descriptions stay outside the repository.
 //
 // PAIRING BY RANK WAS TRIED AND DISCARDED. Aligning the k-th `_40` of the plugin with the
 // k-th TagBlock of the tag gives a block OFF BY ONE: the block found carried
@@ -19,7 +20,6 @@
 package weaponicons
 
 import (
-	_ "embed"
 	"encoding/binary"
 	"encoding/xml"
 	"fmt"
@@ -90,48 +90,6 @@ func walkFieldsIn(n xnode, off int, prefix string, out *[]pfield) int {
 		}
 	}
 	return off
-}
-
-// weapPlugin: definition of the `weap` tag. Community tag-layout plugin, file
-// Plugins/weap.xml of the Gamergotten/Infinite-runtime-tagviewer repository (479 tag
-// definitions dumped by Lord Zedd and Exhibit): a reverse-engineered layout description
-// of a public game file format, embedded the way the map plugin is in the vendored himap,
-// so the binary runs without any third-party checkout.
-//
-//go:embed weap.xml
-var weapPlugin []byte
-
-func loadWeapPlugin() ([]pfield, error) {
-	var root xnode
-	if err := xml.Unmarshal(weapPlugin, &root); err != nil {
-		return nil, err
-	}
-	var all []pfield
-	walkFields(root, 0, &all)
-	return all, nil
-}
-
-// uiBlockOffsets returns the internal offsets of the `UI display info` block's fields.
-func uiBlockOffsets(fields []pfield) (offSprite, offIndex, offName int, ok bool) {
-	offSprite, offIndex, offName = -1, -1, -1
-	for _, f := range fields {
-		if !f.block || f.name != "UI display info" {
-			continue
-		}
-		var inner []pfield
-		walkFields(f.node, 0, &inner)
-		for _, g := range inner {
-			switch g.name {
-			case "sprite":
-				offSprite = g.off
-			case "sprite index":
-				offIndex = g.off
-			case "name":
-				offName = g.off
-			}
-		}
-	}
-	return offSprite, offIndex, offName, offSprite >= 0 && offIndex >= 0
 }
 
 // ---------------- tag: tables ----------------
