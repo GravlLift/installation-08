@@ -4,7 +4,7 @@ import { formatClock, frameToMs } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { ReplayLocale } from '../i18n/i18n'
 import { hudClock, readHud, readKillFeed, readScoreHud, prepareHud } from '../model/hud3d_logic'
-import { shieldFlash } from '../model/shieldHud'
+import { SHIELD_CHASE_INK, shieldFlash } from '../model/shieldHud'
 import { SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER } from '../ui/shieldBarGeometry'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
@@ -138,11 +138,14 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
         const toX = (u: number) => ox + u * s
         const toY = (v: number) => oy + v * s
         // The bar's glass: track fill under the bar outline.
-        ctx.beginPath()
-        ctx.moveTo(toX(20), toY(6)); ctx.quadraticCurveTo(toX(500), toY(34), toX(980), toY(6))
-        ctx.lineTo(toX(1000), toY(40)); ctx.lineTo(toX(988), toY(56))
-        ctx.quadraticCurveTo(toX(500), toY(86), toX(12), toY(56))
-        ctx.lineTo(toX(0), toY(40)); ctx.closePath()
+        const barPath = () => {
+          ctx.beginPath()
+          ctx.moveTo(toX(20), toY(6)); ctx.quadraticCurveTo(toX(500), toY(34), toX(980), toY(6))
+          ctx.lineTo(toX(1000), toY(40)); ctx.lineTo(toX(988), toY(56))
+          ctx.quadraticCurveTo(toX(500), toY(86), toX(12), toY(56))
+          ctx.lineTo(toX(0), toY(40)); ctx.closePath()
+        }
+        barPath()
         ctx.fillStyle = trackInk; ctx.fill()
         if (state === 'broken') { ctx.fillStyle = alertInk; ctx.globalAlpha = 0.18 * flash; ctx.fill(); ctx.globalAlpha = 1 }
         if (half > 0) {
@@ -174,6 +177,20 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
             ctx.stroke()
             ctx.globalAlpha = 1
           }
+          ctx.restore()
+        }
+        // The chase band: the shield just lost, from the live fill out to the lagging chase
+        // (`shieldHud.chase`), additive over the fill, the game's `shield_chase` quad. Outside the
+        // fill's branch: a hit that empties the shield (fill 0) still shows the band it took off.
+        const chaseHalf = SHIELD_CENTER * Math.max(0, Math.min(1, ath.shieldState.chase))
+        if (chaseHalf > half) {
+          ctx.save()
+          barPath()
+          ctx.clip()
+          ctx.globalCompositeOperation = 'lighter'
+          ctx.fillStyle = SHIELD_CHASE_INK
+          ctx.fillRect(toX(SHIELD_CENTER - chaseHalf), oy, (chaseHalf - half) * s, bh)
+          ctx.fillRect(toX(SHIELD_CENTER + half), oy, (chaseHalf - half) * s, bh)
           ctx.restore()
         }
         // The rim: the bar outline, pale blue at rest, pulsing red when low or broken.

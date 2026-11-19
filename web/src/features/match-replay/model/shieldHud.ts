@@ -21,12 +21,14 @@ import { shieldSamplesOf, type ShieldSamples } from '../scene3d/shields3d'
 
 export type ShieldHudState = 'full' | 'damaged' | 'low' | 'broken' | 'recharging'
 
-/** The bar at one frame: its fill (0..1), its state, and the frame that state began. */
+/** The bar at one frame: its fill (0..1), its state, the frame that state began, and the chase. */
 export interface ShieldHudReading {
   fraction: number
   state: ShieldHudState
   /** The (fractional) frame the current state began: a flash or a sound cadence counts from it. */
   since: number
+  /** The lagging "chase" value (0..1, never below `fraction`): the band of shield just lost (`shieldChaseAt`). */
+  chase: number
 }
 
 /** One state change of a life: from `frame` (fractional) on, the bar is in `state`. */
@@ -38,6 +40,8 @@ export interface ShieldTransition {
 /** A life's shield, ready to read at any frame (`shieldHudAt`). */
 export interface ShieldHudTrack {
   samples: ShieldSamples
+  /** The film's frame interval in ms: reads that think in real time (the chase) convert frames to ms with it. */
+  frameIntervalMs: number
   /** Per sample i: the frame where the rise toward sample i+1 begins (t[i] when it is no rise). */
   rampStart: number[]
   /** The state changes, the first at the life's start; `frame` ascending. */
@@ -89,7 +93,7 @@ export function shieldHudTrackOf(points: readonly { t: number; sh?: number }[], 
   // matter (a one-frame blip) belongs to the states around it.
   runs = mergeShort(runs, (s) => s !== 'recharging')
   runs = mergeShort(runs, (s) => s === 'recharging')
-  return { samples, rampStart, transitions: runs }
+  return { samples, frameIntervalMs: Math.max(1, frameIntervalMs), rampStart, transitions: runs }
 }
 
 function collapse(runs: ShieldTransition[]): ShieldTransition[] {
@@ -128,11 +132,60 @@ export function shieldFractionAt(track: ShieldHudTrack, f: number): number {
   return v[k] + (v[k + 1] - v[k]) * Math.min(1, (f - start) / (t[k + 1] - start))
 }
 
-/** Shield state at a frame: `{ fraction, state, since }`, a pure function of `f`; the state changes are `track.transitions`. */
+/** Shield state at a frame: `{ fraction, state, since, chase }`, a pure function of `f`; the state changes are `track.transitions`. */
 export function shieldHudAt(track: ShieldHudTrack, f: number): ShieldHudReading {
   const j = Math.max(0, lastAtOrBefore(track.transitions, f, (x) => x.frame))
   const run = track.transitions[j]
-  return { fraction: Math.max(0, Math.min(1, shieldFractionAt(track, f))), state: run.state, since: run.frame }
+  const fraction = Math.max(0, Math.min(1, shieldFractionAt(track, f)))
+  return { fraction, state: run.state, since: run.frame, chase: shieldChaseAt(track, f) }
+}
+
+/**
+ * SHIELD_CHASE_HOLD_MS — after a drop the band holds the just-lost value for this long before it
+ * starts closing on the live value. The shield screen tag (`cusc 9299c419`) draws the `shield_chase`
+ * meter quad over the shield just lost, driven by a number animator whose start time is 0.2 s.
+ */
+export const SHIELD_CHASE_HOLD_MS = 200
+/**
+ * SHIELD_CHASE_MS — the band's recent-damage window: the chase reaches the live value at this age,
+ * after which the band is gone. The HUD globals (`uihg`) give "shield bar recent damage duration"
+ * = 1 s.
+ */
+export const SHIELD_CHASE_MS = 1000
+/**
+ * SHIELD_CHASE_INK — the band's tint: the screen tag draws `shield_chase` ADDITIVELY with tint
+ * ARGB (1, 1, 0.506, 0.506) = rgb(255, 129, 129), opacity 1.
+ */
+export const SHIELD_CHASE_INK = 'rgb(255, 129, 129)'
+
+/** The animator's curve: hold, then cubic ease-out reaching the live value at `SHIELD_CHASE_MS`. */
+function chaseEase(ageMs: number): number {
+  if (ageMs <= SHIELD_CHASE_HOLD_MS) return 0
+  const x = Math.min(1, (ageMs - SHIELD_CHASE_HOLD_MS) / (SHIELD_CHASE_MS - SHIELD_CHASE_HOLD_MS))
+  return 1 - (1 - x) ** 3
+}
+
+/**
+ * shieldChaseAt: the lagging value the `shield_chase` band tracks at frame `f` (0..1, never below
+ * the live fraction). INFERRED from the tag's pieces (see the constants above): the band closes
+ * from the value each earlier frame had toward the live value, at that frame's age —
+ * `chase(T) = max(cur, max over whole frames s with T - s < 1000 ms of lerp(fraction(s), cur,
+ * ease(T - s)))`, the ease holding 0.2 s (the animator's start time) and then easing out cubically
+ * (param 3 read as the exponent) to the live value at 1 s (the recent-damage duration). Successive
+ * hits extend the band naturally; a rise (recharge) gives chase == fraction.
+ */
+export function shieldChaseAt(track: ShieldHudTrack, f: number): number {
+  const cur = shieldFractionAt(track, f)
+  const interval = track.frameIntervalMs
+  let best = cur
+  // The whole frames over the last recent-damage window (T - s < SHIELD_CHASE_MS), plus T itself.
+  const first = Math.floor(f - SHIELD_CHASE_MS / interval) + 1
+  for (let s = Math.floor(f); s >= first; s--) {
+    const from = shieldFractionAt(track, s)
+    const candidate = from + (cur - from) * chaseEase((f - s) * interval)
+    if (candidate > best) best = candidate
+  }
+  return Math.max(0, Math.min(1, best))
 }
 
 /**

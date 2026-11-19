@@ -12,6 +12,7 @@ import type { KillEvent } from '../../match-view/_momentum'
 import { toReplayKills } from '../model/killFeedLogic'
 import { prepareCallouts } from '../model/mapCallouts'
 import { testReplayDoc } from '../test/testDoc'
+import { SHIELD_CHASE_INK } from '../model/shieldHud'
 import { createExportHud } from './exportHud'
 
 it('draws the requested player HUD without inventing an unknown player state', async () => {
@@ -92,7 +93,7 @@ afterEach(() => {
 })
 
 /** A doc whose followed player's life carries shield samples (`sh`), so the bar is drawn. */
-function shieldDoc() {
+function shieldDoc(after = 0.1) {
   return testReplayDoc({
     roster: [
       { filmIndex: 0, xuid: 'A', name: 'Alpha', team: 0 },
@@ -100,7 +101,7 @@ function shieldDoc() {
       { filmIndex: 2, xuid: 'C', name: 'Charlie', team: 1 },
     ],
     tracks: [
-      { slot: 0, team: 0, xuid: 'A', points: [{ t: 0, x: 0, y: 0, sh: 0.5 }, { t: 100, x: 0, y: 0, sh: 0.1 }, { t: 200, x: 0, y: 0, sh: 0.1 }] },
+      { slot: 0, team: 0, xuid: 'A', points: [{ t: 0, x: 0, y: 0, sh: 0.5 }, { t: 100, x: 0, y: 0, sh: after }, { t: 200, x: 0, y: 0, sh: after }] },
       { slot: 1, team: 0, xuid: 'B', points: [{ t: 0, x: 0, y: 0 }, { t: 200, x: 0, y: 0 }] },
       { slot: 2, team: 1, xuid: 'C', points: [{ t: 0, x: 0, y: 0 }, { t: 200, x: 0, y: 0 }] },
     ],
@@ -327,6 +328,35 @@ describe('createExportHud', () => {
       // The alert color is the main ink of the gradient when low: the center stop turns red.
       expect(gradientStops.length).toBe(3)
       expect(gradientStops[1].color).toBe('#ff4b3e')
+    })
+
+    it('right after a drop fills the chase band additively, and none once it has closed', async () => {
+      const hud = await createExportHud(shieldDoc(), 'A', [], null, null, 'en')
+      // The drop (0.5 -> 0.1) lands at frame 100: the band spans from the live fill out to the
+      // chase, on each side, inside the bar's clip (band width (250 - 50) * s, s = 0.36 here).
+      const dropped = callRecorder()
+      hud(dropped.ctx, VIEW, 100)
+      const bands = dropped.named('fillRect').filter((c) => c.args[1] === 720 * 0.08)
+      expect(bands.some((c) => c.args[0] === 460 + 250 * 0.36 && c.args[2] === 200 * 0.36)).toBe(true)
+      expect(bands.some((c) => c.args[0] === 460 + 550 * 0.36 && c.args[2] === 200 * 0.36)).toBe(true)
+      expect(dropped.sets.some((s) => s.prop === 'globalCompositeOperation' && s.value === 'lighter')).toBe(true)
+      expect(dropped.sets.some((s) => s.prop === 'fillStyle' && s.value === SHIELD_CHASE_INK)).toBe(true)
+      // 1000 ms past the drop (frame 170): the chase has closed on the live value, no band.
+      const closed = callRecorder()
+      hud(closed.ctx, VIEW, 170)
+      expect(closed.sets.some((s) => s.prop === 'globalCompositeOperation' && s.value === 'lighter')).toBe(false)
+      expect(closed.sets.some((s) => s.prop === 'fillStyle' && s.value === SHIELD_CHASE_INK)).toBe(false)
+    })
+
+    it('still draws the chase band when the hit empties the shield (no fill left)', async () => {
+      const hud = await createExportHud(shieldDoc(0), 'A', [], null, null, 'en')
+      const dropped = callRecorder()
+      hud(dropped.ctx, VIEW, 100)
+      // The band runs from the center out to the chase on each side: 250 units wide, s = 0.36.
+      const bands = dropped.named('fillRect').filter((c) => c.args[1] === 720 * 0.08)
+      expect(bands.some((c) => c.args[0] === 460 + 250 * 0.36 && c.args[2] === 250 * 0.36)).toBe(true)
+      expect(bands.some((c) => c.args[0] === 460 + 500 * 0.36 && c.args[2] === 250 * 0.36)).toBe(true)
+      expect(dropped.sets.some((s) => s.prop === 'fillStyle' && s.value === SHIELD_CHASE_INK)).toBe(true)
     })
 
     it('does not draw the old plain rectangle shield', async () => {

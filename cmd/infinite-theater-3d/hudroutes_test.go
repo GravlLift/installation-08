@@ -25,7 +25,7 @@ import (
 const hudRoute = "/static/weapons-assets/halo_infinite/hud/"
 
 // hudFixtureSet writes a minimal built HUD icon set into the data directory: the 15 stems
-// plus index.json.
+// plus the damage arc, the shield chase, and index.json.
 func hudFixtureSet(t *testing.T, dataDir string) {
 	t.Helper()
 	dir := weaponicons.HudOutDir(dataDir)
@@ -76,6 +76,17 @@ func TestHudRouteServesBuiltFile(t *testing.T) {
 	}
 	if body := rec.Body.String(); body != "fixture-DamageArc" {
 		t.Fatalf("DamageArc body = %q", body)
+	}
+
+	rec = get(t, h, hudRoute+"ShieldChase.png", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("ShieldChase status = %d, want 200", rec.Code)
+	}
+	if rec.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("ShieldChase Content-Type = %q, want image/png", rec.Header().Get("Content-Type"))
+	}
+	if body := rec.Body.String(); body != "fixture-ShieldChase" {
+		t.Fatalf("ShieldChase body = %q", body)
 	}
 }
 

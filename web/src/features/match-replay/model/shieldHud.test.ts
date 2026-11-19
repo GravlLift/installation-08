@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it } from 'vitest'
 
-import { SHIELD_FLASH_PERIOD_MS, SHIELD_RECHARGE_FULL_MS, shieldFlash, shieldFractionAt, shieldHudAt, shieldHudTrackOf, shieldTransitionsOf } from './shieldHud'
+import { SHIELD_FLASH_PERIOD_MS, SHIELD_RECHARGE_FULL_MS, shieldChaseAt, shieldFlash, shieldFractionAt, shieldHudAt, shieldHudTrackOf, shieldTransitionsOf } from './shieldHud'
 
 const MS = 33
 const FULL_FRAMES = SHIELD_RECHARGE_FULL_MS / MS
@@ -105,7 +105,40 @@ describe('shieldHudAt states and transitions', () => {
 
   it('a life without shield samples stays full', () => {
     const track = shieldHudTrackOf([{ t: 5 }, { t: 9 }], MS, 5)
-    expect(shieldHudAt(track, 7)).toEqual({ fraction: 1, state: 'full', since: 5 })
+    expect(shieldHudAt(track, 7)).toEqual({ fraction: 1, state: 'full', since: 5, chase: 1 })
+  })
+})
+
+describe('shieldChaseAt', () => {
+  // A drop from 1 to 0.4 at frame 12 (400 ms in).
+  const drop = shieldHudTrackOf([{ t: 0, sh: 1 }, { t: 12, sh: 0.4 }, { t: 200, sh: 0.4 }], MS, 0)
+  const chaseEase = (ageMs: number) => ageMs <= 200 ? 0 : 1 - (1 - Math.min(1, (ageMs - 200) / 800)) ** 3
+
+  it('holds the lost value for the animator start, then closes on the live value', () => {
+    // The drop frame and 165 ms after it (still inside the 200 ms hold): the band is full width.
+    expect(shieldChaseAt(drop, 12)).toBe(1)
+    expect(shieldChaseAt(drop, 17)).toBe(1)
+    // 627 ms after the last pre-drop sample (frame 30, sample 11): that sample lerps from 1 to
+    // 0.4 at its age, the exact value the formula gives.
+    const at30 = shieldChaseAt(drop, 30)
+    expect(at30).toBeGreaterThan(0.4)
+    expect(at30).toBeLessThan(1)
+    expect(at30).toBeCloseTo(1 - 0.6 * chaseEase((30 - 11) * MS), 9)
+    // 1056 ms after the drop (frame 43, beyond the 1000 ms window): the band has closed.
+    expect(shieldChaseAt(drop, 43)).toBe(0.4)
+  })
+
+  it('a second drop keeps the chase from the first drop', () => {
+    // 0.4 -> 0.2 at frame 22, 330 ms after the first drop: the band still spans from 1.
+    const twice = shieldHudTrackOf([{ t: 0, sh: 1 }, { t: 12, sh: 0.4 }, { t: 22, sh: 0.2 }, { t: 200, sh: 0.2 }], MS, 0)
+    const chase = shieldChaseAt(twice, 22)
+    expect(chase).toBeGreaterThan(0.4)
+    expect(chase).toBeCloseTo(1 - 0.8 * chaseEase((22 - 11) * MS), 9)
+  })
+
+  it('a rise (recharge) gives chase == fraction', () => {
+    const gap = shieldHudTrackOf([{ t: 0, sh: 0.2 }, { t: 120, sh: 0.6 }], MS, 0)
+    expect(shieldChaseAt(gap, 60)).toBeCloseTo(shieldFractionAt(gap, 60), 9)
   })
 })
 
