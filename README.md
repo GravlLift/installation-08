@@ -1,4 +1,6 @@
-# Installation 08
+<h1 align="center">
+  <img src="assets/icon/installation-08-wordmark.png" alt="Installation 08" width="640">
+</h1>
 
 Rewatch your Halo Infinite matches in full 3D, on your own PC.
 
