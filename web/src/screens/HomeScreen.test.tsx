@@ -101,7 +101,7 @@ describe('HomeScreen', () => {
       ['OpenSpartan', 'https://github.com/dend'],
       ['Ekur', 'https://github.com/TheHaloArchive/ekur'],
       ['SPNKr', 'https://github.com/acurtis166/SPNKr'],
-      ['More in NOTICE', 'https://github.com/llampwall/infinite-theater-3d#credits'],
+      ['More in NOTICE', 'https://github.com/llampwall/installation-08#credits'],
       ['Made by Jordan Hewitt', 'https://github.com/llampwall'],
     ])
     // The app window's injected script hands cross-origin anchors to the default browser; a

@@ -62,7 +62,7 @@ func releaseTestServer(t *testing.T, status int, tag, url string) *httptest.Serv
 // 404 (no release yet) and 500.
 func TestCheckForUpdate(t *testing.T) {
 	t.Run("newer release", func(t *testing.T) {
-		const tagURL = "https://github.com/llampwall/infinite-theater-3d/releases/tag/v0.1.0-test.24"
+		const tagURL = "https://github.com/llampwall/installation-08/releases/tag/v0.1.0-test.24"
 		ts := releaseTestServer(t, http.StatusOK, "v0.1.0-test.24", tagURL)
 		info := checkForUpdate(context.Background(), ts.Client(), ts.URL, "0.1.0-test.23-rc7")
 		if !info.Checked || info.Err != "" {
@@ -73,7 +73,7 @@ func TestCheckForUpdate(t *testing.T) {
 		}
 	})
 	t.Run("same version", func(t *testing.T) {
-		ts := releaseTestServer(t, http.StatusOK, "v0.1.0-test.23-rc7", "https://github.com/llampwall/infinite-theater-3d/releases/tag/v0.1.0-test.23-rc7")
+		ts := releaseTestServer(t, http.StatusOK, "v0.1.0-test.23-rc7", "https://github.com/llampwall/installation-08/releases/tag/v0.1.0-test.23-rc7")
 		info := checkForUpdate(context.Background(), ts.Client(), ts.URL, "0.1.0-test.23-rc7")
 		if !info.Checked || info.Newer || info.Err != "" {
 			t.Fatalf("info = %+v, want checked, not newer, no error", info)

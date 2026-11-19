@@ -18,7 +18,7 @@ import (
 )
 
 // releasesAPI is the GitHub API endpoint that answers the repository's latest release.
-const releasesAPI = "https://api.github.com/repos/llampwall/infinite-theater-3d/releases/latest"
+const releasesAPI = "https://api.github.com/repos/llampwall/installation-08/releases/latest"
 
 // updateInfo is the update-check result the /api/update route reports.
 type updateInfo struct {

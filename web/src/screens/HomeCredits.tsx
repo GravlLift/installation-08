@@ -25,7 +25,7 @@ export const HOME_CREDITS: readonly Credit[] = [
 ]
 
 /** The full credits: README's Credits section on GitHub. */
-export const FULL_CREDITS_URL = 'https://github.com/llampwall/infinite-theater-3d#credits'
+export const FULL_CREDITS_URL = 'https://github.com/llampwall/installation-08#credits'
 
 /** The author's GitHub profile, linked from the corner's last line. */
 export const MAKER_URL = 'https://github.com/llampwall'

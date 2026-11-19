@@ -13,7 +13,7 @@
 
 #define MyAppName "Installation 08"
 #define MyAppPublisher "llampwall"
-#define MyAppURL "https://github.com/llampwall/infinite-theater-3d"
+#define MyAppURL "https://github.com/llampwall/installation-08"
 #define MyAppExeName "installation-08.exe"
 ; Fixed for all versions of this installer: updates are detected by this id, not by the
 ; folder name.
