@@ -13,6 +13,8 @@ import { toReplayKills } from '../model/killFeedLogic'
 import { prepareCallouts } from '../model/mapCallouts'
 import { testReplayDoc } from '../test/testDoc'
 import { SHIELD_CHASE_INK, SHIELD_QUAD_URL } from '../model/shieldHud'
+import { teamEmblemUrl } from '../model/teamEmblem'
+import { SCORE_METER_URL } from '../ui/scoreMeter'
 import { createExportHud } from './exportHud'
 
 it('draws the requested player HUD without inventing an unknown player state', async () => {
@@ -403,6 +405,7 @@ describe('createExportHud', () => {
       // The bitmap read by `tintedChase`: a canvas stub over a buffer of the bitmap's own size.
       const buffer = new Uint8ClampedArray(940 * 64 * 4)
       const bitmapCtx = {
+        clearRect: () => {},
         drawImage: () => { buffer.fill(77) },
         getImageData: () => ({ data: buffer }),
         putImageData: () => {},
@@ -468,13 +471,16 @@ describe('createExportHud', () => {
       expect(dw).toBe(360)
       expect(dh).toBeCloseTo(360 * 80 / 940, 12)
       // On the offscreen canvas: the chase band is additive, and the quad's alpha is applied
-      // as a mask with `destination-in`, drawing the quad image right after the mask is set.
+      // as a mask with `destination-in`: the quad image is read into the boosted-alpha mask
+      // canvas, and that mask is drawn over the whole box right after the mask is set.
       const quad = made.find((img) => img.src === SHIELD_QUAD_URL)
       expect(quad).toBeDefined()
+      expect(events.some((e) => e.kind === 'op' && e.name === 'drawImage' && e.args?.[0] === quad)).toBe(true)
       const maskSet = events.findIndex((e) => e.kind === 'set' && e.name === 'globalCompositeOperation' && e.value === 'destination-in')
-      const quadDraw = events.findIndex((e) => e.kind === 'op' && e.name === 'drawImage' && e.args?.[0] === quad)
       expect(maskSet).toBeGreaterThanOrEqual(0)
-      expect(quadDraw).toBeGreaterThan(maskSet)
+      const maskDraw = events.findIndex((e, i) => i > maskSet && e.kind === 'op' && e.name === 'drawImage')
+      expect(maskDraw).toBeGreaterThan(maskSet)
+      expect((events[maskDraw].args as unknown[])[3]).toBe(360)
       expect(events.some((e) => e.kind === 'set' && e.name === 'globalCompositeOperation' && e.value === 'lighter')).toBe(true)
       // The band sits at the chase's own offset in the 80-tall quad, at the bar's pixel width.
       const u = 360 / 940
@@ -491,6 +497,192 @@ describe('createExportHud', () => {
       // start at the bar's left edge and span the full bar width.
       const barLeft = 460
       expect(fillRects.some((r) => Math.abs(r.x - barLeft) < 1 && r.w >= 350)).toBe(false)
+    })
+  })
+
+  describe('team emblems at the score bars', () => {
+    /** The followed player is on camp 0; the timeline names camps 0 (10) and 1 (5) of 250. */
+    function scoreDoc() {
+      return testReplayDoc({
+        roster: [
+          { filmIndex: 0, xuid: 'A', name: 'Alpha', team: 0 },
+          { filmIndex: 1, xuid: 'B', name: 'Bravo', team: 0 },
+          { filmIndex: 2, xuid: 'C', name: 'Charlie', team: 1 },
+        ],
+        scoreTimeline: {
+          targetScore: 250,
+          teams: [
+            { teamId: 0, total: [{ t: 10, v: 10 }], rounds: [] },
+            { teamId: 1, total: [{ t: 20, v: 5 }], rounds: [] },
+          ],
+        },
+      })
+    }
+
+    /** A recording context: every `drawImage` is captured with the `globalAlpha` in effect. */
+    function emblemCtx() {
+      const state: Record<string, unknown> = {}
+      const draws: { img: unknown; x: number; y: number; w: number; h: number; alpha: number }[] = []
+      const ctx = new Proxy(state, {
+        get(target, prop) {
+          if (prop === 'measureText') return () => ({ width: 8 })
+          if (prop === 'drawImage') return (img: unknown, x: number, y: number, w: number, h: number) => { draws.push({ img, x, y, w, h, alpha: (target.globalAlpha as number | undefined) ?? 1 }) }
+          if (typeof prop === 'string' && prop in target) return target[prop]
+          return () => {}
+        },
+        set(target, prop, value) { target[prop as string] = value; return true },
+      }) as unknown as CanvasRenderingContext2D
+      return { ctx, draws }
+    }
+
+    /** A loading `Image` (jsdom never fires load on its own) that fails on `fail(url)`: the
+     * icons test's microtask pattern; `made` keeps each instance so a draw matches a URL. */
+    function fakeImages(fail: (url: string) => boolean) {
+      const made: { src: string }[] = []
+      const requested: string[] = []
+      class FakeImage {
+        onload: (() => void) | null = null
+        onerror: (() => void) | null = null
+        private _src = ''
+        get src() { return this._src }
+        set src(url: string) {
+          this._src = url
+          requested.push(url)
+          made.push(this as { src: string })
+          queueMicrotask(() => (fail(url) ? this.onerror?.() : this.onload?.()))
+        }
+      }
+      vi.stubGlobal('Image', FakeImage)
+      return { made, requested }
+    }
+
+    it('draws each side emblem at the bar outer end, at 0.7, when its image loaded', async () => {
+      const { made } = fakeImages(() => false)
+      const hud = await createExportHud(scoreDoc(), 'A', [], null, null, 'en')
+      const { ctx, draws } = emblemCtx()
+      hud(ctx, VIEW, 100)
+      // The game's proportions (cusc 21a7dab4): 1.55 x the bar height (size * 0.8), a gap of
+      // 0.27 x the bar height beyond the bar's outer end, centered on the bar.
+      const size = Math.max(19, Math.min(39, 7.7 + VIEW.height * 0.0287))
+      const bar = size * 4.2
+      const emblemH = size * 0.8 * 1.55
+      const gap = size * 0.8 * 0.27
+      const y = VIEW.height * 0.94 - size * 0.7
+      const leftBar = VIEW.width / 2 - size * 1.6 - bar
+      const rightBar = VIEW.width / 2 + size * 1.6
+      const allyEmblem = made.find((img) => img.src === teamEmblemUrl(0))
+      const enemyEmblem = made.find((img) => img.src === teamEmblemUrl(1))
+      expect(allyEmblem).toBeDefined()
+      expect(enemyEmblem).toBeDefined()
+      expect(draws.some((d) => d.img === allyEmblem && d.alpha === 0.7 && d.w === emblemH && d.h === emblemH && d.x === leftBar - gap - emblemH && d.y === y - emblemH / 2)).toBe(true)
+      expect(draws.some((d) => d.img === enemyEmblem && d.alpha === 0.7 && d.w === emblemH && d.h === emblemH && d.x === rightBar + bar + gap && d.y === y - emblemH / 2)).toBe(true)
+      vi.unstubAllGlobals()
+    })
+
+    it('draws no emblem when its image failed to load, though it was preloaded', async () => {
+      const { requested } = fakeImages((url) => url.startsWith('/static/weapons-assets/halo_infinite/hud/TeamEmblem'))
+      const hud = await createExportHud(scoreDoc(), 'A', [], null, null, 'en')
+      const { ctx, draws } = emblemCtx()
+      hud(ctx, VIEW, 100)
+      // The document's two camps were preloaded, their emblems failed: nothing is drawn
+      // (the quad fails in this file too, and there is no shield to draw).
+      expect(requested).toContain(teamEmblemUrl(0))
+      expect(requested).toContain(teamEmblemUrl(1))
+      expect(draws).toHaveLength(0)
+      vi.unstubAllGlobals()
+    })
+  })
+
+  describe('score bars filled with the game meter', () => {
+    /** The followed player is on camp 0; the timeline names camps 0 (10) and 1 (5) of 250, so
+     * both bars carry a nonzero fill (each side is ~5% of the 250 target). */
+    function scoreDoc() {
+      return testReplayDoc({
+        roster: [
+          { filmIndex: 0, xuid: 'A', name: 'Alpha', team: 0 },
+          { filmIndex: 1, xuid: 'B', name: 'Bravo', team: 0 },
+          { filmIndex: 2, xuid: 'C', name: 'Charlie', team: 1 },
+        ],
+        scoreTimeline: {
+          targetScore: 250,
+          teams: [
+            { teamId: 0, total: [{ t: 10, v: 10 }], rounds: [] },
+            { teamId: 1, total: [{ t: 20, v: 5 }], rounds: [] },
+          ],
+        },
+      })
+    }
+
+    /** A canvas whose 2d context is a fake: `getImageData` serves a fully-shaped mask (G and B
+     * high everywhere), so `readScoreMeterMask` returns a real mask and `paintScoreMeter` runs. */
+    function maskCanvasStub() {
+      const buffer = new Uint8ClampedArray(400 * 64 * 4)
+      for (let i = 0; i < buffer.length; i += 4) { buffer[i + 1] = 255; buffer[i + 2] = 255 } // G ramp, B shape
+      const octx = {
+        clearRect: () => {},
+        drawImage: () => {},
+        getImageData: () => ({ data: buffer }),
+        createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+        putImageData: () => {},
+      }
+      vi.spyOn(document, 'createElement').mockImplementation((tag: string) =>
+        tag === 'canvas' ? ({ width: 0, height: 0, getContext: () => octx } as unknown as HTMLElement) : ({} as HTMLElement))
+    }
+
+    /** A loading `Image` that loads every URL (jsdom never fires load on its own). */
+    function loadingImages() {
+      class FakeImage {
+        onload: (() => void) | null = null
+        onerror: (() => void) | null = null
+        set src(_url: string) { queueMicrotask(() => this.onload?.()) }
+      }
+      vi.stubGlobal('Image', FakeImage)
+    }
+
+    it('with the meter bitmap loaded, fills the bars with the meter, not the flat rect', async () => {
+      loadingImages()
+      maskCanvasStub()
+      const hud = await createExportHud(scoreDoc(), 'A', [], null, null, 'en')
+      const rec = callRecorder()
+      hud(rec.ctx, VIEW, 100)
+      // Each side's fill is drawn through the meter (a drawImage of its scratch canvas), at the
+      // bar's position, under the 0.7 fill alpha.
+      const draws = rec.named('drawImage')
+      expect(draws.length).toBeGreaterThanOrEqual(2)
+      expect(rec.sets.some((s) => s.prop === 'globalAlpha' && s.value === 0.7)).toBe(true)
+      // The team colors are NOT used as a fill: the flat fillRect the meter replaces is gone.
+      expect(rec.sets.some((s) => s.prop === 'fillStyle' && (s.value === '#22c55e' || s.value === '#ef4444'))).toBe(false)
+      // No legacy fill at the bar's fill geometry: only the full-width track rect sits at the
+      // fill's y, no partial-width fill rect.
+      const size = Math.max(19, Math.min(39, 7.7 + VIEW.height * 0.0287))
+      const bar = size * 4.2
+      const fillY = VIEW.height * 0.94 - size * 0.7 - size * 0.4
+      const rects = rec.named('fillRect')
+      expect(rects.some((c) => Math.abs((c.args[1] as number) - fillY) < 1 && (c.args[2] as number) > 0 && (c.args[2] as number) < bar)).toBe(false)
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
+    })
+
+    it('without the meter bitmap, fills the bars with the flat rect, as before', async () => {
+      // The meter bitmap fails to load (the quad fails in this file too): the legacy fill is used.
+      class FakeImage {
+        onload: (() => void) | null = null
+        onerror: (() => void) | null = null
+        set src(url: string) { queueMicrotask(() => (url === SCORE_METER_URL ? this.onerror?.() : this.onload?.())) }
+      }
+      vi.stubGlobal('Image', FakeImage)
+      const hud = await createExportHud(scoreDoc(), 'A', [], null, null, 'en')
+      const rec = callRecorder()
+      hud(rec.ctx, VIEW, 100)
+      // The flat fill: each side's team color is set as the fillStyle and a partial-width rect
+      // is drawn at the fill's geometry.
+      expect(rec.sets.some((s) => s.prop === 'fillStyle' && (s.value === '#22c55e' || s.value === '#ef4444'))).toBe(true)
+      const size = Math.max(19, Math.min(39, 7.7 + VIEW.height * 0.0287))
+      const bar = size * 4.2
+      const fillY = VIEW.height * 0.94 - size * 0.7 - size * 0.4
+      const rects = rec.named('fillRect')
+      expect(rects.some((c) => Math.abs((c.args[1] as number) - fillY) < 1 && (c.args[2] as number) > 0 && (c.args[2] as number) < bar)).toBe(true)
+      vi.unstubAllGlobals()
     })
   })
 })
