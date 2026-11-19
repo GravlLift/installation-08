@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+Everything in 0.1.1-test.4 through 0.1.1-test.12 below, plus:
+
+- Reflections come from the nearest capture point on every part of every surface. Test.12 did this only for most of the map's surfaces; the rest (on Streets about a hundred, among them glass) still reflected one capture point across their whole length. On every map.
+
 ## 0.1.1-test.12
 
 - The shield bar is blue again. Since test.10 it read as a pale grey hex pattern: the game's bar bitmap leaves the inside of its hex cells mostly see-through, so our blue fill barely showed. The bar now keeps the game's shape and hex pattern with a solid, brighter blue fill, in the viewer and the video export. The blue is set by eye, not taken from the game.
