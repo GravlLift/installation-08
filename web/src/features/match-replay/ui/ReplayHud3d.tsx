@@ -16,6 +16,7 @@ import { ReplayHudScope3d } from './ReplayHudScope3d'
 import { ReplayKillPopup3d } from './ReplayKillPopup3d'
 import { ShieldBar3d } from './ShieldBar3d'
 import { DAMAGE_ARC_URL, paintDamageArcs } from './damageArcPaint'
+import { ensureHudFonts, HUD_FONT_FAMILY, HUD_SCORE_FONT_FAMILY } from './hudFonts'
 import { shieldFlash } from '../model/shieldHud'
 import { frameToMs, formatClock } from '@/lib/replay/replayLogic'
 import { MIRROR_STYLE, weaponFullIcon } from '../model/weaponFullIcon'
@@ -28,7 +29,10 @@ import { CALLOUT_LABEL, calloutName, calloutOfLivesAt, type PreparedCallouts } f
 /** The hip reticle box (`aimHud.reticleBoxPx`, in container units). */
 const RETICLE_CSS_SIZE = `max(${RETICLE_MIN_PX}px, ${RETICLE_HEIGHT_SHARE * 100}cqh)`
 
-const HUD_STYLE = { color: tokenCssVar('replay-hud-on-dark'), fontSize: 'clamp(19px, calc(7.7px + 2.87cqh), 39px)', textShadow: '0 1px 2px var(--replay-hud-shadow)' }
+// The game's HUD faces (Normative Pro by default), registered once; until they load, and on
+// a set built before them, the fallback face draws.
+void ensureHudFonts()
+const HUD_STYLE = { color: tokenCssVar('replay-hud-on-dark'), fontFamily: HUD_FONT_FAMILY, fontSize: 'clamp(19px, calc(7.7px + 2.87cqh), 39px)', textShadow: '0 1px 2px var(--replay-hud-shadow)' }
 
 /** The game's damage-arc bitmap, loaded once; the canvas layer below paints with it when it is ready. */
 const damageArcImage = new Image()
@@ -40,7 +44,7 @@ damageArcImage.src = DAMAGE_ARC_URL
  */
 function ScoreBanner({ locale, frame, doc, playWindow, timeLimitMs, leftSide, rightSide }: { locale: ReplayLocale; frame: number; doc: ReplayDocumentReady; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; leftSide: { team: 'team-ally' | 'team-enemy'; score: number; part: number }; rightSide: { team: 'team-ally' | 'team-enemy'; score: number; part: number } }) {
   // `data-map-inset`: the 2D view's map fits over it (`topDownView3d.readInsets`).
-  return <div role="group" data-map-inset="bottom" aria-label={REPLAY_TEXT[locale].scoreBannerLabel} style={{ position: 'absolute', bottom: '6%', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '0.6em', fontSize: '0.65em', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}><ScoreBar team={leftSide.team} score={leftSide.score} part={leftSide.part} towardCenter /><span aria-label={REPLAY_TEXT[locale].scoreBannerClock}>{formatClock(hudClock(timeLimitMs, displayClockMs(frameToMs(frame, doc), playWindow)))}</span><ScoreBar team={rightSide.team} score={rightSide.score} part={rightSide.part} /></div>
+  return <div role="group" data-map-inset="bottom" aria-label={REPLAY_TEXT[locale].scoreBannerLabel} style={{ position: 'absolute', bottom: '6%', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '0.6em', fontSize: '0.65em', fontFamily: HUD_SCORE_FONT_FAMILY, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}><ScoreBar team={leftSide.team} score={leftSide.score} part={leftSide.part} towardCenter /><span aria-label={REPLAY_TEXT[locale].scoreBannerClock}>{formatClock(hudClock(timeLimitMs, displayClockMs(frameToMs(frame, doc), playWindow)))}</span><ScoreBar team={rightSide.team} score={rightSide.score} part={rightSide.part} /></div>
 }
 
 export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, playWindow, timeLimitMs, sceneRef, hud = 'full', callouts = null }: { doc: ReplayDocumentReady; xuid: string; frameRef: RefObject<number>; locale: ReplayLocale; kills: readonly ReplayKill[]; nameOfXuid?: (xuid: string) => string | null; playWindow: ReplayWindowBounds | null; timeLimitMs: number | null; sceneRef?: RefObject<ReplayScene3d | null>; hud?: HudLevel; callouts?: PreparedCallouts | null }) {
