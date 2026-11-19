@@ -15,7 +15,7 @@ import { useSoundTimeline, type SoundTimelineInputs } from './useSoundTimeline'
 
 const MANIFEST = vi.hoisted((): FootstepManifest => ({
   version: 1,
-  feet: { default: { walk: { takes: [{ file: 'foot_walk.ogg', media: 1, durationMs: 180 }] } } },
+  feet: { default: { run: { takes: [{ file: 'foot_run.ogg', media: 1, durationMs: 180 }] } } },
   movement: {},
 }))
 
@@ -71,13 +71,13 @@ describe('useSoundTimeline — footsteps', () => {
 
   it('a manifest puts foot steps into the track', () => {
     const { result } = renderHook(() => useSoundTimeline(walkingDoc(), [], inputs('ME')))
-    const footsteps = result.current.timeline.filter((e) => e.stem === 'foot_walk')
+    const footsteps = result.current.timeline.filter((e) => e.stem === 'foot_run')
     expect(footsteps.length).toBeGreaterThan(0)
   })
 
   it('the followed player is unplaced, the others placed', () => {
     const { result } = renderHook(() => useSoundTimeline(walkingDoc(), [], inputs('ME')))
-    const footsteps = result.current.timeline.filter((e) => e.stem === 'foot_walk')
+    const footsteps = result.current.timeline.filter((e) => e.stem === 'foot_run')
     expect(footsteps.some((e) => e.at === undefined)).toBe(true)
     expect(footsteps.some((e) => e.at !== undefined)).toBe(true)
   })

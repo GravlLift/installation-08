@@ -16,6 +16,7 @@ import type { ReplayKill } from '../model/killFeedLogic'
 import type { AnnouncerTrackInput } from './announcerSound'
 import type { ObjectiveSide } from './objectiveSound'
 import { footstepSoundEvents } from './footstepSound'
+import { withGameShots } from './gameShotSound'
 import { reloadSoundEvents } from './reloadSound'
 import { buildSoundTimeline, type SoundCategoryFilter } from './replaySound'
 import type { ReplaySoundEvent } from './replaySoundVariants'
@@ -59,7 +60,9 @@ export function useSoundTimeline(
     if (categories.weapon && weaponSounds?.vents) extras.push(...ventSoundEvents(doc, weaponSounds.vents, followed))
     if (categories.weapon && weaponSounds?.staged) extras.push(...stagedSoundEvents(doc, weaponSounds.staged, followed))
     if (footsteps) extras.push(...footstepSoundEvents(footsteps, doc, FOOTSTEP_SURFACE, followed))
-    return extras.length === 0 ? track : [...track, ...extras].sort((a, b) => a.ms - b.ms)
+    // The game's own shots replace the shipped weapon files where the extraction found them.
+    const shots = footsteps?.shots ? withGameShots(track, footsteps) : track
+    return extras.length === 0 ? shots : [...shots, ...extras].sort((a, b) => a.ms - b.ms)
   }, [doc, kills, categories, sideOfXuid, allyTeam, announcer, weaponSounds, footsteps, followed])
   return { timeline, announcer }
 }

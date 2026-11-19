@@ -232,7 +232,7 @@ export function planAudioMix(
     const stem = pickVariantStem(e, rnd)
     // The RANGED variation only concerns the WEAPONS: the table is indexed by weapon stem, and
     // `drawVariation` returns the exact neutral for any other stem.
-    const draw = withEventGain(drawVariation(WEAPON_SOUND_VARIATIONS[stem], options.variationPercent, rnd), e)
+    const draw = withEventGain(drawVariation(WEAPON_SOUND_VARIATIONS[e.weapon ?? stem], options.variationPercent, rnd), e)
     const shape = soundShapeOf(e)
     // THE PLACE FOR THE CLIP'S LISTENER, at its moment, SAME rule as the real-time player
     // (`placeOf`): without a listener or without a place, no placement — the sound stays as is.

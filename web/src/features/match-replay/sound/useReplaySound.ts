@@ -523,7 +523,7 @@ export function useReplaySound(
       // (held sound or cut shot of a continuous fire burst, schema 71) travels with the event.
       player.play(
         url,
-        withEventGain(drawVariation(WEAPON_SOUND_VARIATIONS[stem], tuning.variationPercentRef.current), e),
+        withEventGain(drawVariation(WEAPON_SOUND_VARIATIONS[e.weapon ?? stem], tuning.variationPercentRef.current), e),
         shape,
         placeOf(listener.current, e),
         { when, footstep: e.footstep === true },

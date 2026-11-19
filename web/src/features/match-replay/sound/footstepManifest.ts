@@ -65,6 +65,12 @@ export interface FootstepManifest {
   version: number
   feet: Readonly<Record<string, Readonly<Partial<Record<string, FootstepEntry>>>>>
   movement: Readonly<Record<string, FootstepEntry>>
+  /**
+   * The game's own shot of a weapon, by weapon key ("hinf_bandit"): its layers (near, mid, far),
+   * each a draw of takes with its volume and falloff (version 3, `internal/footstepsounds/shots.go`).
+   * A weapon absent keeps the shipped sound.
+   */
+  shots?: Readonly<Record<string, FootstepEntry>>
   /** The distance falloffs the takes name, by attenuation id (version 3). */
   falloffs?: Readonly<Record<string, { volume: SoundFalloff }>>
 }

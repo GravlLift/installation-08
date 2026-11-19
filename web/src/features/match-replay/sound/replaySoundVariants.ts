@@ -70,6 +70,12 @@ export interface ReplaySoundEvent {
    */
   falloff?: SoundFalloff
   /**
+   * The weapon key whose RANGED variation this event draws (`WEAPON_SOUND_VARIATIONS`), when its
+   * stem is not that key: a layer take of the game's own shot (`gameShotSound.ts`). Absent = the
+   * stem itself.
+   */
+  weapon?: string
+  /**
    * A FOOT OR MOVEMENT SOUND (`footstepSound.ts`): at a full voice ceiling it may take only another
    * such sound's slot (`admitVoice`), never a shot's. Absent = any other sound.
    */
