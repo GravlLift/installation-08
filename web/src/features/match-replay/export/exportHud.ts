@@ -224,21 +224,23 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       ctx.textAlign = 'right'; ctx.font = `700 ${size}px system-ui`
       const ammo = [ath.ammo?.mag, ath.ammo?.res].filter((v) => v != null).join(' | ')
       if (ammo) ctx.fillText(ammo, w * 0.97 - (hasWeapon ? iconWidth + size * 0.3 : 0), h * 0.92)
-      ctx.font = `700 ${size * 0.6}px system-ui`
-      let right = w * 0.97
-      for (const grenade of [...ath.grenades].reverse()) {
-        const label = doc.grenadeLabels?.[grenade.rank]
-        const count = String(grenade.count), countWidth = ctx.measureText(count).width
+      // The one grenade box the game draws at a time (`ath.grenade`); the full corner layout
+      // (away weapon, equipment) is a separate task.
+      {
+        const grenade = ath.grenade
+        ctx.font = `700 ${size * 0.6}px system-ui`
+        const label = grenade.rank != null ? doc.grenadeLabels?.[grenade.rank] : undefined
+        const count = grenade.count != null ? String(grenade.count) : '', countWidth = ctx.measureText(count).width
+        const right = w * 0.97
         const width = size * 0.78, height = size * 0.78
         const hasIcon = !!label?.img && images.has(label.img)
         const labelWidth = hasIcon ? width : ctx.measureText(grenade.name).width
         const boxWidth = countWidth + labelWidth + size * 0.45
         ctx.fillStyle = 'rgba(0,0,0,.8)'; ctx.fillRect(right - boxWidth, h * 0.86 - height / 2, boxWidth, height)
         ctx.strokeStyle = weaponInk; ctx.strokeRect(right - boxWidth, h * 0.86 - height / 2, boxWidth, height)
-        ctx.fillStyle = weaponInk; ctx.fillText(count, right - size * 0.12, h * 0.86); right -= countWidth + size * 0.15
-        if (icon(ctx, label?.img, weaponInk, !!label?.tinted, false, right - width, h * 0.86 - height / 2, width, height)) right -= width
-        else { ctx.fillText(grenade.name, right, h * 0.86); right -= ctx.measureText(grenade.name).width }
-        right -= size * 0.3
+        ctx.fillStyle = weaponInk; ctx.fillText(count, right - size * 0.12, h * 0.86); const iconX = right - countWidth - size * 0.15
+        if (icon(ctx, label?.img, weaponInk, !!label?.tinted, false, iconX - width, h * 0.86 - height / 2, width, height)) { /* icon painted */ }
+        else ctx.fillText(grenade.name, iconX, h * 0.86)
       }
     }
     ctx.restore()

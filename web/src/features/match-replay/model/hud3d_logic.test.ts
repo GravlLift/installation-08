@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** hud3d_logic.test.ts — HUD 3D: ammo, kill feed, score banner, and reticle logic. */
 import { describe, expect, it } from 'vitest'
-import { KILL_POPUP_SECONDS, allyOnLeft, reticleShape, hudClock, readHud, readKillFeed, readKillPopups, readScoreHud, impactMark, prepareHud } from './hud3d_logic'
+import { KILL_POPUP_SECONDS, NAME_TAG_HOLD_MS, NAME_TAG_TOTAL_MS, allyOnLeft, nameTagOpacity, reticleShape, hudClock, readHud, readKillFeed, readKillPopups, readScoreHud, impactMark, prepareHud } from './hud3d_logic'
+import { handChangeAt, weaponAway, weaponInHand } from './weaponInHand'
 import { testReplayDoc } from '../test/testDoc'
 import { buildExportPlan } from '../export/replayExportPlan'
 import { frameToMs } from '@/lib/replay/replayLogic'
@@ -540,5 +541,112 @@ describe('HUD 3D at the 60 fps export steps (half film frames)', () => {
     const forward = plan.frames.map((f) => readKillFeed(source, f).map((e) => e.kill.replayMs))
     const backward = [...plan.frames].reverse().map((f) => readKillFeed(source, f).map((e) => e.kill.replayMs)).reverse()
     expect(backward).toEqual(forward)
+  })
+})
+
+describe('HUD 3D weapon corner: away weapon, one grenade box, name tag', () => {
+  // A life with a two-weapon loadout, read at its spawn (100 ms per frame).
+  const cornerDoc = (extra: Parameters<typeof testReplayDoc>[0] = {}) => testReplayDoc({
+    frameIntervalMs: 100,
+    tracks: [{ slot: 530, xuid: 'A', team: 1, startFrame: 20, endFrame: 400, points: [{ t: 20, x: 0, y: 0 }, { t: 400, x: 0, y: 0 }] }],
+    loadouts: [{ t: 20, slot: 530, w: ['0x6ACDC44D', '0x2B1824D5'], src: 'birth', k: [0, 1] }],
+    inventory: [{ t: 20, slot: 530, d: 0, am: [{ mag: 13, res: 54 }, { mag: 30, res: 90 }], g: [2] }],
+    weaponLabels: {
+      '0x6ACDC44D': { en: 'Rifle', fr: 'Rifle', img: '/jeu/contour-01.png' },
+      '0x2B1824D5': { en: 'Pistol', fr: 'Pistol', img: '/jeu/contour-02.png' },
+    },
+    grenadeLabels: [{ en: 'Frag', fr: 'Frag' }, { en: 'Plasma', fr: 'Plasma' }],
+    ...extra,
+  })
+
+  it('reads the away weapon as the other emplacement, and a selector flip trades the two', () => {
+    const doc = cornerDoc()
+    expect(weaponInHand(doc, 530, 30)?.id).toBe('0x6ACDC44D')
+    expect(weaponAway(doc, 530, 30)).toEqual({ id: '0x2B1824D5', weaponSlot: 1 })
+    expect(readHud(prepareHud(doc, 'A', []), 30, 'en')?.away).toEqual({ id: '0x2B1824D5', label: expect.objectContaining({ en: 'Pistol' }) })
+
+    const flipped = cornerDoc({ drawnWeapons: [{ t: 50, slot: 530, d: 1 }] })
+    expect(weaponInHand(flipped, 530, 60)?.id).toBe('0x2B1824D5')
+    expect(weaponAway(flipped, 530, 60)).toEqual({ id: '0x6ACDC44D', weaponSlot: 0 })
+    expect(readHud(prepareHud(flipped, 'A', []), 60, 'en')?.away?.id).toBe('0x6ACDC44D')
+  })
+
+  it('shows one grenade box: the read selection, the deduced single type, the indeterminate, and rank 0 without counters', () => {
+    const read = cornerDoc({ inventory: [{ t: 20, slot: 530, d: 0, am: [{ mag: 13, res: 54 }, { mag: 30, res: 90 }], g: [1, 3], gs: 1 }] })
+    expect(readHud(prepareHud(read, 'A', []), 30, 'en')?.grenade).toEqual({ rank: 1, name: 'Plasma', count: 3 })
+
+    const deduced = cornerDoc({ inventory: [{ t: 20, slot: 530, d: 0, am: [{ mag: 13, res: 54 }, { mag: 30, res: 90 }], g: [0, 3] }] })
+    expect(readHud(prepareHud(deduced, 'A', []), 30, 'en')?.grenade).toEqual({ rank: 1, name: 'Plasma', count: 3 })
+
+    const indeterminate = cornerDoc({ inventory: [{ t: 20, slot: 530, d: 0, am: [{ mag: 13, res: 54 }, { mag: 30, res: 90 }], g: [2, 3] }] })
+    expect(readHud(prepareHud(indeterminate, 'A', []), 30, 'en')?.grenade).toEqual({ rank: null, name: 'Grenades', count: null })
+
+    const noCounters = cornerDoc({ inventory: [{ t: 20, slot: 530, d: 0, am: [{ mag: 13, res: 54 }, { mag: 30, res: 90 }], g: [] }] })
+    expect(readHud(prepareHud(noCounters, 'A', []), 30, 'en')?.grenade).toEqual({ rank: 0, name: 'Frag', count: 0 })
+  })
+
+  it('builds each slot\'s change list from that slot\'s events alone', () => {
+    // Two lives, two-weapon loadouts; each slot has its own selector flip, at a different frame.
+    const doc = cornerDoc({
+      tracks: [
+        { slot: 530, xuid: 'A', team: 1, startFrame: 20, endFrame: 400, points: [{ t: 20, x: 0, y: 0 }, { t: 400, x: 0, y: 0 }] },
+        { slot: 540, xuid: 'B', team: 1, startFrame: 20, endFrame: 400, points: [{ t: 20, x: 0, y: 0 }, { t: 400, x: 0, y: 0 }] },
+      ],
+      loadouts: [
+        { t: 20, slot: 530, w: ['0x6ACDC44D', '0x2B1824D5'], src: 'birth', k: [0, 1] },
+        { t: 20, slot: 540, w: ['0x2B1824D5', '0x6ACDC44D'], src: 'birth', k: [0, 1] },
+      ],
+      drawnWeapons: [{ t: 50, slot: 530, d: 1 }, { t: 80, slot: 540, d: 1 }],
+    })
+    expect(handChangeAt(doc, 530, 100)).toBe(50)
+    expect(handChangeAt(doc, 540, 100)).toBe(80)
+    // Slot 540 knows nothing of slot 530's flip, and vice versa.
+    expect(handChangeAt(doc, 540, 60)).toBeNull()
+    expect(handChangeAt(doc, 530, 40)).toBeNull()
+  })
+
+  it('dates the name tag by the latest in-hand change within the life, and fades it on the frame', () => {
+    const doc = cornerDoc({ drawnWeapons: [{ t: 50, slot: 530, d: 1 }] })
+    // No change yet: no tag, at the spawn and before the flip.
+    expect(handChangeAt(doc, 530, 30)).toBeNull()
+    expect(readHud(prepareHud(doc, 'A', []), 30, 'en')?.nameTag).toBeNull()
+    // At the flip: full opacity, the in-hand weapon's name, uppercase.
+    expect(handChangeAt(doc, 530, 60)).toBe(50)
+    expect(readHud(prepareHud(doc, 'A', []), 50, 'en')?.nameTag).toEqual({ text: 'PISTOL', opacity: 1 })
+    // 1.2 s after the flip (frame 62): between 0 and 1.
+    const mid = readHud(prepareHud(doc, 'A', []), 62, 'en')?.nameTag
+    expect(mid?.text).toBe('PISTOL')
+    expect(mid?.opacity).toBeCloseTo(1 - (1200 - NAME_TAG_HOLD_MS) / (NAME_TAG_TOTAL_MS - NAME_TAG_HOLD_MS))
+    // 2 s after the flip (frame 70): gone.
+    expect(readHud(prepareHud(doc, 'A', []), 70, 'en')?.nameTag).toBeNull()
+  })
+
+  it('keeps a life\'s spawn without a name tag when the hand only changes into the next life', () => {
+    // The flip at frame 420 sits in a life that starts at 420: frame 420 and 419 are not the
+    // same life, so the change frames stay out of the list.
+    const doc = testReplayDoc({
+      frameIntervalMs: 100,
+      tracks: [
+        { slot: 530, xuid: 'A', team: 1, startFrame: 20, endFrame: 100, points: [{ t: 20, x: 0, y: 0 }, { t: 100, x: 0, y: 0 }] },
+        { slot: 540, xuid: 'A', team: 1, startFrame: 420, endFrame: 500, points: [{ t: 420, x: 0, y: 0 }, { t: 500, x: 0, y: 0 }] },
+      ],
+      loadouts: [
+        { t: 20, slot: 530, w: ['0x6ACDC44D', '0x2B1824D5'], src: 'birth', k: [0, 1] },
+        { t: 420, slot: 540, w: ['0x6ACDC44D', '0x2B1824D5'], src: 'birth', k: [0, 1] },
+      ],
+      inventory: [{ t: 20, slot: 530, d: 0, am: [{ mag: 13, res: 54 }], g: [2] }],
+      weaponLabels: { '0x6ACDC44D': { en: 'Rifle', fr: 'Rifle', img: '/jeu/contour-01.png' }, '0x2B1824D5': { en: 'Pistol', fr: 'Pistol', img: '/jeu/contour-02.png' } },
+      drawnWeapons: [{ t: 420, slot: 540, d: 1 }],
+    })
+    expect(handChangeAt(doc, 540, 430)).toBeNull()
+    expect(readHud(prepareHud(doc, 'A', []), 430, 'en')?.nameTag).toBeNull()
+  })
+
+  it('holds the tag opacity at 1 for the first half second, then fades linearly to 0 at two seconds', () => {
+    expect(nameTagOpacity(-1)).toBeNull()
+    expect(nameTagOpacity(0)).toBe(1)
+    expect(nameTagOpacity(NAME_TAG_HOLD_MS)).toBe(1)
+    expect(nameTagOpacity(1200)).toBeCloseTo(1 - 700 / 1500)
+    expect(nameTagOpacity(NAME_TAG_TOTAL_MS)).toBeNull()
   })
 })

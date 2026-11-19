@@ -7,11 +7,11 @@ import { frameToMs } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady, ReplayTrackReady } from '@/lib/replay/replayNormalize'
 import { shieldHudAt, shieldHudTrackOf, type ShieldHudTrack } from './shieldHud'
 import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
-import { catalogText } from '../i18n/catalogLabel'
+import { catalogText, type CatalogLabel } from '../i18n/catalogLabel'
 import type { ReplayKill } from './killFeedLogic'
-import { changesInto, weaponInHand } from './weaponInHand'
+import { changesInto, handChangeAt, weaponAway, weaponInHand } from './weaponInHand'
 import { equipmentSlotAt } from './equipmentSlotHud'
-import { grenadeBoxAt, grenadesCarriedFrom, inventoryAt } from './inventoryReading'
+import { grenadeBoxAt, inventoryAt, selectedGrenadeFrom, type GrenadeBox } from './inventoryReading'
 import { weaponClassOfKey } from '../scene3d/weaponClass3d'
 import { spawnAmmoAt, spawnAmmoIndex } from './spawnAmmo'
 import { pickupAmmoAt, pickupAmmoIndex } from './pickupAmmo'
@@ -165,14 +165,60 @@ export function readHud(source: ReturnType<typeof prepareHud>, frame: number, lo
     ? { ...keyframe, mag: fine.mag ?? spawn?.mag ?? keyframe?.mag, res: fine.res ?? spawn?.res ?? keyframe?.res }
     : spawn ? { ...keyframe, mag: spawn.mag ?? keyframe?.mag, res: spawn.res ?? keyframe?.res } : keyframe
   const box = grenadeBoxAt(doc, slot, frame, inventory)
-  const grenades = box ? grenadesCarriedFrom(box.g, doc.grenadeLabels, locale) : []
-  if (!grenades.some((g) => g.rank === 0)) grenades.unshift({ rank: 0, name: catalogText(doc.grenadeLabels?.[0], locale) ?? REPLAY_TEXT[locale].soundCategory.grenade, count: box?.g[0] ?? 0 })
+  const grenade = grenadeHudFrom(box, doc.grenadeLabels, locale)
+  // The other emplacement of the in-hand weapon: the small dimmed icon of the upper row.
+  const awayWeapon = weaponAway(doc, slot, frame)
+  const away = awayWeapon ? { id: awayWeapon.id, label: doc.weaponLabels?.[awayWeapon.id] } : null
+  // The in-hand weapon's name tag, dated by the latest change within the life (a life's spawn
+  // shows none): full opacity for the first NAME_TAG_HOLD_MS, then a linear fade.
+  const changeFrame = handChangeAt(doc, slot, frame)
+  const tagOpacity = changeFrame != null && label ? nameTagOpacity(now - frameToMs(changeFrame, doc)) : null
+  const nameTag = tagOpacity != null ? { text: (catalogText(label, locale) ?? '').toLocaleUpperCase(locale), opacity: tagOpacity } : null
   const hit = lastMark(source.impacts.get(slot) ?? [], now, 150)
   const elimination = lastMark(source.eliminations, now, 400)
   const equipment = equipmentSlotAt(doc, slot, frame)
   // The shield bar: smooth recharge, instant drops (`shieldHud`); null when the film carries no shield.
   const shieldState = state.shield ? shieldHudAt(shieldBar(source, state.life), frame) : null
-  return { shield: shieldState?.fraction ?? null, shieldState, weaponId: weapon?.id, label, ammo, grenades, equipment, shape: reticleShape(label?.key), hit, elimination }
+  return { shield: shieldState?.fraction ?? null, shieldState, weaponId: weapon?.id, label, ammo, grenade, away, nameTag, equipment, shape: reticleShape(label?.key), hit, elimination }
+}
+
+/**
+ * The in-hand weapon's name tag, under the in-hand row: the game shows it right after a swap and
+ * fades it out. Pure in the frame (a seek to 1 s after a swap shows it half faded, as the game
+ * would at that moment).
+ */
+/** The full-opacity hold, from the frame of the change. */
+export const NAME_TAG_HOLD_MS = 500
+/** The total life, from the frame of the change; the fade is linear over the rest. */
+export const NAME_TAG_TOTAL_MS = 2000
+
+/** nameTagOpacity: the tag's opacity `ageMs` after the change; null before it and once faded. */
+export function nameTagOpacity(ageMs: number): number | null {
+  if (ageMs < 0 || ageMs >= NAME_TAG_TOTAL_MS) return null
+  return ageMs <= NAME_TAG_HOLD_MS ? 1 : 1 - (ageMs - NAME_TAG_HOLD_MS) / (NAME_TAG_TOTAL_MS - NAME_TAG_HOLD_MS)
+}
+
+/**
+ * The single grenade box of the HUD's upper row: the game draws ONE grenade type at a time
+ * (the selected one). `rank` null = the selection is indeterminate (several types carried,
+ * selector unread) and the box carries the generic grenade text with no count; a null box
+ * (counters not read, or nothing carried) keeps the rank-0 counter, as before.
+ */
+export interface HudGrenade {
+  rank: number | null
+  name: string
+  count: number | null
+}
+
+/** grenadeHudFrom: the one grenade box the game draws, from the box's counters and selector
+ * (`selectedGrenadeFrom`). */
+export function grenadeHudFrom(box: GrenadeBox | null, labels: CatalogLabel[] | undefined, locale: ReplayLocale): HudGrenade {
+  const generic = REPLAY_TEXT[locale].soundCategory.grenade
+  if (!box) return { rank: 0, name: catalogText(labels?.[0], locale) ?? generic, count: 0 }
+  const sel = selectedGrenadeFrom(box.g, box.gs)
+  if (sel === 'indeterminate') return { rank: null, name: generic, count: null }
+  const rank = sel ? sel.rank : 0
+  return { rank, name: catalogText(labels?.[rank], locale) ?? (sel ? `rank ${rank}` : generic), count: sel ? box.g[rank] : box.g[0] ?? 0 }
 }
 
 /** Life window of an elimination of the followed player in the 3D HUD popup, in seconds. */

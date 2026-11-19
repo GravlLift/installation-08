@@ -56,6 +56,76 @@ export function weaponInHand(doc: ReplayDocumentReady, slot: number, frame: numb
   return handOn(withPlacedPickups(doc), slot, frame)
 }
 
+/**
+ * weaponAway: the OTHER emplacement of the in-hand weapon of the life of `slot` at `frame` —
+ * the small dimmed icon of the HUD's upper row. Read the same way `weaponInHand` reads the hand
+ * (`withPlacedPickups`), so a swap trades the two automatically. Null when the hand is null, is
+ * an objective emplacement (2), the life has no loadout reading, or the other emplacement holds
+ * nothing.
+ */
+export function weaponAway(doc: ReplayDocumentReady, slot: number, frame: number): { id: string; weaponSlot: number } | null {
+  const placed = withPlacedPickups(doc)
+  const hand = handOn(placed, slot, frame)
+  if (!hand || (hand.weaponSlot !== 0 && hand.weaponSlot !== 1)) return null
+  const other = 1 - hand.weaponSlot
+  const life = currentLifeOf(placed, slot, frame)
+  if (!life) return null
+  const lo = loadoutAt(placed, slot, frame)
+  if (!lo) return null
+  const id = weaponOfEmplacement(placed, slot, frame, lo, other, trackWindow(life).start)
+  return id ? { id, weaponSlot: other } : null
+}
+
+const handChangeCache = new WeakMap<ReplayDocumentReady, Map<number, number[]>>()
+
+/**
+ * handChangeAt: the frame of the LATEST in-hand weapon change at or before `frame` in the life
+ * covering `frame`, null before the first one — the weapon name tag dates from it. The change
+ * frames are dated by the hand events: the selector flips (`drawnWeapons`), the weapon changes
+ * (placed pickups included), and the per-shot magazine reads (`ammoReads` of `src 'delta'`). At
+ * each event frame the in-hand weapon id is compared with the one of the frame before it, and a
+ * change is recorded only when both frames sit in the SAME life, so a life's spawn carries none.
+ * The list is built LAZILY for the one slot asked (the HUD only asks for the followed player's):
+ * `weaponInHand` is not cheap, and a match carries thousands of delta ammo reads per player.
+ */
+export function handChangeAt(doc: ReplayDocumentReady, slot: number, frame: number): number | null {
+  if (!currentLifeOf(doc, slot, frame)) return null
+  let changes = handChangeCache.get(doc)
+  if (!changes) { changes = new Map(); handChangeCache.set(doc, changes) }
+  let list = changes.get(slot)
+  if (!list) { list = buildHandChanges(doc, slot); changes.set(slot, list) }
+  let start = 0
+  let end = list.length
+  while (start < end) {
+    const mid = (start + end) >> 1
+    if (list[mid] <= frame) start = mid + 1
+    else end = mid
+  }
+  return start ? list[start - 1] : null
+}
+
+/**
+ * buildHandChanges: the frames where the in-hand weapon id changes within a life, for ONE track
+ * slot: only that slot's events, deduped (several events often share a frame).
+ */
+function buildHandChanges(doc: ReplayDocumentReady, slot: number): number[] {
+  const placed = withPlacedPickups(doc)
+  const frames = new Set<number>()
+  for (const d of doc.drawnWeapons) if (d.slot === slot) frames.add(d.t)
+  for (const c of placed.weaponChanges) if (c.slot === slot) frames.add(c.t)
+  for (const r of doc.ammoReads) if (r.src === 'delta' && r.slot === slot) frames.add(r.t)
+  const out: number[] = []
+  for (const f of frames) {
+    if (f < 1) continue
+    const life = currentLifeOf(doc, slot, f)
+    if (!life || currentLifeOf(doc, slot, f - 1) !== life) continue
+    const before = weaponInHand(doc, slot, f - 1)?.id
+    const after = weaponInHand(doc, slot, f)?.id
+    if (before != null && after != null && before !== after) out.push(f)
+  }
+  return out.sort((a, b) => a - b)
+}
+
 const placementsCache = new WeakMap<ReplayDocumentReady, Map<ReplayTrackReady, PickupEffect[]>>()
 
 /**
