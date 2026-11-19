@@ -119,7 +119,9 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
     {place && <div data-hud-callout style={{ position: 'absolute', left: `${CALLOUT_LABEL.left * 100}%`, bottom: `${CALLOUT_LABEL.bottom * 100}%`, fontSize: `${CALLOUT_LABEL.em}em`, fontWeight: CALLOUT_LABEL.weight, letterSpacing: `${CALLOUT_LABEL.tracking}em`, textTransform: 'uppercase', lineHeight: 1 }}>{place}</div>}
     {/* The game's bottom-right corner: the away weapon (small, dimmed), the one grenade box and
         the equipment on the upper row; mag | reserve and the in-hand weapon below; the in-hand
-        weapon's name under it, only right after a swap, fading as the game fades it. */}
+        weapon's name under it, only right after a swap, fading as the game fades it. The name tag
+        hangs out of the column's flow (absolute, below the box) so the corner never shifts when
+        the tag appears or fades away. */}
     {ath && <div style={{ position: 'absolute', right: '3%', bottom: '6%', display: 'flex', flexDirection: 'column', alignItems: 'end', gap: '0.35em', lineHeight: 1, color: tokenCssVar('replay-hud-weapon') }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.25em', fontSize: '0.6em' }}>
         {awayIcon && away && <WeaponIcon imageUrl={awayIcon.url} tinted={away.label?.tinted} label={catalogText(away.label, locale) ?? ''} width="2.8em" height="1.1em" style={awayIcon.mirrored ? { opacity: 0.5 } : { ...MIRROR_STYLE, opacity: 0.5 }} />}
@@ -131,7 +133,7 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
         {ath.ammo?.res != null && <span style={{ fontSize: '0.6em', opacity: 0.75, paddingLeft: '0.5em', borderLeft: '1px solid currentColor', fontVariantNumeric: 'tabular-nums' }}>{ath.ammo.res}</span>}
         {icon && <WeaponIcon imageUrl={icon.url} tinted={ath.label?.tinted} label={catalogText(ath.label, locale) ?? ''} width="2.8em" height="1.1em" style={icon.mirrored ? undefined : MIRROR_STYLE} />}
       </div>
-      {ath.nameTag && <div style={{ fontSize: '0.6em', fontWeight: 700, letterSpacing: '0.05em', opacity: ath.nameTag.opacity }}>{ath.nameTag.text}</div>}
+      {ath.nameTag && <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '0.35em', fontSize: '0.55em', fontWeight: 600, letterSpacing: '0.08em', lineHeight: 1, padding: '0.35em 0.6em', background: 'rgba(0, 0, 0, 0.55)', color: '#fff', opacity: ath.nameTag.opacity }}>{ath.nameTag.text}</div>}
     </div>}
   </div>
 }

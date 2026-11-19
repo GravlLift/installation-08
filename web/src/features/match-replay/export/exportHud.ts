@@ -268,12 +268,19 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       ctx.textAlign = 'right'; ctx.font = `700 ${size}px system-ui`
       const ammo = [ath.ammo?.mag, ath.ammo?.res].filter((v) => v != null).join(' | ')
       if (ammo) ctx.fillText(ammo, w * 0.97 - (hasWeapon ? iconWidth + size * 0.3 : 0), h * 0.92)
-      // The in-hand weapon's name tag, under the in-hand row, right-aligned, fading with the game.
+      // The in-hand weapon's name tag, under the in-hand row, right-aligned, fading with the game:
+      // a dark translucent plate behind the letters, the whole thing at the tag's opacity.
       if (ath.nameTag) {
         ctx.save(); ctx.globalAlpha = ath.nameTag.opacity
-        ctx.fillStyle = weaponInk
-        ctx.font = `700 ${size * 0.6}px system-ui`
-        ctx.fillText(ath.nameTag.text, w * 0.97, h * 0.94 + size * 0.45)
+        const tagSize = size * 0.55, tagY = h * 0.94 + size * 0.45
+        ctx.font = `600 ${tagSize}px system-ui`
+        ctx.letterSpacing = `${0.08 * tagSize}px`
+        ctx.textAlign = 'right'
+        const tagWidth = ctx.measureText(ath.nameTag.text).width
+        ctx.fillStyle = 'rgba(0,0,0,0.55)'
+        ctx.fillRect(w * 0.97 - tagWidth - 1.2 * tagSize, tagY - 0.85 * tagSize, tagWidth + 1.2 * tagSize, 1.7 * tagSize)
+        ctx.fillStyle = white
+        ctx.fillText(ath.nameTag.text, w * 0.97, tagY)
         ctx.restore()
       }
     }

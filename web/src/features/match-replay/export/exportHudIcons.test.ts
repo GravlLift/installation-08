@@ -26,22 +26,24 @@ vi.mock('../layers/replayDraw', () => ({ tintedIconCanvas: (img: { src?: string 
 
 afterEach(() => vi.unstubAllGlobals())
 
-/** A recording canvas context: every method call and every `fillRect` is captured, in order. */
+/** A recording canvas context: every method call and every `fillRect` is captured; `ops` keeps
+ * both in paint order, each rect carrying the `globalAlpha` in effect when it was painted. */
 function recordingCtx() {
   const calls: Record<string, unknown[][]> = {}
-  const rects: { x: number; y: number; w: number; h: number }[] = []
+  const rects: { x: number; y: number; w: number; h: number; alpha: number }[] = []
+  const ops: { op: string; args?: unknown[]; rect?: { x: number; y: number; w: number; h: number; alpha: number } }[] = []
   const state: Record<string, unknown> = {}
   const ctx = new Proxy(state, {
     get(target, prop) {
       if (prop === 'measureText') return (s: string) => ({ width: String(s).length })
-      if (prop === 'fillRect') return (x: number, y: number, w: number, h: number) => { rects.push({ x, y, w, h }) }
+      if (prop === 'fillRect') return (x: number, y: number, w: number, h: number) => { const rect = { x, y, w, h, alpha: (target.globalAlpha as number | undefined) ?? 1 }; rects.push(rect); ops.push({ op: 'fillRect', rect }); return undefined }
       if (typeof prop === 'string' && prop in target) return target[prop]
-      return (...args: unknown[]) => { (calls[prop as string] ??= []).push(args) }
+      return (...args: unknown[]) => { (calls[prop as string] ??= []).push(args); ops.push({ op: prop as string, args }); return undefined }
     },
     set(target, prop, value) { target[prop as string] = value; return true },
   }) as unknown as CanvasRenderingContext2D
   const named = (name: string) => calls[name] ?? []
-  return { ctx, rects, named }
+  return { ctx, rects, ops, named }
 }
 
 it('preloads and paints HUD icons, using a short label when an image is unavailable', async () => {
@@ -61,7 +63,7 @@ it('preloads and paints HUD icons, using a short label when an image is unavaila
   const doc = testReplayDoc({ weaponLabels: { a: { en: 'Rifle', fr: 'Rifle', img: '/jeu/contour-01.png' }, b: { en: 'Pistol', fr: 'Pistolet', img: '/jeu/contour-02.png' } }, grenadeLabels: [{ en: 'Frag', fr: 'Frag', img: '/grenade.png' }], abilityLabels: { '11': { en: 'Translocator', fr: 'Translocateur', img: '/equip.png' } } })
   const kills = [{ weaponImageUrl: '/weapon.png' }, { weaponImageUrl: '/missing.png' }] as ReplayKill[]
   const paint = await createExportHud(doc, 'a', kills, null, null, 'en')
-  const { ctx, rects, named } = recordingCtx()
+  const { ctx, rects, ops, named } = recordingCtx()
   paint(ctx, { width: 960, height: 540 }, 0)
   paint(ctx, { width: 960, height: 540 }, 1)
   // The equipment icon and the away weapon's silhouette join the preload set.
@@ -87,6 +89,15 @@ it('preloads and paints HUD icons, using a short label when an image is unavaila
   expect(texts).not.toContain('Bandit Evo / M392 Bandit')
   // The name tag is painted (the weapon's name under the in-hand row), at full opacity here.
   expect(texts).toContain('RIFLE')
+  // The name tag sits on a dark plate: a fillRect behind the letters, painted BEFORE the tag's
+  // fillText, at the tag's opacity.
+  readHudMock.current = { ...MOCK_HUD, nameTag: { text: 'RIFLE', opacity: 0.4 } }
+  paint(ctx, { width: 960, height: 540 }, 2)
+  const plate = rects.find((r) => r.alpha === 0.4 && Math.abs(r.h - 1.7 * size * 0.55) < 0.001)
+  expect(plate).toBeDefined()
+  const plateOp = ops.findIndex((o) => o.rect === plate)
+  const tagOp = ops.findIndex((o, i) => i > plateOp && o.op === 'fillText' && o.args?.[0] === 'RIFLE')
+  expect(tagOp).toBeGreaterThan(plateOp)
 })
 
 it('an indeterminate grenade (rank null) draws its generic text, no box icon', async () => {
