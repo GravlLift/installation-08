@@ -14,6 +14,8 @@
 - The weapon corner is brighter: the magazine count is near white, and the reserve count and weapon icon are pale cyan at full strength. The hip reticle has a dark edge so it stays visible over bright walls.
 - The kill feed sits near the middle of the screen on the left, as in the game. It starts just below the middle and grows downward, with the newest row last. In the viewer and the video export.
 - The first start after updating rebuilds the HUD icons once to add the emblems, the meter, the shield glow and the health strip; until then they draw as before.
+- Reflections come from the right place. Many map surfaces are one piece across the whole map (Streets' road is about 74 units wide), and each piece reflected a single capture point, often a bright room in the middle of the map. So Streets' roads read white and its walls grey. Each part of a surface now reflects the capture point nearest to it, which leaves Arc Street's road dark wet asphalt. On every map.
+- Reflections no longer outshine the game's own light. Where the map's baked light is darker than the reflection captures suggest, reflections dim by the same amount, which takes the white glare off the subway floor on Streets. On every map with baked light.
 
 ## 0.1.1-test.11
 

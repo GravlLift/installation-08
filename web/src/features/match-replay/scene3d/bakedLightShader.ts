@@ -6,7 +6,8 @@
  * regions to the lowest, the region's irradiance (eight neighboring probes, trilinear × face ×
  * active-probe weight) weighted by its blend ramp; what no region covers keeps the view's
  * indirect lighting (sky, captured probes), and a region darker than it keeps a share of it
- * (`BAKED_LIFT`). Direct light (sun) is untouched. Gridded lamps share the atlas and the switch
+ * (`BAKED_LIFT`). The probes' reflections dim by the same ratio as that indirect light, so a
+ * surface never mirrors a room brighter than the game lights it. Direct light (sun) is untouched. Gridded lamps share the atlas and the switch
  * with no recompile, and light every grafted material, the map as much as the Spartans.
  */
 import * as THREE from 'three'
@@ -174,10 +175,19 @@ if (uBakedOn > 0.5) {
   float bakedRest;
   vec3 baked = bakedIrradiance(vBakedWorld, inverseTransformDirection(geometryNormal, viewMatrix), bakedRest);
   // Where the baked light is weaker than the view's indirect light, the view keeps a share of it.
-  float dim = clamp(1.0 - luminance(baked) / max(luminance(irradiance + iblIrradiance), 1e-4), 0.0, 1.0);
+  float viewLight = luminance(irradiance + iblIrradiance);
+  float dim = clamp(1.0 - luminance(baked) / max(viewLight, 1e-4), 0.0, 1.0);
   float keep = bakedRest + (1.0 - bakedRest) * ${BAKED_LIFT.toFixed(2)} * dim;
   irradiance = baked + keep * irradiance;
   iblIrradiance *= keep;
+#if defined( RE_IndirectSpecular )
+  // The reflections come from the same captured probes as the view's indirect light, so they
+  // follow the correction the baked light made to it: where the map's light is darker than the
+  // probes guessed, the reflections dim by the same ratio (never brighten).
+  float reflect = clamp(luminance(irradiance + iblIrradiance) / max(viewLight, 1e-4), 0.0, 1.0);
+  radiance *= reflect;
+  clearcoatRadiance *= reflect;
+#endif
 }
 #endif`
 

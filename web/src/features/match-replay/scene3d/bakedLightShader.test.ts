@@ -51,6 +51,18 @@ describe('BakedLight', () => {
     expect(shader.uniforms.uBakedCount.value).toBe(2)
     expect(m.customProgramCacheKey()).toContain('|baked-v3')
   })
+
+  it("dims the probes' reflections by the baked light's correction of their indirect light", () => {
+    const atlas = { irradiance: new THREE.DataTexture(new Uint16Array(4), 1, 1), columns: 1, activeCount: 1, total: 1 } as BakedAtlas
+    const light = new BakedLight([region(1, 0)], atlas, 1)
+    const m = new THREE.MeshStandardMaterial()
+    light.apply(m)
+    const shader = { uniforms: {} as Record<string, THREE.IUniform>, vertexShader: '#include <common>', fragmentShader: '#include <common>\n#include <lights_fragment_maps>' }
+    m.onBeforeCompile(shader as unknown as THREE.WebGLProgramParametersWithUniforms, {} as THREE.WebGLRenderer)
+    const s = shader.fragmentShader
+    expect(s).toContain('float reflect = clamp(luminance(irradiance + iblIrradiance) / max(viewLight, 1e-4), 0.0, 1.0);')
+    expect(s.indexOf('radiance *= reflect;')).toBeGreaterThan(s.indexOf('iblIrradiance *= keep;'))
+  })
 })
 
 const lampShader = () => ({ uniforms: {} as Record<string, THREE.IUniform>, vertexShader: '#include <common>\n#include <project_vertex>', fragmentShader: '#include <common>\n#include <lights_pars_begin>\n#include <lights_fragment_begin>\n#include <lights_fragment_maps>' })
