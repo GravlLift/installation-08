@@ -22,6 +22,8 @@ import type { HeldWeapon } from '../scene3d/redReticle3d'
 import { DAMAGE_ARC_URL, paintDamageArcs } from '../ui/damageArcPaint'
 import { paintScoreMeter, readScoreMeterMask, SCORE_METER_URL, type ScoreMeterMask } from '../ui/scoreMeter'
 import { tintedChase } from '../ui/shieldChaseArt'
+import { HEALTH_BAR_URL, SHIELD_ALERT_RGB, SHIELD_BURST_URL, SHIELD_GLOW_URL, shieldFrameFlash } from '../model/shieldAlert'
+import { alertArtOf, paintShieldGlow, paintShieldOver, recolor, type ShieldAlertArt } from '../ui/shieldAlertPaint'
 import { ensureHudFonts, HUD_FONT_FAMILY, HUD_SCORE_FONT_FAMILY } from '../ui/hudFonts'
 import { adsOverlaysOfDoc, createAdsOverlayAtlas, paintAdsAmmo, type SvgImageLoader } from './adsOverlayRaster'
 
@@ -74,6 +76,11 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
   // score bars with it: the bars show whenever the document has a score timeline, damage events
   // or not, so it preloads with every build (as the quad does).
   urls.add(SCORE_METER_URL)
+  // The game's empty-shield glow, break burst and health strip (`model/shieldAlert`): shown with
+  // the bar whenever the shield empties or drops, so they preload with every build (as the quad does).
+  urls.add(SHIELD_GLOW_URL)
+  urls.add(SHIELD_BURST_URL)
+  urls.add(HEALTH_BAR_URL)
   // The game's team emblems (the score bars' outer ends): one per camp the document's score
   // timeline names, so a document without a score layer preloads none.
   for (const team of doc.scoreTimeline?.teams ?? []) {
@@ -122,6 +129,11 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
     } catch { /* keep the bitmap fallback */ }
     return quadMaskCache
   }
+  // The alert's bitmaps recolored once, and the quad's outline in the alert red (the frame flash).
+  let alertArt: ShieldAlertArt | null = null
+  const alertArtNow = () => (alertArt ??= alertArtOf(images.get(SHIELD_GLOW_URL), images.get(SHIELD_BURST_URL), images.get(HEALTH_BAR_URL)))
+  let redHex: CanvasImageSource | null = null
+  const redHexOf = (img: HTMLImageElement) => (redHex ??= recolor(img, SHIELD_ALERT_RGB, 'solid'))
   const painted = new Map<string, HTMLCanvasElement>()
   // The score meter's mask, read once from the preloaded bitmap: the bars fill with it whenever
   // it is loaded, and fall back to the flat fill when it is not.
@@ -219,6 +231,10 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
           // quad's opaque pixels).
           const bh = bw * SHIELD_QUAD_H / SHIELD_QUAD_W
           const pixelW = Math.max(1, Math.round(bw)), pixelH = Math.max(1, Math.round(bh))
+          const stateAgeMs = frameToMs(frame, doc) - frameToMs(ath.shieldState.since, doc)
+          const placement = { ox, oy, u: bw / SHIELD_QUAD_W, cx: SHIELD_QUAD_CENTER, barH: SHIELD_QUAD_H }
+          // The empty-shield glow, under the bar (`model/shieldAlert`).
+          paintShieldGlow(ctx, alertArtNow(), placement, state)
           const off = document.createElement('canvas')
           off.width = pixelW; off.height = pixelH
           const octx = off.getContext('2d')
@@ -226,7 +242,8 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
             const u = pixelW / SHIELD_QUAD_W
             // The bar's glass: the track fill over the whole box (the shape comes from the mask).
             octx.fillStyle = trackInk; octx.fillRect(0, 0, pixelW, pixelH)
-            if (state === 'broken') { octx.fillStyle = alertInk; octx.globalAlpha = 0.18 * flash; octx.fillRect(0, 0, pixelW, pixelH); octx.globalAlpha = 1 }
+            // Broken: the game's frame flash, the bar's own outline in the alert red (as ShieldBar3d).
+            if (state === 'broken') { octx.globalAlpha = shieldFrameFlash(stateAgeMs); octx.drawImage(redHexOf(quadBitmap), 0, 0, pixelW, pixelH); octx.globalAlpha = 1 }
             const half = SHIELD_QUAD_HALF * Math.max(0, Math.min(1, ath.shieldState.fraction))
             if (half > 0) {
               // The fill: the center band, clipped to the fill's x range, bright at the center.
@@ -280,6 +297,8 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
             octx.globalCompositeOperation = 'source-over'
             ctx.drawImage(off, ox, oy, bw, bh)
           }
+          // The health strip and the break burst, over the bar.
+          paintShieldOver(ctx, alertArtNow(), placement, state, stateAgeMs, ath.health)
         } else {
           // LEGACY: the hand-made glass bar as `ShieldBar3d` draws it before the quad loads.
           const bh = bw * SHIELD_BAR_H / SHIELD_BAR_W

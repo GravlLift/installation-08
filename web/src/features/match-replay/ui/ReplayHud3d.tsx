@@ -153,7 +153,7 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
     {banner}
     {/* The shield never sits under the player's top strip (its safe inset, `usePlayerChromeInsets`). */}
     {ath?.shieldState && <div style={{ position: 'absolute', top: 'max(8%, calc(var(--bc-chrome-top, 0px) + 6px))', left: '50%', width: 'min(39cqh, 90%)', minWidth: 160, transform: 'translateX(-50%)' }}>
-      <ShieldBar3d fraction={ath.shieldState.fraction} state={ath.shieldState.state} flash={shieldFlash(frameToMs(ath.shieldState.since, doc), frameToMs(frame, doc))} chase={ath.shieldState.chase} label={REPLAY_TEXT[locale].shieldLabel} />
+      <ShieldBar3d fraction={ath.shieldState.fraction} state={ath.shieldState.state} flash={shieldFlash(frameToMs(ath.shieldState.since, doc), frameToMs(frame, doc))} chase={ath.shieldState.chase} label={REPLAY_TEXT[locale].shieldLabel} health={ath.health} stateAgeMs={frameToMs(frame, doc) - frameToMs(ath.shieldState.since, doc)} />
     </div>}
     {aim && ath && ads && <ReplayHudScope3d spec={ads} levelIndex={aimState.adsLevel} amount={zoom.amount} reticleColor={reticleColor} ammo={adsAmmoText(ath.ammo?.mag)} />}
     {/* The directional damage ring (damageArcs): a full-size canvas under the reticle, shown

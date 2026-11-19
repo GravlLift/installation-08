@@ -53,8 +53,10 @@ reference only, gitignored: `data/reference/hud/infinite-hud-weapons-killfeed.pn
 ## Top center: shield and damage
 
 - Present today: the shield bar.
-- Missing: the red damage indicator above the shield (the red glow and band over the shield frame
-  in both frames).
+- Present since 2026-11-19: the red empty-shield alert (the glow over the frame, the bar's red
+  outline, the break burst) and the orange health strip inside the bar. See Plan item 6.
+- Missing: the full-screen team-colored flash when the shield breaks (seen in the owner's frame of
+  a break, green with a green team color). It is a screen effect, not part of the HUD screens.
 - Present since 2026-11-19: the directional damage arc around the reticle, a red arc pointing
   toward where the player was hit from (the arc left of the reticle in frame 2). See Plan item 5.
 
@@ -152,6 +154,18 @@ day (`exportHud.ts` paints the same corner, equipment included), checked on pain
 6. The red damage indicator above the shield: drawn on damage taken and from the `hp` health
    reading. Its exact look and rule must come from the game's HUD tags (to research before
    building, not tuned by eye).
+   Done 2026-11-19 (`model/shieldAlert.ts`, `ShieldBar3d`, the export through
+   `ui/shieldAlertPaint.ts`) from the shield screen's glow (f47d743f), burst (7139ad8e) and health
+   (30099cc7) bitmaps, built into the HUD set as `ShieldGlow.png`, `ShieldBurst.png` and
+   `HealthBar.png`. Confirmed from the dump: the glow's two mirrored 1080x256 quads, tint
+   (1, 0.224, 0.224), opacity 2, on while the shield is empty; the frame flash looping 0 -> 1 -> 0
+   over 666 ms; the burst's 766 ms keyframes; the health strip's 800 width, shown when the shield
+   is not full. Inferred and stated in `shieldAlert.ts`: the glow's vertical placement, drawing it
+   fully lit (the game loops its meter value, whose effect on this bitmap is not settled), the
+   flash drawn with the bar's own outline (its bitmap 6a4c867b streams), the burst's pivot and
+   additive look, the strip's center drain and position. The strip's color rgb(240, 173, 66) is
+   measured on the owner's frames because its named color (`hud_wires`) is not decoded. Checked in
+   the viewer and on export frames 4878 to 4900.
 
 **Phase 3: game art (extraction work first).**
 7. Score bar: the center gradient and the team emblems, extracted from the game's HUD bitmaps

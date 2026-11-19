@@ -4,6 +4,7 @@ import { testReplayDoc } from '../test/testDoc'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { SHIELD_QUAD_URL } from '../model/shieldHud'
 import { SCORE_METER_URL } from '../ui/scoreMeter'
+import { HEALTH_BAR_URL, SHIELD_BURST_URL, SHIELD_GLOW_URL } from '../model/shieldAlert'
 import { createExportHud } from './exportHud'
 
 /** The HUD the mock serves by default: the in-hand rifle, a loaded grenade, the away pistol and
@@ -74,7 +75,7 @@ it('preloads and paints HUD icons, using a short label when an image is unavaila
   // The equipment icon, the away weapon's silhouette and the shield bar quad join the
   // preload set (the quad preloads with every build: the bar shows whenever the player has
   // shield samples, damage events or not).
-  expect(requested.sort()).toEqual([SCORE_METER_URL, SHIELD_QUAD_URL, '/equip.png', '/grenade.png', '/jeu/silhouette-01.png', '/jeu/silhouette-02.png', '/missing.png', '/weapon.png'].sort())
+  expect(requested.sort()).toEqual([SCORE_METER_URL, SHIELD_QUAD_URL, SHIELD_GLOW_URL, SHIELD_BURST_URL, HEALTH_BAR_URL, '/equip.png', '/grenade.png', '/jeu/silhouette-01.png', '/jeu/silhouette-02.png', '/missing.png', '/weapon.png'].sort())
   // The icons per frame: the kill feed's, the away weapon, the grenade box and the in-hand weapon.
   const draws = named('drawImage')
   expect(draws).toHaveLength(10)

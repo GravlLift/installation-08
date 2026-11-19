@@ -180,7 +180,9 @@ export function readHud(source: ReturnType<typeof prepareHud>, frame: number, lo
   const equipment = equipmentSlotAt(doc, slot, frame)
   // The shield bar: smooth recharge, instant drops (`shieldHud`); null when the film carries no shield.
   const shieldState = state.shield ? shieldHudAt(shieldBar(source, state.life), frame) : null
-  return { shield: shieldState?.fraction ?? null, shieldState, damageArcs: damageArcsAt(doc, slot, frame), weaponId: weapon?.id, label, ammo, grenade, away, nameTag, equipment, shape: reticleShape(label?.key), hit, elimination }
+  // Health (0..1) for the strip under the shield; null when the film records none.
+  const health = state.health?.value ?? null
+  return { shield: shieldState?.fraction ?? null, shieldState, health, damageArcs: damageArcsAt(doc, slot, frame), weaponId: weapon?.id, label, ammo, grenade, away, nameTag, equipment, shape: reticleShape(label?.key), hit, elimination }
 }
 
 /**
