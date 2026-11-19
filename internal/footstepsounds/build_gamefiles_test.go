@@ -46,6 +46,16 @@ func TestBuildFromTheInstalledGame(t *testing.T) {
 	if s := res.Manifest.Shots["hinf_bandit"]; len(s.Layers) != 3 || len(s.Takes) != 15 {
 		t.Errorf("bandit shot: %d layers, %d takes", len(s.Layers), len(s.Takes))
 	}
+	// The Bandit's first-person shot: 30 stereo takes, a thump and a click, none with a falloff.
+	if s := res.Manifest.ShotsFirstPerson["hinf_bandit"]; len(s.Layers) != 3 || len(s.Takes) != 32 {
+		t.Errorf("bandit first-person shot: %d layers, %d takes", len(s.Layers), len(s.Takes))
+	} else {
+		for _, tk := range s.Takes {
+			if tk.Falloff != "" {
+				t.Errorf("bandit first-person take %s has falloff %s", tk.File, tk.Falloff)
+			}
+		}
+	}
 	for key, s := range res.Manifest.Shots {
 		for _, tk := range s.Takes {
 			if _, ok := res.Manifest.Falloffs[tk.Falloff]; !ok {

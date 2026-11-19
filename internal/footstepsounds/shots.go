@@ -14,6 +14,12 @@ package footstepsounds
 // a few others have no such dependency (their fire goes through effects not read here), and some
 // have several (the Sidekick's and the Plasma Pistol's alternate or charged shots): those keep the
 // shipped sound rather than a guess.
+//
+// The same sound tag also names a FIRST-PERSON event, what the shooter hears (probed on the
+// Bandit and the S7, 2026-11-19): a random pick among 30 takes plus two single sounds, with no
+// attenuation (heard in 2D), at higher volumes than the third-person layers (Bandit +4.5 dB, S7
+// +13 dB). It is extracted next to the shot (Manifest.ShotsFirstPerson) for the followed
+// player's own shots.
 
 import (
 	"fmt"
@@ -85,6 +91,16 @@ func (b *builder) shots() error {
 			b.res.Manifest.Shots = map[string]Footstep{}
 		}
 		b.res.Manifest.Shots[key] = f
+		fp, err := b.firstPersonTakes(snd)
+		if err != nil {
+			return err
+		}
+		if len(fp.Takes) > 0 {
+			if b.res.Manifest.ShotsFirstPerson == nil {
+				b.res.Manifest.ShotsFirstPerson = map[string]Footstep{}
+			}
+			b.res.Manifest.ShotsFirstPerson[key] = fp
+		}
 	}
 	return nil
 }

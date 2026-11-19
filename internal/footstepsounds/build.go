@@ -57,13 +57,15 @@ type Result struct {
 
 // builder holds what one build reads: the tag index, the media and what it wrote.
 type builder struct {
-	tags    soundtags.TagSource
-	media   *soundtags.Media
-	out     string
-	parsed  map[uint32]*announcer.Tag
-	takes   map[uint32]Footstep // by sound tag id
-	written map[uint32]Take     // by media id: a media two sounds share is written once
-	res     *Result
+	tags   soundtags.TagSource
+	media  *soundtags.Media
+	out    string
+	parsed map[uint32]*announcer.Tag
+	takes  map[uint32]Footstep // by sound tag id
+	// firstPerson holds the first-person events read, by sound tag id.
+	firstPerson map[uint32]Footstep
+	written     map[uint32]Take // by media id: a media two sounds share is written once
+	res         *Result
 }
 
 // Build extracts every foot and movement sound in tags.go into opts.OutDir and writes the
@@ -83,7 +85,7 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	defer closeLogged(ctx, "module index", ix.Close)
 	res := &Result{Manifest: &Manifest{Version: ManifestVersion, Feet: map[string]map[string]Footstep{}, Movement: map[string]Footstep{}}, Silent: map[string][]string{}}
 	b := &builder{tags: ix, media: soundtags.NewMedia(ix, opts.GameRoot), out: opts.OutDir,
-		parsed: map[uint32]*announcer.Tag{}, takes: map[uint32]Footstep{}, written: map[uint32]Take{}, res: res}
+		parsed: map[uint32]*announcer.Tag{}, takes: map[uint32]Footstep{}, firstPerson: map[uint32]Footstep{}, written: map[uint32]Take{}, res: res}
 	surfaces := make([]string, 0, len(feetIDs))
 	for surface := range feetIDs {
 		surfaces = append(surfaces, surface)
@@ -145,7 +147,23 @@ func sortedMovement() []string {
 // soundTakes returns the takes of a sound tag's third-person event and their layers, extracting
 // each media once.
 func (b *builder) soundTakes(id uint32) (Footstep, error) {
-	if f, ok := b.takes[id]; ok {
+	return b.eventTakes(id, false)
+}
+
+// firstPersonTakes is soundTakes for the tag's first-person event (what the camera's own player
+// hears); empty when the tag has none.
+func (b *builder) firstPersonTakes(id uint32) (Footstep, error) {
+	return b.eventTakes(id, true)
+}
+
+// eventTakes reads one of a sound tag's two events. A missing first-person event is not
+// recorded as silent: most sounds have none.
+func (b *builder) eventTakes(id uint32, firstPerson bool) (Footstep, error) {
+	cache := b.takes
+	if firstPerson {
+		cache = b.firstPerson
+	}
+	if f, ok := cache[id]; ok {
 		return f, nil
 	}
 	tag, err := b.tag(id)
@@ -153,8 +171,14 @@ func (b *builder) soundTakes(id uint32) (Footstep, error) {
 		b.res.Silent[SkippedTagMissing] = append(b.res.Silent[SkippedTagMissing], fmt.Sprintf("%08x", id))
 		return Footstep{}, nil
 	}
-	b.takes[id] = Footstep{}
+	cache[id] = Footstep{}
 	event, bankTag, ok := soundtags.Event(tag)
+	if firstPerson {
+		event, bankTag, ok = soundtags.FirstPersonEvent(tag)
+		if !ok {
+			return Footstep{}, nil
+		}
+	}
 	if !ok {
 		b.res.Silent[SilentNoEvent] = append(b.res.Silent[SilentNoEvent], fmt.Sprintf("%08x", id))
 		return Footstep{}, nil
@@ -193,7 +217,7 @@ func (b *builder) soundTakes(id uint32) (Footstep, error) {
 			f.Layers = append(f.Layers, layer)
 		}
 	}
-	b.takes[id] = f
+	cache[id] = f
 	return f, nil
 }
 

@@ -23,7 +23,7 @@ const ManifestName = "footsteps.json"
 
 // ManifestVersion is the manifest's format version; a manifest of an older version is stale and
 // the extraction runs again.
-const ManifestVersion = 3
+const ManifestVersion = 4
 
 // takeFile is the name of every take file a manifest lists: foot_<media id, 8 hex digits>.ogg.
 // A rebuild removes the ones its manifest no longer lists, and no other file.
@@ -46,6 +46,10 @@ type Manifest struct {
 	// volumes and falloffs (version 3, shots.go). A weapon whose shot is not found keeps the
 	// shipped sound.
 	Shots map[string]Footstep `json:"shots,omitempty"`
+	// ShotsFirstPerson maps a weapon key to the same shot as its shooter hears it: the sound
+	// tag's first-person event, heard in 2D (no falloff), with its own takes and volumes
+	// (version 4).
+	ShotsFirstPerson map[string]Footstep `json:"shotsFirstPerson,omitempty"`
 	// Falloffs maps an attenuation id (8 hex digits) a take names to its distance falloff
 	// (version 3).
 	Falloffs map[string]soundtags.Falloff `json:"falloffs,omitempty"`
@@ -109,6 +113,11 @@ func removeStaleTakes(dir string, m *Manifest) (int, error) {
 		}
 	}
 	for _, f := range m.Movement {
+		for _, t := range f.Takes {
+			keep[t.File] = true
+		}
+	}
+	for _, f := range m.ShotsFirstPerson {
 		for _, t := range f.Takes {
 			keep[t.File] = true
 		}
