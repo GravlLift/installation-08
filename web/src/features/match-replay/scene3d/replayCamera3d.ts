@@ -4,6 +4,7 @@ import * as THREE from 'three'
 import { EYE_HEIGHT } from './body3d'
 import { deathCameraPose, povSubject, type DeathCameraOpts, type DeathCameraPose } from './deathCamera3d'
 import { aimDirThree, toThree, type PlayerState3d, type Tracks3d } from './tracks3d'
+import { evaluateCameraScript, type CameraScript, type ScriptPose, type ScriptSubjects } from './cameraScript3d'
 import { springArmLength } from './springArm3d'
 import type { ActionScene3d } from './actionScene3d'
 import type { CameraMode3d, PovStatus } from './replayScene3d'
@@ -21,6 +22,10 @@ interface CameraState {
   mode: CameraMode3d
   action: ActionScene3d | null
   originAboveFloor: number
+  /** The players' feet in GAME coordinates for a camera script's player anchors. */
+  subjects: ScriptSubjects
+  /** The game's FOV setting (horizontal degrees at 16:9): a camera script's base field. */
+  gameFov: number
   camera: THREE.PerspectiveCamera
   /** The surfaces the spring arm ray tests against: the map structure, then the attached layer. */
   pickables: () => THREE.Mesh[]
@@ -40,6 +45,10 @@ export class ReplayCamera3d {
   private lastClock = 0
   /** The match step of the current placement (export), or null on screen (wall clock). */
   private matchDt: number | null = null
+  private script: CameraScript | null = null
+  private scriptMs = 0
+  /** The pose of the last scripted placement, null until the script places a camera. */
+  lastScriptPose: ScriptPose | null = null
 
   constructor(state: CameraState) { this.state = state }
 
@@ -57,14 +66,28 @@ export class ReplayCamera3d {
     return { state: tracks.firstLifeAfter(povXuid, f), status: 'unspawned' }
   }
 
+  /** setScript sets the camera script driving the free camera, or null to stop it. */
+  setScript(script: CameraScript | null): void {
+    this.script = script
+    if (!script) this.lastScriptPose = null
+  }
+
+  /** setScriptTime sets the script's current time (script ms). */
+  setScriptTime(sMs: number): void { this.scriptMs = sMs }
+
+  /** scripted: a script is set and the camera is free (a script never moves a tracked camera). */
+  scripted(): boolean { return this.script !== null && this.state.mode === 'free' }
+
   /**
-   * placeCamera places the camera on the tracked player (see povState); the free camera stays
-   * where it is. `dt`: the seconds of MATCH since the previous placement, given by the video
-   * export; absent, the wall clock (the screen plays in real time).
+   * placeCamera places the camera on the tracked player (see povState); a set script drives the
+   * free camera (see placeScripted), else the free camera stays where it is. `dt`: the seconds of
+   * MATCH since the previous placement, given by the video export; absent, the wall clock (the
+   * screen plays in real time).
    */
   placeCamera(f: number, dt?: number): PovStatus {
     this.matchDt = dt ?? null
     const { state: s, status } = this.povState(f)
+    if (this.scripted()) { this.placeScripted(); return status }
     if (!s || this.state.mode === 'free') return status
     // In first person, a dead player follows their ragdoll in third person, or keeps their last eye.
     if (this.state.mode === 'fp' && status === 'dead') { this.placeDead(f, s); return status }
@@ -80,6 +103,22 @@ export class ReplayCamera3d {
     if (this.state.mode === 'tp' || rider) this.springArm(eye, d)
     this.state.camera.lookAt(eye.clone().addScaledVector(d, 10))
     return status
+  }
+
+  /**
+   * placeScripted poses the camera from the script at the current script time; a null pose
+   * leaves the camera as it is. The pose is stored in `lastScriptPose` (its target is what the
+   * free orbit should keep when the script stops).
+   */
+  private placeScripted(): void {
+    const script = this.script
+    if (!script) return
+    const pose = evaluateCameraScript(script, this.scriptMs, this.state.subjects, this.state.gameFov)
+    if (!pose) return
+    this.state.camera.position.set(pose.position[0], pose.position[1], pose.position[2])
+    this.state.camera.lookAt(pose.target[0], pose.target[1], pose.target[2])
+    this.state.camera.rotateZ((-pose.rollDeg * Math.PI) / 180) // a positive roll turns the frame clockwise
+    this.lastScriptPose = pose
   }
 
   /** springArm: the third-person camera, pulled in by the map when the arm from the head hits it. */

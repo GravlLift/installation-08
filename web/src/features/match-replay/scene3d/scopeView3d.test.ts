@@ -72,6 +72,16 @@ describe('ScopeView3d', () => {
     expect(camera.fov).toBeCloseTo(75.5, 2)
   })
 
+  it('hold poses a script field of view and folds the scope', () => {
+    const camera = new THREE.PerspectiveCamera(55, 16 / 9)
+    const view = new ScopeView3d(55)
+    view.apply(camera, docWithNotch(), 'A', 6, scopeOf('6acdc44d', null), [1.6])
+    expect(view.mounted).toBe(true)
+    view.hold(camera, 40)
+    expect(camera.fov).toBeCloseTo(40)
+    expect(view.mounted).toBe(false)
+  })
+
   it('reset restores the base field of view after a change', () => {
     const camera = new THREE.PerspectiveCamera(55, 16 / 9)
     const view = new ScopeView3d(55)

@@ -52,6 +52,12 @@ export class ScopeView3d {
     this.poseFov(camera, this.baseFov)
   }
 
+  /** hold poses the given vertical field of view and folds the scope, while a camera script plays. */
+  hold(camera: THREE.PerspectiveCamera, verticalFov: number): void {
+    this.mounted = false
+    this.poseFov(camera, verticalFov)
+  }
+
   private poseFov(camera: THREE.PerspectiveCamera, fov: number): void {
     if (Math.abs(fov - this.lastFov) < 0.0001) return
     this.lastFov = fov

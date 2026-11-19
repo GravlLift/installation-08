@@ -56,6 +56,7 @@ import { serialize } from './serialiser3d'
 import { now, measureDuration, timedSync } from './perf3d'
 import { probeSurface, type SurfaceProbe } from './surfaceProbe3d'
 import { aimDirThree, toThree, type PlayerState3d, type Tracks3d } from './tracks3d'
+import type { CameraScript, ScriptSubjects } from './cameraScript3d'
 import { ScopeView3d } from './scopeView3d'
 import { ReplayExportScene3d } from './replayExportScene3d'
 import { measureOriginAboveFloor, ReplayCamera3d } from './replayCamera3d'
@@ -142,6 +143,10 @@ export class ReplayScene3d implements Replay3DExportSource {
   private corpsesPrepped = false
   private doc: ReplayDocumentReady | null = null
   private readonly scopeView = new ScopeView3d(verticalFovOf(GAME_FOV_DEFAULT))
+  /** The game's FOV setting (horizontal degrees at 16:9): the camera's base field and a camera script's base. */
+  private gameFovDeg = GAME_FOV_DEFAULT
+  /** The players' feet for a camera script's player anchors (`scriptSubjectAt`). */
+  private readonly scriptSubjects: ScriptSubjects = { feetAt: (xuid, docMs) => this.scriptSubjectAt(xuid, docMs / this.msPerFrame) }
   private fps = 30
   private weaponModels: WeaponModels | null = null
   private armory: SpartanArmory | null = null
@@ -158,7 +163,9 @@ export class ReplayScene3d implements Replay3DExportSource {
   /** The look's glow animation (`Look3d.glowAnimation`): off, the self-lit surfaces stay still and nothing runs per frame. */
   private lookGlow = true
   /** The match duration of a document frame (ms), the glow animation's clock (`frameToMs`). */
-  private frameMs = 1000 / 30
+  private msPerFrame = 1000 / 30
+  /** The match duration of a document frame (ms). */
+  get frameMs(): number { return this.msPerFrame }
   private readonly gpu: GpuTimer
   /** Frames drawn by `render`, for the bloom's GPU timing on every other one. */
   private frameCount = 0
@@ -189,6 +196,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.cameraPlacement = new ReplayCamera3d({
       get tracks() { return self.tracks }, get povXuid() { return self.povXuid }, get mode() { return self.mode },
       get action() { return self.action }, get originAboveFloor() { return self.originAboveFloor },
+      get subjects() { return self.scriptSubjects }, get gameFov() { return self.gameFovDeg },
       camera: this.camera, pickables: () => self.groundSurfaces(), raycaster: this.raycaster,
     })
     this.exportScene = new ReplayExportScene3d({
@@ -282,7 +290,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (!tracks || !this.model || this.action) return
     this.doc = doc
     this.fps = framesPerSecond(doc)
-    this.frameMs = frameToMs(1, doc)
+    this.msPerFrame = frameToMs(1, doc)
     this.ground = new Ground(this.groundSurfaces(), this.playTop)
     this.action = buildActionScene({
       doc,
@@ -449,7 +457,41 @@ export class ReplayScene3d implements Replay3DExportSource {
 
   /** setFovPreference applies the game's field-of-view setting (horizontal degrees at 16:9): the camera's base vertical field. */
   setFovPreference(gameFovDeg: number): void {
+    this.gameFovDeg = gameFovDeg
     this.scopeView.setBaseFov(this.camera, verticalFovOf(gameFovDeg))
+  }
+
+  /** setCameraScript sets the camera script driving the free camera, or null to stop it. */
+  setCameraScript(script: CameraScript | null): void { this.cameraPlacement.setScript(script) }
+  /** setCameraScriptTime sets the script's current time (script ms). */
+  setCameraScriptTime(sMs: number): void { this.cameraPlacement.setScriptTime(sMs) }
+
+  /**
+   * captureCamera: the camera's eye and look target in GAME coordinates (z up) and its vertical
+   * field of view in degrees, for a camera script's key.
+   */
+  captureCamera(): { position: [number, number, number]; target: [number, number, number]; verticalFov: number } {
+    const p = this.camera.position
+    const t = this.orbit.target
+    return { position: [p.x, -p.z, p.y], target: [t.x, -t.z, t.y], verticalFov: this.camera.fov }
+  }
+
+  /**
+   * scriptSubjectAt: a player's feet in GAME coordinates (z up) and heading in game degrees at a
+   * frame, for a camera script's player anchors (aboard a vehicle, the vehicle's position);
+   * null when the player has no state there.
+   */
+  scriptSubjectAt(xuid: string, frame: number): { x: number; y: number; z: number; h: number } | null {
+    const tracks = this.tracks
+    if (!tracks) return null
+    const s = tracks.sample(xuid, frame) ?? tracks.lastLifeBefore(xuid, frame) ?? tracks.firstLifeAfter(xuid, frame)
+    const rider = this.action?.riderAt(xuid, frame)
+    if (rider) {
+      const action = this.action
+      return { x: rider.x, y: -rider.z, z: rider.y, h: action?.riderHeadingAt(xuid, frame) ?? (s?.h ?? 0) }
+    }
+    if (!s) return null
+    return { x: s.x, y: s.y, z: s.z - this.feetDrop, h: s.h }
   }
   setPov(xuid: string | null): void {
     if (this.exportScene.held) this.exportScene.held.pov = xuid
@@ -525,7 +567,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   primeFirstFrame(frame: number): void {
     if (this.exportScene.held) return
     this.lastFrame = frame
-    this.animateGlow((frame * this.frameMs) / 1000)
+    this.animateGlow((frame * this.msPerFrame) / 1000)
     if (this.tracks) {
       timedSync('prime-avatars', () => this.placeAvatars(frame))
       timedSync('prime-camera', () => {
@@ -537,8 +579,12 @@ export class ReplayScene3d implements Replay3DExportSource {
       timedSync('prime-action', () => this.action?.update(frame))
     }
     if (this.mode === 'free') {
-      this.fly.step(this.camera, this.orbit.target, performance.now())
-      this.orbit.update()
+      if (this.cameraPlacement.scripted()) {
+        this.scriptedFreeCamera()
+      } else {
+        this.fly.step(this.camera, this.orbit.target, performance.now())
+        this.orbit.update()
+      }
     }
     timedSync('prime-compile', () => { void this.renderer.compileAsync(this.scene, this.camera).catch(() => undefined) })
   }
@@ -558,7 +604,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   render(frame: number): PovStatus {
     if (this.exportScene.held) return this.lastStatus
     this.lastFrame = frame
-    this.animateGlow((frame * this.frameMs) / 1000)
+    this.animateGlow((frame * this.msPerFrame) / 1000)
     let status: PovStatus = 'none'
     const p = this.profile
     let t = performance.now(); this.renderer.info.reset()
@@ -577,12 +623,16 @@ export class ReplayScene3d implements Replay3DExportSource {
       this.action?.update(frame)
     }
     if (this.mode === 'free') {
-      this.fly.step(this.camera, this.orbit.target, performance.now())
-      this.orbit.update()
+      if (this.cameraPlacement.scripted()) {
+        this.scriptedFreeCamera()
+      } else {
+        this.fly.step(this.camera, this.orbit.target, performance.now())
+        this.orbit.update()
+      }
     }
     t = markStep(p, 2, t)
     const top = this.view === 'top' ? this.top : null
-    this.orbit.enabled = this.mode === 'free' && !top // the top-down view has its own gestures on the canvas
+    this.orbit.enabled = this.mode === 'free' && !top && !this.cameraPlacement.scripted() // the top-down view has its own gestures on the canvas
     if (!top) this.lighting.updateShadows(frame) // seen from above the sun casts no shadow (`topDownStage3d`)
     t = markStep(p, 3, t)
     // Every other frame with bloom drawn, its pass is timed alone and the frame's timer rests: two
@@ -827,11 +877,20 @@ export class ReplayScene3d implements Replay3DExportSource {
     return s ? feetOf(s, this.feetDrop) : null
   }
 
-  /** placeScope adjusts the first-person zoom's field (`scopeView3d`) and takes the arms off screen when the optic sight is mounted; out of first person, the base field returns. */
+  /** scriptedFreeCamera: the free camera is on the script; the free flight and orbit rest, and the orbit keeps the script's target so stopping it leaves the free camera orbiting what it looked at. */
+  private scriptedFreeCamera(): void {
+    this.orbit.enabled = false
+    const pose = this.cameraPlacement.lastScriptPose
+    if (pose) this.orbit.target.set(pose.target[0], pose.target[1], pose.target[2])
+  }
+
+  /** placeScope adjusts the first-person zoom's field (`scopeView3d`) and takes the arms off screen when the optic sight is mounted; out of first person, the base field returns (a playing camera script poses its own). */
   private placeScope(f: number): void {
     const doc = this.doc
     if (this.mode !== 'fp' || !this.povXuid || !doc) {
-      this.scopeView.reset(this.camera)
+      const pose = this.cameraPlacement.lastScriptPose
+      if (this.cameraPlacement.scripted() && pose) this.scopeView.hold(this.camera, pose.verticalFov)
+      else this.scopeView.reset(this.camera)
       return
     }
     const key = this.inView?.key ?? null

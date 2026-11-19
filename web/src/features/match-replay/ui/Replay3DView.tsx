@@ -26,6 +26,7 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { useReplaySpartans, type ReplayArmorSource } from '@/lib/replay/spartanArmor'
 
 import { registerReplay3DExport } from '../export/replay3dExportStore'
+import { registerCameraScriptHost } from '../scene3d/cameraScriptStore'
 import { newPlaybackMeter, recordFrame, recordScript } from '../model/playbackMeter_logic'
 import { LOAD_STALL_MS, LoadProgress3d, sceneLoadSignal, type LoadState } from '../model/loading3d_logic'
 import { reportClientError } from '@/lib/clientLog'
@@ -541,6 +542,18 @@ export function Replay3DView({
     if (!ready || !scene) return
     return registerReplay3DExport({ source: scene, live: active, camera: mode, pov, callouts })
   }, [ready, active, mode, pov, callouts])
+  // The loaded scene lends its camera to a camera script: its placement and its subjects' feet.
+  useEffect(() => {
+    const scene = sceneRef.current
+    if (!ready || !scene) return
+    return registerCameraScriptHost({
+      setScript: (script) => scene.setCameraScript(script),
+      setScriptTime: (sMs) => scene.setCameraScriptTime(sMs),
+      capture: () => scene.captureCamera(),
+      subjectAt: (xuid, frame) => scene.scriptSubjectAt(xuid, frame),
+      get frameMs() { return scene.frameMs }, // read live: the document's rate is set when its action scene builds
+    })
+  }, [ready])
 
   // THE FRAME LOOP: the scene is set to the player's current frame, at screen refresh rate.
   useEffect(() => {
