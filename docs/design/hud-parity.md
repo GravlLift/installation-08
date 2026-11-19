@@ -252,3 +252,10 @@ BC7 pixels sit inside the tag, as the CUI bitmaps' do).
 9. Find out whether the film carries pings at all. The only lead is the unexported `managed-navpoint`
    object grammar. If the film carries them, decode them, then add feed rows ("Enemy at
    <callout>") and in-world markers.
+   Census 2026-11-19 (Live Fire 07157ce5; patch and test kept in the gitignored
+   `data/probe/pings/`, not applied to `third_party`): publishing ti=12's i0 sub-type, i8 group
+   name, i9 text ids and i17 object marker through the navpoint hook. Of 115 keyframe records 114
+   break before the end and 1 walks; of 616 delta records 567 walk. The 135 sub-type reads give
+   113 distinct values that do not look like string ids (only one id, `name_text`, resolved), so
+   the reads are misaligned or the records are not navpoints. Inconclusive: the film is not shown
+   to carry pings, nor shown not to. Going further means fixing the ti=12 walk itself.
