@@ -94,13 +94,13 @@ func HudFileNames() []string {
 	return out
 }
 
-// HudSetReady says whether the HUD icon set is built: index.json, DamageArc.png AND
-// ShieldChase.png are all present in the output folder. A set built before the damage
-// arc and the shield chase were added is missing those files, so it is not ready and
-// gets rebuilt once.
+// HudSetReady says whether the HUD icon set is built: index.json, DamageArc.png,
+// ShieldChase.png AND the HUD's default font are all present in the output folder. A set
+// built before one of those was added is missing it, so it is not ready and gets rebuilt
+// once.
 func HudSetReady(dataDir string) bool {
 	dir := HudOutDir(dataDir)
-	for _, name := range []string{"index.json", "DamageArc.png", "ShieldChase.png"} {
+	for _, name := range []string{"index.json", "DamageArc.png", "ShieldChase.png", hudFontRequired} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			return false
 		}
@@ -178,6 +178,12 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 	}
 	written += chaseFiles
 	total += chaseBytes
+	fontFiles, fontBytes, err := buildHudFonts(ctx, ix, out)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	written += fontFiles
+	total += fontBytes
 	slog.InfoContext(ctx, "hud icon set built", "files", written, "named", len(entries),
 		"bytes", total, "out", out)
 	return written, len(entries), total, nil
@@ -223,6 +229,24 @@ var errNoResource = fmt.Errorf("entry declares no resource")
 // atlas pairing (alignImages) cannot pair — on the shield chase bitmap's tag, the entry's
 // field at +0x10 is the index into the module's resource table.
 func resourcePayloadOf(ix *tagIndex, r tagRef) ([]byte, error) {
+	blob, err := resourceBlobOf(ix, r)
+	if err != nil {
+		return nil, err
+	}
+	hdr, ok := parseTagHeader(blob)
+	if !ok {
+		return nil, fmt.Errorf("resource of entry %d without a ucsh header", r.Entry)
+	}
+	off := int(hdr.HeaderSize) + int(hdr.DataSize)
+	if off < 0 || off > len(blob) {
+		return nil, fmt.Errorf("resource of entry %d: payload at offset %d out of range (%d bytes)", r.Entry, off, len(blob))
+	}
+	return blob[off:], nil
+}
+
+// resourceBlobOf returns the whole blob (ucsh header included) of the entry's FIRST
+// resource, through the entry's resource index (+0x10) into the module's resource table.
+func resourceBlobOf(ix *tagIndex, r tagRef) ([]byte, error) {
 	m, err := ix.open(r.Module)
 	if err != nil {
 		return nil, err
@@ -238,19 +262,7 @@ func resourcePayloadOf(ix *tagIndex, r tagRef) ([]byte, error) {
 	if resIdx >= len(tab) {
 		return nil, fmt.Errorf("resource index %d out of table (%d)", resIdx, len(tab))
 	}
-	blob, err := m.extract(m.file(int(tab[resIdx])))
-	if err != nil {
-		return nil, err
-	}
-	hdr, ok := parseTagHeader(blob)
-	if !ok {
-		return nil, fmt.Errorf("resource %d without a ucsh header", resIdx)
-	}
-	off := int(hdr.HeaderSize) + int(hdr.DataSize)
-	if off < 0 || off > len(blob) {
-		return nil, fmt.Errorf("resource %d payload at offset %d out of range (%d bytes)", resIdx, off, len(blob))
-	}
-	return blob[off:], nil
+	return m.extract(m.file(int(tab[resIdx])))
 }
 
 // bgraToNRGBA converts a flat b8g8r8a8_unorm payload (byte order B, G, R, A, straight

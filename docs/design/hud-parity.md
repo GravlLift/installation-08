@@ -63,6 +63,27 @@ reference only, gitignored: `data/reference/hud/infinite-hud-weapons-killfeed.pn
 The font is wrong across the kill feed, medals and HUD text. The game's HUD typeface needs to
 come from the installed game (the same rule as icons: game data only, nothing invented).
 
+**Found 2026-11-19: the fonts are whole TrueType files in the module's resources.** Each of the
+104 `font` tags in `any/globals/globals-rtx-new.module` (508 bytes, no glyphs of its own) points by
+its entry's resource index (+0x10) to one resource whose ucsh data, after the 180-byte header and
+24 bytes of padding, is a complete TrueType file (sfnt 0x00010000, 19 tables, `glyf` outlines).
+Confirmed by extracting all 104 and reading their `name` tables (probe `data/probe/resprobe fonts`,
+output gitignored). The Latin faces: Normative Pro (Light, Regular, Medium, Bold, with italics),
+Normative Lt (Thin to Bold), Industry (Thin, Light, Book, Medium, Demi, Bold), Baksheesh (Thin,
+Regular, Bold, and a "Gamertag" cut) and Consolas; the other tags merge a Latin face with a CJK
+or other fallback (for example "Normative Pro+Malgun Gothic"). `maps/fonts/font_package.bin` is
+not the HUD's: its 7 fonts are the pre-rendered `fixedsys-9` and six `subtitle` sizes.
+
+Which face each HUD text uses, from the CUI screens (`prop_font_name`, `prop_text_font_weight`,
+`prop_text_font_size`, sizes on the 2160-row reference):
+- The center scoreboard (`cusc` fb8c6614, `centerscoreboarddc`, the score and clock) names
+  Industry, weights 600 and 400. Confirmed.
+- The kill feed (`eventfeeddc`, 49050c80) sets size 36 and the medal feed
+  (`medalfeedandscorecombofeeddc`, c3e4d873) size 64, with no font name: they take the default
+  face. The default is inferred to be Normative Pro (the `fntf` registry lists it first, and the
+  photo mode screens name it explicitly); the registry's default field is not decoded.
+- Only 22 text properties in all 602 screens name a font at all; the rest use the default.
+
 ## What the replay document carries (checked 2026-11-18)
 
 | Item | Data | Where |

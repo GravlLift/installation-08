@@ -37,6 +37,11 @@ func hudFixtureSet(t *testing.T, dataDir string) {
 			t.Fatal(err)
 		}
 	}
+	for _, name := range weaponicons.HudFontNames() {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("fixture-"+name), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := os.WriteFile(filepath.Join(dir, "index.json"), []byte(`[]`), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -87,6 +92,14 @@ func TestHudRouteServesBuiltFile(t *testing.T) {
 	}
 	if body := rec.Body.String(); body != "fixture-ShieldChase" {
 		t.Fatalf("ShieldChase body = %q", body)
+	}
+
+	rec = get(t, h, hudRoute+"NormativePro-Regular.ttf", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("font status = %d, want 200", rec.Code)
+	}
+	if rec.Header().Get("Content-Type") != "font/ttf" {
+		t.Fatalf("font Content-Type = %q, want font/ttf", rec.Header().Get("Content-Type"))
 	}
 }
 
@@ -149,6 +162,11 @@ func TestHudIconFile(t *testing.T) {
 		"nope.png": false, "frag.png": false, "Frag.PNG": false, "Frag.txt": false,
 		"contour-00.png": false, "jeu/index.json": false,
 	}
+	for _, name := range weaponicons.HudFontNames() {
+		yes[name] = true
+	}
+	cases["NormativePro-Regular.otf"] = false
+	cases["Consolas.ttf"] = false
 	for name, want := range yes {
 		cases[name] = want
 	}

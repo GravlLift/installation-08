@@ -20,6 +20,7 @@ import { CALLOUT_LABEL, calloutName, calloutOfLivesAt, type PreparedCallouts } f
 import type { HeldWeapon } from '../scene3d/redReticle3d'
 import { DAMAGE_ARC_URL, paintDamageArcs } from '../ui/damageArcPaint'
 import { tintedChase } from '../ui/shieldChaseArt'
+import { ensureHudFonts, HUD_FONT_FAMILY, HUD_SCORE_FONT_FAMILY } from '../ui/hudFonts'
 import { adsOverlaysOfDoc, createAdsOverlayAtlas, paintAdsAmmo, type SvgImageLoader } from './adsOverlayRaster'
 
 /** `color-mix(in srgb, color, #000 65%)` in hex: darken `hex` toward black by `amount` (0..1). */
@@ -71,12 +72,15 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
     urls.add(SHIELD_CHASE_URL)
   }
   const images = new Map<string, HTMLImageElement>()
-  await Promise.all([...urls].map((url) => new Promise<void>((resolve) => {
+  // The game's HUD faces, loaded before the first frame (a canvas draws with whatever face is
+  // loaded at paint time, so a late font would change the text mid-video).
+  const fontsReady = ensureHudFonts()
+  await Promise.all([fontsReady, ...[...urls].map((url) => new Promise<void>((resolve) => {
     const img = new Image()
     img.onload = () => { images.set(url, img); resolve() }
     img.onerror = () => resolve()
     img.src = url
-  })))
+  }))])
   const painted = new Map<string, HTMLCanvasElement>()
   function icon(ctx: CanvasRenderingContext2D, url: string | undefined, color: string, tinted: boolean, mirror: boolean, x: number, y: number, w: number, h: number): boolean {
     const img = url ? images.get(url) : undefined
@@ -102,7 +106,7 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
     ctx.fillStyle = white
     ctx.strokeStyle = white
     ctx.lineWidth = 1.5
-    ctx.font = `700 ${size}px system-ui`
+    ctx.font = `700 ${size}px ${HUD_FONT_FAMILY}`
     ctx.textBaseline = 'middle'
     ctx.shadowColor = 'rgba(0,0,0,.8)'
     ctx.shadowBlur = 3
@@ -112,7 +116,7 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       const colors = score.allyOnLeft ? [ally, enemy] : [enemy, ally]
       const y = h * 0.94 - size * 0.7
       const bar = size * 4.2
-      ctx.font = `700 ${size * 0.65}px system-ui`
+      ctx.font = `600 ${size * 0.65}px ${HUD_SCORE_FONT_FAMILY}`
       ctx.textAlign = 'center'
       ctx.fillText(formatClock(hudClock(timeLimitMs, displayClockMs(frameToMs(frame, doc), playWindow))), w / 2, y)
       for (const [index, side] of [left, right].entries()) {
@@ -253,7 +257,7 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       ctx.save()
       ctx.globalAlpha = 1
       ctx.fillStyle = resolveToken('replay-hud-on-dark')
-      ctx.font = `${CALLOUT_LABEL.weight} ${fontPx}px system-ui`
+      ctx.font = `${CALLOUT_LABEL.weight} ${fontPx}px ${HUD_FONT_FAMILY}`
       ctx.letterSpacing = `${CALLOUT_LABEL.tracking * fontPx}px`
       ctx.textAlign = 'left'
       ctx.textBaseline = 'bottom'
@@ -270,7 +274,7 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       // a trailing number; laid out from its right edge leftward, its center line at `cy`.
       // Returns its left edge so the next item sits to its left.
       const box = (right: number, cy: number, text: string, img: string | undefined, tinted: boolean, num: number | null, alpha: number): number => {
-        ctx.font = `700 ${size * 0.6}px system-ui`
+        ctx.font = `700 ${size * 0.6}px ${HUD_FONT_FAMILY}`
         const count = num != null ? String(num) : '', countWidth = ctx.measureText(count).width
         const width = size * 0.78, height = size * 0.78
         const hasIcon = !!img && images.has(img)
@@ -307,7 +311,7 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       const iconWidth = size * 2.8, iconHeight = size * 1.1
       const hasWeapon = weapon && icon(ctx, weapon.url, weaponInk, !!ath.label?.tinted, !weapon.mirrored, w * 0.97 - iconWidth, h * 0.94 - iconHeight, iconWidth, iconHeight)
       ctx.fillStyle = weaponInk
-      ctx.textAlign = 'right'; ctx.font = `700 ${size}px system-ui`
+      ctx.textAlign = 'right'; ctx.font = `700 ${size}px ${HUD_FONT_FAMILY}`
       const ammo = [ath.ammo?.mag, ath.ammo?.res].filter((v) => v != null).join(' | ')
       if (ammo) ctx.fillText(ammo, w * 0.97 - (hasWeapon ? iconWidth + size * 0.3 : 0), h * 0.92)
       // The in-hand weapon's name tag, under the in-hand row, right-aligned, fading with the game:
@@ -318,7 +322,7 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
         // box's right edge flush with the corner, the text right-aligned inside its padding.
         const tagSize = size * NAME_TAG_EM, tagY = h * 0.94 + size * 0.45
         const padX = NAME_TAG_PAD_X * tagSize, boxH = (1 + 2 * NAME_TAG_PAD_Y) * tagSize
-        ctx.font = `600 ${tagSize}px system-ui`
+        ctx.font = `600 ${tagSize}px ${HUD_FONT_FAMILY}`
         ctx.letterSpacing = `${0.08 * tagSize}px`
         ctx.textAlign = 'right'
         ctx.textBaseline = 'middle'
@@ -334,7 +338,7 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
 
     /** The kill feed, left, above the place label; leaves the alpha at 1. */
     function paintFeed() {
-      ctx.fillStyle = white; ctx.font = `600 ${size * 0.48}px system-ui`; ctx.textAlign = 'left'
+      ctx.fillStyle = white; ctx.font = `600 ${size * 0.48}px ${HUD_FONT_FAMILY}`; ctx.textAlign = 'left'
       const feed = readKillFeed(source, frame)
       feed.forEach(({ kill, opacity, mine, killer: killerSide, victim: victimSide }, i) => {
         ctx.globalAlpha = opacity

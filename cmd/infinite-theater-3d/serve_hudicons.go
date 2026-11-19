@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
@@ -28,6 +29,11 @@ func hudIconFile(name string) bool {
 	}
 	for _, stem := range weaponicons.HudFileNames() {
 		if name == stem+".png" {
+			return true
+		}
+	}
+	for _, font := range weaponicons.HudFontNames() {
+		if name == font {
 			return true
 		}
 	}
@@ -60,9 +66,12 @@ func (h serverHandlers) handleHudIconFile(w http.ResponseWriter, r *http.Request
 		return
 	}
 	defer f.Close()
-	if name == "index.json" {
+	switch {
+	case name == "index.json":
 		w.Header().Set("Content-Type", "application/json")
-	} else {
+	case strings.HasSuffix(name, ".ttf"):
+		w.Header().Set("Content-Type", "font/ttf")
+	default:
 		w.Header().Set("Content-Type", "image/png")
 	}
 	http.ServeContent(w, r, name, time.Time{}, f)
