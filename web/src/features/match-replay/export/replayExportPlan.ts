@@ -32,6 +32,7 @@ import { frameToMs, msToFrames } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import { EXPORT_FPS } from './replayVideoEncoder'
 import type { ReplayWindowBounds } from '../model/replayWindow'
+import { scriptClockOf, type CameraScript } from '../scene3d/cameraScript3d'
 
 /** The export's two bounds, on the DOCUMENT axis (frames, possibly fractional). */
 export interface ExportBounds {
@@ -147,6 +148,49 @@ export function buildExportPlan(
   const held = Math.max(Math.floor(holdMs / stepMs + 1e-9), 0)
   for (let i = 0; i < held; i++) frames.push(bounds.endFrame)
   return { frames, fps, durationMs, holdMs: Math.max(holdMs, 0) }
+}
+
+/**
+ * buildScriptExportPlan lays out the frame sequence of a CAMERA SCRIPT export.
+ *
+ * The file's time axis here is SCRIPT time, not the match's: video frame `i` sits at script
+ * time `i / fps` s (the last one exactly at the script's length, same floor-and-epsilon rule
+ * as `buildExportPlan`), and the film frame painted for it is where the script's clock maps
+ * that script time to (`docMsAt`). When the clock slows, freezes or speeds the film the
+ * frames are non-uniform — that is the point of a script.
+ *
+ * The plan carries the script times alongside the frames: the export sets the script's
+ * playback time to `scriptMs[i]` before painting frame `i`, so the camera (and any held
+ * players) are posed at the same script time the world is sampled at.
+ */
+export function buildScriptExportPlan(
+  script: CameraScript,
+  doc: ReplayDocumentReady,
+  fps: number = EXPORT_FPS,
+  holdMs = 0,
+): ExportPlan & { scriptMs: number[] } {
+  const clock = scriptClockOf(script)
+  const lengthMs = Math.max(clock.lengthMs, 0)
+  const stepMs = 1000 / fps
+  // Same rule as buildExportPlan: floor (never overshoot the length), and the epsilon keeps
+  // an exact multiple of the rate from landing one frame short in binary.
+  const steps = Math.max(Math.floor(lengthMs / stepMs + 1e-9), 0)
+  const scriptMs: number[] = []
+  for (let i = 0; i < steps; i++) scriptMs.push(i * stepMs)
+  scriptMs.push(lengthMs)
+  const frames = scriptMs.map((s) => msToFrames(clock.docMsAt(s), doc))
+  const held = Math.max(Math.floor(holdMs / stepMs + 1e-9), 0)
+  for (let i = 0; i < held; i++) {
+    scriptMs.push(lengthMs)
+    frames.push(frames[frames.length - 1])
+  }
+  return {
+    frames,
+    scriptMs,
+    fps,
+    durationMs: lengthMs,
+    holdMs: Math.max(holdMs, 0),
+  }
 }
 
 /**

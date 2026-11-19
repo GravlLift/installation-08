@@ -69,6 +69,12 @@ export interface Scene3dText {
   exportCameraFreeFixed: string
   exportFollow: string
   exportMinimap: string
+  /** Clean frame: the bare 3D image, for footage that gets graphics composited over it. */
+  exportCleanFrame: string
+  /** "Export camera script '<name>'": the video follows the script's own clock. */
+  exportCameraScriptFmt: (name: string) => string
+  /** The exported script's length, replacing the range while the script is exported. */
+  exportCameraScriptLengthFmt: (clock: string) => string
   /** Settings drawer: the 3D view section and its toggles. */
   lookTitle: string
   /** The game's field-of-view setting (horizontal degrees at 16:9), a slider rather than a toggle. */
@@ -153,6 +159,9 @@ export const SCENE3D_TEXT: Record<ReplayLocale, Scene3dText> = {
     exportCameraFreeFixed: 'Free view, fixed',
     exportFollow: 'Follow',
     exportMinimap: '2D mini-map in a corner',
+    exportCleanFrame: 'Clean frame (no HUD, tags or minimap)',
+    exportCameraScriptFmt: (name) => `Export camera script '${name}'`,
+    exportCameraScriptLengthFmt: (clock) => `Script length: ${clock}`,
     lookTitle: '3D view',
     lookFov: 'Field of view',
     lookFovHint: 'The game’s field-of-view setting, in degrees. The first-person weapon keeps its tuned size.',

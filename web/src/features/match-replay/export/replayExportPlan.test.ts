@@ -10,6 +10,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildExportPlan,
+  buildScriptExportPlan,
   clampExportBounds,
   defaultExportBounds,
   etaLabel,
@@ -17,6 +18,7 @@ import {
 } from './replayExportPlan'
 import { testReplayDoc } from '../test/testDoc'
 import { frameToMs } from '../../../lib/replay/replayLogic'
+import type { CameraScript } from '../scene3d/cameraScript3d'
 
 /** A film at 20 frames per second: 50 ms per frame, 200 frames, i.e. 10 s of match. */
 const DOC = testReplayDoc({ frameIntervalMs: 50, frameCount: 200 })
@@ -224,5 +226,76 @@ describe('buildExportPlan at 60 fps (the 3D export)', () => {
     // A range not a multiple of 1/60 s (10.01 s): frame i's file time i/60 stays <= the range.
     const plan = buildExportPlan({ startFrame: 0, endFrame: 300.3 }, FILM, 60)
     expect((plan.frames.length - 1) / 60).toBeLessThanOrEqual(plan.durationMs / 1000)
+  })
+})
+
+describe('buildScriptExportPlan — the frames of a camera script', () => {
+  /** A script without a clock: script time IS match time, from 0 to 2 s. */
+  const clockless: CameraScript = {
+    version: 1,
+    matchId: 'm',
+    name: 'clockless',
+    keys: [
+      { t: 0, pos: { at: 'world', point: [0, 0, 0] }, look: { at: 'world', point: [1, 0, 0] } },
+      { t: 2000, pos: { at: 'world', point: [0, 0, 0] }, look: { at: 'world', point: [1, 0, 0] } },
+    ],
+  }
+
+  it('samples SCRIPT time at the file rate, the film frame where the clock maps it', () => {
+    // 2 s of script at 30 fps: 60 steps + the exact end, 61 frames.
+    const plan = buildScriptExportPlan(clockless, DOC, 30)
+    expect(plan.durationMs).toBe(2000)
+    expect(plan.fps).toBe(30)
+    expect(plan.scriptMs).toHaveLength(61)
+    expect(plan.scriptMs[0]).toBe(0)
+    // The last sample sits EXACTLY at the script's length, and its frame at its match time.
+    expect(plan.scriptMs[plan.scriptMs.length - 1]).toBe(2000)
+    expect(plan.frames).toHaveLength(61)
+    expect(plan.frames[0]).toBe(0)
+    expect(plan.frames[plan.frames.length - 1]).toBe(40) // 2000 ms of a 50 ms film
+  })
+
+  it('a clockless script exports the same film frames as the plain plan over its range', () => {
+    // Without a clock the script time equals the match time: the two plans must agree.
+    const plain = buildExportPlan({ startFrame: 0, endFrame: 40 }, DOC, 30)
+    const scripted = buildScriptExportPlan(clockless, DOC, 30)
+    expect(scripted.frames).toEqual(plain.frames)
+  })
+
+  it('the hold repeats the last entry of BOTH arrays', () => {
+    const plan = buildScriptExportPlan(clockless, DOC, 30, 1000)
+    expect(plan.holdMs).toBe(1000)
+    // 1 s of hold at 30 fps: 30 more frames, all at the length, all on the last film frame.
+    expect(plan.scriptMs.slice(-30)).toEqual(Array.from({ length: 30 }, () => 2000))
+    expect(plan.frames.slice(-30)).toEqual(Array.from({ length: 30 }, () => 40))
+  })
+
+  it('a rate-0 stretch freezes the film while the script time keeps advancing', () => {
+    // Clock: 1x to 0.5 s, frozen until 1.5 s, 1x to the end (2 s).
+    const clocked: CameraScript = {
+      ...clockless,
+      name: 'clocked',
+      clock: {
+        startMs: 0,
+        rates: [
+          { s: 0, rate: 1, ease: 'cut' },
+          { s: 500, rate: 0, ease: 'cut' },
+          { s: 1500, rate: 1, ease: 'cut' },
+        ],
+      },
+    }
+    const plan = buildScriptExportPlan(clocked, DOC, 30)
+    // Across the freeze (script ms 500 to 1500) the film frame stays at 500 ms = frame 10,
+    // while the script time advances one step per video frame.
+    for (let i = 15; i <= 44; i++) {
+      expect(plan.frames[i]).toBe(10)
+      expect(plan.scriptMs[i]).toBeCloseTo(i * 1000 / 30, 9)
+    }
+    // The script moves on; the film resumes (docMs(1533.3) = 533.3 ms), and the clip ends
+    // where the clock left it: docMs(2000) = 500 + 500 = 1000 ms = frame 20.
+    expect(plan.frames[45]).toBeCloseTo(10, 6)
+    expect(plan.frames[46]).toBeCloseTo(10.6667, 3)
+    expect(plan.frames[plan.frames.length - 1]).toBe(20)
+    expect(plan.scriptMs[plan.scriptMs.length - 1]).toBe(2000)
   })
 })

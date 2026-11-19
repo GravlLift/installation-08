@@ -82,17 +82,20 @@ import { mixReplayAudio, soundUrlOf, type MixedTracks, type SoundFamily } from '
 import { followedShieldReader } from '../sound/shieldSound'
 import type { RenderHooks } from '../sound/mixRender'
 import { listenerAtOfPlayer } from '../sound/soundListenerOf'
-import { formatClock, frameToMs } from '../../../lib/replay/replayLogic'
+import { formatClock, frameToMs, msToFrames } from '../../../lib/replay/replayLogic'
 import { buildCaptureFilename, holdDownload, type PendingDownload } from './replayCapture'
 import { tintedIconCanvas } from '../layers/replayDraw'
 import {
   END_HOLD_MS,
   buildExportPlan,
+  buildScriptExportPlan,
   defaultExportBounds,
   exportProgressPct,
   type ExportBounds,
   type ExportPlan,
 } from './replayExportPlan'
+import { scriptClockOf, type CameraScript } from '../scene3d/cameraScript3d'
+import { setScriptPlaybackTime, startScript, stopScript } from '../scene3d/cameraScriptStore'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import {
   EXPORT_FPS,
@@ -218,6 +221,18 @@ export interface ExportRunOptions {
    * map; absent -> 2D. Sound, the range, and the end panels do not change.
    */
   view3d?: Export3dOptions | null
+  /**
+   * CLEAN FRAME: no HUD, name tags, minimap or panels, the bare 3D image — footage that
+   * gets graphics composited over it later. Applies to 3D exports only; ignored in 2D.
+   */
+  clean?: boolean
+  /**
+   * Export a CAMERA SCRIPT: the video covers the script from script time 0 to its length,
+   * each film frame is sampled by the script's clock, and the free camera (and any held
+   * players) is posed by the script at that time. 3D export only; ignored without a
+   * `view3d`.
+   */
+  script?: CameraScript | null
 }
 
 /** The state the dialog shows. `total` is 0 until an export has started. */
@@ -424,7 +439,7 @@ function paintPanel(
 }
 
 /** Paints frame `frame` and returns the canvas to encode, once that frame is completely drawn. */
-type FramePainter = (frame: number) => HTMLCanvasElement | Promise<HTMLCanvasElement>
+type FramePainter = (frame: number, index?: number) => HTMLCanvasElement | Promise<HTMLCanvasElement>
 
 /**
  * How many times one 3D frame may wait for loads and render again. A frame normally waits once
@@ -438,16 +453,17 @@ const MAX_LOAD_WAITS = 4
  * would otherwise pop in mid-clip. A timed-out wait is reported and the frame is kept.
  */
 export async function renderComplete(
-  paint: (frame: number) => HTMLCanvasElement,
+  paint: (frame: number, index?: number) => HTMLCanvasElement,
   scene: Pick<Replay3DExportSource, 'exportPendingLoads'>,
   frame: number,
+  index?: number,
 ): Promise<HTMLCanvasElement> {
-  let canvas = paint(frame)
+  let canvas = paint(frame, index)
   for (let i = 0; i < MAX_LOAD_WAITS; i++) {
     const pending = scene.exportPendingLoads()
     if (!pending) return canvas
     if (await pending) console.warn(`[replay-export] 3D loads still pending at frame ${frame}, encoding it as is`)
-    canvas = paint(frame)
+    canvas = paint(frame, index)
   }
   return canvas
 }
@@ -457,6 +473,8 @@ interface Scene3dRun {
   scene: Replay3DExportSource
   format: ExportFormat
   view3d: Export3dOptions
+  /** The script time of each file frame, for a camera-script export; null otherwise. */
+  scriptMs: number[] | null
 }
 
 /**
@@ -487,6 +505,7 @@ async function framePainter(
   o: ReplayExportOptions,
   overlay: { source: OverlayPanelSource; paint: OverlayPaintContext },
   scene3d: Scene3dRun | null,
+  clean: boolean,
 ): Promise<FramePainter> {
   const { source, paint } = overlay
   if (!scene3d) {
@@ -497,8 +516,9 @@ async function framePainter(
   }
   // The followed player's HUD at the screen's level (`hudLevel`): first person draws the aim
   // (reticle, ADS overlays); both draw the place label from the areas the view already loaded.
+  // A clean frame carries no HUD at all.
   const scene = scene3d.scene
-  const hud = scene3d.view3d.pov
+  const hud = !clean && scene3d.view3d.pov
     ? await createExportHud(o.doc, scene3d.view3d.pov, o.kills ?? [], o.playWindow, o.timeLimitMs ?? null, o.locale, {
         aim: scene3d.view3d.camera === 'fp',
         callouts: replay3DExportEntry()?.callouts ?? null,
@@ -519,11 +539,15 @@ async function framePainter(
         }
       : null,
     overlay: (ctx, view, frame) => { hud?.(ctx, view, frame); paintPanel(ctx, view, source, paint, frame) },
+    clean,
   })
-  return (frame) => {
+  const scriptMs = scene3d.scriptMs
+  return (frame, index) => {
+    // A script export poses the camera at the SAME script time the world is sampled at.
+    if (scriptMs && index !== undefined) setScriptPlaybackTime(scriptMs[index])
     // The current frame advances in 3D too: the transport bar and the 2D map follow it.
     o.frameRef.current = frame
-    return renderComplete(painter, scene3d.scene, frame)
+    return renderComplete(painter, scene3d.scene, frame, index)
   }
 }
 
@@ -598,12 +622,30 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
       // of times, and the user must get their replay back where they left it.
       const resume = o.frameRef.current
       const format = exportFormatOf(options?.format)
-      const view3d = options?.view3d ?? null
+      // A camera script drives the FREE camera only: when one is given, this run uses
+      // 'free' no matter which camera the dialog picked, and it is a 3D export (the script
+      // is ignored without a `view3d`).
+      const script = options?.script && options.view3d ? options.script : null
+      const view3d =
+        script && options?.view3d
+          ? { ...options.view3d, camera: 'free' as const }
+          : options?.view3d ?? null
       // THE RATE: 60 for the 3D view, 30 for the 2D map (cf. `EXPORT_FPS_3D`). The encoder may
       // refuse 60 at this size; it then falls back to 30 and the dialog says so.
       const wantedFps = view3d ? EXPORT_FPS_3D : EXPORT_FPS
+      // The script's DOCUMENT range: the film time at script time 0 to the film time at its
+      // length. It drives the sound mix and the file name; the frames themselves come from
+      // the script's own plan.
+      const clock = script ? scriptClockOf(script) : null
+      const mixBounds =
+        script && clock
+          ? { startFrame: msToFrames(clock.docMsAt(0), o.doc), endFrame: msToFrames(clock.docMsAt(clock.lengthMs), o.doc) }
+          : bounds
+      // A script whose clock slows, freezes or speeds the film cannot carry its sound: the
+      // clip's time and the match's time no longer run together, so the clip is silent.
+      const scriptSilent = script !== null && (script.clock?.rates ?? []).some((r) => r.rate !== 1)
       // A first plan WITHOUT the hold: it gives the range's duration, which the mix needs.
-      let plan = buildExportPlan(bounds, o.doc, wantedFps)
+      let plan: ExportPlan = script ? buildScriptExportPlan(script, o.doc, wantedFps) : buildExportPlan(bounds, o.doc, wantedFps)
       // PHASE 1: preparation. The bar does not show "frame 0" — it says what is happening.
       setState({ phase: 'prepare', done: 0, total: plan.frames.length, pct: 0 })
       let sink: VideoExportSink | null = null
@@ -632,13 +674,15 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         // `try`) goes through a React render: we WAIT for the canvas to actually be at the
         // format before opening the encoder — hence the order: request, wait, open.
         await waitForExportLayout(canvas, format, o.redraw)
-        const mix = options?.sound === false ? null : await mixExportAudio(o, bounds, plan, view3d, {
-          cancelled: () => cancelRef.current,
-          progress: prepareProgress(setState, plan.frames.length, 'mix'),
-        })
+        const mix = options?.sound === false || scriptSilent
+          ? null
+          : await mixExportAudio(o, mixBounds, plan, view3d, {
+              cancelled: () => cancelRef.current,
+              progress: prepareProgress(setState, plan.frames.length, 'mix'),
+            })
         if (cancelRef.current) return void setState(IDLE) // Cancel during the preparation (the mix reads it at each step and stops): stop before encoding; `finally` restores.
         // The hold (see `holdMsFor`) depends only on durations: it is computed from the first plan.
-        const holdMs = holdMsFor(o, bounds, plan, mix)
+        const holdMs = holdMsFor(o, mixBounds, plan, mix)
         sink = await openVideoExport({
           width: format.width,
           height: format.height,
@@ -659,7 +703,7 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         // share one rate, or the clip would play at the wrong speed.
         const fps = sink.fps
         const fpsFallback = sink.fpsFallback
-        plan = buildExportPlan(bounds, o.doc, fps, holdMs)
+        plan = script ? buildScriptExportPlan(script, o.doc, fps, holdMs) : buildExportPlan(bounds, o.doc, fps, holdMs)
         // SOUND REQUESTED BUT IMPOSSIBLE DOES NOT STAY SILENT ABOUT IT: the browser can have the
         // API and still REFUSE the AAC configuration. The clip comes out silent — better than a
         // lost export — and the final phase says so.
@@ -670,13 +714,19 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         }
         // The 3D scene is only taken here, at the last moment: the screen's own view stays
         // alive during preparation.
-        if (view3d) scene3d = take3dScene(view3d, format, bounds.startFrame, frameToMs(1, o.doc))
+        if (view3d) scene3d = take3dScene(view3d, format, mixBounds.startFrame, frameToMs(1, o.doc))
         const painter = await framePainter(
           canvas,
           o,
           { source, paint: { ink, fonts, backdrop } },
-          scene3d && view3d ? { scene: scene3d, format, view3d } : null,
+          scene3d && view3d
+            ? { scene: scene3d, format, view3d, scriptMs: script ? (plan as ExportPlan & { scriptMs: number[] }).scriptMs : null }
+            : null,
+          options?.clean === true,
         )
+        // The script starts NOW, at script time 0: every painted frame sets its own script
+        // time afterwards (the painter reads it from the frame index).
+        if (script) startScript(script, 0)
         // PHASE 2: encoding. Only here does the frame count mean something, and the remaining
         // time can be estimated.
         const total = plan.frames.length
@@ -703,7 +753,7 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         if (ok) sink = null
         // UNMOUNTING DOES NOT DOWNLOAD: the clip is assembled (the encoder must be drained
         // cleanly no matter what) but it does not go to a tab that has moved to another page.
-        const filename = exportFilename(o, bounds)
+        const filename = exportFilename(o, mixBounds)
         // THE CLIP IS ASSEMBLED, BUT NOTHING LEAVES YET: minutes after the export click, a
         // click on an anchor dropped by code no longer has a gesture behind it, and Chrome
         // blocks a site's second unrequested file. The clip waits for the "Save" button of the
@@ -729,6 +779,7 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         // previous frame; the React render that follows repaints it at screen size.
         requestExportLayout(null)
         scene3d?.endExport()
+        if (script) stopScript()
         // THE ENCODER CLOSES ON EVERY PATH: `sink` is only set back to `null` once the file is
         // assembled. If it is still here, it is because the function exits via an error or a
         // cancellation, and it would hold an entire muxer in memory.
@@ -824,8 +875,9 @@ async function encodeAll(
   for (let i = 0; i < frames.length; i++) {
     if (hooks.cancelled()) return false
     // The frame is complete before it is handed over (`renderComplete` in 3D): `addFrame` reads
-    // the canvas as it is, and the index alone gives its timestamp.
-    await hooks.sink.addFrame(await paint(frames[i]), i)
+    // the canvas as it is, and the index alone gives its timestamp. The index also reaches
+    // the painter: a camera-script export sets the script's time from it.
+    await hooks.sink.addFrame(await paint(frames[i], i), i)
     if (i % PROGRESS_EVERY !== 0) continue
     hooks.progress(i)
     // CONTROL RETURNS TO THE PAGE HERE, through the unthrottled channel: without this, the

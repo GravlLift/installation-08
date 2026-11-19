@@ -76,8 +76,20 @@ vi.mock('./replayCapture', async (orig) => {
   }
 })
 
+vi.mock('../scene3d/cameraScriptStore', async (orig) => {
+  const real = await orig<typeof import('../scene3d/cameraScriptStore')>()
+  return {
+    ...real,
+    startScript: vi.fn(),
+    stopScript: vi.fn(),
+    setScriptPlaybackTime: vi.fn(),
+  }
+})
+
 import { triggerDownload } from './replayCapture'
 import { mixReplayAudio } from '../sound/replayAudioMix'
+import { setScriptPlaybackTime, startScript, stopScript } from '../scene3d/cameraScriptStore'
+import type { CameraScript } from '../scene3d/cameraScript3d'
 
 const DOC = testReplayDoc({ frameIntervalMs: 50, frameCount: 200 })
 
@@ -154,6 +166,9 @@ beforeEach(() => {
   // The mix mock is SHARED across tests: without this cleanup, `mock.calls[0]`
   // would return a previous test's call.
   vi.mocked(mixReplayAudio).mockClear()
+  vi.mocked(startScript).mockClear()
+  vi.mocked(stopScript).mockClear()
+  vi.mocked(setScriptPlaybackTime).mockClear()
   // jsdom does not provide `document.fonts`: the loop waits for it before the first frame.
   Object.defineProperty(document, 'fonts', { value: { ready: Promise.resolve() }, writable: true })
 })
@@ -169,7 +184,7 @@ function fakeContext(): CanvasRenderingContext2D {
 /** Registers a 3D view double; `pendingOnce` makes its first frame wait for one load. */
 function load3d(pendingOnce: boolean) {
   const rendered: number[] = []
-  const begun: { frameMs?: number }[] = []
+  const begun: { frameMs?: number; camera?: string }[] = []
   let pending = pendingOnce
   const source = {
     players: [],
@@ -234,6 +249,101 @@ describe('useReplayExport, 3D at 60 fps', () => {
     expect(rendered[2]).toBeGreaterThan(0)
     expect(rendered).toHaveLength(32)
     expect(addFrame).toHaveBeenCalledTimes(31)
+  })
+})
+
+describe('useReplayExport — the camera script export', () => {
+  /** A script of 500 ms, no clock: script time runs with match time. */
+  const SCRIPT: CameraScript = {
+    version: 1,
+    matchId: 'm',
+    name: 'My cut',
+    keys: [
+      { t: 0, pos: { at: 'world', point: [0, 0, 0] }, look: { at: 'world', point: [1, 0, 0] } },
+      { t: 500, pos: { at: 'world', point: [0, 0, 0] }, look: { at: 'world', point: [1, 0, 0] } },
+    ],
+  }
+
+  it('starts the script at 0, poses EACH frame at its own script time, and stops it at the end', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fakeContext() as never)
+    const { release } = load3d(false)
+    const { hook } = setup()
+    // 500 ms of script at 60 fps: 30 steps + the exact end, the bounds ignored.
+    await act(() =>
+      hook.result.current.run({ startFrame: 0, endFrame: 10 }, { view3d: { camera: 'tp', pov: null, minimap: false }, script: SCRIPT }),
+    )
+    release()
+    expect(startScript).toHaveBeenCalledTimes(1)
+    expect(startScript).toHaveBeenCalledWith(SCRIPT, 0)
+    expect(addFrame).toHaveBeenCalledTimes(31)
+    // The camera is posed at the SAME script time the world is sampled at, frame by frame.
+    const times = vi.mocked(setScriptPlaybackTime)
+    expect(times).toHaveBeenCalledTimes(31)
+    expect(times.mock.calls[0][0]).toBe(0)
+    expect(times.mock.calls[30][0]).toBe(500)
+    // The script stops after the LAST frame, not before the first one.
+    const stopped = vi.mocked(stopScript)
+    const started = vi.mocked(startScript)
+    expect(stopped).toHaveBeenCalledTimes(1)
+    expect(stopped.mock.invocationCallOrder[0]).toBeGreaterThan(started.mock.invocationCallOrder[0])
+    expect(hook.result.current.state).toMatchObject({ phase: 'done', fps: 60 })
+  })
+
+  it('the script takes over the FREE camera even when the dialog picked another', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fakeContext() as never)
+    const { release, begun } = load3d(false)
+    const { hook } = setup()
+    await act(() =>
+      hook.result.current.run({ startFrame: 0, endFrame: 10 }, { view3d: { camera: 'tp', pov: null, minimap: false }, script: SCRIPT }),
+    )
+    release()
+    expect(begun[0].camera).toBe('free')
+  })
+
+  it('a script whose clock does not run at 1x is SILENT', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fakeContext() as never)
+    const clocked: CameraScript = {
+      ...SCRIPT,
+      clock: { startMs: 0, rates: [{ s: 0, rate: 0.5, ease: 'cut' }] },
+    }
+    const { release } = load3d(false)
+    const canvas = document.createElement('canvas')
+    canvas.width = 320
+    canvas.height = 180
+    const hook = renderHook(() =>
+      useExportWithView({
+        canvasRef: { current: canvas },
+        frameRef: { current: 0 },
+        redraw: simulatedCanvas(canvas),
+        pause: vi.fn(),
+        doc: DOC,
+        playWindow: null,
+        scoreboard: [],
+        allegiance: NO_ALLEGIANCE,
+        outcome: null,
+        viewpoint: null,
+        titleSlug: 'halo_infinite',
+        locale: 'en',
+        soundTrack: () => ({ timeline: [{ ms: 0, stem: 'x' }], endMatchStems: [], variationPercent: 0, distancePercent: 0, families: { voice: [], music: [] }, engines: [] }),
+        soundVolume: 1,
+      }),
+    )
+    await act(() =>
+      hook.result.current.run({ startFrame: 0, endFrame: 10 }, { view3d: { camera: 'tp', pov: null, minimap: false }, script: clocked }),
+    )
+    release()
+    // The clip's time and the match's time no longer run together: the sound would lie.
+    expect(mixReplayAudio).not.toHaveBeenCalled()
+    expect(hook.result.current.state).toMatchObject({ phase: 'done' })
+  })
+
+  it('without a 3D export, the script is IGNORED', async () => {
+    const { hook } = setup()
+    await act(() => hook.result.current.run({ startFrame: 0, endFrame: 10 }, { script: SCRIPT }))
+    expect(startScript).not.toHaveBeenCalled()
+    expect(setScriptPlaybackTime).not.toHaveBeenCalled()
+    expect(stopScript).not.toHaveBeenCalled()
+    expect(hook.result.current.state).toMatchObject({ phase: 'done' })
   })
 })
 

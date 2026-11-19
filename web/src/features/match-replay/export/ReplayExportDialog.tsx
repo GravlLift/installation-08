@@ -66,12 +66,17 @@ import type { ReplayText } from '../i18n/i18nContract'
 import { DEFAULT_EXPORT_FRAMING, EXPORT_FORMATS, type ExportFormatId, type ExportFraming } from './exportFormats'
 import { clampExportBounds, etaLabel, type ExportBounds } from './replayExportPlan'
 import type { ReplayExport, ReplayExportState } from './useReplayExport'
+import { scriptClockOf, type CameraScript } from '../scene3d/cameraScript3d'
+import { SCENE3D_TEXT } from '../i18n/scene3dText'
+import { formatClock } from '../../../lib/replay/replayLogic'
 
 interface Props {
   exporter: ReplayExport
   locale: ReplayLocale
   onClose: () => void
   threeDOnly?: boolean
+  /** The camera script open in the page's camera panel; a script export is offered with it. */
+  cameraScript?: CameraScript | null
 }
 
 /** Is the export busy? The two active phases, and only those. */
@@ -79,15 +84,19 @@ export function isExportBusy(state: ReplayExportState): boolean {
   return state.phase === 'prepare' || state.phase === 'encode'
 }
 
-export function ReplayExportDialog({ exporter, locale, onClose, threeDOnly = false }: Props) {
+export function ReplayExportDialog({ exporter, locale, onClose, threeDOnly = false, cameraScript = null }: Props) {
   const t = REPLAY_TEXT[locale]
   const domain = exporter.defaultBounds()
   const [bounds, setBounds] = useState<ExportBounds>(domain)
   const [withSound, setWithSound] = useState(true)
   const [format, setFormat] = useState<ExportFormatId>(readExportFormat)
   const [framing, setFraming] = useState<ExportFraming>(DEFAULT_EXPORT_FRAMING)
+  const [cleanFrame, setCleanFrame] = useState(false)
+  const [withScript, setWithScript] = useState(false)
   const entry3d = useReplay3DExport()
   const [view3d, setView3d] = useState<View3dChoice>(() => ({ ...initialView3dChoice(entry3d), ...(threeDOnly ? { on: true, minimap: false } : {}) }))
+  // The script checkbox is only offered for a script with keys; the export follows it when on.
+  const exportScript = withScript && cameraScript !== null && cameraScript.keys.length > 0 ? cameraScript : null
   const chooseFormat = (id: ExportFormatId) => {
     setFormat(id)
     persistExportFormat(id)
@@ -134,6 +143,7 @@ export function ReplayExportDialog({ exporter, locale, onClose, threeDOnly = fal
       ) : (
         <ExportForm
           t={t}
+          locale={locale}
           bounds={bounds}
           domain={domain}
           exporter={exporter}
@@ -142,10 +152,24 @@ export function ReplayExportDialog({ exporter, locale, onClose, threeDOnly = fal
           framing={{ id: framing, set: setFraming }}
           view3d={
             entry3d && {
-              slot: <Export3dChoice entry={entry3d} locale={locale} choice={view3d} onChange={setView3d} threeDOnly={threeDOnly} />,
+              slot: (
+                <Export3dChoice
+                  entry={entry3d}
+                  locale={locale}
+                  choice={view3d}
+                  onChange={setView3d}
+                  threeDOnly={threeDOnly}
+                  cleanFrame={{ on: cleanFrame, set: setCleanFrame }}
+                  withScript={{ on: withScript, set: setWithScript }}
+                  cameraScript={cameraScript}
+                />
+              ),
               run: view3dRunOptions(entry3d, view3d),
             }
           }
+          cleanFrame={cleanFrame}
+          withScript={exportScript !== null}
+          cameraScript={exportScript}
           onBound={{ start: setStart, end: setEnd }}
           onClose={onClose}
         />
@@ -162,9 +186,10 @@ export function ReplayExportDialog({ exporter, locale, onClose, threeDOnly = fal
  * computation already in progress.
  */
 function ExportForm({
-  t, bounds, domain, exporter, sound, format, framing, view3d, onBound, onClose,
+  t, locale, bounds, domain, exporter, sound, format, framing, view3d, cleanFrame, withScript, cameraScript, onBound, onClose,
 }: {
   t: ReplayText
+  locale: ReplayLocale
   bounds: ExportBounds
   domain: ExportBounds
   exporter: ReplayExport
@@ -173,28 +198,40 @@ function ExportForm({
   framing: { id: ExportFraming; set: (id: ExportFraming) => void }
   /** The 2D / 3D choice (`Export3dChoice`) and its options; `null` with no 3D map loaded. */
   view3d: { slot: ReactNode; run: Export3dOptions | null } | null
+  /** The clean-frame checkbox state (3D options); only reaches the run in a 3D export. */
+  cleanFrame: boolean
+  /** A camera script is exported: the script, not the sliders, decides the range. */
+  withScript: boolean
+  cameraScript: CameraScript | null
   onBound: { start: (v: number) => void; end: (v: number) => void }
   onClose: () => void
 }) {
   const run3d = view3d?.run ?? null
   return (
     <>
-      <div className="mt-3 flex flex-col gap-2">
-        <BoundSlider
-          label={t.exportFrom}
-          value={bounds.startFrame}
-          domain={domain}
-          clock={exporter.clockOf(bounds.startFrame)}
-          onChange={onBound.start}
-        />
-        <BoundSlider
-          label={t.exportTo}
-          value={bounds.endFrame}
-          domain={domain}
-          clock={exporter.clockOf(bounds.endFrame)}
-          onChange={onBound.end}
-        />
-      </div>
+      {withScript && cameraScript ? (
+        // The script decides the range: the sliders are out of play, and its length is shown.
+        <p className="mt-3 text-[11.5px] text-muted-foreground">
+          {SCENE3D_TEXT[locale].exportCameraScriptLengthFmt(formatClock(scriptClockOf(cameraScript).lengthMs))}
+        </p>
+      ) : (
+        <div className="mt-3 flex flex-col gap-2">
+          <BoundSlider
+            label={t.exportFrom}
+            value={bounds.startFrame}
+            domain={domain}
+            clock={exporter.clockOf(bounds.startFrame)}
+            onChange={onBound.start}
+          />
+          <BoundSlider
+            label={t.exportTo}
+            value={bounds.endFrame}
+            domain={domain}
+            clock={exporter.clockOf(bounds.endFrame)}
+            onChange={onBound.end}
+          />
+        </div>
+      )}
       {view3d?.slot}
       <FormatChoice t={t} format={format} />
       {/* Framing belongs to the 2D map: in 3D, the camera serves that role instead. */}
@@ -208,9 +245,11 @@ function ExportForm({
         />
         {t.exportWithSound}
       </label>
-      <p className="mt-2 text-[11.5px] text-muted-foreground">
-        {t.exportLengthFmt(exporter.lengthClock(bounds))}
-      </p>
+      {!withScript && (
+        <p className="mt-2 text-[11.5px] text-muted-foreground">
+          {t.exportLengthFmt(exporter.lengthClock(bounds))}
+        </p>
+      )}
       <div className="mt-3 flex items-center justify-end gap-2">
         <button
           type="button"
@@ -222,7 +261,14 @@ function ExportForm({
         <button
           type="button"
           onClick={() =>
-            void exporter.run(bounds, { sound: sound.on, format: format.id, framing: framing.id, view3d: run3d })
+            void exporter.run(bounds, {
+              sound: sound.on,
+              format: format.id,
+              framing: framing.id,
+              view3d: run3d,
+              clean: run3d !== null && cleanFrame,
+              script: withScript ? cameraScript : null,
+            })
           }
           className="h-8 cursor-pointer rounded-full bg-primary px-4 text-[12.5px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
         >

@@ -427,7 +427,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
                 />
               )}
               {exportOpen && exportScene && capture.videoExport && (
-                <ReplayExportDialog exporter={capture.videoExport} locale="en" onClose={() => closePanel('export')} threeDOnly />
+                <ReplayExportDialog exporter={capture.videoExport} locale="en" onClose={() => closePanel('export')} threeDOnly cameraScript={editor.script} />
               )}
             </div>
           )}

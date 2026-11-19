@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { MINIMAP_SHARE, minimapBox, paintTags, TAG_VIEWER_CSS_HEIGHT, tagScale, type Export3dInk } from './export3dFrame'
+import { make3dPainter, MINIMAP_SHARE, minimapBox, paintTags, TAG_VIEWER_CSS_HEIGHT, tagScale, type Export3dInk } from './export3dFrame'
+import type { ExportFormat } from './exportFormats'
 import type { ExportTag3d } from './replay3dExportStore'
 import { registerReplay3DExport, replay3DExportEntry, type Replay3DExportSource } from './replay3dExportStore'
 import { initialView3dChoice, view3dRunOptions } from './view3dChoice'
@@ -112,6 +113,85 @@ describe('paintTags — exported name tags', () => {
     const { ctx, ops } = spied()
     paintTags(ctx as never, [], pixelRatio, deps as never)
     expect(ops).toEqual([])
+  })
+})
+
+describe('make3dPainter — the frame\'s composition', () => {
+  const format: ExportFormat = { id: '1080p', width: 1920, height: 1080 }
+  const ink: Export3dInk = { background: 'rgb(0 0 0)', foreground: 'rgb(255 255 255)' }
+  const map2d = vi.fn((() => ({ width: 100, height: 50 })) as unknown as (frame: number) => CanvasImageSource & { width: number; height: number })
+  const overlay = vi.fn()
+
+  /** A canvas context where every method is a no-op, every property is writable, and every method call is recorded. */
+  function fakeCtx(): { ctx: CanvasRenderingContext2D; calls: string[] } {
+    const calls: string[] = []
+    const target = {} as Record<PropertyKey, unknown>
+    return {
+      calls,
+      ctx: new Proxy(target, {
+        get: (t, k) => {
+          if (typeof k === 'string') calls.push(k)
+          if (k === 'measureText') return () => ({ width: 10 })
+          return k in t ? (t[k] as never) : () => {}
+        },
+        set: (t, k, v) => {
+          t[k] = v
+          return true
+        },
+      }) as unknown as CanvasRenderingContext2D,
+    }
+  }
+
+  function deps(clean?: boolean) {
+    return {
+      source,
+      format,
+      pixelRatio: 2,
+      ink,
+      font: 'F',
+      map2d,
+      overlay,
+      clean,
+    } as const
+  }
+
+  beforeEach(() => {
+    map2d.mockClear()
+    overlay.mockClear()
+    vi.mocked(source.exportFrame).mockClear()
+  })
+
+  it('paints the 3D frame, the tags, the minimap and the overlay', () => {
+    const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+    const { ctx, calls } = fakeCtx()
+    spy.mockReturnValue(ctx as never)
+    source.exportTags = () => [{ x: 100, y: 100, name: 'A', color: '#f00', opacity: 1 }]
+    try {
+      make3dPainter(deps())(7)
+    } finally {
+      source.exportTags = () => []
+    }
+    expect(source.exportFrame).toHaveBeenCalledWith(7)
+    // Tags (fillText), minimap (roundRect + a second drawImage) and overlay all ran.
+    expect(calls).toContain('fillText')
+    expect(calls.filter((c) => c === 'roundRect').length).toBeGreaterThanOrEqual(2)
+    expect(calls.filter((c) => c === 'drawImage').length).toBe(2)
+    expect(map2d).toHaveBeenCalledWith(7)
+    expect(overlay).toHaveBeenCalled()
+  })
+
+  it('CLEAN: the bare 3D frame only, no tags, minimap, HUD or panels', () => {
+    const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+    const { ctx, calls } = fakeCtx()
+    spy.mockReturnValue(ctx as never)
+    make3dPainter(deps(true))(7)
+    expect(source.exportFrame).toHaveBeenCalledWith(7) // the 3D image is still drawn
+    // The ONE drawImage is the 3D frame itself; no tag, box, text or panel was painted.
+    expect(calls.filter((c) => c === 'drawImage')).toEqual(['drawImage'])
+    expect(calls).not.toContain('fillText')
+    expect(calls).not.toContain('roundRect')
+    expect(map2d).not.toHaveBeenCalled()
+    expect(overlay).not.toHaveBeenCalled()
   })
 })
 

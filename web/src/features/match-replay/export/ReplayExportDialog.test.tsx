@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { registerReplay3DExport } from './replay3dExportStore'
 import { ReplayExportDialog } from './ReplayExportDialog'
+import type { CameraScript } from '../scene3d/cameraScript3d'
 import type { ReplayExport } from './useReplayExport'
 import { EXPORT_FORMAT_KEY } from '../settings/replayPreferences'
 
@@ -51,7 +52,7 @@ describe('ReplayExportDialog — at rest', () => {
     const user = userEvent.setup()
     const { exporter } = setup()
     await user.click(screen.getByRole('button', { name: 'Export' }))
-    expect(exporter.run).toHaveBeenCalledWith({ startFrame: 0, endFrame: 100 }, { sound: true, format: '1080p', framing: 'whole', view3d: null })
+    expect(exporter.run).toHaveBeenCalledWith({ startFrame: 0, endFrame: 100 }, { sound: true, format: '1080p', framing: 'whole', view3d: null, clean: false, script: null })
   })
 
   it('exports muted when the checkbox is unchecked', async () => {
@@ -59,7 +60,7 @@ describe('ReplayExportDialog — at rest', () => {
     const { exporter } = setup()
     await user.click(screen.getByLabelText('Include sound'))
     await user.click(screen.getByRole('button', { name: 'Export' }))
-    expect(exporter.run).toHaveBeenCalledWith(expect.anything(), { sound: false, format: '1080p', framing: 'whole', view3d: null })
+    expect(exporter.run).toHaveBeenCalledWith(expect.anything(), { sound: false, format: '1080p', framing: 'whole', view3d: null, clean: false, script: null })
   })
 
   it('PREVENTS the two bounds from crossing', () => {
@@ -98,14 +99,14 @@ describe('ReplayExportDialog — the file format', () => {
     const { exporter } = setup()
     await user.click(screen.getByLabelText('720p (1280 × 720)'))
     await user.click(screen.getByRole('button', { name: 'Export' }))
-    expect(exporter.run).toHaveBeenCalledWith(expect.anything(), { sound: true, format: '720p', framing: 'whole', view3d: null })
+    expect(exporter.run).toHaveBeenCalledWith(expect.anything(), { sound: true, format: '720p', framing: 'whole', view3d: null, clean: false, script: null })
     expect(window.localStorage.getItem(EXPORT_FORMAT_KEY)).toBe('720p')
     // A NEW dialog (page reloaded, other match) starts from the remembered choice.
     cleanup()
     const second = setup()
     expect((screen.getByLabelText('720p (1280 × 720)') as HTMLInputElement).checked).toBe(true)
     await user.click(screen.getByRole('button', { name: 'Export' }))
-    expect(second.exporter.run).toHaveBeenCalledWith(expect.anything(), { sound: true, format: '720p', framing: 'whole', view3d: null })
+    expect(second.exporter.run).toHaveBeenCalledWith(expect.anything(), { sound: true, format: '720p', framing: 'whole', view3d: null, clean: false, script: null })
   })
 
   it('a remembered value outside the catalog falls back to 1080p', () => {
@@ -133,7 +134,7 @@ describe('ReplayExportDialog — the framing (D6)', () => {
     expect((screen.getByLabelText('Whole map') as HTMLInputElement).checked).toBe(true)
     expect(screen.getByLabelText('Current view (1.5x)')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Export' }))
-    expect(exporter.run).toHaveBeenCalledWith(expect.anything(), { sound: true, format: '1080p', framing: 'whole', view3d: null })
+    expect(exporter.run).toHaveBeenCalledWith(expect.anything(), { sound: true, format: '1080p', framing: 'whole', view3d: null, clean: false, script: null })
   })
 
   it('exports at the current framing when chosen, without remembering anything', async () => {
@@ -143,7 +144,7 @@ describe('ReplayExportDialog — the framing (D6)', () => {
     const { exporter } = setup({ zoomLevel: 2 })
     await user.click(screen.getByLabelText('Current view (2x)'))
     await user.click(screen.getByRole('button', { name: 'Export' }))
-    expect(exporter.run).toHaveBeenCalledWith(expect.anything(), { sound: true, format: '1080p', framing: 'current', view3d: null })
+    expect(exporter.run).toHaveBeenCalledWith(expect.anything(), { sound: true, format: '1080p', framing: 'current', view3d: null, clean: false, script: null })
     // NOT REMEMBERED: no new key, and a new dialog starts from the whole map again.
     expect(keys()).toEqual(before)
     cleanup()
@@ -231,6 +232,8 @@ describe('ReplayExportDialog — the 3D view', () => {
       format: '1080p',
       framing: 'whole',
       view3d: { camera: 'free', pov: 'x2', minimap: false },
+      clean: false,
+      script: null,
     })
   })
 
@@ -242,6 +245,87 @@ describe('ReplayExportDialog — the 3D view', () => {
     expect(screen.getByRole('radiogroup', { name: 'Framing' })).toBeInTheDocument()
     await user.click(screen.getByLabelText('3D view'))
     expect(screen.queryByRole('radiogroup', { name: 'Framing' })).not.toBeInTheDocument()
+  })
+})
+
+describe('ReplayExportDialog — the clean frame and the camera script', () => {
+  const SCRIPT: CameraScript = {
+    version: 1,
+    matchId: 'm',
+    name: 'My cut',
+    keys: [
+      { t: 0, pos: { at: 'world', point: [0, 0, 0] }, look: { at: 'world', point: [1, 0, 0] } },
+      { t: 2000, pos: { at: 'world', point: [0, 0, 0] }, look: { at: 'world', point: [1, 0, 0] } },
+    ],
+  }
+
+  let release: (() => void) | null = null
+  afterEach(() => {
+    release?.()
+    release = null
+  })
+
+  function load3d() {
+    const source = {
+      players: [{ xuid: 'x1', name: 'Alpha' }],
+      beginExport: vi.fn(),
+      exportFrame: vi.fn(),
+      exportTags: vi.fn(() => []),
+      exportPendingLoads: () => null,
+      endExport: vi.fn(),
+    }
+    release = registerReplay3DExport({ source, live: true, camera: 'tp', pov: 'x1' })
+  }
+
+  it('offers the clean frame in a 3D export, and passes it', async () => {
+    load3d()
+    const user = userEvent.setup()
+    const { exporter } = setup()
+    await user.click(screen.getByLabelText('Clean frame (no HUD, tags or minimap)'))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    expect(exporter.run).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      view3d: expect.anything(),
+      clean: true,
+    }))
+  })
+
+  it('a 2D export is never clean, whatever the checkbox says', async () => {
+    load3d()
+    const user = userEvent.setup()
+    const { exporter } = setup()
+    await user.click(screen.getByLabelText('Clean frame (no HUD, tags or minimap)'))
+    await user.click(screen.getByLabelText('2D map'))
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    expect(exporter.run).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ view3d: null, clean: false }))
+  })
+
+  it('offers the script checkbox only for a script with keys', () => {
+    load3d()
+    const none = { ...SCRIPT, keys: [] }
+    render(<ReplayExportDialog exporter={makeExport()} locale="en" onClose={vi.fn()} cameraScript={none} />)
+    expect(screen.queryByLabelText(/Export camera script/)).not.toBeInTheDocument()
+    cleanup()
+    render(<ReplayExportDialog exporter={makeExport()} locale="en" onClose={vi.fn()} cameraScript={SCRIPT} />)
+    expect(screen.getByLabelText(`Export camera script 'My cut'`)).toBeInTheDocument()
+  })
+
+  it('no open script, no checkbox', () => {
+    load3d()
+    setup()
+    expect(screen.queryByLabelText(/Export camera script/)).not.toBeInTheDocument()
+  })
+
+  it('exports the script when chosen: the script is passed, and its length is announced', async () => {
+    load3d()
+    const user = userEvent.setup()
+    const exporter = makeExport()
+    render(<ReplayExportDialog exporter={exporter} locale="en" onClose={vi.fn()} cameraScript={SCRIPT} />)
+    await user.click(screen.getByLabelText(`Export camera script 'My cut'`))
+    // The script now decides the range: the sliders are out of play, and its length is shown.
+    expect(screen.queryByLabelText('Start')).not.toBeInTheDocument()
+    expect(screen.getByText(/Script length/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Export' }))
+    expect(exporter.run).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ script: SCRIPT, view3d: expect.anything() }))
   })
 })
 

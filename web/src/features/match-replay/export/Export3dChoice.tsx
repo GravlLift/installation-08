@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** Choose the exported view, camera, followed player, and optional minimap. */
 import type { CameraMode3d } from '../scene3d/replayScene3d'
+import type { CameraScript } from '../scene3d/cameraScript3d'
 import type { ReplayLocale } from '../i18n/i18n'
 import { SCENE3D_TEXT } from '../i18n/scene3dText'
 import type { Replay3DExportEntry } from './replay3dExportStore'
@@ -18,12 +19,21 @@ export function Export3dChoice({
   choice,
   onChange,
   threeDOnly = false,
+  cleanFrame,
+  withScript,
+  cameraScript = null,
 }: {
   entry: Replay3DExportEntry
   locale: ReplayLocale
   choice: View3dChoice
   onChange: (next: View3dChoice) => void
   threeDOnly?: boolean
+  /** "Clean frame": the bare 3D image, no HUD, tags or minimap. */
+  cleanFrame: { on: boolean; set: (v: boolean) => void }
+  /** "Export camera script": the video follows the script's own clock. */
+  withScript: { on: boolean; set: (v: boolean) => void }
+  /** The camera script open in the page's camera panel; the checkbox is offered only with keys. */
+  cameraScript?: CameraScript | null
 }) {
   const t = SCENE3D_TEXT[locale]
   const set = (patch: Partial<View3dChoice>) => onChange({ ...choice, ...patch })
@@ -94,6 +104,26 @@ export function Export3dChoice({
             />
             {t.exportMinimap}
           </label>}
+          <label className="mt-3 flex cursor-pointer items-center gap-2 text-[12.5px] text-foreground">
+            <input
+              type="checkbox"
+              checked={cleanFrame.on}
+              onChange={(e) => cleanFrame.set(e.currentTarget.checked)}
+              className={RADIO}
+            />
+            {t.exportCleanFrame}
+          </label>
+          {cameraScript && cameraScript.keys.length > 0 && (
+            <label className="mt-3 flex cursor-pointer items-center gap-2 text-[12.5px] text-foreground">
+              <input
+                type="checkbox"
+                checked={withScript.on}
+                onChange={(e) => withScript.set(e.currentTarget.checked)}
+                className={RADIO}
+              />
+              {t.exportCameraScriptFmt(cameraScript.name)}
+            </label>
+          )}
         </>
       )}
     </>

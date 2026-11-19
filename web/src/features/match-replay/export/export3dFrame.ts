@@ -60,6 +60,11 @@ export interface Paint3dDeps {
   map2d: ((frame: number) => CanvasImageSource & { width: number; height: number }) | null
   /** Paint panels in logical coordinates with the density already applied. */
   overlay: (ctx: CanvasRenderingContext2D, view: { width: number; height: number }, frame: number) => void
+  /**
+   * Clean frame: paint the bare 3D image only, no name tags, minimap, HUD or panels. For
+   * footage that gets graphics composited over it later.
+   */
+  clean?: boolean
 }
 
 /** Create a video-sized canvas and repaint it for each frame. */
@@ -74,10 +79,12 @@ export function make3dPainter(d: Paint3dDeps): (frame: number) => HTMLCanvasElem
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.globalAlpha = 1
     ctx.drawImage(d.source.exportFrame(frame), 0, 0, canvas.width, canvas.height)
-    ctx.setTransform(d.pixelRatio, 0, 0, d.pixelRatio, 0, 0)
-    paintTags(ctx, d.source.exportTags(), d.pixelRatio, d)
-    if (d.map2d) paintMinimap(ctx, d.map2d(frame), view, d.ink.background)
-    d.overlay(ctx, view, frame)
+    if (!d.clean) {
+      ctx.setTransform(d.pixelRatio, 0, 0, d.pixelRatio, 0, 0)
+      paintTags(ctx, d.source.exportTags(), d.pixelRatio, d)
+      if (d.map2d) paintMinimap(ctx, d.map2d(frame), view, d.ink.background)
+      d.overlay(ctx, view, frame)
+    }
     return canvas
   }
 }
