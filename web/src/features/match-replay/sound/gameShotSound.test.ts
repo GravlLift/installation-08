@@ -5,6 +5,7 @@ import type { FootstepManifest } from './footstepManifest'
 import { FIRST_PERSON_SHOT_DB, withGameShots } from './gameShotSound'
 import type { ReplaySoundEvent } from './replaySoundVariants'
 import { falloffGain } from './soundSpatial'
+import { DRY_SEND_DB, reverbSendOf } from './zoneReverb'
 
 // The Bandit's shot shape: far (silent under 16.8), near (full to 2, silent at 18), mid (7.1-29).
 const FAR = [[0, -1, 9], [16.7759, -1, 6], [23, -0.645187, 2], [90, -1, 4]] as const
@@ -35,10 +36,12 @@ const FIRST_PERSON: FootstepManifest = {
 }
 
 describe('withGameShots', () => {
-  it('plays the followed player\'s own shot as the first-person event: its layers, loudest at the trim, no falloff, its own reverb sends', () => {
+  it('plays the followed player\'s own shot as the first-person event: its layers, loudest at the trim, no falloff, all dry', () => {
     const out = withGameShots([{ ms: 0, stem: 'hinf_bandit', gainDb: -2 }], FIRST_PERSON)
     const t = FIRST_PERSON_SHOT_DB
-    expect(out.map((e) => [e.stem, e.gainDb, e.falloff, e.reverbDb])).toEqual([['foot_11', -2 + t, undefined, -60], ['foot_13', -11.5 + t, undefined, 0], ['foot_14', -14.5 + t, undefined, undefined]])
+    // Dry whatever the takes' 0x17 sums say: the first-person chain leaves the game-defined sends off.
+    expect(out.map((e) => [e.stem, e.gainDb, e.falloff, e.reverbDb])).toEqual([['foot_11', -2 + t, undefined, DRY_SEND_DB], ['foot_13', -11.5 + t, undefined, DRY_SEND_DB], ['foot_14', -14.5 + t, undefined, DRY_SEND_DB]])
+    expect(out.map((e) => reverbSendOf(e.reverbDb))).toEqual([0, 0, 0])
     expect(out[0].variants).toEqual(['foot_11', 'foot_12'])
   })
 

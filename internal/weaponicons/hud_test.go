@@ -82,6 +82,55 @@ func TestBGRAToNRABadLength(t *testing.T) {
 	}
 }
 
+func TestEntryResourceRange(t *testing.T) {
+	// A synthetic entry table: three entries owning [2,3), [3,5), [5,5) against a
+	// resource table of five entries.
+	m := &hmod{hdr: hmHeader{FileCount: 3, ResourceCount: 5}}
+	m.entries = make([]byte, 3*0x58)
+	for i, idx := range []uint32{2, 3, 5} {
+		binary.LittleEndian.PutUint32(m.entries[i*0x58+0x10:], idx)
+	}
+	for entry, want := range [][2]int{{2, 3}, {3, 5}, {5, 5}} {
+		first, end := entryResourceRange(m, entry)
+		if first != want[0] || end != want[1] {
+			t.Errorf("entry %d: range = [%d, %d), want [%d, %d)", entry, first, end, want[0], want[1])
+		}
+	}
+}
+
+func TestResourcePayloadBytes(t *testing.T) {
+	raw := []byte{1, 2, 3, 4, 5}
+	if got := resourcePayloadBytes(raw); len(got) != 5 || got[0] != 1 {
+		t.Errorf("raw blob not passed through: %v", got)
+	}
+	tag := ucshTag([]byte{9, 9})
+	if got := resourcePayloadBytes(tag); len(got) != 2 || got[0] != 9 {
+		t.Errorf("ucsh header not skipped: %v", got)
+	}
+}
+
+func TestPickShieldQuadPayload(t *testing.T) {
+	wrong := make([]byte, 75200)
+	right := make([]byte, shieldQuadBytes)
+	if k := pickShieldQuadPayload([][]byte{wrong}); k != -1 {
+		t.Errorf("a 75200-byte payload was selected (k=%d), want -1", k)
+	}
+	if k := pickShieldQuadPayload([][]byte{wrong, right}); k != 1 {
+		t.Errorf("selected k=%d, want 1", k)
+	}
+}
+
+func TestShieldQuadDecodeCrop(t *testing.T) {
+	// A 76800-byte payload of zero BC7 blocks: it decodes at the stored 960x80 and
+	// crops to the written 940x80.
+	payload := make([]byte, shieldQuadBytes)
+	img, _, _, _ := decodeBC7(payload, shieldQuadStoreW, shieldQuadH, nil)
+	got := cropNRGBALeft(img, shieldQuadW, shieldQuadH)
+	if got.Bounds().Dx() != shieldQuadW || got.Bounds().Dy() != shieldQuadH {
+		t.Errorf("bounds = %v, want %dx%d", got.Bounds(), shieldQuadW, shieldQuadH)
+	}
+}
+
 func TestGrenadeHUDSources(t *testing.T) {
 	want := map[string]hudSource{
 		"Frag":   {atlas: 0xa2dcd69e, index: 0},

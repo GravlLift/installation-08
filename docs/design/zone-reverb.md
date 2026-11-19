@@ -25,6 +25,12 @@ Each tested by requiring a zero-padded partition (half the inverse transform sil
 - On the shots and foot steps probed, the attenuation's game-aux curve (curve use 1) is curve 0, the volume curve: the send falls with distance exactly as the dry sound does, which the viewer already gets by sending post-falloff.
 - Applied relative to the median (`zoneReverb.REVERB_SEND_REFERENCE_DB` = 20): a sound sending +20 keeps the level tuned in test.5, others differ by their difference, sounds without data send at the reference. The absolute level of the game's reverb bus is not read, so the reference stands in for it.
 
+## Sends switched off (read 2026-11-19, 0.1.1-test.10)
+
+- Past a node's two property bundles come its positioning bits (plus one 3D byte when bit 1 is set), then its aux bits. In the Wwise v135 layout, inferred and consistent across every chain probed, aux bit 0 overrides the parent and bit 1 uses the game-defined sends.
+- The Bandit's third-person layers turn the game-defined sends on (`21352ab8`, 0x03). Its first-person take, thump and click never do: the top actor-mixer `280705ab` leaves them off, and nothing below turns them on. The followed player's shield sounds have them overridden off (`12e5d734`, 0x01).
+- So the 0x17 sum alone is not the send. The viewer plays the first-person shot and the shield sounds dry (`zoneReverb.DRY_SEND_DB`); before, it sent the thump and click at -20 dB under the reference and the shield at the reference. Not yet read per sound in the extraction: other sounds that switch the sends off still get their 0x17 sum, or the reference.
+
 ## Mix buses (read 2026-11-19, 0.1.1-test.9)
 
 - A node routes to the first non-zero bus id up its chain (the u32 after the attachment flag, before the parent id). Buses (HIRC type 8) all live in bank `0x3b14`. Bus head, v135: parent u32 (a master adds a device share set u32), a property bundle, positioning bits, aux bits (with 16 bytes of aux ids when bit 3 is set), the reflections aux bus u32, then advanced settings (bits u8, max instances u16, channel config u32, HDR bits u8), recovery time u32, max duck volume f32, the ducks (count u32, then 18 bytes each: target bus u32, duck volume f32, fade out and fade in ms, curve u8, target property u8), then the effect slots (count u8, bypass u8, 7 bytes each: slot u8, share set id u32, two flags).

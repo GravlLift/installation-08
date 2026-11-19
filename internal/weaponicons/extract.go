@@ -210,6 +210,21 @@ func entryResourceIndex(m *hmod, entry int) int {
 	return int(binary.LittleEndian.Uint32(m.entries[entry*0x58+0x10:]))
 }
 
+// entryResourceRange returns the resource-table indices OWNED by the entry: from the
+// entry's own +0x10 index to the NEXT entry's +0x10 (for the last entry, the table
+// length). The ownership rule is measured on the shield screen (`cusc` 9299c419):
+// the entry owning 9957..9958 owns one resource, the entry before shares 9957 and
+// owns none.
+func entryResourceRange(m *hmod, entry int) (first, end int) {
+	first = entryResourceIndex(m, entry)
+	if entry+1 < m.hdr.FileCount {
+		end = entryResourceIndex(m, entry+1)
+	} else {
+		end = m.hdr.ResourceCount
+	}
+	return first, end
+}
+
 // imgStride: the stride of the image descriptor array, MEASURED (0xe8 -> 0x110 -> 0x138 on
 // the three atlases examined). imgProbe is the window needed to verify the signature.
 const (

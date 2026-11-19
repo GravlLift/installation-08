@@ -29,6 +29,7 @@
 import { falloffOf, layersOf, type FootstepEntry, type FootstepManifest } from './footstepManifest'
 import type { ReplaySoundEvent } from './replaySoundVariants'
 import { falloffGain } from './soundSpatial'
+import { DRY_SEND_DB } from './zoneReverb'
 
 /**
  * withGameShots — the track with every shot of a weapon the manifest has a shot for replaced by
@@ -64,7 +65,10 @@ export function withGameShots(track: readonly ReplaySoundEvent[], manifest: Foot
       const ev: ReplaySoundEvent = { ...e, stem: l.stems[0], weapon: e.stem }
       delete ev.variants
       if (l.stems.length > 1) ev.variants = l.stems
-      if (l.reverbDb !== undefined) ev.reverbDb = l.reverbDb
+      // The first-person event never feeds the zone reverb (its chain leaves the game-defined
+      // sends off, `DRY_SEND_DB`): its tail is in the stereo take itself.
+      if (firstPerson) ev.reverbDb = DRY_SEND_DB
+      else if (l.reverbDb !== undefined) ev.reverbDb = l.reverbDb
       let gainDb = (e.gainDb ?? 0) + l.gainDb + (firstPerson ? FIRST_PERSON_SHOT_DB : 0)
       if (!own) {
         if (l.falloff) ev.falloff = l.falloff

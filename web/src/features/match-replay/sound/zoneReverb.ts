@@ -41,6 +41,17 @@ export const REVERB_SEND_DB = -3
  */
 export const REVERB_SEND_REFERENCE_DB = 20
 
+/**
+ * DRY: a sound whose node chain switches the game-defined aux sends OFF, so it never reaches the
+ * zone reverb whatever its 0x17 sum says. Read 2026-11-19 from the aux bits after each node's
+ * property bundles (bit 0 overrides the parent, bit 1 uses the game-defined sends; the layout is
+ * inferred from the Wwise v135 format, and consistent across every chain probed): the
+ * third-person Bandit layers turn them on (`21352ab8`, 0x03); the first-person shot's take, thump
+ * and click never do (the top actor-mixer `280705ab` leaves them off and nothing below turns them
+ * on); the followed player's shield sounds have them overridden off (`12e5d734`, 0x01).
+ */
+export const DRY_SEND_DB = -Infinity
+
 /** reverbSendOf — the linear send of a sound into the zone reverb, against its dry level; 0 when inaudible. */
 export function reverbSendOf(reverbDb: number | undefined): number {
   if (reverbDb === undefined) return 1
