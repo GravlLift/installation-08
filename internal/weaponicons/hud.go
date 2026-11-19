@@ -93,32 +93,48 @@ const (
 	shieldQuadH      = 80
 )
 
+// teamEmblemTag is the `bitm` tag id of the team emblem set: nine 64x64 BC7 emblems, one
+// per resource, white glyph on transparent alpha. Its `pc` entry owns the nine resources
+// (k = 0..8); each payload is the whole mip chain (mip 0 at 64x64 first, then 32x32,
+// 16x16, ...). The score bar screen (`cusc` 21a7dab4) shows it with prop_sprite_frame
+// bound to `teamindex`, so resource k is the team index — inferred from the eagle/cobra
+// order, not proven. Decoding mip 0 without a guide leaves gray mode-7 blocks, so the
+// decode passes mipGuide as the witness (as AtlasImage does).
+const (
+	teamEmblemTag   = 0x7df5eede
+	teamEmblemSize  = 64
+	teamEmblemCount = 9
+)
+
 // HudOutDir is the HUD icon set's folder below the data directory.
 func HudOutDir(dataDir string) string {
 	return filepath.Join(dataDir, "assets", "weapons-icons", "halo_infinite", "hud")
 }
 
 // HudFileNames returns the sorted stems of the HUD icon files the build writes (one per
-// piece of equipment and grenade, in LevelUp's public file names, plus the damage arc
-// and the shield chase). The route serves only these names, so the list is the surface
-// of the set.
+// piece of equipment and grenade, in LevelUp's public file names, plus the damage arc,
+// the shield chase, the shield quad, and the nine team emblems). The route serves only
+// these names, so the list is the surface of the set.
 func HudFileNames() []string {
-	out := make([]string, 0, len(hudSources)+3)
+	out := make([]string, 0, len(hudSources)+3+teamEmblemCount)
 	for stem := range hudSources {
 		out = append(out, stem)
 	}
 	out = append(out, "DamageArc", "ShieldChase", "ShieldQuad")
+	for k := 0; k < teamEmblemCount; k++ {
+		out = append(out, fmt.Sprintf("TeamEmblem%d", k))
+	}
 	sort.Strings(out)
 	return out
 }
 
 // HudSetReady says whether the HUD icon set is built: index.json, DamageArc.png,
-// ShieldChase.png, ShieldQuad.png AND the HUD's default font are all present in the
-// output folder. A set built before one of those was added is missing it, so it is not
-// ready and gets rebuilt once.
+// ShieldChase.png, ShieldQuad.png, the last team emblem (TeamEmblem8.png), AND the HUD's
+// default font are all present in the output folder. A set built before one of those was
+// added is missing it, so it is not ready and gets rebuilt once.
 func HudSetReady(dataDir string) bool {
 	dir := HudOutDir(dataDir)
-	for _, name := range []string{"index.json", "DamageArc.png", "ShieldChase.png", "ShieldQuad.png", hudFontRequired} {
+	for _, name := range []string{"index.json", "DamageArc.png", "ShieldChase.png", "ShieldQuad.png", "TeamEmblem8.png", hudFontRequired} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			return false
 		}
@@ -202,6 +218,12 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 	}
 	written += quadFiles
 	total += quadBytes
+	emblemFiles, emblemBytes, err := buildTeamEmblems(ctx, ix, out)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	written += emblemFiles
+	total += emblemBytes
 	fontFiles, fontBytes, err := buildHudFonts(ctx, ix, out)
 	if err != nil {
 		return 0, 0, 0, err
@@ -415,16 +437,19 @@ func cropNRGBALeft(src *image.NRGBA, w, h int) *image.NRGBA {
 	return dst
 }
 
-// buildShieldQuad writes ShieldQuad.png, the shield bar's main quad, from its tag
-// (shieldQuadTag) into out: among the `pc` variant's owned resources (the entry's +0x10
-// index to the next entry's), the one whose payload is exactly the stored 960x80 BC7
-// size; it is decoded at 960x80 and cropped to 940x80. Returns the number of files
-// written (0 or 1) and the file's byte count.
-func buildShieldQuad(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
+// ownedPayloads returns the pixel payloads of every resource the tag id's entry owns, in
+// the module's resource-table order. Ownership: an entry's u32 at +0x10 is its FIRST
+// resource index, and it owns resources up to (not including) the NEXT entry's +0x10 (see
+// entryResourceRange). Each payload is one owned resource after resourcePayloadBytes (a
+// raw image, or the bytes after its `ucsh` header). The `pc` variant carries the pixels,
+// so its refs are tried first; entries that declare no resource (first == 0, the `ds`
+// variant) are skipped. It returns the first resource-carrying variant's payloads and
+// errors when the tag is absent or no variant carries a resource.
+func ownedPayloads(ctx context.Context, ix *tagIndex, id uint32) ([][]byte, error) {
 	// A copy: the sort below must not reorder the shared index's slice.
-	refs := append([]tagRef(nil), ix.byID[shieldQuadTag]...)
+	refs := append([]tagRef(nil), ix.byID[id]...)
 	if len(refs) == 0 {
-		return 0, 0, fmt.Errorf("shield quad tag %08x not found in the install", shieldQuadTag)
+		return nil, fmt.Errorf("tag 0x%08x not found in the install", id)
 	}
 	// The `pc` variant carries the resources; try its refs first so the read is
 	// deterministic (the `ds` ones declare no resource and are skipped).
@@ -434,11 +459,11 @@ func buildShieldQuad(ctx context.Context, ix *tagIndex, out string) (written, by
 	})
 	for _, r := range refs {
 		if err := ctx.Err(); err != nil {
-			return 0, 0, err
+			return nil, err
 		}
 		m, err := ix.open(r.Module)
 		if err != nil {
-			return 0, 0, fmt.Errorf("shield quad tag %08x: %w", shieldQuadTag, err)
+			return nil, fmt.Errorf("tag 0x%08x: %w", id, err)
 		}
 		first, end := entryResourceRange(m, r.Entry)
 		if first == 0 {
@@ -448,27 +473,88 @@ func buildShieldQuad(ctx context.Context, ix *tagIndex, out string) (written, by
 		for k := 0; k < end-first; k++ {
 			blob, err := resourceBlobAt(ix, r, k)
 			if err != nil {
-				return 0, 0, fmt.Errorf("shield quad tag %08x: %w", shieldQuadTag, err)
+				return nil, fmt.Errorf("tag 0x%08x: %w", id, err)
 			}
 			payloads = append(payloads, resourcePayloadBytes(blob))
 		}
-		k := pickShieldQuadPayload(payloads)
-		if k < 0 {
-			continue
+		return payloads, nil
+	}
+	return nil, fmt.Errorf("tag 0x%08x: no variant carries its pixel resources", id)
+}
+
+// buildShieldQuad writes ShieldQuad.png, the shield bar's main quad, from its tag
+// (shieldQuadTag) into out: among the `pc` variant's owned resources (the entry's +0x10
+// index to the next entry's), the one whose payload is exactly the stored 960x80 BC7
+// size; it is decoded at 960x80 and cropped to 940x80. Returns the number of files
+// written (0 or 1) and the file's byte count.
+func buildShieldQuad(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
+	payloads, err := ownedPayloads(ctx, ix, shieldQuadTag)
+	if err != nil {
+		return 0, 0, err
+	}
+	k := pickShieldQuadPayload(payloads)
+	if k < 0 {
+		return 0, 0, fmt.Errorf("shield quad tag %08x: no owned resource of the stored BC7 size", shieldQuadTag)
+	}
+	img, _, _, _ := decodeBC7(payloads[k], shieldQuadStoreW, shieldQuadH, nil)
+	img = cropNRGBALeft(img, shieldQuadW, shieldQuadH)
+	path := filepath.Join(out, "ShieldQuad.png")
+	if err := writePNG(path, img); err != nil {
+		return 0, 0, fmt.Errorf("write ShieldQuad.png: %w", err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return 0, 0, err
+	}
+	return 1, int(fi.Size()), nil
+}
+
+// decodeTeamEmblem decodes one team emblem payload's mip 0 (a 64x64 BC7 image) to a
+// straight-alpha NRGBA. It refuses a payload shorter than mip 0 and decodes with
+// mipGuide as the mode-7 witness, so the emblem's alpha is not lost to a flat fill.
+func decodeTeamEmblem(payload []byte) (*image.NRGBA, error) {
+	need := bcSize(teamEmblemSize, teamEmblemSize)
+	if len(payload) < need {
+		return nil, fmt.Errorf("team emblem payload is %d bytes, want at least %d for a %dx%d mip 0",
+			len(payload), need, teamEmblemSize, teamEmblemSize)
+	}
+	img, _, _, _ := decodeBC7(payload, teamEmblemSize, teamEmblemSize, mipGuide(payload, 0, teamEmblemSize, teamEmblemSize))
+	return img, nil
+}
+
+// buildTeamEmblems writes TeamEmblem0.png .. TeamEmblem8.png, the nine team emblems, from
+// their tag (teamEmblemTag) into out: the tag's nine owned resources, each decoded at
+// 64x64 and written unscaled. It refuses a tag that owns fewer than nine resources.
+// Returns the number of files written (0 or 9) and total bytes.
+func buildTeamEmblems(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
+	if err := ctx.Err(); err != nil {
+		return 0, 0, err
+	}
+	payloads, err := ownedPayloads(ctx, ix, teamEmblemTag)
+	if err != nil {
+		return 0, 0, err
+	}
+	if len(payloads) < teamEmblemCount {
+		return 0, 0, fmt.Errorf("team emblem tag %08x owns %d resources, want %d", teamEmblemTag, len(payloads), teamEmblemCount)
+	}
+	for k := 0; k < teamEmblemCount; k++ {
+		img, err := decodeTeamEmblem(payloads[k])
+		if err != nil {
+			return 0, 0, fmt.Errorf("team emblem %d: %w", k, err)
 		}
-		img, _, _, _ := decodeBC7(payloads[k], shieldQuadStoreW, shieldQuadH, nil)
-		img = cropNRGBALeft(img, shieldQuadW, shieldQuadH)
-		path := filepath.Join(out, "ShieldQuad.png")
+		name := fmt.Sprintf("TeamEmblem%d.png", k)
+		path := filepath.Join(out, name)
 		if err := writePNG(path, img); err != nil {
-			return 0, 0, fmt.Errorf("write ShieldQuad.png: %w", err)
+			return 0, 0, fmt.Errorf("write %s: %w", name, err)
 		}
 		fi, err := os.Stat(path)
 		if err != nil {
 			return 0, 0, err
 		}
-		return 1, int(fi.Size()), nil
+		written++
+		bytes += int(fi.Size())
 	}
-	return 0, 0, fmt.Errorf("shield quad tag %08x: no owned resource of the stored BC7 size", shieldQuadTag)
+	return written, bytes, nil
 }
 
 // writeHudAtlas decodes each named image, scales it to hudIconSize×hudIconSize, and

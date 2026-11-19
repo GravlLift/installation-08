@@ -4,6 +4,7 @@
 
 - The video export draws the shield bar in the game's own shape too, matching the viewer: the same angled ends, hex pattern, draining fill and red band. Exports made before the HUD icons rebuild still draw the old shape.
 - A slide no longer sometimes sounds twice. It plays the game's slide-in sound at the start and the surface's slide sound once at the end, as the game's slide events do. The viewer used to also repeat that slide sound along the slide, and the last repeat often landed right on the end one.
+- Maps draw their layered see-through surfaces solid again unless they are glass. Since test.10 they all drew as clear glass, which left Streets' wet roads and floors white and stripped layers off walls (on other maps too). Recharge's attic windows stay clear. The first time you open each map after updating, it rebuilds once.
 
 ## 0.1.1-test.10
 

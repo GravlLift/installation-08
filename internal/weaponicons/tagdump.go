@@ -14,6 +14,7 @@ package weaponicons
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/xml"
 	"fmt"
@@ -69,6 +70,13 @@ func (r *TagReader) Tag(id uint32) ([]byte, error) {
 		return nil, fmt.Errorf("tag 0x%08x not found", id)
 	}
 	return r.ix.extract(ref)
+}
+
+// Resources returns the pixel payloads of every resource the tag id's entry owns, in the
+// module's resource-table order. See ownedPayloads for the ownership and variant rules.
+// It errors when the tag is absent or no variant carries a resource.
+func (r *TagReader) Resources(id uint32) ([][]byte, error) {
+	return ownedPayloads(context.Background(), r.ix, id)
 }
 
 // StringIDNames returns, for every harvested string whose hash is wanted (nil wanted =

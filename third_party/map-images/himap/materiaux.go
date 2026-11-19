@@ -123,14 +123,18 @@ type Decoupe struct {
 
 // Opaque dit si le materiau masque ce qui est derriere lui. Un materiau illisible compte
 // comme opaque : c'est l'hypothese qui ne fait pas disparaitre de mur.
-// LOCAL-CHANGE (infinite-theater-3d): decals draw with their layers like an opaque material. An
-// alpha-blended material stays see-through even when it carries layers: drawing those opaque
-// turned Recharge's skylight panes into solid slabs that blocked the sun (2026-11-18).
+// LOCAL-CHANGE (infinite-theater-3d): decals draw with their layers like an opaque material, and
+// so do alpha-blended materials that carry layers (wet asphalt, grime, stains) unless they are
+// glass (`Vitre`): the viewer reads no alpha for them, and its see-through drawing is a glass
+// placeholder. Drawing every such material see-through (2026-11-18) whitened Streets' wet roads
+// and floors; drawing every one opaque turned Recharge's attic windows into solid slabs.
 func (m Materiau) Opaque() bool {
 	switch m.Melange {
 	case MelangeOpaque, melangeInconnuBrut,
 		melangeDecalAlpha, melangeDecalOpaque, melangeDecalAoOpaque, melangeDecalAoAlpha:
 		return true
+	case MelangeAlpha, MelangeAlphaPremultiplie:
+		return m.Couches != nil && !m.Vitre()
 	}
 	return false
 }
