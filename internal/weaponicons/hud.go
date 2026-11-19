@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/JGtm/halo-infinite-map-images/himap"
 )
@@ -59,34 +60,52 @@ const (
 	damageArcH = 390
 )
 
+// shieldChaseTag is the `bitm` tag id of the HUD's shield chase bitmap: the band the shield
+// screen (`cusc` 9299c419, component `shield_chase`) draws over the shield just lost, in the
+// bar's own shape. R = 255, G = 0, B = a left-to-right position ramp 0..255 across the bar
+// (the meter reveals by it), A = the band's shape. Its pixels are NOT inside the tag:
+// they are an uncompressed b8g8r8a8_unorm resource (4 bytes per pixel, byte order B, G,
+// R, A, straight alpha, one mip) in the module's resource table, and only the `pc`
+// variant carries it (the `ds` variant's entry declares no resource).
+const shieldChaseTag = 0x1a61d06e
+
+// shieldChaseW and shieldChaseH are the shield-chase bitmap's dimensions.
+const (
+	shieldChaseW = 940
+	shieldChaseH = 64
+)
+
 // HudOutDir is the HUD icon set's folder below the data directory.
 func HudOutDir(dataDir string) string {
 	return filepath.Join(dataDir, "assets", "weapons-icons", "halo_infinite", "hud")
 }
 
 // HudFileNames returns the sorted stems of the HUD icon files the build writes (one per
-// piece of equipment and grenade, in LevelUp's public file names, plus the damage arc).
-// The route serves only these names, so the list is the surface of the set.
+// piece of equipment and grenade, in LevelUp's public file names, plus the damage arc
+// and the shield chase). The route serves only these names, so the list is the surface
+// of the set.
 func HudFileNames() []string {
-	out := make([]string, 0, len(hudSources)+1)
+	out := make([]string, 0, len(hudSources)+2)
 	for stem := range hudSources {
 		out = append(out, stem)
 	}
-	out = append(out, "DamageArc")
+	out = append(out, "DamageArc", "ShieldChase")
 	sort.Strings(out)
 	return out
 }
 
-// HudSetReady says whether the HUD icon set is built: index.json AND DamageArc.png are both
-// present in the output folder. A set built before the damage arc was added has no
-// DamageArc.png, so it is not ready and gets rebuilt once.
+// HudSetReady says whether the HUD icon set is built: index.json, DamageArc.png AND
+// ShieldChase.png are all present in the output folder. A set built before the damage
+// arc and the shield chase were added is missing those files, so it is not ready and
+// gets rebuilt once.
 func HudSetReady(dataDir string) bool {
 	dir := HudOutDir(dataDir)
-	if _, err := os.Stat(filepath.Join(dir, "index.json")); err != nil {
-		return false
+	for _, name := range []string{"index.json", "DamageArc.png", "ShieldChase.png"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+			return false
+		}
 	}
-	_, err := os.Stat(filepath.Join(dir, "DamageArc.png"))
-	return err == nil
+	return true
 }
 
 // inlineBC7Image decodes mip 0 of a `ucsh` tag whose pixels sit inside the tag's own bytes
@@ -153,6 +172,12 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 	}
 	written += arcFiles
 	total += arcBytes
+	chaseFiles, chaseBytes, err := buildShieldChase(ctx, ix, out)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	written += chaseFiles
+	total += chaseBytes
 	slog.InfoContext(ctx, "hud icon set built", "files", written, "named", len(entries),
 		"bytes", total, "out", out)
 	return written, len(entries), total, nil
@@ -186,6 +211,106 @@ func buildDamageArc(ctx context.Context, ix *tagIndex, out string) (written, byt
 		return 0, 0, err
 	}
 	return 1, int(fi.Size()), nil
+}
+
+// errNoResource names a ref whose entry declares no resource: the `ds` variant does this
+// for every pixel-carrying tag, so the reader skips it for the `pc` one.
+var errNoResource = fmt.Errorf("entry declares no resource")
+
+// resourcePayloadOf returns the pixel payload of the entry's FIRST resource: the bytes
+// after the resource blob's `ucsh` header (HeaderSize + DataSize, the same rule as
+// resBlob). It is the narrow reader for the uncompressed resources the block-compressed
+// atlas pairing (alignImages) cannot pair — on the shield chase bitmap's tag, the entry's
+// field at +0x10 is the index into the module's resource table.
+func resourcePayloadOf(ix *tagIndex, r tagRef) ([]byte, error) {
+	m, err := ix.open(r.Module)
+	if err != nil {
+		return nil, err
+	}
+	resIdx := entryResourceIndex(m, r.Entry)
+	if resIdx == 0 {
+		return nil, errNoResource
+	}
+	tab, err := resourceTable(m)
+	if err != nil {
+		return nil, err
+	}
+	if resIdx >= len(tab) {
+		return nil, fmt.Errorf("resource index %d out of table (%d)", resIdx, len(tab))
+	}
+	blob, err := m.extract(m.file(int(tab[resIdx])))
+	if err != nil {
+		return nil, err
+	}
+	hdr, ok := parseTagHeader(blob)
+	if !ok {
+		return nil, fmt.Errorf("resource %d without a ucsh header", resIdx)
+	}
+	off := int(hdr.HeaderSize) + int(hdr.DataSize)
+	if off < 0 || off > len(blob) {
+		return nil, fmt.Errorf("resource %d payload at offset %d out of range (%d bytes)", resIdx, off, len(blob))
+	}
+	return blob[off:], nil
+}
+
+// bgraToNRGBA converts a flat b8g8r8a8_unorm payload (byte order B, G, R, A, straight
+// alpha) to a straight-alpha NRGBA image of w x h. It refuses a payload that is not
+// exactly w*h*4 bytes.
+func bgraToNRGBA(payload []byte, w, h int) (*image.NRGBA, error) {
+	need := w * h * 4
+	if len(payload) != need {
+		return nil, fmt.Errorf("payload is %d bytes, want exactly %d for a %dx%d b8g8r8a8 image", len(payload), need, w, h)
+	}
+	img := image.NewNRGBA(image.Rect(0, 0, w, h))
+	for i := 0; i < w*h; i++ {
+		b, g, r, a := payload[4*i], payload[4*i+1], payload[4*i+2], payload[4*i+3]
+		img.Pix[4*i], img.Pix[4*i+1], img.Pix[4*i+2], img.Pix[4*i+3] = r, g, b, a
+	}
+	return img, nil
+}
+
+// buildShieldChase writes ShieldChase.png, the shield chase bitmap, from its tag
+// (shieldChaseTag) into out: the tag's first resource, an uncompressed b8g8r8a8 payload
+// in the `pc` variant. It returns the number of files written (0 or 1) and the file's
+// byte count.
+func buildShieldChase(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
+	// A copy: the sort below must not reorder the shared index's slice.
+	refs := append([]tagRef(nil), ix.byID[shieldChaseTag]...)
+	if len(refs) == 0 {
+		return 0, 0, fmt.Errorf("shield chase tag %08x not found in the install", shieldChaseTag)
+	}
+	// The `pc` variant carries the pixels; try its refs first so the read is
+	// deterministic (the `ds` ones declare no resource and are skipped).
+	sort.SliceStable(refs, func(i, j int) bool {
+		return strings.Contains(filepath.ToSlash(refs[i].Module), "/pc/") &&
+			!strings.Contains(filepath.ToSlash(refs[j].Module), "/pc/")
+	})
+	for _, r := range refs {
+		if err := ctx.Err(); err != nil {
+			return 0, 0, err
+		}
+		payload, err := resourcePayloadOf(ix, r)
+		if err == errNoResource {
+			continue
+		}
+		if err != nil {
+			return 0, 0, fmt.Errorf("shield chase tag %08x: %w", shieldChaseTag, err)
+		}
+		img, err := bgraToNRGBA(payload, shieldChaseW, shieldChaseH)
+		if err != nil {
+			return 0, 0, fmt.Errorf("shield chase tag %08x: %w", shieldChaseTag, err)
+		}
+		path := filepath.Join(out, "ShieldChase.png")
+		if err := writePNG(path, img); err != nil {
+			return 0, 0, fmt.Errorf("write ShieldChase.png: %w", err)
+		}
+		fi, err := os.Stat(path)
+		if err != nil {
+			return 0, 0, err
+		}
+		return 1, int(fi.Size()), nil
+	}
+	return 0, 0, fmt.Errorf("shield chase tag %08x: no variant carries its pixel resource", shieldChaseTag)
 }
 
 // writeHudAtlas decodes each named image, scales it to hudIconSize×hudIconSize, and
