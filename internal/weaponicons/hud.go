@@ -75,6 +75,24 @@ const (
 	shieldChaseH = 64
 )
 
+// shieldQuadTag is the `bitm` tag id of the shield bar's main quad: the shape the shield
+// screen (`cusc` 9299c419) draws the meter with. Its pixels are NOT inside the tag: they
+// are in the module's resource table, and the `pc` variant's entry owns the resources
+// from its +0x10 index to (not including) the NEXT entry's +0x10 — on the real install,
+// resources 9958 (25600 bytes) and 9959 (76800 bytes). Resource 9959 is mip 0, BC7,
+// stored 960x80 (240x20 blocks x 16 = 76800 exactly); it decodes at 960x80 to the clean
+// bar. The declared width is 940 and columns 940..959 are empty, so the image is written
+// cropped to 940x80. The stored-width padding is from one sample; reason unknown.
+const shieldQuadTag = 0x1a9b2c75
+
+// shieldQuadStoreW is the stored (padded) width of the quad bitmap; shieldQuadW and
+// shieldQuadH are the dimensions written.
+const (
+	shieldQuadStoreW = 960
+	shieldQuadW      = 940
+	shieldQuadH      = 80
+)
+
 // HudOutDir is the HUD icon set's folder below the data directory.
 func HudOutDir(dataDir string) string {
 	return filepath.Join(dataDir, "assets", "weapons-icons", "halo_infinite", "hud")
@@ -85,22 +103,22 @@ func HudOutDir(dataDir string) string {
 // and the shield chase). The route serves only these names, so the list is the surface
 // of the set.
 func HudFileNames() []string {
-	out := make([]string, 0, len(hudSources)+2)
+	out := make([]string, 0, len(hudSources)+3)
 	for stem := range hudSources {
 		out = append(out, stem)
 	}
-	out = append(out, "DamageArc", "ShieldChase")
+	out = append(out, "DamageArc", "ShieldChase", "ShieldQuad")
 	sort.Strings(out)
 	return out
 }
 
 // HudSetReady says whether the HUD icon set is built: index.json, DamageArc.png,
-// ShieldChase.png AND the HUD's default font are all present in the output folder. A set
-// built before one of those was added is missing it, so it is not ready and gets rebuilt
-// once.
+// ShieldChase.png, ShieldQuad.png AND the HUD's default font are all present in the
+// output folder. A set built before one of those was added is missing it, so it is not
+// ready and gets rebuilt once.
 func HudSetReady(dataDir string) bool {
 	dir := HudOutDir(dataDir)
-	for _, name := range []string{"index.json", "DamageArc.png", "ShieldChase.png", hudFontRequired} {
+	for _, name := range []string{"index.json", "DamageArc.png", "ShieldChase.png", "ShieldQuad.png", hudFontRequired} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			return false
 		}
@@ -178,6 +196,12 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 	}
 	written += chaseFiles
 	total += chaseBytes
+	quadFiles, quadBytes, err := buildShieldQuad(ctx, ix, out)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	written += quadFiles
+	total += quadBytes
 	fontFiles, fontBytes, err := buildHudFonts(ctx, ix, out)
 	if err != nil {
 		return 0, 0, 0, err
@@ -265,6 +289,29 @@ func resourceBlobOf(ix *tagIndex, r tagRef) ([]byte, error) {
 	return m.extract(m.file(int(tab[resIdx])))
 }
 
+// resourceBlobAt returns the whole blob (ucsh header included) of the k-th resource
+// OWNED by the entry, through entryResourceRange: k = 0 is the entry's own +0x10 index.
+// It refuses a k outside the owned range.
+func resourceBlobAt(ix *tagIndex, r tagRef, k int) ([]byte, error) {
+	m, err := ix.open(r.Module)
+	if err != nil {
+		return nil, err
+	}
+	first, end := entryResourceRange(m, r.Entry)
+	if k < 0 || k >= end-first {
+		return nil, fmt.Errorf("resource %d outside the entry's owned range [%d, %d)", k, first, end)
+	}
+	tab, err := resourceTable(m)
+	if err != nil {
+		return nil, err
+	}
+	ixRes := first + k
+	if ixRes >= len(tab) {
+		return nil, fmt.Errorf("resource index %d out of table (%d)", ixRes, len(tab))
+	}
+	return m.extract(m.file(int(tab[ixRes])))
+}
+
 // bgraToNRGBA converts a flat b8g8r8a8_unorm payload (byte order B, G, R, A, straight
 // alpha) to a straight-alpha NRGBA image of w x h. It refuses a payload that is not
 // exactly w*h*4 bytes.
@@ -323,6 +370,105 @@ func buildShieldChase(ctx context.Context, ix *tagIndex, out string) (written, b
 		return 1, int(fi.Size()), nil
 	}
 	return 0, 0, fmt.Errorf("shield chase tag %08x: no variant carries its pixel resource", shieldChaseTag)
+}
+
+// shieldQuadBytes is the byte count of the quad's stored mip 0: 240x20 BC7 blocks.
+const shieldQuadBytes = ((shieldQuadStoreW + 3) / 4) * ((shieldQuadH + 3) / 4) * 16
+
+// resourcePayloadBytes returns a resource blob's pixel payload: the blob itself when it
+// is a raw image, the bytes after the `ucsh` header when it carries one (the same rule
+// as resourcePayloadOf, which requires the header — the shield-quad resources are raw).
+// It returns nil when the header is present but its payload offset is out of range.
+func resourcePayloadBytes(blob []byte) []byte {
+	hdr, ok := parseTagHeader(blob)
+	if !ok {
+		return blob
+	}
+	off := int(hdr.HeaderSize) + int(hdr.DataSize)
+	if off < 0 || off > len(blob) {
+		return nil
+	}
+	return blob[off:]
+}
+
+// pickShieldQuadPayload selects, among the entry's owned resource payloads, the one that
+// is exactly shieldQuadBytes long (the quad's stored mip 0). It returns -1 when none
+// fits.
+func pickShieldQuadPayload(payloads [][]byte) int {
+	for k, p := range payloads {
+		if len(p) == shieldQuadBytes {
+			return k
+		}
+	}
+	return -1
+}
+
+// cropNRGBALeft crops a full-canvas NRGBA image to w x h, keeping the left edge (the
+// quad's stored width carries empty columns past the declared width).
+func cropNRGBALeft(src *image.NRGBA, w, h int) *image.NRGBA {
+	dst := image.NewNRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		s := src.PixOffset(0, y)
+		d := dst.PixOffset(0, y)
+		copy(dst.Pix[d:d+w*4], src.Pix[s:s+w*4])
+	}
+	return dst
+}
+
+// buildShieldQuad writes ShieldQuad.png, the shield bar's main quad, from its tag
+// (shieldQuadTag) into out: among the `pc` variant's owned resources (the entry's +0x10
+// index to the next entry's), the one whose payload is exactly the stored 960x80 BC7
+// size; it is decoded at 960x80 and cropped to 940x80. Returns the number of files
+// written (0 or 1) and the file's byte count.
+func buildShieldQuad(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
+	// A copy: the sort below must not reorder the shared index's slice.
+	refs := append([]tagRef(nil), ix.byID[shieldQuadTag]...)
+	if len(refs) == 0 {
+		return 0, 0, fmt.Errorf("shield quad tag %08x not found in the install", shieldQuadTag)
+	}
+	// The `pc` variant carries the resources; try its refs first so the read is
+	// deterministic (the `ds` ones declare no resource and are skipped).
+	sort.SliceStable(refs, func(i, j int) bool {
+		return strings.Contains(filepath.ToSlash(refs[i].Module), "/pc/") &&
+			!strings.Contains(filepath.ToSlash(refs[j].Module), "/pc/")
+	})
+	for _, r := range refs {
+		if err := ctx.Err(); err != nil {
+			return 0, 0, err
+		}
+		m, err := ix.open(r.Module)
+		if err != nil {
+			return 0, 0, fmt.Errorf("shield quad tag %08x: %w", shieldQuadTag, err)
+		}
+		first, end := entryResourceRange(m, r.Entry)
+		if first == 0 {
+			continue // the entry declares no resource (the `ds` variant)
+		}
+		payloads := make([][]byte, 0, end-first)
+		for k := 0; k < end-first; k++ {
+			blob, err := resourceBlobAt(ix, r, k)
+			if err != nil {
+				return 0, 0, fmt.Errorf("shield quad tag %08x: %w", shieldQuadTag, err)
+			}
+			payloads = append(payloads, resourcePayloadBytes(blob))
+		}
+		k := pickShieldQuadPayload(payloads)
+		if k < 0 {
+			continue
+		}
+		img, _, _, _ := decodeBC7(payloads[k], shieldQuadStoreW, shieldQuadH, nil)
+		img = cropNRGBALeft(img, shieldQuadW, shieldQuadH)
+		path := filepath.Join(out, "ShieldQuad.png")
+		if err := writePNG(path, img); err != nil {
+			return 0, 0, fmt.Errorf("write ShieldQuad.png: %w", err)
+		}
+		fi, err := os.Stat(path)
+		if err != nil {
+			return 0, 0, err
+		}
+		return 1, int(fi.Size()), nil
+	}
+	return 0, 0, fmt.Errorf("shield quad tag %08x: no owned resource of the stored BC7 size", shieldQuadTag)
 }
 
 // writeHudAtlas decodes each named image, scales it to hudIconSize×hudIconSize, and

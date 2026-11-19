@@ -25,7 +25,7 @@ import (
 const hudRoute = "/static/weapons-assets/halo_infinite/hud/"
 
 // hudFixtureSet writes a minimal built HUD icon set into the data directory: the 15 stems
-// plus the damage arc, the shield chase, and index.json.
+// plus the damage arc, the shield chase, the shield quad, and index.json.
 func hudFixtureSet(t *testing.T, dataDir string) {
 	t.Helper()
 	dir := weaponicons.HudOutDir(dataDir)
