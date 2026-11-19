@@ -1,0 +1,354 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+/** cameraScript3d.test.ts — the script format (validation) and the pose evaluator. */
+import { describe, expect, it } from 'vitest'
+import {
+  circularMeanDeg,
+  evaluateCameraScript,
+  parseCameraScript,
+  type CameraKey,
+  type CameraScript,
+  type Ease,
+  type PlayerPoint,
+  type ScriptPoint,
+  type ScriptSubjects,
+  type ScriptVec3,
+} from './cameraScript3d'
+import { GAME_FOV_DEFAULT, verticalFovOf } from '../model/fovLogic'
+import { BODY_CENTER } from './body3d'
+
+// Player 'A' runs along +x at 10 u/s from x = 0 at t = 0, heading 0. Player 'B' stands at
+// (20, 5, 0), heading 90. Player 'H' stands at (0, 0, 0), heading 90 (for the heading frame).
+function fakeSubjects(): ScriptSubjects {
+  return {
+    feetAt(xuid, tMs) {
+      if (xuid === 'A') return { x: (tMs / 1000) * 10, y: 0, z: 0, h: 0 }
+      if (xuid === 'B') return { x: 20, y: 5, z: 0, h: 90 }
+      if (xuid === 'H') return { x: 0, y: 0, z: 0, h: 90 }
+      return null
+    },
+  }
+}
+
+const w = (point: ScriptVec3): ScriptPoint => ({ at: 'world', point })
+const pl = (xuid: string, extra: Partial<PlayerPoint> = {}): ScriptPoint => ({ at: 'player', xuid, ...extra })
+const key = (t: number, pos: ScriptPoint, look: ScriptPoint, extra: Partial<Pick<CameraKey, 'fov' | 'roll' | 'ease'>> = {}): CameraKey =>
+  ({ t, pos, look, ...extra })
+const script = (keys: CameraKey[], name = 's'): CameraScript => ({ version: 1, matchId: 'm', name, keys })
+const BASE_FOV = GAME_FOV_DEFAULT
+const eval_ = (s: CameraScript, tMs: number) => evaluateCameraScript(s, tMs, fakeSubjects(), BASE_FOV)
+
+function accepts(raw: unknown, expectedMatchId?: string): CameraScript {
+  const r = parseCameraScript(raw, expectedMatchId)
+  expect(r).toMatchObject({ ok: true })
+  return (r as { ok: true; script: CameraScript }).script
+}
+
+function rejects(raw: unknown, expectedMatchId?: string): string {
+  const r = parseCameraScript(raw, expectedMatchId)
+  expect(r).toMatchObject({ ok: false })
+  return (r as { ok: false; error: string }).error
+}
+
+// toThree yields -0 for a zero y, so compare components by value, not identity.
+function expectVec(v: ScriptVec3, x: number, y: number, z: number): void {
+  expect(v[0]).toBeCloseTo(x, 5)
+  expect(v[1]).toBeCloseTo(y, 5)
+  expect(v[2]).toBeCloseTo(z, 5)
+}
+
+describe('parseCameraScript', () => {
+  const good = (): CameraScript =>
+    script([key(0, w([0, 0, 0]), w([1, 1, 1])), key(1000, w([2, 0, 0]), w([3, 1, 1]), { ease: 'linear', fov: 90, roll: 5 })])
+
+  it('round-trips a valid script and drops unknown fields', () => {
+    const raw = {
+      version: 1,
+      matchId: 'm',
+      name: 'intro-a',
+      junk: true,
+      keys: [
+        { t: 0, pos: { at: 'world', point: [0, 0, 0], extra: 1 }, look: { at: 'player', xuid: 'A', offset: [0, 0, 0.35], relative: 'heading', window: 400, junk: 2 }, bonus: 3 },
+        { t: 1000, pos: { at: 'world', point: [2, 0, 0] }, look: { at: 'world', point: [3, 1, 1] }, ease: 'linear', fov: 90, roll: 5 },
+      ],
+    }
+    const s = accepts(raw)
+    const expected = script([
+      key(0, w([0, 0, 0]), pl('A', { offset: [0, 0, 0.35], relative: 'heading', window: 400 })),
+      key(1000, w([2, 0, 0]), w([3, 1, 1]), { ease: 'linear', fov: 90, roll: 5 }),
+    ])
+    expected.name = 'intro-a'
+    expect(s).toEqual(expected)
+  })
+
+  it('accepts an empty keys array and a matching expectedMatchId', () => {
+    expect(accepts(script([])).keys).toEqual([])
+    expect(accepts(good(), 'm').matchId).toBe('m')
+  })
+
+  it('rejects a non-object', () => {
+    expect(rejects(null)).not.toBe('')
+    expect(rejects(42)).not.toBe('')
+  })
+
+  it('rejects a version that is not exactly 1', () => {
+    const raw = good()
+    ;(raw as unknown as Record<string, unknown>).version = 2
+    expect(rejects(raw)).toContain('version')
+  })
+
+  it('rejects a matchId that does not match the expected one', () => {
+    expect(rejects(good(), 'other')).toContain('matchId')
+  })
+
+  it('rejects a bad name', () => {
+    for (const name of ['Intro A', 'a'.repeat(65), '']) {
+      const raw = good()
+      raw.name = name
+      expect(rejects(raw)).toContain('name')
+    }
+  })
+
+  it('rejects a keys list that is not an array', () => {
+    const raw = good()
+    ;(raw as unknown as Record<string, unknown>).keys = null
+    expect(rejects(raw)).toContain('keys')
+  })
+
+  it('rejects a keys list longer than 512', () => {
+    const many = script(Array.from({ length: 513 }, (_, i) => key(i, w([0, 0, 0]), w([0, 0, 0]))))
+    expect(rejects(many)).toContain('512')
+  })
+
+  it('rejects a negative t', () => {
+    expect(rejects(script([key(-1, w([0, 0, 0]), w([0, 0, 0]))]))).toContain('t')
+  })
+
+  it('rejects a non-finite t', () => {
+    expect(rejects(script([key(NaN, w([0, 0, 0]), w([0, 0, 0]))]))).toContain('t')
+  })
+
+  it('rejects unsorted keys', () => {
+    const s = script([key(1000, w([0, 0, 0]), w([0, 0, 0])), key(0, w([0, 0, 0]), w([0, 0, 0]))])
+    expect(rejects(s)).toContain('sorted')
+  })
+
+  it('rejects a same-t pair unless the second key is a cut', () => {
+    const sameT = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(0, w([0, 0, 0]), w([0, 0, 0]))])
+    expect(rejects(sameT)).toContain('cut')
+    const withCut = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(0, w([0, 0, 0]), w([0, 0, 0]), { ease: 'cut' })])
+    expect(accepts(withCut).keys).toHaveLength(2)
+  })
+
+  it('rejects a malformed pos (missing point)', () => {
+    const s = script([key(0, { at: 'world' } as unknown as ScriptPoint, w([0, 0, 0]))])
+    expect(rejects(s)).toContain('pos')
+  })
+
+  it('rejects a missing pos', () => {
+    const s = script([key(0, w([0, 0, 0]), w([0, 0, 0]))])
+    delete (s.keys[0] as unknown as Record<string, unknown>).pos
+    expect(rejects(s)).toContain('pos')
+  })
+
+  it('rejects a malformed look (empty xuid)', () => {
+    const s = script([key(0, w([0, 0, 0]), pl(''))])
+    expect(rejects(s)).toContain('look')
+  })
+
+  it('rejects a non-finite offset number', () => {
+    const s = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(1, w([0, 0, 0]), pl('A', { offset: [0, NaN, 0] }))])
+    expect(rejects(s)).toContain('look')
+  })
+
+  it('rejects a player window that is not in (0, 5000]', () => {
+    expect(rejects(script([key(0, w([0, 0, 0]), pl('A', { window: 0 }))]))).toContain('window')
+    expect(rejects(script([key(0, w([0, 0, 0]), pl('A', { window: 5001 }))]))).toContain('window')
+    const windowed = accepts(script([key(0, w([0, 0, 0]), pl('A', { window: 5000 }))]))
+    expect(windowed.keys).toHaveLength(1)
+  })
+
+  it('rejects an out-of-range or non-finite fov', () => {
+    for (const fov of [9, 151, 'wide' as unknown as number]) {
+      const s = script([key(0, w([0, 0, 0]), w([0, 0, 0]), { fov })])
+      expect(rejects(s)).toContain('fov')
+    }
+    for (const fov of [10, 150]) {
+      const s = script([key(0, w([0, 0, 0]), w([0, 0, 0]), { fov })])
+      expect(accepts(s).keys).toHaveLength(1)
+    }
+  })
+
+  it('rejects a non-finite roll', () => {
+    const s = script([key(0, w([0, 0, 0]), w([0, 0, 0]), { roll: NaN })])
+    expect(rejects(s)).toContain('roll')
+  })
+
+  it('rejects a bad ease', () => {
+    const s = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(1, w([0, 0, 0]), w([0, 0, 0]), { ease: 'bounce' as Ease })])
+    expect(rejects(s)).toContain('ease')
+  })
+})
+
+describe('circularMeanDeg', () => {
+  it('averages across the 359/0 seam', () => {
+    expect(circularMeanDeg([350, 10])).toBeCloseTo(0, 5)
+    expect(circularMeanDeg([359, 1])).toBeCloseTo(0, 5)
+    expect(circularMeanDeg([0, 0])).toBe(0)
+    expect(circularMeanDeg([180, 270])).toBeCloseTo(225, 5)
+  })
+})
+
+describe('evaluateCameraScript', () => {
+  it('returns null for a keyless script', () => {
+    expect(eval_(script([]), 500)).toBeNull()
+  })
+
+  it('gives the linear midpoint of two world keys in three coordinates', () => {
+    const s = script([key(0, w([0, 0, 0]), w([1, 0, 0])), key(1000, w([4, 2, 1]), w([3, 0, 0]), { ease: 'linear' })])
+    const pose = eval_(s, 500)
+    expect(pose).not.toBeNull()
+    // Game midpoint (2, 1, 0.5) and (2, 0, 0), three = [x, z, -y].
+    expectVec(pose!.position, 2, 0.5, -1)
+    expectVec(pose!.target, 2, 0, 0)
+  })
+
+  it('holds before the first key and after the last key', () => {
+    const s = script([key(0, w([0, 0, 0]), w([1, 0, 0])), key(1000, w([4, 0, 0]), w([5, 0, 0]), { ease: 'linear' })])
+    expectVec(eval_(s, -5000)!.position, 0, 0, 0)
+    expectVec(eval_(s, 1000)!.position, 4, 0, 0)
+    expectVec(eval_(s, 5000)!.position, 4, 0, 0)
+  })
+
+  it('keeps following a moving player on a held key', () => {
+    const s = script([key(0, pl('A'), pl('A')), key(1000, pl('A'), pl('A'), { ease: 'linear' })])
+    const early = eval_(s, -1000)
+    const late = eval_(s, 2000)
+    // -1s and +2s on A's path: x = -10 and x = +20, 30 u apart, unchanged in three.
+    expect(early).not.toBeNull()
+    expect(late).not.toBeNull()
+    expect(late!.position[0] - early!.position[0]).toBeCloseTo(30, 5)
+    expect(early!.position[0]).toBeCloseTo(-10, 5)
+  })
+
+  it('follows a moving player between two of its keys', () => {
+    const s = script([key(0, pl('A'), pl('A')), key(1000, pl('A'), pl('A'), { ease: 'linear' })])
+    const pose = eval_(s, 500)
+    expect(pose).not.toBeNull()
+    expect(pose!.position[0]).toBeCloseTo(5, 5)
+    // A look without an offset aims at the body center.
+    expectVec(pose!.target, 5, BODY_CENTER, 0)
+  })
+
+  it('blends from a key on A to a key on B, ending at B', () => {
+    const s = script([key(0, pl('A'), pl('A')), key(1000, pl('B'), pl('B'), { ease: 'linear' })])
+    const end = eval_(s, 1000)
+    expect(end).not.toBeNull()
+    expectVec(end!.position, 20, 0, -5)
+    expectVec(end!.target, 20, BODY_CENTER, -5)
+  })
+
+  it('cuts: holds before it, sits on it at it, and the spline ignores keys after it', () => {
+    const a = w([0, 0, 0])
+    const b = w([10, 0, 0])
+    const c = w([20, 0, 0])
+    const d = w([30, 100, 0]) // after the cut: far off the line
+    const l0 = w([0, 1, 0])
+    const l1 = w([10, 1, 0])
+    const l2 = w([20, 1, 0])
+    const l3 = w([30, 101, 0])
+    const withD = script([key(0, a, l0), key(1000, b, l1, { ease: 'linear' }), key(2000, c, l2, { ease: 'cut', roll: 30 }), key(3000, d, l3, { ease: 'linear' })])
+    const withoutD = script([key(0, a, l0), key(1000, b, l1, { ease: 'linear' }), key(2000, c, l2, { ease: 'cut', roll: 30 })])
+    // Just before the cut the camera holds key 1; at the cut it is exactly on key 2.
+    const before = eval_(withD, 1999.99)
+    expect(before).not.toBeNull()
+    expectVec(before!.position, 10, 0, 0)
+    expect(before!.rollDeg).toBe(0)
+    const at = eval_(withD, 2000)
+    expect(at).not.toBeNull()
+    expectVec(at!.position, 20, 0, 0)
+    expect(at!.rollDeg).toBe(30)
+    // The approach to the cut (inside the run ending at it) is unaffected by key 3, which
+    // would pull a without-D script's spline off the line.
+    expect(eval_(withD, 1500)?.position).toEqual(eval_(withoutD, 1500)?.position)
+    expect(eval_(withD, 1900)?.position).toEqual(eval_(withoutD, 1900)?.position)
+    // After the cut, the new run uses only the keys after it: the pose equals a script that
+    // starts at the cut key.
+    const afterRun = script([key(2000, c, l2, { ease: 'cut', roll: 30 }), key(3000, d, l3, { ease: 'linear' })])
+    expect(eval_(withD, 2500)?.position).toEqual(eval_(afterRun, 2500)?.position)
+  })
+
+  it('applies a heading-relative offset in the player frame', () => {
+    // H faces +y; fwd = +y, left = -x. Offset [-3, 0, 0] lands 3 u behind H along -y.
+    const s = script([key(0, pl('H', { offset: [-3, 0, 0], relative: 'heading' }), pl('H'))])
+    const pose = eval_(s, 1000)
+    expect(pose).not.toBeNull()
+    expectVec(pose!.position, 0, 0, 3)
+  })
+
+  it('aims a look without an offset at the body center', () => {
+    const s = script([key(0, pl('A'), pl('A'))])
+    const pose = eval_(s, 500)
+    expect(pose).not.toBeNull()
+    expectVec(pose!.target, 5, BODY_CENTER, 0)
+  })
+
+  it('falls back to the earlier key point when a player is unknown', () => {
+    const s = script([key(0, w([1, 2, 3]), w([1, 0, 0])), key(1000, pl('nope'), pl('nope'), { ease: 'linear' })])
+    const pose = eval_(s, 500)
+    expect(pose).not.toBeNull()
+    // Game [1, 2, 3] in three coordinates.
+    expectVec(pose!.position, 1, 3, -2)
+  })
+
+  it('uses verticalFovOf(base) when neither key sets a fov, and lerps fov with the ease', () => {
+    const noFov = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(1000, w([1, 0, 0]), w([0, 0, 0]), { ease: 'linear' })])
+    expect(eval_(noFov, 500)?.verticalFov).toBeCloseTo(verticalFovOf(BASE_FOV), 5)
+    const withFov = script([key(0, w([0, 0, 0]), w([0, 0, 0]), { fov: 60 }), key(1000, w([1, 0, 0]), w([0, 0, 0]), { ease: 'linear', fov: 100 })])
+    expect(eval_(withFov, 500)?.verticalFov).toBeCloseTo(verticalFovOf(80), 5)
+    // 'in' easing: at u = 0.5 the eased u is 0.25, so fov = 60 + 40 * 0.25 = 70.
+    const inFov = script([key(0, w([0, 0, 0]), w([0, 0, 0]), { fov: 60 }), key(1000, w([1, 0, 0]), w([0, 0, 0]), { ease: 'in', fov: 100 })])
+    expect(eval_(inFov, 500)?.verticalFov).toBeCloseTo(verticalFovOf(70), 5)
+  })
+
+  it('lerps roll with the same ease and defaults to 0', () => {
+    const s = script([key(0, w([0, 0, 0]), w([0, 0, 0]), { roll: 10 }), key(1000, w([1, 0, 0]), w([0, 0, 0]), { ease: 'linear', roll: 30 })])
+    expect(eval_(s, 500)?.rollDeg).toBeCloseTo(20, 5)
+    expect(eval_(s, 0)!.rollDeg).toBe(10)
+    expect(eval_(script([key(0, w([0, 0, 0]), w([0, 0, 0]))]), 0)!.rollDeg).toBe(0)
+  })
+
+  it('does not NaN when spline knots coincide', () => {
+    // P0 == P1 (key 0 and key 1 share a point): the neighbor is replaced by a mirrored phantom, so
+    // the centripetal form stays well-defined; the points are collinear, so the result is the midpoint.
+    const s = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(1000, w([0, 0, 0]), w([0, 0, 0])), key(2000, w([4, 0, 0]), w([0, 0, 0]), { ease: 'linear' })])
+    const pose = eval_(s, 1500)
+    expect(pose).not.toBeNull()
+    expect(pose!.position.every(Number.isFinite)).toBe(true)
+    expectVec(pose!.position, 2, 0, 0)
+  })
+
+  it('curves through a three-key run (not a straight line with a corner)', () => {
+    // A right-angle turn A -> B -> C. A duplicated end point would straighten both segments; the
+    // mirrored phantoms keep the first segment curving toward C.
+    const a = w([0, 0, 0])
+    const b = w([10, 0, 0])
+    const c = w([10, 10, 0])
+    const s = script([key(0, a, a), key(1000, b, b, { ease: 'linear' }), key(2000, c, c, { ease: 'linear' })])
+    const mid = eval_(s, 500)
+    expect(mid).not.toBeNull()
+    // The straight line A -> B has game y = 0 (three z = -game y); the spline is pulled off it.
+    expect(Math.abs(mid!.position[2])).toBeGreaterThan(0.05)
+    // Exactly on the middle key B at its own time.
+    const onB = eval_(s, 1000)
+    expect(onB).not.toBeNull()
+    expectVec(onB!.position, 10, 0, 0)
+  })
+
+  it('stays finite when a neighbor key coincides with an end point', () => {
+    // Key 0 and key 1 share a point (P0 == P1); the mirrored phantom keeps the curve finite.
+    const s = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(1000, w([0, 0, 0]), w([0, 0, 0])), key(2000, w([0, 4, 0]), w([0, 0, 0]), { ease: 'linear' })])
+    const pose = eval_(s, 1500)
+    expect(pose).not.toBeNull()
+    expect(pose!.position.every(Number.isFinite)).toBe(true)
+  })
+})
