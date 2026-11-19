@@ -4,6 +4,7 @@
 
 Changes since 0.1.1-test.9.
 
+- The followed player's shield sounds (low, break, depleted, recharge) and own first-person shots no longer feed the zone reverb, as in the game, which switches the room reverb off for both. The shield sounds were sent at full world level before, the shot's thump and click at a low level.
 - The shield bar takes the game's own shape, read from your install: the game's shield bitmap, with its angled ends, its shallower middle and its hex pattern, instead of our hand-drawn outline. The fill still drains from both ends and the red band still marks the shield just lost. In the viewer only for now; the video export still draws the old shape. The first start after updating rebuilds the HUD icons once to add it; until then the old shape draws.
 
 ## 0.1.1-test.9

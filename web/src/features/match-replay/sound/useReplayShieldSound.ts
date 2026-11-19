@@ -52,7 +52,9 @@ export function useReplayShieldSound(doc: ReplayDocumentReady, followed: string 
 
   const attach = useCallback((player: ReplayAudioPlayer) => {
     if (shieldRef.current) return
-    const bus = player.engineBus(SHIELD_BUS_GAIN, true)
+    // Dry: the game overrides the game-defined aux sends off for the whole shield branch
+    // (`zoneReverb.DRY_SEND_DB`), so the zone reverb never hears it.
+    const bus = player.engineBus(SHIELD_BUS_GAIN)
     shieldRef.current = new ShieldSoundPlayer({ ctx: bus.ctx, out: bus.out, bufferOf: (stem) => bus.bufferOf(soundUrlOf(stem)) })
   }, [])
 
