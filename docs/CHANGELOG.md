@@ -7,6 +7,7 @@ Changes since 0.1.1-test.7.
 - Each foot step and game shot now feeds the zone reverb at the level the game sets for it, instead of all at one level. The followed player's own first-person shot is dry, as in the game: its tail is in the recording itself. Its thump and click get much less reverb. Other players' shots and the foot steps keep about the same reverb, a few dB more or less each, and it fades with distance like the sound itself. Other sounds are unchanged.
 - The followed player's own shots are 4 dB quieter.
 - The intro music no longer cuts off: it plays the game's whole multiplayer theme from your install, with the same rise onto the kickoff, and lets it ring out for about ten seconds. Without the theme in the install, the old excerpt plays.
+- The grenade box never shows the generic word "Grenades". When the film never says which grenade is selected, the box shows the frags, or without frags the first type carried, so it looks like any other frame.
 - The first start after updating extracts the sounds once more.
 
 ## 0.1.1-test.7
@@ -14,7 +15,7 @@ Changes since 0.1.1-test.7.
 Changes since 0.1.1-test.6.
 
 - When the followed player's shield drops, a light red band covers the part just lost, as in the game. It holds briefly, then shrinks back to the remaining shield within a second. It shows even when the hit breaks the shield. In the viewer and the video export.
-- The grenade box keeps showing the selected grenade after a throw or a pickup. Before, when the player carried two grenade types, a throw could turn the box into the generic word "Grenades" until the next full reading. When the film never says which type is selected, the box shows the frags (or the first type carried, without frags) instead of that word.
+- The grenade box keeps showing the selected grenade after a throw or a pickup. Before, when the player carried two grenade types, a throw could turn the box into the generic word "Grenades" until the next full reading.
 - The weapon name tag is smaller, sized to the game's tag (text and dark plate), in the viewer and the video export.
 - The followed player's own shots with the 15 weapons that use the game's shot now play the game's first-person version: a stereo take drawn among 30, with the low thump and mechanical click the shooter hears. Test.6 played the far-away version heard at point blank, which lacked the punch (the S7 most of all). Other players' shots keep the layered third-person version, and a shot's level is now set by the loudest it gets at any distance, which brings the S7 up 4 dB. The first start after updating extracts the sounds once more.
 
