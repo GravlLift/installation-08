@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 
 	webview "github.com/webview/webview_go"
 	"golang.org/x/sys/windows"
@@ -40,6 +41,12 @@ func webviewUserDataFolder() string {
 // focused, so an export does not slow down while the user looks at another window.
 const webviewAdditionalBrowserArguments = "--disable-background-timer-throttling --disable-renderer-backgrounding --disable-backgrounding-occluded-windows"
 
+// devToolsPortEnv names the variable that opens the window's DevTools protocol port, for a
+// developer who drives or inspects the running app (a CDP connection to 127.0.0.1:<port>).
+// It is the app's own variable, not WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS, which every
+// WebView2 application of the user would read and then fight over the same port.
+const devToolsPortEnv = "IT3D_DEVTOOLS_PORT"
+
 // applyWebViewEnvDefaults sets the WebView2 environment variables the app window needs
 // (the runtime reads them when it starts). A value the user already set is never
 // overwritten.
@@ -48,7 +55,11 @@ func applyWebViewEnvDefaults() {
 		_ = os.Setenv("WEBVIEW2_USER_DATA_FOLDER", webviewUserDataFolder())
 	}
 	if os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") == "" {
-		_ = os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", webviewAdditionalBrowserArguments)
+		args := webviewAdditionalBrowserArguments
+		if port, err := strconv.Atoi(os.Getenv(devToolsPortEnv)); err == nil && port > 0 && port < 65536 {
+			args += " --remote-debugging-port=" + strconv.Itoa(port)
+		}
+		_ = os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", args)
 	}
 }
 
