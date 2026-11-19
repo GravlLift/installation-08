@@ -42,8 +42,27 @@ LevelUp has its own 2D map and timeline, and switches between its 2D view and ou
 
 LevelUp checks this repo's GitHub releases (public, `llampwall/installation-08`). It downloads the newer exe, verifies it against the release's `SHA256SUMS.txt`, and swaps it in before launch. It installs a release only when its `contract` is one LevelUp supports. LevelUp also reads a pinned version from its own repo. If a release is not right for LevelUp, JGtm holds users on the last good one without shipping a LevelUp release. Taste differences between the two products become viewer settings that LevelUp passes at launch, not forks.
 
+## What LevelUp's source says (read 2026-11-19, `P:\software\LevelUp\apps\go-api`)
+
+- **Data dir:** install-relative. It walks up from the exe to the folder holding `db_profiles.example.json`, and `LEVELUP_REPO_ROOT` overrides it (`internal/config/config.go:602-628`). The cache is `data/cache` (`internal/domain/title/registry.go:824`).
+- **Film cache:** `film_manifests/<short8>.json` plus `film_chunks/<short8>/chunk_NN.bin` (`film/filmcache/filmcache.go`). Its Go side reads this as a legacy cache (`sync/haloclient/local_film_cache.go:3`). Inferred: current LevelUp does not keep raw chunks for every match, so the cache cannot be counted on for the film.
+- **Map, game variant, players and start time:** held in LevelUp's per-title DuckDB (`shared_matches_v2.duckdb`, `sync/transforms.go:70-81`). The viewer must not open it: DuckDB allows no reader while LevelUp holds it for writing.
+- **Ids:** LevelUp's UI and routes use the full match GUID. The cache key is its first 8 hex digits (`domain/title/film_id.go:46-86`), which do not lead back to the GUID. LevelUp passes the GUID.
+- **Timeline:** LevelUp's replay document (schema 104, `film/replay/document.go:50-104`) counts frames from the film's first position packet (`FrameIntervalMS`). `OriginMs` and `T0FilmMs` tie that to the kill-feed clock and the kickoff, and frame 0 trails the kickoff by 3.6 to 39.8 s. Commands and events use that film-relative ms. Ours is to be checked against it.
+- **Shell:** no WebView2, Wails or Electron in the repo. LevelUp is a local Go API plus a Vite web app in a browser tab (inferred from a repo-wide search; the installed launcher was not read). The "webview" is an iframe in LevelUp's page, the channel is `window.postMessage` with origin checks both ways, and our server must allow framing by LevelUp's origin.
+
+## What our import needs, and the real dependency
+
+`fetchPipeline` (`cmd/infinite-theater-3d/fetch.go:151`) downloads, from the Halo services: the film manifest and chunks, the full match stats, context metadata, the map variant (`.mvar`), and each player's customization with its armor and weapon definitions. Those are authenticated calls, and in embedded mode there is no sign-in of our own. So the viewer needs LevelUp's Halo access. Two ways:
+
+1. **LevelUp lends its token:** the `open` call (or a separate `auth` call) carries the Spartan token and clearance. The viewer keeps them in memory only, never on disk or in logs, and asks again when they expire. This is the least work for LevelUp.
+2. **LevelUp proxies:** LevelUp exposes the few Halo endpoints we call on its local server, and the viewer's client points at it. No token crosses, but LevelUp gains code to maintain.
+
+Recommended: 1. With it, the film and match data come over our existing pipeline into our own store. LevelUp's cache is only a shortcut when it happens to hold the chunks, and availability needs no film check. A match LevelUp shows a 2D replay for has a film; what remains is whether the game install is present and the map is supported, answered from the map ids LevelUp passes.
+
 ## Open
 
-- LevelUp's cache format, read from its source (`P:\software\LevelUp`). A shipped config names `data/cache/replays/{slug}/{id}.json` (its replay artifact) and `data/cache/film_chunks/{id}/` (raw film chunks), keyed by the short 8-hex match id (`title.FilmShortMatchID`). Not observed live: this machine's LevelUp has no cached matches yet. The likely input is the raw film chunks, decoded by our own decoder, which keeps us independent of LevelUp's artifact schema.
-- Which id LevelUp passes (the short id or the match GUID), and where its data dir lives at runtime.
+- JGtm's call: lend the token (1) or proxy (2).
+- Whether current LevelUp still writes `film_chunks` for new matches (to confirm with JGtm). If it does, the open call reads them before downloading.
+- Whether LevelUp's installed launcher hosts pages some other way than a browser tab.
 - Whether `--embed` also implies `--read-only` (inferred to be enough, since the embedded page only reads once the import is done).
