@@ -21,11 +21,13 @@ export const SPATIAL_PAN_WIDTH = 0.5
 /** Distance below which a sound has no side. */
 export const SPATIAL_CENTER_RADIUS = 0.5
 
-/** Who listens: its position in the map and its heading in degrees. */
+/** Who listens: its position in the map and its heading in degrees. `z` (map height) is set by
+ * the 3D camera; a listener without it is on the ground plane only (XY). */
 export interface SoundListener {
   x: number
   y: number
   heading: number
+  z?: number
 }
 
 /** Where the sound comes from, in the map. */

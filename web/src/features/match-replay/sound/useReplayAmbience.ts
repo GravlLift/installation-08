@@ -1,57 +1,68 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /**
- * useReplayAmbience — THE React SEAM of the map's ambient bed (`ambienceBed.ts`), consumed by
+ * useReplayAmbience — THE React SEAM of the map's ambient beds (`ambienceBed.ts`), consumed by
  * `useReplaySound`, which owns the Web Audio player, the preference and the beat.
  *
  * Same shape as the engines' sub-hook (`useReplayEngineSound.ts`): `attach` in the gesture that
- * opens the player, `setAudible` from the beat and the transport, everything read in references
- * so the canvas loop is never recreated.
+ * opens the player, `setAudible` from the beat and the transport, `setListener` from the same
+ * tick with the camera's listener, everything read in references so the canvas loop is never
+ * recreated.
  */
 import { useCallback, useEffect, useRef } from 'react'
 
 import type { ReplayAudioPlayer } from './replayAudio'
-import { AMBIENCE_BUS_GAIN, AmbienceBedPlayer } from './ambienceBed'
+import { AMBIENCE_BUS_GAIN, AmbienceZonesPlayer } from './ambienceBed'
+import type { SoundListener } from './soundSpatial'
 
-export interface ReplayAmbience {
-  /** Creates the bed on the main player. Idempotent (called at each gesture). */
-  attach: (player: ReplayAudioPlayer) => void
-  /** Starts or stops the loop; cheap to call at every animation step. */
-  setAudible: (audible: boolean) => void
+/** The two ambience routes of a match: the layout and one file per loop. */
+export interface AmbienceUrls {
+  layoutUrl: string
+  fileUrl: (file: string) => string
 }
 
-export function useReplayAmbience(url: string | null | undefined): ReplayAmbience {
-  const bedRef = useRef<AmbienceBedPlayer | null>(null)
+export interface ReplayAmbience {
+  /** Creates the beds on the main player. Idempotent (called at each gesture). */
+  attach: (player: ReplayAudioPlayer) => void
+  /** Starts or stops the beds; cheap to call at every animation step. */
+  setAudible: (audible: boolean) => void
+  /** Tells where the listener stands (or that there is none, 2D view); cheap to call every frame. */
+  setListener: (pos: SoundListener | null) => void
+}
+
+export function useReplayAmbience(urls: AmbienceUrls | null | undefined): ReplayAmbience {
+  const bedsRef = useRef<AmbienceZonesPlayer | null>(null)
   const playerRef = useRef<ReplayAudioPlayer | null>(null)
-  const urlRef = useRef(url ?? null)
+  const urlsRef = useRef(urls ?? null)
 
   const create = useCallback((player: ReplayAudioPlayer) => {
-    const u = urlRef.current
-    bedRef.current = u ? new AmbienceBedPlayer(player.engineBus(AMBIENCE_BUS_GAIN), u) : null
+    const u = urlsRef.current
+    bedsRef.current = u ? new AmbienceZonesPlayer(player.engineBus(AMBIENCE_BUS_GAIN), u.layoutUrl, u.fileUrl) : null
   }, [])
 
-  // Another match under a living player: the old bed stops, the new one loads on the same player.
+  // Another match under a living player: the old beds stop, the new ones load on the same player.
   useEffect(() => {
-    if (urlRef.current === (url ?? null)) return
-    urlRef.current = url ?? null
-    bedRef.current?.dispose()
-    bedRef.current = null
+    if (urlsRef.current === (urls ?? null)) return
+    urlsRef.current = urls ?? null
+    bedsRef.current?.dispose()
+    bedsRef.current = null
     if (playerRef.current) create(playerRef.current)
-  }, [url, create])
+  }, [urls, create])
 
-  // The bed dies with the component, like the main player.
+  // The beds die with the component, like the main player.
   useEffect(() => () => {
-    bedRef.current?.dispose()
-    bedRef.current = null
+    bedsRef.current?.dispose()
+    bedsRef.current = null
   }, [])
 
   const attach = useCallback((player: ReplayAudioPlayer) => {
     if (playerRef.current === player) return
     playerRef.current = player
-    bedRef.current?.dispose()
+    bedsRef.current?.dispose()
     create(player)
   }, [create])
 
-  const setAudible = useCallback((audible: boolean) => bedRef.current?.setAudible(audible), [])
+  const setAudible = useCallback((audible: boolean) => bedsRef.current?.setAudible(audible), [])
+  const setListener = useCallback((pos: SoundListener | null) => bedsRef.current?.setListener(pos), [])
 
-  return { attach, setAudible }
+  return { attach, setAudible, setListener }
 }

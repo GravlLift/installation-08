@@ -5,11 +5,11 @@ import { describe, expect, it } from 'vitest'
 import { listenerOfCamera } from './soundListener3d'
 
 describe('listenerOfCamera', () => {
-  it('translates three position (4, 9, -7) into map position (4, 7) for a look toward -Z', () => {
+  it('translates three position (4, 9, -7) into map position (4, 7, 9) for a look toward -Z', () => {
     const cam = new THREE.PerspectiveCamera()
     cam.position.set(4, 9, -7)
     cam.lookAt(4, 9, -8)
-    expect(listenerOfCamera(cam)).toEqual({ x: 4, y: 7, heading: 90 })
+    expect(listenerOfCamera(cam)).toEqual({ x: 4, y: 7, z: 9, heading: 90 })
   })
 
   it('gives heading 0 to a look toward +X', () => {

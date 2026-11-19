@@ -163,9 +163,15 @@ export function meshUrl(matchId: string, quality?: MeshQuality): string {
   return `/api/matches/${encodeURIComponent(matchId)}/mesh.glb${qualityQuery(quality)}`
 }
 
-/** ambienceUrl is the match's map ambient bed (a looping Ogg); a 404 when the map has none yet. */
-export function ambienceUrl(matchId: string): string {
-  return `/api/matches/${encodeURIComponent(matchId)}/ambience.ogg`
+/** ambienceLayoutUrl is the match's map ambient beds layout (zones and their loops); a JSON 404
+ * when the map has none yet. */
+export function ambienceLayoutUrl(matchId: string): string {
+  return `/api/matches/${encodeURIComponent(matchId)}/ambience.json`
+}
+
+/** ambienceFileUrl is one of the match's ambient loop files (a looping Ogg), listed by the layout. */
+export function ambienceFileUrl(matchId: string, file: string): string {
+  return `/api/matches/${encodeURIComponent(matchId)}/ambience/${encodeURIComponent(file)}`
 }
 
 /** calloutsUrl is the match's map named areas (`MapCallouts`); a JSON 404 when they cannot be read. */

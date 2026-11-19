@@ -15,12 +15,12 @@ import type { SoundListener } from '../sound/soundSpatial'
  * listenerOfCamera — a camera's position and heading, translated into a spatial sound listener.
  *
  * `getWorldPosition` / `getWorldDirection` return three.js vectors: position (X, Y, Z) becomes
- * map (X, -Z), the horizontal look (dX, dZ) becomes (dX, -dZ), and the heading is the atan2 of
- * those two components, in degrees.
+ * map (X, -Z, Y) — three's Y is the map's height — the horizontal look (dX, dZ) becomes
+ * (dX, -dZ), and the heading is the atan2 of those two components, in degrees.
  */
 export function listenerOfCamera(camera: THREE.Camera): SoundListener {
   const p = camera.getWorldPosition(new THREE.Vector3())
   const d = camera.getWorldDirection(new THREE.Vector3())
   const heading = (Math.atan2(-d.z, d.x) * 180) / Math.PI
-  return { x: p.x, y: -p.z, heading }
+  return { x: p.x, y: -p.z, z: p.y, heading }
 }

@@ -70,7 +70,7 @@ import {
 } from './replaySoundCursor'
 import { useReplayEngineSound } from './useReplayEngineSound'
 import { useAudioUnlock } from './useAudioUnlock'
-import { useReplayAmbience } from './useReplayAmbience'
+import { useReplayAmbience, type AmbienceUrls } from './useReplayAmbience'
 import { useReplayShieldSound } from './useReplayShieldSound'
 import { ambienceAudible } from './ambienceBed'
 import type { EnginePlan } from './vehicleEngineSound'
@@ -264,8 +264,9 @@ export interface ReplaySoundContext extends AnnouncerContext {
    * replay never guesses a side, same rule as the ink of the layers. */
   allegiance: FilmAllegiance
   endMatch: EndMatchSoundSpec | null
-  /** The map's ambient bed for this match (`ambienceBed.ts`); absent or `null`, no bed. */
-  ambienceUrl?: string | null
+  /** The map's ambient beds for this match (`ambienceBed.ts`): the zone layout and its loop
+   * files; absent or `null`, no beds. */
+  ambience?: AmbienceUrls | null
 }
 
 export function useReplaySound(
@@ -291,8 +292,8 @@ export function useReplaySound(
   // THE VEHICLE ENGINES (dedicated sub-hook, same size reason as the other two):
   // continuous states, not events — they go neither through the track nor through the cursor.
   const engine = useReplayEngineSound(doc)
-  // THE MAP'S AMBIENT BED (`ambienceBed.ts`): a loop under the replay, same gating as the engines.
-  const ambience = useReplayAmbience(context.ambienceUrl)
+  // THE MAP'S AMBIENT BEDS (`ambienceBed.ts`): the zone loop under the replay, same gating as the engines.
+  const ambience = useReplayAmbience(context.ambience)
   // THE FOLLOWED SPARTAN'S SHIELD ALARMS (`shieldSound.ts`): loops and one-shots of his own bar.
   const shields = useReplayShieldSound(doc, context.followed)
 
@@ -451,7 +452,9 @@ export function useReplaySound(
   const tick = useCallback((ms: number, frameMs: number = performance.now()) => {
     const tl = timelineRef.current
     const player = playerRef.current
-    // The bed plays while the replay plays, sound on, at a speed that keeps sound (`ambienceAudible`).
+    // The bed plays while the replay plays, sound on, at a speed that keeps sound (`ambienceAudible`);
+    // the listener comes from the camera (3D view) or is absent (2D view: the fallback loop).
+    ambience.setListener(listener.current)
     ambience.setAudible(ambienceAudible({ on: onRef.current && !!player, playing: playingRef.current, speedKeepsSound: soundPlaysAtSpeed(speedRef.current) }))
     // The cursor ALWAYS follows the playback, even muted: on returning to 1x, we restart
     // from the current moment and not from a crossed past.

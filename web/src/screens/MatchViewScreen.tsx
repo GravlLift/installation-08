@@ -17,7 +17,7 @@ import { useMatchReplayContext } from './useMatchReplayContext'
 import { buildDocumentTeamIdentity } from '../lib/replay/teamIdentityFromDocument'
 import { framesPerSecond } from '../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../lib/replay/replayNormalize'
-import { ambienceUrl, meshUrl } from '../lib/api/standalone'
+import { ambienceFileUrl, ambienceLayoutUrl, meshUrl } from '../lib/api/standalone'
 import { useReplaySettings } from '../features/match-replay/settings/useReplaySettings'
 import { useTextureQuality } from '../features/match-replay/settings/useTextureQuality'
 import { useReplayFullscreen } from '../features/match-replay/hooks/useReplayFullscreen'
@@ -157,7 +157,10 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
     [doc, viewpoint, inks],
   )
   const endMatch = useMemo(() => endMatchSoundSpec(identity.allegiance, replayContext.context?.scoreboard ?? [], replayContext.context?.header.outcome_code, 'en'), [identity.allegiance, replayContext.context])
-  const sound = useReplaySound(doc, replayContext.kills, speed, { allegiance: identity.allegiance, endMatch, locale: 'en', followed: camera.followed, medals: replayContext.medals, match: replayContext.announcerMatch, ambienceUrl: ambienceUrl(matchId) })
+  // Memoized on the match: the ambience seam compares its urls by reference, a fresh object per
+  // render would dispose and rebuild the beds at every re-render of this screen.
+  const ambience = useMemo(() => ({ layoutUrl: ambienceLayoutUrl(matchId), fileUrl: (file: string) => ambienceFileUrl(matchId, file) }), [matchId])
+  const sound = useReplaySound(doc, replayContext.kills, speed, { allegiance: identity.allegiance, endMatch, locale: 'en', followed: camera.followed, medals: replayContext.medals, match: replayContext.announcerMatch, ambience })
   useEffect(() => sound.setTransportPlaying(playing), [playing, sound.setTransportPlaying])
   const exportCanvasRef = useRef<HTMLCanvasElement>(null)
   const exportLayout = useExportLayout()
