@@ -7,8 +7,8 @@ Status: planned 2026-11-19. Owner: lead session; units 1 to 5 go to a Qwen worke
 A camera script is a list of keyframes on the match's time axis. When a script is playing, it
 places the 3D camera at every frame, on screen and in the video export alike. It is how a
 director gets a shot like this: fly in low behind a player, swing around as they take the kill,
-then settle on a wide frame. Spartan Studio will write these scripts for its player intros. In
-this repo they are a general theater feature that anyone can use by hand.
+then settle on a wide frame. Scripts are authored by hand in the viewer, and other tools can
+write them too, since the format is plain JSON.
 
 A script is data. The renderer evaluates it; nothing else in the scene changes. The "hold"
 feature (a player leaving the film's motion to pose) is a separate plan that builds on this one.
@@ -26,8 +26,8 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
    replay document gives positions in game units (x, y, z with z up) and times as film frames. A
    key's time `t` is milliseconds on the document axis (`frameToMs(frame, doc)`,
    `web/src/lib/replay/replayLogic.ts`), and its points are in game coordinates. The renderer
-   converts with `toThree` (`tracks3d.ts`: three = `[x, z, -y]`, no scaling). Studio reads the same
-   document, so it can write scripts without knowing anything about three.js.
+   converts with `toThree` (`tracks3d.ts`: three = `[x, z, -y]`, no scaling). Any tool that reads
+   the same document can write scripts without knowing anything about three.js.
 
 3. **A key can be pinned to the world or to a player, and player anchors are resolved at the time
    being drawn, not at the key's time.** A key that follows player A stays behind A while A runs,
@@ -64,7 +64,7 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
 
 8. **Scripts are stored by the server, per match**, as JSON files in the app's data directory,
    behind `GET/PUT/DELETE /api/matches/{id}/camera-scripts/{name}` and a list route. The routes
-   are the seam Studio will use later to hand a script to Installation 08. They are never stored
+   are also how another local tool hands a script to Installation 08. They are never stored
    in browser storage, which the app window can lose.
 
 ## Script format, version 1
@@ -164,13 +164,13 @@ view selector at the top left.
 
 - **Script range**: while a script plays, the export panel offers "Use script range", which sets
   the bounds to the first and last key's frames.
-- **Clean frame**: an export option that paints no HUD and no name tags, for footage that Studio
-  composites over. It is off by default. It applies to any 3D export, not only scripted ones.
+- **Clean frame**: an export option that paints no HUD and no name tags, for footage that gets
+  graphics composited over it later. It is off by default. It applies to any 3D export, not only scripted ones.
 
 ## Out of scope for version 1
 
 Time remapping (slow motion on the kill), depth of field, camera shake, a render endpoint so
-Studio can trigger an export remotely, and finding a player's best kill automatically. The format
+another tool can trigger an export remotely, and finding a player's best kill automatically. The format
 leaves room for each: a later version adds top-level fields, and `version` gates them.
 
 ## Units of work
