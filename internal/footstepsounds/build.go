@@ -61,8 +61,8 @@ type builder struct {
 	media   *soundtags.Media
 	out     string
 	parsed  map[uint32]*announcer.Tag
-	takes   map[uint32][]Take // by sound tag id
-	written map[uint32]Take   // by media id: a media two sounds share is written once
+	takes   map[uint32]Footstep // by sound tag id
+	written map[uint32]Take     // by media id: a media two sounds share is written once
 	res     *Result
 }
 
@@ -83,7 +83,7 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	defer closeLogged(ctx, "module index", ix.Close)
 	res := &Result{Manifest: &Manifest{Version: ManifestVersion, Feet: map[string]map[string]Footstep{}, Movement: map[string]Footstep{}}, Silent: map[string][]string{}}
 	b := &builder{tags: ix, media: soundtags.NewMedia(ix, opts.GameRoot), out: opts.OutDir,
-		parsed: map[uint32]*announcer.Tag{}, takes: map[uint32][]Take{}, written: map[uint32]Take{}, res: res}
+		parsed: map[uint32]*announcer.Tag{}, takes: map[uint32]Footstep{}, written: map[uint32]Take{}, res: res}
 	surfaces := make([]string, 0, len(feetIDs))
 	for surface := range feetIDs {
 		surfaces = append(surfaces, surface)
@@ -92,22 +92,22 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	for _, surface := range surfaces {
 		actions := feetIDs[surface]
 		for _, action := range sortedActions(actions) {
-			takes, err := b.soundTakes(tagID(feetIDs[surface][action]))
+			f, err := b.soundTakes(tagID(feetIDs[surface][action]))
 			if err != nil {
 				return nil, err
 			}
 			if res.Manifest.Feet[surface] == nil {
 				res.Manifest.Feet[surface] = map[string]Footstep{}
 			}
-			res.Manifest.Feet[surface][action] = Footstep{Takes: takes}
+			res.Manifest.Feet[surface][action] = f
 		}
 	}
 	for _, action := range sortedMovement() {
-		takes, err := b.soundTakes(tagID(movementIDs[action]))
+		f, err := b.soundTakes(tagID(movementIDs[action]))
 		if err != nil {
 			return nil, err
 		}
-		res.Manifest.Movement[action] = Footstep{Takes: takes}
+		res.Manifest.Movement[action] = f
 	}
 	if err := writeManifest(opts.OutDir, res.Manifest); err != nil {
 		return nil, err
@@ -139,44 +139,85 @@ func sortedMovement() []string {
 	return out
 }
 
-// soundTakes returns the takes of a sound tag's third-person event, extracting each media once.
-func (b *builder) soundTakes(id uint32) ([]Take, error) {
-	if t, ok := b.takes[id]; ok {
-		return t, nil
+// soundTakes returns the takes of a sound tag's third-person event and their layers, extracting
+// each media once.
+func (b *builder) soundTakes(id uint32) (Footstep, error) {
+	if f, ok := b.takes[id]; ok {
+		return f, nil
 	}
 	tag, err := b.tag(id)
 	if err != nil {
 		b.res.Silent[SkippedTagMissing] = append(b.res.Silent[SkippedTagMissing], fmt.Sprintf("%08x", id))
-		return nil, nil
+		return Footstep{}, nil
 	}
-	b.takes[id] = nil
+	b.takes[id] = Footstep{}
 	event, bankTag, ok := soundtags.Event(tag)
 	if !ok {
 		b.res.Silent[SilentNoEvent] = append(b.res.Silent[SilentNoEvent], fmt.Sprintf("%08x", id))
-		return nil, nil
+		return Footstep{}, nil
 	}
 	bk, err := b.media.Bank(bankTag)
 	if err != nil {
-		return nil, err
+		return Footstep{}, err
 	}
 	for _, typ := range b.media.EventTargetTypes(bk, event) {
 		if !mediaContainers[typ] {
 			b.res.Silent[SkippedNotRandom] = append(b.res.Silent[SkippedNotRandom], fmt.Sprintf("%08x", id))
-			return nil, nil
+			return Footstep{}, nil
 		}
 	}
-	var takes []Take
-	for _, id := range b.media.EventMedia(bk, event) {
-		t, ok, err := b.extract(bk, id)
+	mix := b.media.EventMediaMix(bk, event)
+	var f Footstep
+	at := map[uint32]int{}
+	for _, media := range b.media.EventMedia(bk, event) {
+		t, ok, err := b.extract(bk, media)
 		if err != nil {
-			return nil, err
+			return Footstep{}, err
 		}
 		if ok {
-			takes = append(takes, t)
+			at[media] = len(f.Takes)
+			f.Takes = append(f.Takes, b.mixed(bk, t, mix[media]))
 		}
 	}
-	b.takes[id] = takes
-	return takes, nil
+	for _, group := range b.media.EventLayers(bk, event) {
+		var layer []int
+		for _, media := range group {
+			if i, ok := at[media]; ok {
+				layer = append(layer, i)
+			}
+		}
+		if len(layer) > 0 {
+			f.Layers = append(f.Layers, layer)
+		}
+	}
+	b.takes[id] = f
+	return f, nil
+}
+
+// mixed sets a take's authored volume and falloff from its node chain's mix, recording the
+// falloff in the manifest once.
+func (b *builder) mixed(bk *wwise.Bank, t Take, m wwise.MediaMix) Take {
+	t.GainDB = m.GainDB
+	if m.Attenuation == 0 {
+		return t
+	}
+	key := fmt.Sprintf("%08x", m.Attenuation)
+	if _, ok := b.res.Manifest.Falloffs[key]; !ok {
+		a, ok := b.media.Attenuation(bk, m.Attenuation)
+		if !ok {
+			return t
+		}
+		f, ok := soundtags.FalloffOf(a)
+		if !ok {
+			return t
+		}
+		if b.res.Manifest.Falloffs == nil {
+			b.res.Manifest.Falloffs = map[string]soundtags.Falloff{}
+		}
+		b.res.Manifest.Falloffs[key] = f
+	}
+	t.Falloff = key
+	return t
 }
 
 // extract writes one media as an Ogg take; false (and recorded) when it is not Wwise Vorbis.

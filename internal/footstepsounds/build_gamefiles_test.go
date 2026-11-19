@@ -101,6 +101,37 @@ func TestBuildFromTheInstalledGame(t *testing.T) {
 	}
 	t.Logf("extracted %d files, %d bytes\n%s", res.Files, res.Bytes, strings.Join(lines, "\n"))
 
+	// Every take carries the game's authored volume (all below 0 dB on the foot steps) and names a
+	// falloff the manifest has, silent at its end.
+	check := func(name string, tk Take) {
+		f, ok := res.Manifest.Falloffs[tk.Falloff]
+		if !ok || len(f.Volume) < 2 {
+			t.Errorf("%s: take %s names falloff %q", name, tk.File, tk.Falloff)
+		} else if last := f.Volume[len(f.Volume)-1]; last[1] > -0.99 {
+			t.Errorf("%s: falloff %s ends at %v, not silent", name, tk.Falloff, last)
+		}
+		if tk.GainDB >= 0 || tk.GainDB < -40 {
+			t.Errorf("%s: take %s at %.1f dB", name, tk.File, tk.GainDB)
+		}
+	}
+	for surface, actions := range res.Manifest.Feet {
+		for action, f := range actions {
+			for _, tk := range f.Takes {
+				check(surface+"/"+action, tk)
+			}
+		}
+	}
+	for action, f := range res.Manifest.Movement {
+		for _, tk := range f.Takes {
+			check("movement/"+action, tk)
+		}
+	}
+	t.Logf("%d falloffs", len(res.Manifest.Falloffs))
+	if out := os.Getenv("FOOTSTEP_MANIFEST_OUT"); out != "" {
+		raw, _ := os.ReadFile(filepath.Join(dir, ManifestName))
+		_ = os.WriteFile(out, raw, 0o644)
+	}
+
 	for surface, actions := range res.Manifest.Feet {
 		for action, f := range actions {
 			for _, tk := range f.Takes {

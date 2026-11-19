@@ -28,19 +28,39 @@ type HircObject struct {
 	Body []byte
 }
 
+// Node properties (v135 AkPropID) this package reads from a node's property bundle.
+const (
+	PropVolume        = 0x00 // dB
+	PropAttenuationID = 0x46 // u32: the attenuation (HIRC type 14) the node and its children use
+)
+
 // nodeParams reads the direct parent and authored volume of a v135 node.
 func nodeParams(o HircObject) (uint32, float64, bool) {
+	parent, props, ok := nodeProps(o)
+	if !ok {
+		return 0, 0, false
+	}
+	var volume float64
+	if v, ok := props[PropVolume]; ok {
+		volume = float64(math.Float32frombits(v))
+	}
+	return parent, volume, true
+}
+
+// nodeProps reads the direct parent and the property bundle (id to raw 32-bit value) of a v135
+// node.
+func nodeProps(o HircObject) (uint32, map[byte]uint32, bool) {
 	off := 0
 	switch o.Type {
 	case HircSound:
 		off = 14
 	case HircRandomSeq, HircSwitch, HircActorMix, HircLayer:
 	default:
-		return 0, 0, false
+		return 0, nil, false
 	}
 	b := o.Body
 	if len(b)-off < 2 {
-		return 0, 0, false
+		return 0, nil, false
 	}
 	nfx := int(b[off+1])
 	off += 2
@@ -48,27 +68,44 @@ func nodeParams(o HircObject) (uint32, float64, bool) {
 		off += 1 + nfx*7
 	}
 	if off > len(b) || len(b)-off < 11 {
-		return 0, 0, false
+		return 0, nil, false
 	}
 	parent := binary.LittleEndian.Uint32(b[off+5:])
 	off += 10
 	n := int(b[off])
 	off++
 	if n > 64 || len(b)-off < n*5 {
-		return 0, 0, false
+		return 0, nil, false
 	}
-	var volume float64
+	props := make(map[byte]uint32, n)
 	for i := 0; i < n; i++ {
-		if b[off+i] == 0 {
-			volume = float64(math.Float32frombits(binary.LittleEndian.Uint32(b[off+n+i*4:])))
-		}
+		props[b[off+i]] = binary.LittleEndian.Uint32(b[off+n+i*4:])
 	}
-	return parent, volume, true
+	return parent, props, true
 }
 
 // EventMediaGains returns authored node volume sums in dB for the event's media.
 func (bk *Bank) EventMediaGains(eventID uint32) map[uint32]float64 {
 	out := map[uint32]float64{}
+	for id, m := range bk.EventMediaMix(eventID) {
+		out[id] = m.GainDB
+	}
+	return out
+}
+
+// MediaMix is what a media's node chain (the sound, its containers, its actor-mixers) authors
+// for its playback.
+type MediaMix struct {
+	// GainDB is the sum of the chain's node volumes.
+	GainDB float64
+	// Attenuation is the id of the distance attenuation the media plays with: the one the nearest
+	// node of the chain names (a child's overrides its parents'); 0 when none does.
+	Attenuation uint32
+}
+
+// EventMediaMix returns, for each media the event plays, its node chain's mix.
+func (bk *Bank) EventMediaMix(eventID uint32) map[uint32]MediaMix {
+	out := map[uint32]MediaMix{}
 	ev, ok := bk.Objects[eventID]
 	if !ok || ev.Type != HircEvent {
 		return out
@@ -100,18 +137,23 @@ func (bk *Bank) EventMediaGains(eventID uint32) map[uint32]float64 {
 		if _, exists := out[media]; exists {
 			return
 		}
-		var gain float64
+		var mix MediaMix
 		parents := map[uint32]bool{}
 		for {
 			if parents[o.ID] {
 				break
 			}
 			parents[o.ID] = true
-			parent, volume, ok := nodeParams(o)
+			parent, props, ok := nodeProps(o)
 			if !ok {
 				break
 			}
-			gain += volume
+			if v, ok := props[PropVolume]; ok {
+				mix.GainDB += float64(math.Float32frombits(v))
+			}
+			if a, ok := props[PropAttenuationID]; ok && mix.Attenuation == 0 {
+				mix.Attenuation = a
+			}
 			if parent == 0 {
 				break
 			}
@@ -120,7 +162,7 @@ func (bk *Bank) EventMediaGains(eventID uint32) map[uint32]float64 {
 				break
 			}
 		}
-		out[media] = gain
+		out[media] = mix
 	}
 	for _, act := range bk.eventActions(ev.Body) {
 		if target, ok := bk.playTarget(act); ok {
@@ -248,6 +290,59 @@ func (bk *Bank) EventMedia(eventID uint32) []uint32 {
 		if target, ok := bk.playTarget(act); ok {
 			bk.collectMedia(target, seen, &out)
 		}
+	}
+	return out
+}
+
+// EventLayers returns the media of an event grouped by what sounds together: every group plays
+// at once, one media drawn from each. Each sound action's target is walked down: a lone sound is
+// a group of one, a layer container plays all its children (each child its own group or groups),
+// and a random sequence or switch container plays one of its media (one group). The run foot
+// step is three actions, each a random container (three groups); a weapon shot is one layer
+// container of three random containers (three groups). Groups keep hierarchy order; empty ones
+// are dropped.
+func (bk *Bank) EventLayers(eventID uint32) [][]uint32 {
+	ev, ok := bk.Objects[eventID]
+	if !ok || ev.Type != HircEvent {
+		return nil
+	}
+	var out [][]uint32
+	// The 0x01 actions do not layer: an event that reaches its takes through them names one
+	// container per take (slide_outof), so their media make one group, drawn from like a random
+	// container.
+	var drawn []uint32
+	var walk func(id uint32, depth int)
+	walk = func(id uint32, depth int) {
+		o, ok := bk.object(id)
+		if !ok || depth > 16 {
+			return
+		}
+		if o.Type == HircLayer {
+			for _, child := range bk.children(o.Body) {
+				walk(child, depth+1)
+			}
+			return
+		}
+		var group []uint32
+		bk.collectMedia(id, map[uint32]bool{}, &group)
+		if len(group) > 0 {
+			out = append(out, group)
+		}
+	}
+	seen := map[uint32]bool{}
+	for _, act := range bk.eventActions(ev.Body) {
+		target, ok := bk.playTarget(act)
+		if !ok {
+			continue
+		}
+		if a, _ := bk.object(act); byte(binary.LittleEndian.Uint16(a.Body)>>8) != 0x04 {
+			bk.collectMedia(target, seen, &drawn)
+			continue
+		}
+		walk(target, 0)
+	}
+	if len(drawn) > 0 {
+		out = append(out, drawn)
 	}
 	return out
 }

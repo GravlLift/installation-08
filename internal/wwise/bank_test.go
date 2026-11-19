@@ -188,6 +188,37 @@ func TestEventFollowsSoundActionContainerAcrossBanks(t *testing.T) {
 	}
 }
 
+// TestEventLayersGroupsWhatSoundsTogether: a layer container of two random containers is two
+// groups; a second play action on a lone sound is a third.
+func TestEventLayersGroupsWhatSoundsTogether(t *testing.T) {
+	near := append([]byte{0, 1, 2, 3}, le32(nil, 2, 401, 402)...)
+	far := append([]byte{0, 1, 2, 3}, le32(nil, 1, 403)...)
+	layer := append([]byte{0, 1, 2, 3}, le32(nil, 2, 300, 301)...)
+	bank := buildBank(ID("sb_layers"), [][]byte{
+		hircObject(HircSound, 401, soundBody(9001)),
+		hircObject(HircSound, 402, soundBody(9002)),
+		hircObject(HircSound, 403, soundBody(9003)),
+		hircObject(HircSound, 404, soundBody(9004)),
+		hircObject(HircRandomSeq, 300, near),
+		hircObject(HircRandomSeq, 301, far),
+		hircObject(HircLayer, 500, layer),
+		hircObject(HircAction, 200, le32(binary.LittleEndian.AppendUint16(nil, 0x0403), 500)),
+		hircObject(HircAction, 201, le32(binary.LittleEndian.AppendUint16(nil, 0x0403), 404)),
+		hircObject(HircEvent, 100, append([]byte{2}, le32(nil, 200, 201)...)),
+	})
+	bk, err := ParseBank(bank)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := [][]uint32{{9001, 9002}, {9003}, {9004}}
+	if got := bk.EventLayers(100); !reflect.DeepEqual(got, want) {
+		t.Fatalf("layers %v, want %v", got, want)
+	}
+	if got := bk.EventLayers(401); got != nil {
+		t.Fatalf("a sound read as an event: %v", got)
+	}
+}
+
 func TestIDIsLowercaseFNV1(t *testing.T) {
 	// FNV-1 32-bit of "" is the offset basis; Wwise ids ignore case.
 	if ID("") != 2166136261 {

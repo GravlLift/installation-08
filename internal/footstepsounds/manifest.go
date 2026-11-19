@@ -14,6 +14,8 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+
+	"github.com/llampwall/infinite-theater-3d/internal/soundtags"
 )
 
 // ManifestName is the file the viewer reads to learn which foot step sounds were extracted.
@@ -21,7 +23,7 @@ const ManifestName = "footsteps.json"
 
 // ManifestVersion is the manifest's format version; a manifest of an older version is stale and
 // the extraction runs again.
-const ManifestVersion = 2
+const ManifestVersion = 3
 
 // takeFile is the name of every take file a manifest lists: foot_<media id, 8 hex digits>.ogg.
 // A rebuild removes the ones its manifest no longer lists, and no other file.
@@ -39,11 +41,18 @@ type Manifest struct {
 	// Movement maps a movement sound ("land", "landhard", "slide_into", "slide_outof", "jumpup")
 	// to its takes; the plain slide tag is left out on purpose (tags.go says why).
 	Movement map[string]Footstep `json:"movement"`
+	// Falloffs maps an attenuation id (8 hex digits) a take names to its distance falloff
+	// (version 3).
+	Falloffs map[string]soundtags.Falloff `json:"falloffs,omitempty"`
 }
 
 // Footstep is the set of takes one sound draws from.
 type Footstep struct {
 	Takes []Take `json:"takes"`
+	// Layers groups the takes (indexes into Takes) by what the game plays together: one take of
+	// every layer sounds at once (a run step is three: the foot and two gear layers). Absent
+	// before version 3, read then as one layer of every take.
+	Layers [][]int `json:"layers,omitempty"`
 }
 
 // Take is one extracted media.
@@ -51,6 +60,11 @@ type Take struct {
 	File       string `json:"file"`
 	Media      uint32 `json:"media"`
 	DurationMs int    `json:"durationMs"`
+	// GainDB is the volume the game's mix hierarchy authors for the media (the sum of its node
+	// chain's volumes), and Falloff the attenuation it plays with, a key of Manifest.Falloffs
+	// ("" when none). Version 3.
+	GainDB  float64 `json:"gainDb"`
+	Falloff string  `json:"falloff,omitempty"`
 }
 
 // ManifestStatus reads the manifest in dir: built when it is there and readable, stale when its

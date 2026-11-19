@@ -15,6 +15,7 @@ package soundtags
 import (
 	"encoding/binary"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -84,6 +85,7 @@ type Media struct {
 	streamed map[uint64]streamRef
 	pool     map[uint32]uint32 // media id -> the tag of the bank that embeds it
 	objPool  map[uint32]uint32 // HIRC object id -> the tag of the bank that has it
+	attens   map[uint32]wwise.Attenuation
 }
 
 type streamRef struct {
@@ -203,6 +205,71 @@ func (m *Media) EventMedia(b *wwise.Bank, event uint32) []uint32 {
 func (m *Media) EventTargetTypes(b *wwise.Bank, event uint32) []byte {
 	m.resolveEvent(b, event)
 	return b.EventTargetTypes(event)
+}
+
+// Falloff is the part of a Wwise attenuation the viewer applies: the dry volume by distance to
+// the listener, in the game's distance units. Each point is (distance, value, interpolation to
+// the next point), the value being linear amplitude minus one (0 is 0 dB, -1 silence) and the
+// interpolation Wwise's curve shape (wwise.CurvePoint).
+type Falloff struct {
+	Volume [][3]float64 `json:"volume"`
+}
+
+// FalloffOf returns the falloff of an attenuation; false when it has no dry volume curve.
+func FalloffOf(a wwise.Attenuation) (Falloff, bool) {
+	c, ok := a.Curve(wwise.AttenVolumeDry)
+	if !ok || c.Scaling != wwise.ScalingDB || len(c.Points) == 0 {
+		return Falloff{}, false
+	}
+	f := Falloff{Volume: make([][3]float64, len(c.Points))}
+	for i, p := range c.Points {
+		f.Volume[i] = [3]float64{round6(float64(p.Distance)), round6(float64(p.Value)), float64(p.Interp)}
+	}
+	return f, true
+}
+
+// round6 keeps six decimals, so a float32 read back as float64 writes short JSON.
+func round6(v float64) float64 { return math.Round(v*1e6) / 1e6 }
+
+// EventLayers is EventLayers of the event's bank, with the same cross-bank link.
+func (m *Media) EventLayers(b *wwise.Bank, event uint32) [][]uint32 {
+	m.resolveEvent(b, event)
+	return b.EventLayers(event)
+}
+
+// EventMediaMix is EventMediaMix of the event's bank, with the same cross-bank link.
+func (m *Media) EventMediaMix(b *wwise.Bank, event uint32) map[uint32]wwise.MediaMix {
+	m.resolveEvent(b, event)
+	return b.EventMediaMix(event)
+}
+
+// Attenuation returns the attenuation id, read from bank b's objects or, failing that, from the
+// bank of the game that has it (the shared attenuations live in a bank of their own).
+func (m *Media) Attenuation(b *wwise.Bank, id uint32) (wwise.Attenuation, bool) {
+	if a, ok := m.attens[id]; ok {
+		return a, true
+	}
+	o, ok := b.Objects[id]
+	if !ok && m.lister != nil {
+		m.ensurePools()
+		if owner, found := m.objPool[id]; found {
+			if owned, err := m.Bank(owner); err == nil {
+				o, ok = owned.Objects[id]
+			}
+		}
+	}
+	if !ok {
+		return wwise.Attenuation{}, false
+	}
+	a, err := wwise.ParseAttenuation(o)
+	if err != nil {
+		return wwise.Attenuation{}, false
+	}
+	if m.attens == nil {
+		m.attens = map[uint32]wwise.Attenuation{}
+	}
+	m.attens[id] = a
+	return a, true
 }
 
 // resolveEvent links the banks that own an event's Play targets into the event's bank. Idempotent:
