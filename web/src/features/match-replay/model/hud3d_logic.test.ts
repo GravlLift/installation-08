@@ -585,6 +585,23 @@ describe('HUD 3D weapon corner: away weapon, one grenade box, name tag', () => {
     expect(readHud(prepareHud(noCounters, 'A', []), 30, 'en')?.grenade).toEqual({ rank: 0, name: 'Frag', count: 0 })
   })
 
+  it('holds the last read grenade selection through a delta read that carries no selector', () => {
+    // Live Fire 07157ce5 slot 596: frag read selected with two types carried, then a frag throw
+    // arrives as a delta with no selector. The box keeps frag; it only changes on a new read.
+    const doc = cornerDoc({ grenadeReads: [
+      { t: 20, slot: 530, g: [2, 1], gs: 0, src: 'kf' },
+      { t: 50, slot: 530, g: [1, 1], src: 'delta' },
+    ] })
+    expect(readHud(prepareHud(doc, 'A', []), 60, 'en')?.grenade).toEqual({ rank: 0, name: 'Frag', count: 1 })
+
+    // Never across lives: a selector read in an earlier life of the slot does not carry over.
+    const otherLife = cornerDoc({ grenadeReads: [
+      { t: 10, slot: 530, g: [2, 1], gs: 0, src: 'kf' },
+      { t: 50, slot: 530, g: [1, 1], src: 'delta' },
+    ] })
+    expect(readHud(prepareHud(otherLife, 'A', []), 60, 'en')?.grenade).toEqual({ rank: null, name: 'Grenades', count: null })
+  })
+
   it('builds each slot\'s change list from that slot\'s events alone', () => {
     // Two lives, two-weapon loadouts; each slot has its own selector flip, at a different frame.
     const doc = cornerDoc({

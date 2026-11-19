@@ -220,14 +220,39 @@ export function grenadeReadingAt(
 ): GrenadeReading | null {
   const life = currentLifeOf(doc, slot, frame)
   if (!life) return null
-  const read = nearestReading(doc.grenadeReads ?? [], slot, frame, trackWindow(life))
+  const window = trackWindow(life)
+  const read = nearestReading(doc.grenadeReads ?? [], slot, frame, window)
   if (!read) return null
   return {
     g: read.value.g,
-    gs: read.value.gs ?? undefined,
+    gs: read.value.gs ?? heldSelector(doc.grenadeReads ?? [], slot, read.value.t, window),
     age: read.age,
     src: read.value.src,
   }
+}
+
+/**
+ * heldSelector: the grenade selector last read at or before frame `t` in the same life, for a read
+ * that carries counters without one (a delta read after a throw or a pickup). The selection is the
+ * player's own choice and only changes when they swap, so it holds until a read says otherwise.
+ * Observed on Live Fire 07157ce5, slot 596: the selector read frag (gs 0) at frame 12900 with
+ * frags and a second type carried, then the frag throw at 13226 arrived as a delta [1,0,0,1] with
+ * no selector, and the box fell back to the generic text although the player held frags.
+ * Validity against the counters stays `selectedGrenadeFrom`'s job (a held selector whose type is
+ * no longer carried is not used).
+ */
+function heldSelector(
+  reads: readonly { slot: number; t: number; gs?: number | null }[],
+  slot: number,
+  t: number,
+  life: { start: number; end: number },
+): number | undefined {
+  let best: { t: number; gs: number } | null = null
+  for (const r of reads) {
+    if (r.slot !== slot || r.gs == null || r.t > t || r.t < life.start || r.t > life.end) continue
+    if (!best || r.t >= best.t) best = { t: r.t, gs: r.gs }
+  }
+  return best?.gs
 }
 
 /**
