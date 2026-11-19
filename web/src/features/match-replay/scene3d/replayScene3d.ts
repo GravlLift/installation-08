@@ -46,6 +46,7 @@ import type { BakedLight } from './bakedLightShader'
 import type { MapModel, SurfaceModel } from './mapModel'
 import { buildPostFx, PASS_NAMES, type PostFx3d } from './postFx3d'
 import { currentPerfToggles, installPerfToggles, PERF_TOGGLES_DEFAULT, type PerfToggles } from './perfToggles3d'
+import { screenPixelRatio, SettledResize } from './settledResize3d'
 import { GpuTimer } from './gpuTimer3d'
 import { BACK_FACE_NAME } from './backFaces3d'
 import { batchCulling, batchLayer, type LayerBatches } from './layerBatch3d'
@@ -153,7 +154,6 @@ export class ReplayScene3d implements Replay3DExportSource {
   readonly profile = newProfile()
   /** The console's performance knobs (perfToggles3d), read at each frame. */
   private readonly knobs: PerfToggles = { ...PERF_TOGGLES_DEFAULT }
-  private knobRatio: number | null = null
   private lookOcclusion = true
   /** The look's glow animation (`Look3d.glowAnimation`): off, the self-lit surfaces stay still and nothing runs per frame. */
   private lookGlow = true
@@ -475,11 +475,35 @@ export class ReplayScene3d implements Replay3DExportSource {
   resize(width: number, height: number): void {
     if (width <= 0 || height <= 0) return
     if (this.exportScene.held) {
-      this.exportScene.held.width = width
-      this.exportScene.held.height = height
+      this.sizer.cancel()
+      this.holdSize(width, height)
     } else {
-      this.exportScene.applySize(width, height, true)
+      this.sizer.request(width, height)
     }
+  }
+
+  /** The buffers follow the window once its size settles (`settledResize3d`); the box and aspect at once. */
+  private readonly sizer = new SettledResize(
+    (width, height) => {
+      const style = this.renderer.domElement.style
+      style.width = `${width}px`
+      style.height = `${height}px`
+      this.camera.aspect = width / height
+      this.camera.updateProjectionMatrix()
+      this.labels.setSize(width, height)
+    },
+    (width, height) => {
+      if (this.exportScene.held) this.holdSize(width, height)
+      else this.exportScene.applySize(width, height, true)
+    },
+  )
+
+  /** holdSize: an on-screen size reported during an export, applied when the export ends. */
+  private holdSize(width: number, height: number): void {
+    const held = this.exportScene.held
+    if (!held) return
+    held.width = width
+    held.height = height
   }
 
   /** probe renders the map (or layer) surface under the screen point (`clientX`, `clientY`); null off the map. */
@@ -621,9 +645,10 @@ export class ReplayScene3d implements Replay3DExportSource {
       this.backFacesShown = k.backFaces
       for (const o of this.backFaces) o.visible = k.backFaces
     }
-    if (k.pixelRatio !== this.knobRatio) {
-      this.knobRatio = k.pixelRatio
-      const ratio = k.pixelRatio ?? Math.min(window.devicePixelRatio, 2)
+    // Compared with the renderer's own ratio each frame: a move to a monitor of another display
+    // scale changes devicePixelRatio, and the view then draws at that monitor's density.
+    const ratio = screenPixelRatio(k.pixelRatio, window.devicePixelRatio)
+    if (ratio !== this.renderer.getPixelRatio()) {
       this.renderer.setPixelRatio(ratio)
       this.post.composer.setPixelRatio(ratio)
     }
@@ -691,6 +716,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   }
 
   dispose(): void {
+    this.sizer.cancel()
     this.orbit.dispose()
     this.fly.dispose()
     this.action?.dispose()

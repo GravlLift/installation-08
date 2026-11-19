@@ -82,8 +82,10 @@ engineering backlog; this page keeps only the user-visible parts of it.
 
 ## Viewer
 
-- Dragging the window to another monitor while a match is open can hang the whole PC (seen
-  once, moving to a monitor with a different resolution; the cause is not yet known). Open
+- Dragging the window to another monitor while a match is open hung the whole PC once. That
+  PC was already heavily loaded, and the move (to a monitor with a different display scale)
+  was the last straw. The view now does less work during such a move (see docs/CHANGELOG.md
+  "Unreleased"), but this is not yet confirmed to prevent it. If your machine is busy, open
   the app on the monitor you want to use instead.
 - The 2D map view is one fixed picture of the whole map, cut over its highest walked floor:
   interiors under a walked roof are hidden (players there show as markers over the roof).

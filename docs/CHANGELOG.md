@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+Changes since 0.1.0.
+
+- Moving the window to a monitor with a different display scale now redraws the 3D view at that monitor's sharpness. Before, it kept the scale it opened at: moved from a 150 % monitor to a 100 % one, it drew about 2.25 times the pixels the screen needed.
+- While the window is being resized (or rescaled by a monitor move), the 3D view now rebuilds its full-screen drawing buffers once, after the size settles, instead of for every intermediate size. For that moment the picture stretches slightly. This takes a burst of graphics-memory allocations off a machine that is already busy.
+
 ## 0.1.0-test.22
 
 Changes since 0.1.0-test.21.
