@@ -3,7 +3,7 @@
  * footstepSound.test.ts — THE PURE RULES of when a foot step sounds, from the film's motion.
  *
  * Cadence (a sprint stamps more than a walk), the silences (stationary, airborne), the slide
- * (one slide_into at the start, scrapes during, nothing after), the landing (soft vs hard), and
+ * (one slide_into at the start, one slide_outof at the end), the landing (soft vs hard), and
  * the deterministic take (same event, same file, live and export).
  */
 import { describe, expect, it } from 'vitest'
@@ -83,26 +83,23 @@ describe('footstepTimedEvents — the silences', () => {
 })
 
 describe('footstepTimedEvents — the slide', () => {
-  it('marks one slide_into at the start, scrapes during, one slide_outof at the end, nothing after', () => {
+  it('marks one slide_into at the start and one slide_outof at the end, nothing between', () => {
     const speed = 6
     const step = speed * (FRAME_MS / 1000)
     const points = Array.from({ length: 60 }, (_, i) => ({ t: i, x: i * step, y: 0 }))
     const stances = [{ kind: 'slide', t0: 10, t1: 40 }]
     const events = footstepTimedEvents({ points, stances, frameIntervalMs: FRAME_MS, xuid: 'P', surface: 'default' })
-    const into = events.filter((e) => e.kind === 'slide' && e.action === 'slide_into')
-    const outof = events.filter((e) => e.kind === 'slide' && e.action === 'slide_outof')
-    const scrapes = events.filter((e) => e.kind === 'slide' && e.action === 'slide')
-    expect(into).toHaveLength(1)
-    expect(into[0].timeMs).toBe(10 * FRAME_MS)
-    expect(outof).toHaveLength(1)
-    // The slide_outof sits after the last scrape, at the first non-slide frame.
-    expect(scrapes.length).toBeGreaterThan(0)
-    expect(outof[0].timeMs).toBeGreaterThan(scrapes[scrapes.length - 1].timeMs)
-    expect(outof[0].timeMs).toBe(41 * FRAME_MS)
-    // No slide scrape after the stance ends (the last scrape is at or before frame 40).
-    expect(scrapes.every((e) => e.timeMs <= 40 * FRAME_MS)).toBe(true)
+    const slides = events.filter((e) => e.kind === 'slide')
+    // No scrape during the slide: the slide_outof already plays the surface's slide take.
+    expect(slides.map((e) => [e.action, e.timeMs])).toEqual([['slide_into', 10 * FRAME_MS], ['slide_outof', 41 * FRAME_MS]])
     // No ordinary steps while sliding.
     expect(events.filter((e) => e.kind === 'step' && e.timeMs >= 10 * FRAME_MS && e.timeMs <= 40 * FRAME_MS)).toHaveLength(0)
+  })
+
+  it('plays the slide_outof as the surface\'s own slide take, the event\'s takes without one', () => {
+    const outof = [{ timeMs: 0, kind: 'slide' as const, action: 'slide_outof', xuid: 'P', position: { x: 0, y: 0 } }]
+    expect(footstepReplayEvents(MANIFEST, 'default', outof, null).map((e) => e.stem)).toEqual(['foot_slide'])
+    expect(footstepReplayEvents(MANIFEST, 'rock', outof, null).map((e) => e.stem)).toEqual(['move_slide_outof'])
   })
 
   it('plays one slide_outof when a slide is cut short by a jump', () => {
