@@ -52,15 +52,15 @@ func applyWebViewEnvDefaults() {
 	}
 }
 
-// openWindow opens url in the app's own window (titled appDisplayName, 1600x900,
+// openWindow opens url in the app's own window (titled appDisplayName, 1920x1080,
 // resizable) and blocks until the window closes. It is a variable so tests replace it; no
 // test ever opens a real window.
 var openWindow = openWindowApp
 
 const (
 	appWindowTitle  = appDisplayName
-	appWindowWidth  = 1600
-	appWindowHeight = 900
+	appWindowWidth  = 1920
+	appWindowHeight = 1080
 )
 
 func openWindowApp(url string) error {

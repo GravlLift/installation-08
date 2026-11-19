@@ -125,13 +125,13 @@ func TestRescaleDimension(t *testing.T) {
 // monitor's work area outright, it is used unshrunk and centered on that work area.
 func TestDefaultPlacementForFits(t *testing.T) {
 	work := windows.Rect{Left: 0, Top: 0, Right: 3840, Bottom: 2160}
-	got := defaultPlacementFor(192, 32, 122, work)
-	want := windowPlacement{X: 304, Y: 119, Width: 3232, Height: 1922, DPI: 192}
+	got := defaultPlacementFor(144, 24, 92, work)
+	want := windowPlacement{X: 468, Y: 224, Width: 2904, Height: 1712, DPI: 144}
 	if got != want {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
 	// 16:9, exactly: client (outer minus chrome) width*9 == height*16.
-	clientW, clientH := got.Width-32, got.Height-122
+	clientW, clientH := got.Width-24, got.Height-92
 	if clientW*9 != clientH*16 {
 		t.Errorf("client %dx%d is not 16:9", clientW, clientH)
 	}
@@ -168,21 +168,22 @@ func TestDefaultPlacementForShrinksHeightBound(t *testing.T) {
 	}
 }
 
-// TestGrowToMinimum — a remembered rect below the minimum grows to it and moves back inside
-// the work area; one already big enough is untouched; a work area smaller than the minimum
-// caps it.
-func TestGrowToMinimum(t *testing.T) {
+// TestBelowMinimum — a remembered size under the minimum (the 553x543 window 0.1.0 saved,
+// against a 1560x1030 minimum at 150 % scale) is below it; one at or above it is not; on a
+// work area smaller than the minimum, filling the work area is enough.
+func TestBelowMinimum(t *testing.T) {
 	work := windows.Rect{Left: 0, Top: 0, Right: 3840, Bottom: 2100}
-	// The saved 553x543 window near the right edge, with a 1560x1030 minimum (150 % scale).
-	x, y, w, h := growToMinimum(3500, 209, 553, 543, 1560, 1030, work)
-	if w != 1560 || h != 1030 || x != 3840-1560 || y != 209 {
-		t.Errorf("grown rect = (%d,%d %dx%d), want (%d,209 1560x1030)", x, y, w, h, 3840-1560)
+	if !belowMinimum(553, 543, 1560, 1030, work) {
+		t.Errorf("553x543 not below a 1560x1030 minimum")
 	}
-	if x, y, w, h := growToMinimum(100, 100, 1600, 1100, 1560, 1030, work); x != 100 || y != 100 || w != 1600 || h != 1100 {
-		t.Errorf("big enough rect changed to (%d,%d %dx%d)", x, y, w, h)
+	if !belowMinimum(1600, 900, 1560, 1030, work) {
+		t.Errorf("1600x900 not below a 1560x1030 minimum (too short)")
+	}
+	if belowMinimum(1560, 1030, 1560, 1030, work) {
+		t.Errorf("exactly the minimum counted as below it")
 	}
 	small := windows.Rect{Left: -1366, Top: 0, Right: 0, Bottom: 728}
-	if x, y, w, h := growToMinimum(-1300, 50, 400, 300, 1560, 1030, small); x != -1366 || y != 0 || w != 1366 || h != 728 {
-		t.Errorf("small-monitor rect = (%d,%d %dx%d), want (-1366,0 1366x728)", x, y, w, h)
+	if belowMinimum(1366, 728, 1560, 1030, small) {
+		t.Errorf("a window filling a small work area counted as below the minimum")
 	}
 }
