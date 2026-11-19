@@ -23,6 +23,13 @@ export interface CameraScriptSaved {
   keys: number
 }
 
+/** One row of `GET /api/spartan/poses`: a pose clip the scene can resolve as a hold's `clip`. */
+export interface PoseSummary {
+  id: string
+  kind: 'idle' | 'stance' | 'emote'
+  name: string
+}
+
 /** The JSON body of a non-OK answer, or null when there is none to read. */
 async function readErrorBody(res: Response): Promise<unknown> {
   try {
@@ -87,6 +94,22 @@ export async function saveCameraScript(script: CameraScript, signal?: AbortSigna
     throw new ApiError(`PUT .../camera-scripts/${script.name}: HTTP ${res.status}`, res.status, body)
   }
   return (await res.json()) as CameraScriptSaved
+}
+
+/**
+ * `GET /api/spartan/poses` — the Spartan's pose catalog: the idle, emote and stance clips of
+ * the game's animation graphs. A 503 (the game is not installed) resolves to an empty list;
+ * it is not an error.
+ */
+export async function listPoses(signal?: AbortSignal): Promise<PoseSummary[]> {
+  const res = await fetch('/api/spartan/poses', { signal })
+  if (res.status === 503) return []
+  if (!res.ok) {
+    const body = await readErrorBody(res)
+    throw new ApiError(`GET /api/spartan/poses: HTTP ${res.status}`, res.status, body)
+  }
+  const data = (await res.json()) as { poses: PoseSummary[] }
+  return data.poses
 }
 
 /** `DELETE /api/matches/{id}/camera-scripts/{name}` — remove the script (204 on success). */

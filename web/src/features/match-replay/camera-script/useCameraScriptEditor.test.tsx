@@ -12,6 +12,7 @@ import {
   deleteCameraScript,
   fetchCameraScript,
   listCameraScripts,
+  listPoses,
   saveCameraScript,
 } from './cameraScriptApi'
 import {
@@ -30,6 +31,7 @@ vi.mock('./cameraScriptApi', () => ({
   fetchCameraScript: vi.fn(),
   saveCameraScript: vi.fn(),
   deleteCameraScript: vi.fn(),
+  listPoses: vi.fn(),
 }))
 
 const DOC: ReplayDocumentReady = { frameIntervalMs: 100 } as ReplayDocumentReady
@@ -44,6 +46,33 @@ const SCRIPT: CameraScript = {
     { t: 1000, pos: { at: 'world', point: [2, 0, 0] }, look: { at: 'world', point: [3, 0, 0] } },
   ],
 }
+
+/** `SCRIPT` with one hold for 'p' at script time 1000. */
+const HOLD_SCRIPT: CameraScript = {
+  ...SCRIPT,
+  holds: [
+    {
+      xuid: 'p',
+      at: 1000,
+      clip: 'mp:intro_emote:a',
+      loop: false,
+      blendMs: 250,
+      heading: null,
+      turnMs: 400,
+      pitch: 0,
+      weapon: 'keep',
+      until: null,
+    },
+  ],
+}
+
+/** The pose catalog the tests load: an idle, two emotes, and a stance, in this order. */
+const POSES = [
+  { id: 'idle:a', kind: 'idle' as const, name: 'Idle' },
+  { id: 'mp:intro_emote:a', kind: 'emote' as const, name: 'I see you' },
+  { id: 'mp:intro_emote:b', kind: 'emote' as const, name: 'Salute' },
+  { id: 'stance:a', kind: 'stance' as const, name: 'Stance' },
+]
 
 /** The fake host: a fixed capture pose, one known player ('p'), all other xuids out of life. */
 function fakeHost(): CameraScriptHost {
@@ -76,6 +105,7 @@ let offHost: (() => void) | null = null
 beforeEach(() => {
   offHost = registerCameraScriptHost(fakeHost())
   vi.mocked(listCameraScripts).mockResolvedValue([])
+  vi.mocked(listPoses).mockResolvedValue(POSES)
   vi.mocked(fetchCameraScript).mockResolvedValue(SCRIPT)
   vi.mocked(saveCameraScript).mockResolvedValue({ name: 'intro', keys: 2 })
   vi.mocked(deleteCameraScript).mockResolvedValue(undefined)
@@ -310,6 +340,107 @@ it('a pause mid-script keeps the cursor at the script time it stopped at', async
   args.playing = false
   rerender()
   expect(result.current.cursorMs).toBe(400)
+})
+
+it('poses load from listPoses on mount', async () => {
+  const { result } = renderEditor()
+  expect(vi.mocked(listPoses)).toHaveBeenCalledWith()
+  await waitFor(() => expect(result.current.poses).toEqual(POSES))
+  expect(result.current.error).toBeNull()
+})
+
+it('addHold adds a hold at the film frame time with the first emote as the default clip', async () => {
+  const { result } = renderEditor()
+  await waitFor(() => expect(result.current.poses).toHaveLength(POSES.length))
+  act(() => result.current.create('fresh'))
+
+  act(() => result.current.addHold('p'))
+
+  const holds = result.current.script?.holds ?? []
+  expect(holds).toHaveLength(1)
+  expect(holds[0]).toMatchObject({ xuid: 'p', at: frameToMs(10, DOC), clip: 'mp:intro_emote:a' })
+  expect(holds[0]).toMatchObject({ loop: false, blendMs: 250, heading: null, turnMs: 400, pitch: 0, weapon: 'keep' })
+  expect(holds[0].until).toBeNull()
+})
+
+it('addHold falls back to combat:rifle:idle when the catalog has no emote', async () => {
+  vi.mocked(listPoses).mockResolvedValue([POSES[0], POSES[3]])
+  const { result } = renderEditor()
+  await waitFor(() => expect(result.current.poses).toHaveLength(2))
+  act(() => result.current.create('fresh'))
+
+  act(() => result.current.addHold('p'))
+
+  expect(result.current.script?.holds?.[0].clip).toBe('combat:rifle:idle')
+})
+
+it('holdHere sets the hold at to the current film frame time', () => {
+  const frameRef = { current: 20 }
+  const { result } = renderEditor({ frameRef })
+  act(() => result.current.create('fresh'))
+  act(() => result.current.addHold('p'))
+  expect(result.current.script?.holds?.[0].at).toBe(2000)
+
+  frameRef.current = 30
+  act(() => result.current.holdHere(0))
+  expect(result.current.script?.holds?.[0].at).toBe(3000)
+})
+
+it('faceCamera sets the hold heading from the free camera position', () => {
+  const { result } = renderEditor()
+  act(() => result.current.create('fresh'))
+  act(() => result.current.addHold('p'))
+
+  act(() => result.current.faceCamera(0))
+
+  // The camera is at [1, 2, 3]; the player at [10, 0] faces back toward it: atan2(2, -9).
+  expect(result.current.script?.holds?.[0].heading).toBeCloseTo(167.471, 2)
+})
+
+it('faceCamera on a player with no state errors and leaves the hold unchanged', () => {
+  const { result } = renderEditor()
+  act(() => result.current.create('fresh'))
+  act(() => result.current.addHold('gone'))
+
+  act(() => result.current.faceCamera(0))
+
+  expect(result.current.error).toMatch(/not in the film/)
+  expect(result.current.script?.holds?.[0].heading).toBeNull()
+})
+
+it('setFreeze toggles frozen(i) and the script clock', () => {
+  const { result } = renderEditor()
+  act(() => result.current.create('fresh'))
+  act(() => result.current.addHold('p'))
+  expect(result.current.frozen(0)).toBe(false)
+
+  act(() => result.current.setFreeze(0, true))
+  expect(result.current.frozen(0)).toBe(true)
+  expect(result.current.script?.clock).toEqual({
+    startMs: 0,
+    rates: [{ s: 0, rate: 1, ease: 'smooth' }, { s: 1000, rate: 0, ease: 'cut' }],
+  })
+
+  act(() => result.current.setFreeze(0, false))
+  expect(result.current.frozen(0)).toBe(false)
+  expect(result.current.script?.clock).toBeUndefined()
+})
+
+it('a hold edit during a preview re-starts the script on the camera at the same time', async () => {
+  vi.mocked(fetchCameraScript).mockResolvedValue(HOLD_SCRIPT)
+  const { result } = renderEditor()
+  await act(async () => {
+    await result.current.open('intro')
+  })
+  act(() => result.current.goToKey(1))
+  expect(scriptPlayback()?.sMs).toBe(1000)
+
+  act(() => result.current.updateHold(0, { clip: 'mp:intro_emote:b' }))
+
+  const pb = scriptPlayback()
+  expect(pb?.sMs).toBe(1000)
+  expect(pb?.script.holds?.[0].clip).toBe('mp:intro_emote:b')
+  expect(result.current.script?.holds?.[0].clip).toBe('mp:intro_emote:b')
 })
 
 it('when the page stops at the script end the cursor takes the length', async () => {

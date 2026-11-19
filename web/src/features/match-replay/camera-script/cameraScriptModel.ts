@@ -17,6 +17,7 @@ import {
 import { frameToMs } from '../../../lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import type { CameraScriptCapture, CameraScriptSubject } from '../scene3d/cameraScriptStore'
+import { HOLD_BLEND_DEFAULT_MS, HOLD_TURN_DEFAULT_MS, type Hold } from '../scene3d/hold3d'
 
 /** A fresh, empty script: version 1, no keys, no clock (script time is document time). */
 export function newCameraScript(matchId: string, name: string): CameraScript {
@@ -160,6 +161,17 @@ function validateKeys(script: CameraScript, keys: CameraKey[]): ParseResult {
 }
 
 /**
+ * Builds a candidate script with `patch` over its clock and holds and runs it through
+ * `parseCameraScript`. Every other field is carried over.
+ */
+function validateScript(
+  script: CameraScript,
+  patch: Partial<Pick<CameraScript, 'clock' | 'holds'>>,
+): ParseResult {
+  return parseCameraScript({ ...script, ...patch }, script.matchId)
+}
+
+/**
  * insertKey inserts `key` keeping the keys sorted by `t` (stable for equal `t`: the new key goes
  * after any key that shares its time). A key at the same `t` as an existing non-cut key REPLACES
  * it. The result is revalidated; an invalid result is returned as an error and the input is left
@@ -261,4 +273,128 @@ export function keySummary(key: CameraKey, nameOfXuid: (xuid: string) => string)
       : `Follow ${nameOfXuid(key.pos.xuid)}${key.pos.relative === 'heading' ? ' (heading)' : ''}`
   const look = key.look.at === 'world' ? 'orbit point' : `look at ${nameOfXuid(key.look.xuid)}`
   return `${pos} → ${look}`
+}
+
+// ---- Holds (docs/design/hold.md): take a player out of the film to pose.
+
+/**
+ * A hold with the documented defaults (docs/design/hold.md, "Format addition"): no loop, a
+ * 250 ms crossfade, the heading kept at `at` (null), a 400 ms turn, a level pitch, the weapon
+ * kept in hand, and no rejoin.
+ */
+export function newHold(xuid: string, at: number, clip: string): Hold {
+  return {
+    xuid,
+    at,
+    clip,
+    loop: false,
+    blendMs: HOLD_BLEND_DEFAULT_MS,
+    heading: null,
+    turnMs: HOLD_TURN_DEFAULT_MS,
+    pitch: 0,
+    weapon: 'keep',
+    until: null,
+  }
+}
+
+/**
+ * addHold adds `hold` keeping the holds sorted by `at` (stable: the new hold goes after any
+ * hold that shares its time). A second hold for the same player, or a 17th hold, is a
+ * validation error; the input is left unchanged.
+ */
+export function addHold(script: CameraScript, hold: Hold): KeyOpResult {
+  const newHolds = [...(script.holds ?? []), hold]
+  newHolds.sort((a, b) => a.at - b.at)
+  return validateScript(script, { holds: newHolds })
+}
+
+/**
+ * updateHold applies `patch` to the hold at `index` and, after an `at` change, re-sorts the
+ * holds (stable for equal `at`), returning the hold's new `index` too. A second hold for the
+ * same player is a validation error; the input is left unchanged.
+ */
+export function updateHold(
+  script: CameraScript,
+  index: number,
+  patch: Partial<Omit<Hold, 'xuid'>> & { xuid?: string },
+): KeyOpResult {
+  const holds = script.holds ?? []
+  if (index < 0 || index >= holds.length) return { ok: false, error: `index ${index} out of range` }
+  const updated: Hold = { ...holds[index], ...patch }
+  // Stable sort by the (possibly new) at, then by original order for equal at.
+  const order = holds.map((_, i) => i)
+  order.sort((a, b) => {
+    const ha = a === index ? updated : holds[a]
+    const hb = b === index ? updated : holds[b]
+    return ha.at !== hb.at ? ha.at - hb.at : a - b
+  })
+  const newIdx = order.indexOf(index)
+  const newHolds = order.map((i) => (i === index ? updated : holds[i]))
+  const result = validateScript(script, { holds: newHolds })
+  if (!result.ok) return result
+  return { ok: true, script: result.script, index: newIdx }
+}
+
+/** removeHold removes the hold at `index` and revalidates. */
+export function removeHold(script: CameraScript, index: number): KeyOpResult {
+  const holds = script.holds ?? []
+  if (index < 0 || index >= holds.length) return { ok: false, error: `index ${index} out of range` }
+  const newHolds = holds.filter((_, i) => i !== index)
+  return validateScript(script, { holds: newHolds })
+}
+
+/**
+ * faceCameraHeading is the game heading (degrees in [0, 360), from +x toward +y) that faces
+ * a player at `feet` toward a camera at `camera` (both in game coordinates; only the x, y
+ * axes matter, the camera's height does not change the heading).
+ */
+export function faceCameraHeading(
+  camera: [number, number, number],
+  feet: { x: number; y: number },
+): number {
+  const deg = (Math.atan2(camera[1] - feet.y, camera[0] - feet.x) * 180) / Math.PI
+  return ((deg % 360) + 360) % 360
+}
+
+/** The script's clock has a rate-0 entry exactly at `at`: the world is frozen from `at` on. */
+export function isFrozenAt(script: CameraScript, at: number): boolean {
+  return (script.clock?.rates ?? []).some((r) => r.s === at && r.rate === 0)
+}
+
+/**
+ * setFreezeAt freezes (frozen) or unfreezes the world at script time `at`, as a rate-0 entry
+ * of the script's clock. Freezing a clock-less script first creates a clock that is identical
+ * to no clock (script time is document time): `{ startMs: 0, rates: [{ s: 0, rate: 1, ease:
+ * 'smooth' }] }`, and then inserts the freeze entry `{ s: at, rate: 0, ease: 'cut' }` sorted
+ * by `s`; freezing twice is a no-op. Unfreezing removes the rate-0 entry at `at`; when the
+ * clock is then exactly that identical-to-no-clock clock it is removed altogether (back to
+ * no clock). Note the effect of creating a clock on a clock-less script: `scriptTimeNow`
+ * then puts the panel at its own cursor instead of the film frame being drawn. The result is
+ * revalidated; an invalid result is returned as an error and the input is left unchanged.
+ */
+export function setFreezeAt(script: CameraScript, at: number, frozen: boolean): KeyOpResult {
+  const clock = script.clock
+  if (frozen) {
+    if (clock === undefined) {
+      const rates = [
+        { s: 0, rate: 1, ease: 'smooth' as const },
+        { s: at, rate: 0, ease: 'cut' as const },
+      ]
+      rates.sort((a, b) => a.s - b.s)
+      return validateScript(script, { clock: { startMs: 0, rates } })
+    }
+    if (clock.rates.some((r) => r.s === at && r.rate === 0)) return { ok: true, script }
+    const rates = [...clock.rates, { s: at, rate: 0, ease: 'cut' as const }]
+    rates.sort((a, b) => a.s - b.s)
+    return validateScript(script, { clock: { startMs: clock.startMs, rates } })
+  }
+  if (clock === undefined) return { ok: true, script }
+  const idx = clock.rates.findIndex((r) => r.s === at && r.rate === 0)
+  if (idx === -1) return { ok: true, script }
+  const rates = clock.rates.filter((_, i) => i !== idx)
+  // A clock that is now identical to no clock goes away with the freeze.
+  if (clock.startMs === 0 && rates.length === 1 && rates[0].s === 0 && rates[0].rate === 1) {
+    return validateScript(script, { clock: undefined })
+  }
+  return validateScript(script, { clock: { startMs: clock.startMs, rates } })
 }

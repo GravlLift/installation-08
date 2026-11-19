@@ -51,6 +51,14 @@ function makeEditor(overrides: Partial<CameraScriptEditor> = {}): CameraScriptEd
     setKeyFromCamera: vi.fn(),
     updateKey: vi.fn(),
     deleteKey: vi.fn(),
+    poses: [],
+    addHold: vi.fn(),
+    updateHold: vi.fn(),
+    removeHold: vi.fn(),
+    holdHere: vi.fn(),
+    faceCamera: vi.fn(),
+    setFreeze: vi.fn(),
+    frozen: vi.fn().mockReturnValue(false),
     ...overrides,
   }
 }

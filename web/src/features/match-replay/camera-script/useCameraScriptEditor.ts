@@ -12,14 +12,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
+  addHold as addHoldModel,
   captureKey,
+  faceCameraHeading,
   insertKey,
   isDirty,
+  isFrozenAt,
   newCameraScript,
+  newHold,
   removeKey,
+  removeHold as removeHoldModel,
   replaceKey,
   scriptTimeNow,
+  setFreezeAt as setFreezeAtModel,
   updateKey,
+  updateHold as updateHoldModel,
   type KeyOpResult,
   type LookAnchor,
   type PosAnchor,
@@ -28,8 +35,10 @@ import {
   deleteCameraScript,
   fetchCameraScript,
   listCameraScripts,
+  listPoses,
   saveCameraScript,
   type CameraScriptSummary,
+  type PoseSummary,
 } from './cameraScriptApi'
 import {
   scriptDocFrame,
@@ -40,6 +49,7 @@ import {
   useScriptPlayback,
 } from '../scene3d/cameraScriptStore'
 import { scriptClockOf, type CameraKey, type CameraScript } from '../scene3d/cameraScript3d'
+import type { Hold } from '../scene3d/hold3d'
 import type { CameraMode3d } from '../scene3d/replayScene3d'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 
@@ -99,6 +109,23 @@ export interface CameraScriptEditor {
   setKeyFromCamera: (i: number) => void
   updateKey: (i: number, patch: Partial<Pick<CameraKey, 'ease' | 'fov' | 'roll' | 't'>>) => void
   deleteKey: (i: number) => void
+  /** The pose catalog (idle, emote, stance clips); empty when the game is not installed. */
+  poses: PoseSummary[]
+  /** Adds a hold for `xuid` at the current script time with the documented defaults; the
+   * default clip is the first emote of the pose catalog, else 'combat:rifle:idle'. */
+  addHold: (xuid: string) => void
+  /** Applies `patch` to the hold at `index`; a re-sort of the holds is kept. */
+  updateHold: (i: number, patch: Partial<Omit<Hold, 'xuid'>> & { xuid?: string }) => void
+  /** Removes the hold at `index`. */
+  removeHold: (i: number) => void
+  /** Sets the hold's `at` to the current script time (Hold here). */
+  holdHere: (i: number) => void
+  /** Sets the hold's `heading` so the player faces the free camera's current position. */
+  faceCamera: (i: number) => void
+  /** Freezes (or unfreezes) the world at the hold's `at`: a rate-0 entry in the script clock. */
+  setFreeze: (i: number, frozen: boolean) => void
+  /** The script's clock has a rate-0 entry at the hold's `at`. */
+  frozen: (i: number) => boolean
 }
 
 export function useCameraScriptEditor({
@@ -122,6 +149,7 @@ export function useCameraScriptEditor({
   const [fovMode, setFovMode] = useState<'base' | 'capture'>('base')
   const [cursorMs, setCursorMs] = useState(0)
   const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [poses, setPoses] = useState<PoseSummary[]>([])
 
   const host = useCameraScriptHost()
   const playback = useScriptPlayback()
@@ -143,6 +171,14 @@ export function useCameraScriptEditor({
   useEffect(() => {
     refresh()
   }, [refresh])
+
+  // The pose catalog is loaded once on mount; a 503 (game not installed) already resolves to
+  // [], so a rejection here is a real failure and goes to `error`.
+  useEffect(() => {
+    listPoses()
+      .then(setPoses)
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+  }, [])
 
   // `scriptPlayback` is read at the moment each action is called (not from the render): actions
   // act on the store as it is, and a re-render follows (start/stop notify the subscribers).
@@ -268,9 +304,10 @@ export function useCameraScriptEditor({
     if (fellBack) setNotice('Player not in the film here: key pinned to the world')
   }, [script, host, cameraMode, posAnchor, lookAnchor, fovMode, cursorMs, frameRef, doc, stop])
 
-  /** Applies a key-list operation through the model; an error goes to `error`, and an edit made
-   * while a script is set on the camera is re-started on it at the same script time. */
-  const applyKeyChange = useCallback(
+  /** Applies a script edit (keys, holds, clock) through the model; an error goes to `error`,
+   * and an edit made while a script is set on the camera is re-started on it at the same
+   * script time. */
+  const applyScriptChange = useCallback(
     (op: KeyOpResult): void => {
       if (!op.ok) {
         setError(op.error)
@@ -321,25 +358,104 @@ export function useCameraScriptEditor({
       const fov = fovMode === 'capture' ? key.fov : original.fov
       if (fov !== undefined) merged.fov = fov
       if (original.roll !== undefined) merged.roll = original.roll
-      applyKeyChange(replaceKey(script, i, merged))
+      applyScriptChange(replaceKey(script, i, merged))
     },
-    [script, host, cameraMode, posAnchor, lookAnchor, fovMode, frameRef, stop, applyKeyChange],
+    [script, host, cameraMode, posAnchor, lookAnchor, fovMode, frameRef, stop, applyScriptChange],
   )
 
   const updateKeyAction = useCallback(
     (i: number, patch: Partial<Pick<CameraKey, 'ease' | 'fov' | 'roll' | 't'>>): void => {
       if (script === null) return
-      applyKeyChange(updateKey(script, i, patch))
+      applyScriptChange(updateKey(script, i, patch))
     },
-    [script, applyKeyChange],
+    [script, applyScriptChange],
   )
 
   const deleteKey = useCallback(
     (i: number): void => {
       if (script === null) return
-      applyKeyChange(removeKey(script, i))
+      applyScriptChange(removeKey(script, i))
     },
-    [script, applyKeyChange],
+    [script, applyScriptChange],
+  )
+
+  const addHold = useCallback(
+    (xuid: string): void => {
+      if (script === null) return
+      const pb = scriptPlayback()
+      if (pb !== null) stop()
+      // As in addKey: a stopped playback puts its time in the cursor, and a clocked script
+      // acts at the cursor, so pass the stopped time.
+      const at = scriptTimeNow({ script, frame: frameRef.current, doc, cursorMs: pb !== null ? pb.sMs : cursorMs })
+      const clip = poses.find((p) => p.kind === 'emote')?.id ?? 'combat:rifle:idle'
+      applyScriptChange(addHoldModel(script, newHold(xuid, at, clip)))
+    },
+    [script, poses, cursorMs, frameRef, doc, stop, applyScriptChange],
+  )
+
+  const updateHoldAction = useCallback(
+    (i: number, patch: Partial<Omit<Hold, 'xuid'>> & { xuid?: string }): void => {
+      if (script === null) return
+      applyScriptChange(updateHoldModel(script, i, patch))
+    },
+    [script, applyScriptChange],
+  )
+
+  const removeHoldAction = useCallback(
+    (i: number): void => {
+      if (script === null) return
+      applyScriptChange(removeHoldModel(script, i))
+    },
+    [script, applyScriptChange],
+  )
+
+  const holdHere = useCallback(
+    (i: number): void => {
+      if (script === null) return
+      const pb = scriptPlayback()
+      if (pb !== null) stop()
+      const at = scriptTimeNow({ script, frame: frameRef.current, doc, cursorMs: pb !== null ? pb.sMs : cursorMs })
+      applyScriptChange(updateHoldModel(script, i, { at }))
+    },
+    [script, cursorMs, frameRef, doc, stop, applyScriptChange],
+  )
+
+  const faceCamera = useCallback(
+    (i: number): void => {
+      if (script === null) return
+      const holds = script.holds ?? []
+      if (i < 0 || i >= holds.length) return
+      if (host === null) {
+        setError('The 3D view is not loaded')
+        return
+      }
+      const feet = host.subjectAt(holds[i].xuid, frameRef.current)
+      if (feet === null) {
+        setError(`Player ${holds[i].xuid} is not in the film here`)
+        return
+      }
+      applyScriptChange(updateHoldModel(script, i, { heading: faceCameraHeading(host.capture().position, feet) }))
+    },
+    [script, host, frameRef, applyScriptChange],
+  )
+
+  const setFreeze = useCallback(
+    (i: number, frozen: boolean): void => {
+      if (script === null) return
+      const holds = script.holds ?? []
+      if (i < 0 || i >= holds.length) return
+      applyScriptChange(setFreezeAtModel(script, holds[i].at, frozen))
+    },
+    [script, applyScriptChange],
+  )
+
+  const frozen = useCallback(
+    (i: number): boolean => {
+      const s = script
+      const holds = s?.holds ?? []
+      return s !== null && i >= 0 && i < holds.length && isFrozenAt(s, holds[i].at)
+    },
+    [script],
   )
 
   // When the page stops playing with the script still set (a pause, or the loop reaching the
@@ -383,5 +499,13 @@ export function useCameraScriptEditor({
     setKeyFromCamera,
     updateKey: updateKeyAction,
     deleteKey,
+    poses,
+    addHold,
+    updateHold: updateHoldAction,
+    removeHold: removeHoldAction,
+    holdHere,
+    faceCamera,
+    setFreeze,
+    frozen,
   }
 }

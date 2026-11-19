@@ -3,19 +3,26 @@
 import { expect, it } from 'vitest'
 
 import {
+  addHold,
   captureKey,
+  faceCameraHeading,
   gameFovOfVertical,
   insertKey,
   isDirty,
+  isFrozenAt,
   keySummary,
   newCameraScript,
+  newHold,
+  removeHold,
   removeKey,
   replaceKey,
   scriptTimeNow,
+  setFreezeAt,
+  updateHold,
   updateKey,
   type KeyOpResult,
 } from './cameraScriptModel'
-import type { CameraKey, CameraScript, PlayerPoint, ScriptPoint, ScriptVec3 } from '../scene3d/cameraScript3d'
+import { scriptClockOf, type CameraKey, type CameraScript, type PlayerPoint, type ScriptPoint, type ScriptVec3 } from '../scene3d/cameraScript3d'
 import { verticalFovOf } from '../model/fovLogic'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 
@@ -269,4 +276,130 @@ it('keySummary labels world and player keys', () => {
     look: { at: 'player', xuid: 'A' },
   }
   expect(keySummary(aligned, nameOf)).toBe('Follow Spartan117 → look at Spartan117')
+})
+
+it('newHold carries the documented defaults', () => {
+  expect(newHold('p', 315200, 'mp:intro_emote:i_see_you')).toEqual({
+    xuid: 'p',
+    at: 315200,
+    clip: 'mp:intro_emote:i_see_you',
+    loop: false,
+    blendMs: 250,
+    heading: null,
+    turnMs: 400,
+    pitch: 0,
+    weapon: 'keep',
+    until: null,
+  })
+})
+
+it('addHold keeps the holds sorted by at (stable) and revalidates', () => {
+  const s = { ...base(), holds: [newHold('a', 200, 'c1'), newHold('b', 400, 'c2')] }
+  const r = addHold(s, newHold('c', 300, 'c3'))
+  expect(r).toMatchObject({ ok: true })
+  const rs = (r as { ok: true; script: CameraScript }).script
+  expect(rs.holds?.map((h) => [h.xuid, h.at])).toEqual([
+    ['a', 200],
+    ['c', 300],
+    ['b', 400],
+  ])
+  // A hold sharing its time goes after the existing one (stable).
+  const r2 = addHold(s, newHold('d', 200, 'c4'))
+  expect(r2).toMatchObject({ ok: true })
+  expect((r2 as { ok: true; script: CameraScript }).script.holds?.map((h) => h.xuid)).toEqual(['a', 'd', 'b'])
+  expect(s.holds?.length).toBe(2) // the input is left unchanged
+})
+
+it('updateHold re-sorts after an at change and reports the new index; a same-player xuid is rejected', () => {
+  const s = { ...base(), holds: [newHold('a', 200, 'c1'), newHold('b', 400, 'c2')] }
+  const r = updateHold(s, 1, { at: 100 })
+  expect(r).toMatchObject({ ok: true })
+  expect((r as { ok: true; script: CameraScript; index: number }).index).toBe(0)
+  expect((r as { ok: true; script: CameraScript }).script.holds?.map((h) => h.xuid)).toEqual(['b', 'a'])
+
+  const r2 = updateHold(s, 0, { xuid: 'b' })
+  expect(r2).toMatchObject({ ok: false })
+  expect((r2 as { ok: false; error: string }).error).toMatch(/one hold per player/)
+  expect(s.holds?.map((h) => h.xuid)).toEqual(['a', 'b'])
+
+  expect(updateHold(s, 2, { clip: 'x' })).toMatchObject({ ok: false })
+})
+
+it('removeHold drops the hold and leaves the input unchanged', () => {
+  const s = { ...base(), holds: [newHold('a', 200, 'c1'), newHold('b', 400, 'c2')] }
+  const r = removeHold(s, 0)
+  expect(r).toMatchObject({ ok: true })
+  expect((r as { ok: true; script: CameraScript }).script.holds?.map((h) => h.xuid)).toEqual(['b'])
+  expect(s.holds?.length).toBe(2)
+})
+
+it('faceCameraHeading faces the player from the camera east, north, west and south', () => {
+  const feet = { x: 10, y: 5 }
+  expect(faceCameraHeading([20, 5, 9], feet)).toBe(0) // east
+  expect(faceCameraHeading([10, 15, 0], feet)).toBe(90) // north
+  expect(faceCameraHeading([0, 5, 0], feet)).toBe(180) // west
+  expect(faceCameraHeading([10, -5, 0], feet)).toBe(270) // south
+})
+
+it('setFreezeAt on a clock-less script creates the clock with the freeze entry; unfreezing returns it to no clock', () => {
+  const s = base()
+  expect(isFrozenAt(s, 300)).toBe(false)
+
+  const r = setFreezeAt(s, 300, true)
+  expect(r).toMatchObject({ ok: true })
+  const clocked = (r as { ok: true; script: CameraScript }).script
+  expect(clocked.clock).toEqual({
+    startMs: 0,
+    rates: [{ s: 0, rate: 1, ease: 'smooth' }, { s: 300, rate: 0, ease: 'cut' }],
+  })
+  expect(isFrozenAt(clocked, 300)).toBe(true)
+  // The created clock keeps script time as document time up to the freeze, then stops.
+  const view = scriptClockOf(clocked)
+  expect(view.docMsAt(300)).toBe(300)
+  expect(view.rateAt(300)).toBe(0)
+  expect(view.rateAt(4000)).toBe(0)
+
+  const r2 = setFreezeAt(clocked, 300, false)
+  expect(r2).toMatchObject({ ok: true })
+  const back = (r2 as { ok: true; script: CameraScript }).script
+  expect(back.clock).toBeUndefined()
+  expect(isFrozenAt(back, 300)).toBe(false)
+})
+
+it('freezing twice is idempotent and freezing a clocked script inserts the entry sorted', () => {
+  const r1 = setFreezeAt(base(), 300, true)
+  const r2 = setFreezeAt((r1 as { ok: true; script: CameraScript }).script, 300, true)
+  expect(r2).toMatchObject({ ok: true })
+  expect((r2 as { ok: true; script: CameraScript }).script).toBe(
+    (r1 as { ok: true; script: CameraScript }).script,
+  )
+
+  const clocked: CameraScript = {
+    ...base(),
+    clock: { startMs: 0, rates: [{ s: 0, rate: 1, ease: 'smooth' }, { s: 500, rate: 2, ease: 'smooth' }] },
+  }
+  const r3 = setFreezeAt(clocked, 400, true)
+  expect(r3).toMatchObject({ ok: true })
+  expect((r3 as { ok: true; script: CameraScript }).script.clock?.rates).toEqual([
+    { s: 0, rate: 1, ease: 'smooth' },
+    { s: 400, rate: 0, ease: 'cut' },
+    { s: 500, rate: 2, ease: 'smooth' },
+  ])
+  // Unfreezing a clock that is not identical to no clock keeps the rest of the clock.
+  const r4 = setFreezeAt((r3 as { ok: true; script: CameraScript }).script, 400, false)
+  expect(r4).toMatchObject({ ok: true })
+  expect((r4 as { ok: true; script: CameraScript }).script.clock?.rates).toEqual([
+    { s: 0, rate: 1, ease: 'smooth' },
+    { s: 500, rate: 2, ease: 'smooth' },
+  ])
+})
+
+it('isFrozenAt is true only for a rate-0 entry exactly at the time', () => {
+  const s: CameraScript = {
+    ...base(),
+    clock: { startMs: 0, rates: [{ s: 0, rate: 1, ease: 'smooth' }, { s: 300, rate: 0, ease: 'cut' }] },
+  }
+  expect(isFrozenAt(s, 300)).toBe(true)
+  expect(isFrozenAt(s, 0)).toBe(false) // s = 0 has rate 1
+  expect(isFrozenAt(s, 301)).toBe(false)
 })
