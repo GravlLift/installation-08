@@ -103,6 +103,10 @@ day (`exportHud.ts` paints the same corner, equipment included), checked on pain
    Limits stated up front: there is no arc when the attacker is unknown, for self damage, or for falls. A
    grenade or splash hit points at the thrower and not at the blast. All hits look the same
    strength, because the document has no damage amount.
+   Model done 2026-11-18: `damageArcsAt` in `model/damageArcs.ts` (bearing, age and attacker per
+   live arc, one arc per attacker; `readHud` returns it as `damageArcs`). Not drawn yet: the
+   arc's art, ring size and lifetime must come from the game's HUD. `DAMAGE_ARC_MS` (1 s) is a
+   placeholder until then.
 6. The red damage indicator above the shield: drawn on damage taken and from the `hp` health
    reading. Its exact look and rule must come from the game's HUD tags (to research before
    building, not tuned by eye).

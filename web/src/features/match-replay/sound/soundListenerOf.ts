@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 /** The followed player's position and heading serve as the export's audio listener. */
 import { isAliveAt, msToFrames, positionAt, trackWindow } from '../../../lib/replay/replayLogic'
-import type { ReplayCutPoint } from '../../../lib/replay/replayReadyTypes'
 import type { ReplayDocumentReady, ReplayTrackReady } from '../../../lib/replay/replayNormalize'
 import { buildLivesByXuid, deathWindowFrames } from '../model/livesPosition'
-import { headingTowardNext } from '../model/headingInterp'
+import { headingAt } from '../model/headingInterp'
 import type { SoundListener } from './soundSpatial'
 
 /** Use the active life, or the most recently ended life within the death window. */
@@ -27,28 +26,6 @@ function lifeOfXuidAt(
     }
   }
   return best
-}
-
-/** Interpolate the last known heading along the shortest path, or return null if absent. */
-function headingAt(points: ReplayCutPoint[], frame: number): number | null {
-  // Find the last point at or before the frame.
-  let lo = 0
-  let hi = points.length - 1
-  let last = -1
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1
-    if (points[mid].t <= frame) {
-      last = mid
-      lo = mid + 1
-    } else {
-      hi = mid - 1
-    }
-  }
-  // Headings are differential, so search backward for the last value.
-  for (let i = last; i >= 0; i--) {
-    if (points[i].h !== undefined) return headingTowardNext(points, i, frame)
-  }
-  return null
 }
 
 /** Build the life index once for the listener lookup used by every audio event. */

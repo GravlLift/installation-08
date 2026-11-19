@@ -5,6 +5,7 @@ import { scoreTimelineOf } from '@/lib/replay/scoreTimeline'
 import { readScoreBanner, type ScoreBannerReading } from './scoreBannerLogic'
 import { frameToMs } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady, ReplayTrackReady } from '@/lib/replay/replayNormalize'
+import { damageArcsAt } from './damageArcs'
 import { shieldHudAt, shieldHudTrackOf, type ShieldHudTrack } from './shieldHud'
 import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
 import { catalogText, type CatalogLabel } from '../i18n/catalogLabel'
@@ -179,7 +180,7 @@ export function readHud(source: ReturnType<typeof prepareHud>, frame: number, lo
   const equipment = equipmentSlotAt(doc, slot, frame)
   // The shield bar: smooth recharge, instant drops (`shieldHud`); null when the film carries no shield.
   const shieldState = state.shield ? shieldHudAt(shieldBar(source, state.life), frame) : null
-  return { shield: shieldState?.fraction ?? null, shieldState, weaponId: weapon?.id, label, ammo, grenade, away, nameTag, equipment, shape: reticleShape(label?.key), hit, elimination }
+  return { shield: shieldState?.fraction ?? null, shieldState, damageArcs: damageArcsAt(doc, slot, frame), weaponId: weapon?.id, label, ammo, grenade, away, nameTag, equipment, shape: reticleShape(label?.key), hit, elimination }
 }
 
 /**
