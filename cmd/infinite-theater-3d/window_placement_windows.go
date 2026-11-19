@@ -129,6 +129,24 @@ func scaleForDpi(dip int, dpi uint32) int {
 
 // rescaleDimension scales dim from fromDPI to toDPI; dim unchanged when either DPI is not
 // known (<= 0) or they are equal. The pure half of applyWindowPlacement's cross-DPI restore.
+// growToMinimum grows a window rect to at least minW x minH (capped to the work area, as the
+// WM_GETMINMAXINFO minimum is), then moves it only as far as needed to keep it inside work.
+// A rect already at or above the minimum is returned unchanged.
+func growToMinimum(x, y, width, height, minW, minH int, work windows.Rect) (int, int, int, int) {
+	workW := int(work.Right - work.Left)
+	workH := int(work.Bottom - work.Top)
+	minW = min(minW, workW)
+	minH = min(minH, workH)
+	if width >= minW && height >= minH {
+		return x, y, width, height
+	}
+	width = max(width, minW)
+	height = max(height, minH)
+	x = max(min(x, int(work.Right)-width), int(work.Left))
+	y = max(min(y, int(work.Bottom)-height), int(work.Top))
+	return x, y, width, height
+}
+
 func rescaleDimension(dim, fromDPI, toDPI int) int {
 	if fromDPI <= 0 || toDPI <= 0 || fromDPI == toDPI {
 		return dim
@@ -310,19 +328,26 @@ func saveWindowPlacement(p windowPlacement) {
 // its rect first, so it maximizes on the monitor it was saved on and keeps its restored
 // size.
 func applyWindowPlacement(hwnd windows.Handle, p windowPlacement) {
-	width, height := p.Width, p.Height
-	if p.DPI > 0 {
-		rect := windows.Rect{Left: int32(p.X), Top: int32(p.Y), Right: int32(p.X + p.Width), Bottom: int32(p.Y + p.Height)}
-		if hMon, _, _ := procMonitorFromRect.Call(uintptr(unsafe.Pointer(&rect)), monitorDefaultTonearest); hMon != 0 {
-			if targetDPI, ok := monitorDPI(hMon); ok {
+	x, y, width, height := p.X, p.Y, p.Width, p.Height
+	rect := windows.Rect{Left: int32(p.X), Top: int32(p.Y), Right: int32(p.X + p.Width), Bottom: int32(p.Y + p.Height)}
+	if hMon, _, _ := procMonitorFromRect.Call(uintptr(unsafe.Pointer(&rect)), monitorDefaultTonearest); hMon != 0 {
+		if targetDPI, ok := monitorDPI(hMon); ok {
+			if p.DPI > 0 {
 				width = rescaleDimension(width, p.DPI, int(targetDPI))
 				height = rescaleDimension(height, p.DPI, int(targetDPI))
+			}
+			// The size limits (window_limits_windows.go) are answered by the subclassed
+			// window procedure, which is installed after this runs, so a remembered size
+			// below the minimum (saved by a version without one) is grown here.
+			minW, minH, mok := outerSizeForClient(scaleForDpi(windowMinClientW, targetDPI), scaleForDpi(windowMinClientH, targetDPI), targetDPI)
+			if work, wok := monitorWorkArea(hMon); mok && wok {
+				x, y, width, height = growToMinimum(x, y, width, height, minW, minH, work)
 			}
 		}
 	}
 	for range 2 {
 		_, _, _ = procSetWindowPos.Call(uintptr(hwnd), 0,
-			uintptr(p.X), uintptr(p.Y), uintptr(width), uintptr(height),
+			uintptr(x), uintptr(y), uintptr(width), uintptr(height),
 			swpNoZOrder|swpNoActivate)
 	}
 	if p.Maximized {

@@ -167,3 +167,22 @@ func TestDefaultPlacementForShrinksHeightBound(t *testing.T) {
 		t.Errorf("client %dx%d is not 16:9", clientW, clientH)
 	}
 }
+
+// TestGrowToMinimum — a remembered rect below the minimum grows to it and moves back inside
+// the work area; one already big enough is untouched; a work area smaller than the minimum
+// caps it.
+func TestGrowToMinimum(t *testing.T) {
+	work := windows.Rect{Left: 0, Top: 0, Right: 3840, Bottom: 2100}
+	// The saved 553x543 window near the right edge, with a 1560x1030 minimum (150 % scale).
+	x, y, w, h := growToMinimum(3500, 209, 553, 543, 1560, 1030, work)
+	if w != 1560 || h != 1030 || x != 3840-1560 || y != 209 {
+		t.Errorf("grown rect = (%d,%d %dx%d), want (%d,209 1560x1030)", x, y, w, h, 3840-1560)
+	}
+	if x, y, w, h := growToMinimum(100, 100, 1600, 1100, 1560, 1030, work); x != 100 || y != 100 || w != 1600 || h != 1100 {
+		t.Errorf("big enough rect changed to (%d,%d %dx%d)", x, y, w, h)
+	}
+	small := windows.Rect{Left: -1366, Top: 0, Right: 0, Bottom: 728}
+	if x, y, w, h := growToMinimum(-1300, 50, 400, 300, 1560, 1030, small); x != -1366 || y != 0 || w != 1366 || h != 728 {
+		t.Errorf("small-monitor rect = (%d,%d %dx%d), want (-1366,0 1366x728)", x, y, w, h)
+	}
+}
