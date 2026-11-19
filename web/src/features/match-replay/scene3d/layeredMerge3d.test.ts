@@ -9,6 +9,7 @@ import { layeredMaterial, prepareLayerUVs, type LayeredInfo } from './layeredMat
 import { convertLayered } from './layeredMerge3d'
 import { GLOW_TEXEL, ROW_TEXELS } from './layeredPlan3d'
 import { tightenBounds } from './mapModel'
+import { probeParts } from './probes3d'
 import { probeSurface, tagSurface } from './surfaceProbe3d'
 
 /** Four textures: color 4x4, normal 4x4, mask 4x4, glow 8x8. */
@@ -118,5 +119,31 @@ describe('batchLayered', () => {
 
     release()
     expect(root.children.some((o) => o.name === 'merged-map')).toBe(false)
+    expect([a.visible, b.visible]).toEqual([true, true])
+  })
+
+  it("draws each probe part of a split surface with its probe's material, even alone", async () => {
+    const { a, b, glass, root, owned } = await scene()
+    const merge = convertLayered([a, b], [a, b, glass], owned)!
+    const near = a.material as THREE.MeshStandardMaterial
+    const far = near.clone()
+    far.userData = near.userData
+    // b's triangle is split in two parts for the test: one with a's probe, one with another.
+    probeParts.set(b, [
+      { material: near, index: new Uint16Array([4, 5, 3]) },
+      { material: far, index: new Uint16Array([5, 4, 3]) },
+    ])
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+    const release = batchLayered(merge, [a, b, glass], tightenBounds)
+    info.mockRestore()
+    const drawn = root.children.filter((o) => o.name === 'merged-map') as THREE.Mesh[]
+    expect(drawn.map((m) => [m.material === near ? 'near' : 'far', Array.from(m.geometry.index!.array)])).toEqual([
+      ['near', [0, 1, 2, 4, 5, 3]],
+      ['far', [5, 4, 3]],
+    ])
+    expect([a.visible, b.visible]).toEqual([false, false])
+    release()
+    probeParts.delete(b)
+    expect([a.visible, b.visible]).toEqual([true, true])
   })
 })

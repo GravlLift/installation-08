@@ -2,9 +2,45 @@
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 
-import { chooseProbes, nearestProbe, sunAngles } from './probes3d'
+import { chooseProbes, nearestProbe, splitByProbe, sunAngles } from './probes3d'
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z)
+
+describe('splitByProbe', () => {
+  // A long strip: two triangles near x = 0, one near x = 40, in one mesh.
+  function strip(index: number[] | null) {
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1, 40, 0, 0, 41, 0, 0, 40, 0, 1]), 3))
+    if (index) g.setIndex(index)
+    return new THREE.Mesh(g)
+  }
+  const probes = [v(20, 1, 0), v(0, 1, 0), v(40, 1, 0)]
+
+  it("gives each triangle its nearest probe, the largest share first, in the surface's order", () => {
+    const shares = splitByProbe(strip([0, 1, 2, 4, 5, 6, 1, 3, 2]), probes)
+    expect(shares.map((s) => s.probe)).toEqual([1, 2])
+    expect(Array.from(shares[0].index!)).toEqual([0, 1, 2, 1, 3, 2])
+    expect(Array.from(shares[1].index!)).toEqual([4, 5, 6])
+    expect(shares[0].index).toBeInstanceOf(Uint16Array)
+  })
+
+  it("follows the mesh's place in the world", () => {
+    const mesh = strip([0, 1, 2])
+    mesh.position.set(40, 0, 0)
+    expect(splitByProbe(mesh, probes).map((s) => s.probe)).toEqual([2])
+  })
+
+  it('one share, the whole index, when every triangle takes one probe', () => {
+    const mesh = strip([0, 1, 2, 1, 3, 2])
+    const shares = splitByProbe(mesh, probes)
+    expect(shares).toHaveLength(1)
+    expect(shares[0].index).toBe(mesh.geometry.index!.array)
+  })
+
+  it('a mesh without an index takes the probe closest to its box', () => {
+    expect(splitByProbe(strip(null), probes)).toEqual([{ probe: 0, index: null }])
+  })
+})
 
 describe('chooseProbes', () => {
   // Two rooms 40u apart, each with a few points.

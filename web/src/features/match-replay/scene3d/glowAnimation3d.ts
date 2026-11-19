@@ -21,6 +21,7 @@
 import * as THREE from 'three'
 
 import { glowLevel, imageGlowLevel } from './lighting'
+import { probeParts } from './probes3d'
 
 /** A periodic sub-function: wave(frequence x input + phase), brought into [min, max]. */
 export interface GamePeriodic { onde: number; frequence: number; phase: number; min: number; max: number }
@@ -211,7 +212,8 @@ export class GlowAnimator {
   adoptCopies(meshes: readonly THREE.Mesh[]): void {
     const known = new Set<THREE.Material>(this.entries.map((e) => e.material))
     for (const mesh of meshes) {
-      for (const m of [mesh.material].flat()) {
+      // A surface split between probes draws its other parts with their own copies.
+      for (const m of [mesh.material, ...(probeParts.get(mesh)?.map((p) => p.material) ?? [])].flat()) {
         const k = m.userData[GLOW_ENTRY]
         if (known.has(m) || typeof k !== 'number' || !this.entries[k]) continue
         if (!(m instanceof THREE.MeshStandardMaterial || m instanceof THREE.MeshBasicMaterial)) continue

@@ -7,10 +7,89 @@
  * placed where players have stood (never inside a wall), spread out by farthest-point sampling:
  * the first closest to the center, each next one at the played point farthest from the probes
  * already placed, up to the cap or until every played point has a probe within `spacing`. Each
- * map surface takes the probe closest to its box (a slab crossing several zones is settled by its
- * center).
+ * triangle of a map surface takes the probe closest to its center (`splitByProbe`): many of the
+ * map's surfaces are one mesh across the whole map (Streets' road is 74 u wide), and a single probe
+ * for the mesh lit a whole street with the reflection of a room in the middle of the map.
  */
 import * as THREE from 'three'
+
+/** A surface's share drawn with one probe's material (`Lighting.assignProbes`). */
+export interface ProbePart {
+  material: THREE.MeshStandardMaterial
+  index: THREE.TypedArray
+}
+
+/**
+ * The parts of the surfaces whose triangles are lit by more than one probe, set by the lighting
+ * on every capture: the mesh itself keeps the material of its largest part, and the merged
+ * draws (`batchLayered`) draw each part with its own material.
+ */
+export const probeParts = new WeakMap<THREE.Mesh, ProbePart[]>()
+
+/**
+ * splitByProbe: `mesh`'s triangles grouped by the probe closest to each triangle's center (world
+ * axes), the largest share first. A mesh without an index, or whose triangles all take one probe,
+ * is one share: its whole index (null without one), and the probe closest to its box.
+ */
+export function splitByProbe(mesh: THREE.Mesh, probes: readonly THREE.Vector3[]): { probe: number; index: THREE.TypedArray | null }[] {
+  const index = mesh.geometry.index
+  const position = mesh.geometry.getAttribute('position')
+  if (!index || !position || probes.length < 2) {
+    return [{ probe: nearestProbe(new THREE.Box3().setFromObject(mesh), probes), index: index?.array ?? null }]
+  }
+  mesh.updateWorldMatrix(true, false)
+  const e = mesh.matrixWorld.elements
+  const ids = index.array
+  const triangles = Math.floor(ids.length / 3)
+  const owner = new Uint8Array(triangles)
+  const counts = new Array<number>(probes.length).fill(0)
+  for (let t = 0; t < triangles; t++) {
+    let x = 0
+    let y = 0
+    let z = 0
+    for (let v = 0; v < 3; v++) {
+      const i = ids[t * 3 + v]
+      x += position.getX(i)
+      y += position.getY(i)
+      z += position.getZ(i)
+    }
+    x /= 3
+    y /= 3
+    z /= 3
+    const wx = e[0] * x + e[4] * y + e[8] * z + e[12]
+    const wy = e[1] * x + e[5] * y + e[9] * z + e[13]
+    const wz = e[2] * x + e[6] * y + e[10] * z + e[14]
+    let best = 0
+    let bestD = Infinity
+    for (let p = 0; p < probes.length; p++) {
+      const dx = probes[p].x - wx
+      const dy = probes[p].y - wy
+      const dz = probes[p].z - wz
+      const d = dx * dx + dy * dy + dz * dz
+      if (d < bestD) {
+        best = p
+        bestD = d
+      }
+    }
+    owner[t] = best
+    counts[best]++
+  }
+  const used = counts.map((n, probe) => ({ probe, n })).filter((s) => s.n > 0)
+  if (used.length === 1) return [{ probe: used[0].probe, index: ids }]
+  used.sort((a, b) => b.n - a.n || a.probe - b.probe)
+  const Ctor = ids.constructor as new (n: number) => THREE.TypedArray
+  return used.map(({ probe, n }) => {
+    const out = new Ctor(n * 3)
+    let o = 0
+    for (let t = 0; t < triangles; t++) {
+      if (owner[t] !== probe) continue
+      out[o++] = ids[t * 3]
+      out[o++] = ids[t * 3 + 1]
+      out[o++] = ids[t * 3 + 2]
+    }
+    return { probe, index: out }
+  })
+}
 
 /**
  * chooseProbes: at most `max` points taken from `points`, the first closest to their center,

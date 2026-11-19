@@ -6,7 +6,7 @@
  * on every new replay frame, so players and vehicles cast one (nothing while paused). The map's
  * own casters are drawn into it once and kept (shadowSplit3d): each frame redraws only what
  * moves. The environment (reflections and indirect light) is the map itself, captured as a cube
- * from several played points then prefiltered: each surface takes the nearest probe
+ * from several played points then prefiltered: each triangle takes the nearest probe
  * (`probes3d`). The map's placed lamps light directly, without shadows, through a world grid
  * (`clusteredLights`). The action's brief flashes (muzzles, detonations) have their own fixed
  * set of lights (`flash3d`), placed at construction.
@@ -22,7 +22,7 @@ import type { BakedLight } from './bakedLightShader'
 import { FlashLights } from './flash3d'
 import { ShadowSplit } from './shadowSplit3d'
 import type { Look3d } from './look3d'
-import { chooseProbes, nearestProbe } from './probes3d'
+import { chooseProbes, nearestProbe, probeParts, splitByProbe, type ProbePart } from './probes3d'
 import { graftTopShade } from './topDownShade3d'
 
 const SHADOW_SIZE = 4096
@@ -269,7 +269,7 @@ export class Lighting {
 
   /**
    * captureProbes captures the map as a cube from played points (`eyes`, at eye height) and
-   * gives each surface of `meshes` the nearest probe. A material shared by surfaces with
+   * gives each triangle of `meshes` the nearest probe. A material shared by surfaces with
    * different probes is copied per probe. Call once, before placing players. Returns the
    * number of probes.
    */
@@ -311,12 +311,15 @@ export class Lighting {
   /** releaseLayer removes a removed layer's surfaces from the probes, and frees the copies made for it. */
   releaseLayer(meshes: readonly THREE.Mesh[]): void {
     for (const mesh of meshes) {
-      const m = mesh.material
-      if (!(m instanceof THREE.MeshStandardMaterial) || !this.envOf.delete(m)) continue
-      const i = this.copies.indexOf(m)
-      if (i < 0) continue
-      this.copies.splice(i, 1)
-      m.dispose()
+      const materials = [mesh.material, ...(probeParts.get(mesh)?.map((p) => p.material) ?? [])]
+      probeParts.delete(mesh)
+      for (const m of materials) {
+        if (!(m instanceof THREE.MeshStandardMaterial) || !this.envOf.delete(m)) continue
+        const i = this.copies.indexOf(m)
+        if (i < 0) continue
+        this.copies.splice(i, 1)
+        m.dispose()
+      }
     }
     this.shadowFrame = Number.NaN
   }
@@ -406,29 +409,37 @@ export class Lighting {
   }
 
   /**
-   * assignProbes gives each surface of `meshes` the nearest probe; a material shared by surfaces
-   * with different probes is copied per probe. Returns the assigned materials.
+   * assignProbes gives each triangle of `meshes` the nearest probe (`splitByProbe`); a material
+   * shared by surfaces or parts with different probes is copied per probe. A surface split
+   * between probes keeps its largest part's material and publishes its parts (`probeParts`),
+   * which the merged draws draw each with its own. Returns the assigned materials.
    */
   private assignProbes(meshes: readonly THREE.Mesh[]): Set<THREE.MeshStandardMaterial> {
     const perProbe = new Map<THREE.MeshStandardMaterial, Map<number, THREE.MeshStandardMaterial>>()
     const assigned = new Set<THREE.MeshStandardMaterial>()
-    const box = new THREE.Box3()
     for (const mesh of meshes) {
       const source = mesh.material
       if (!(source instanceof THREE.MeshStandardMaterial)) continue
-      const k = nearestProbe(box.setFromObject(mesh), this.spots)
       let variants = perProbe.get(source)
-      if (!variants) perProbe.set(source, (variants = new Map([[k, source]])))
-      let m = variants.get(k)
-      if (!m) {
-        m = copyPerProbe(source)
-        variants.set(k, m)
-        this.copies.push(m)
+      const materialFor = (k: number): THREE.MeshStandardMaterial => {
+        if (!variants) perProbe.set(source, (variants = new Map([[k, source]])))
+        let m = variants.get(k)
+        if (!m) {
+          m = copyPerProbe(source)
+          variants.set(k, m)
+          this.copies.push(m)
+        }
+        m.envMapIntensity = ENV_INTENSITY
+        this.envOf.set(m, this.probes[k])
+        assigned.add(m)
+        return m
       }
-      mesh.material = m
-      m.envMapIntensity = ENV_INTENSITY
-      this.envOf.set(m, this.probes[k])
-      assigned.add(m)
+      // Each triangle takes its nearest probe; the mesh itself draws with its largest share's.
+      const shares = splitByProbe(mesh, this.spots)
+      const parts = shares.map((s) => ({ material: materialFor(s.probe), index: s.index }))
+      mesh.material = parts[0].material
+      if (parts.length > 1) probeParts.set(mesh, parts as ProbePart[])
+      else probeParts.delete(mesh)
     }
     return assigned
   }
