@@ -82,7 +82,9 @@ The video export draws the same HUD (`export/exportHud.ts`), so each phase updat
 
 **Phase 1: the weapon corner (data is ready, UI only).** Live HUD done 2026-11-18 (`readHud`'s
 `away`, `grenade`, `nameTag`; `weaponAway` and `handChangeAt` in `weaponInHand.ts`), checked in the
-viewer on Live Fire 07157ce5 (pickup at frame 3458, swaps in life 596). Export pending.
+viewer on Live Fire 07157ce5 (pickup at frame 3458, swaps in life 596). Export done the same
+day (`exportHud.ts` paints the same corner, equipment included), checked on painted frames
+12900 to 12960 of that film.
 1. Weapon in hand and weapon away: the away weapon's icon goes small and dimmed at the left of the
    upper row, the in-hand row keeps mag | reserve and its icon. Both read the loadout row, so a swap
    trades them on the selector flip.
@@ -101,6 +103,10 @@ viewer on Live Fire 07157ce5 (pickup at frame 3458, swaps in life 596). Export p
    Limits stated up front: there is no arc when the attacker is unknown, for self damage, or for falls. A
    grenade or splash hit points at the thrower and not at the blast. All hits look the same
    strength, because the document has no damage amount.
+   Model done 2026-11-18: `damageArcsAt` in `model/damageArcs.ts` (bearing, age and attacker per
+   live arc, one arc per attacker; `readHud` returns it as `damageArcs`). Not drawn yet: the
+   arc's art, ring size and lifetime must come from the game's HUD. `DAMAGE_ARC_MS` (1 s) is a
+   placeholder until then.
 6. The red damage indicator above the shield: drawn on damage taken and from the `hp` health
    reading. Its exact look and rule must come from the game's HUD tags (to research before
    building, not tuned by eye).

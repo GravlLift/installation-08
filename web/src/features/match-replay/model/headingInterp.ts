@@ -68,3 +68,30 @@ export function headingTowardNext(
   }
   return held
 }
+
+/**
+ * headingAt — the heading of a point stream at `frame`: the last known heading, interpolated
+ * along the shortest path toward the next reading (`headingTowardNext`). `null` when no reading
+ * at or before `frame` carries one. Headings are differential, so the search goes BACKWARD from
+ * the last point at or before the frame: a reading retransmits only when it changes.
+ */
+export function headingAt(points: readonly HeadingPoint[], frame: number): number | null {
+  // Find the last point at or before the frame.
+  let lo = 0
+  let hi = points.length - 1
+  let last = -1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    if (points[mid].t <= frame) {
+      last = mid
+      lo = mid + 1
+    } else {
+      hi = mid - 1
+    }
+  }
+  // Headings are differential, so search backward for the last value.
+  for (let i = last; i >= 0; i--) {
+    if (points[i].h !== undefined) return headingTowardNext(points, i, frame)
+  }
+  return null
+}
