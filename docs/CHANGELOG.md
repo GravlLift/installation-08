@@ -1,12 +1,17 @@
 # Changelog
 
+## 0.1.1-test.6
+
+Changes since 0.1.1-test.5.
+
+- The weapon name tag no longer pushes the rest of the weapon corner up when it appears: it hangs below the ammo row. It is smaller, as in the game, and sits on a dark plate that fades with it, in the viewer and the video export.
+
 ## 0.1.1-test.5
 
 Changes since 0.1.1-test.4.
 
 - Sounds in the world (gunfire, footsteps, impacts, engines, shields) now reverberate like the zone the camera is in. Each zone of a map names one of the game's reverb presets (Streets and Live Fire share four), and the viewer applies that preset's decay, tone and wet level from your install. It crossfades to the next zone's reverb when the camera moves. The game's exact recorded reverb is not decoded yet, so each preset is rebuilt from its measured energy over time and frequency. The announcer, the music and the ambient loops stay dry. The first start after updating extracts the reverbs once. Video export has no reverb yet.
 - The video export draws the new HUD weapon corner too: the weapon put away, the one grenade slot, the fading weapon name tag, and the equipment box, which the export used to leave out.
-- The weapon name tag no longer pushes the rest of the weapon corner up when it appears: it hangs below the ammo row. It is smaller, as in the game, and sits on a dark plate that fades with it, in the viewer and the video export.
 
 ## 0.1.1-test.4
 
