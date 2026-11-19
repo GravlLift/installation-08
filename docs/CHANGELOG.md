@@ -5,6 +5,11 @@
 Changes since 0.1.1-test.5.
 
 - The weapon name tag no longer pushes the rest of the weapon corner up when it appears: it hangs below the ammo row. It is smaller, as in the game, and sits on a dark plate that fades with it, in the viewer and the video export.
+- Footsteps and slides play at the volume the game sets for each one (walking -29 dB, running -11 and -20 dB, sprinting -9.5 and -14 dB, slides -7 dB) instead of a flat -3 dB. They fade with distance on the game's own curves, measured in 3D so a player a floor away is quieter, and fall silent within 5 to 18 units as in the game. A run or sprint step plays its layers together (foot and gear) as the game does. In the free camera, every player's steps now come from where that player is; before, they all played at full volume from the center.
+- Running and sprinting are told apart at the speeds the film actually records. Before, most runs played the walking sound.
+- 15 weapons now fire with the game's own shot instead of a single file: BR75, Bandit, S7, Bulldog, Hydra, SPNKr, Fuel Rod, Skewer, Cindershot, Heatwave, Disruptor, Mangler, Pulse Carbine, Stalker Rifle and Vestige Carbine. Each shot draws a random take for its near, mid and far layers, so two players firing together no longer phase on the same sample, and the layers fade with distance on the game's curves, so a far shot sounds far. The automatic weapons and four weapons with several shot sounds (Sidekick, Plasma Pistol, Ravager, Mutilator) keep their current sound.
+- The zone reverb is 3 dB quieter.
+- The first start after updating extracts the new footstep and shot sounds once.
 
 ## 0.1.1-test.5
 
