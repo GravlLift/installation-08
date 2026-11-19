@@ -4,6 +4,7 @@
 
 Changes since 0.1.1-test.8.
 
+- The whole mix goes through the game's own master compressor (-17 dB, 7:1, read from the install), as in the game. Loud close sounds, your own shots most of all, come down when they cross it, and distant fire keeps its body against them. The volume setting comes after it, so the mix sounds the same at any volume. Not in the video export yet.
 - The in-view HUD uses the game's own typefaces, read from your install: Normative Pro for the kill feed, medals, weapon corner and place name, and Industry for the score and clock, as the game's scoreboard names it. In the viewer and the video export. The first start after updating builds them once with the HUD icons; until then, and on an install without them, the old font draws.
 
 ## 0.1.1-test.8
