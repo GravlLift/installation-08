@@ -10,7 +10,7 @@ import { convertLayered } from './layeredMerge3d'
 import { GLOW_TEXEL, ROW_TEXELS } from './layeredPlan3d'
 import { tightenBounds } from './mapModel'
 import { probeParts } from './probes3d'
-import { probeSurface, tagSurface } from './surfaceProbe3d'
+import { drawersOf, probeSurface, tagSurface } from './surfaceProbe3d'
 
 /** Four textures: color 4x4, normal 4x4, mask 4x4, glow 8x8. */
 function textures(): THREE.Texture[] {
@@ -142,8 +142,39 @@ describe('batchLayered', () => {
       ['far', [5, 4, 3]],
     ])
     expect([a.visible, b.visible]).toEqual([false, false])
+    expect(drawersOf(b)).toEqual(drawn) // each part's merged mesh
     release()
     probeParts.delete(b)
     expect([a.visible, b.visible]).toEqual([true, true])
+  })
+
+  it('draws a split surface without a merged material one mesh per part, with or without a merge', async () => {
+    for (const withMerge of [true, false]) {
+      const { a, b, glass, root, owned } = await scene()
+      const merge = withMerge ? convertLayered([a, b], [a, b, glass], owned)! : null
+      glass.name = 'pane'
+      const near = glass.material as THREE.MeshStandardMaterial
+      const far = near.clone()
+      probeParts.set(glass, [
+        { material: near, index: new Uint16Array([0, 2, 3]) },
+        { material: far, index: new Uint16Array([3, 2, 0]) },
+      ])
+      const info = vi.spyOn(console, 'info').mockImplementation(() => {})
+      const release = batchLayered(merge, [a, b, glass], tightenBounds)
+      info.mockRestore()
+      const parts = root.children.filter((o) => o.name === 'pane' && o !== glass) as THREE.Mesh[]
+      expect(parts.map((m) => [m.material === near ? 'near' : 'far', Array.from(m.geometry.index!.array)])).toEqual([
+        ['near', [0, 2, 3]],
+        ['far', [3, 2, 0]],
+      ])
+      expect(parts[0].geometry.getAttribute('uv')).toBe(glass.geometry.getAttribute('uv'))
+      expect(glass.visible).toBe(false)
+      expect(drawersOf(glass)).toEqual(parts)
+      release()
+      probeParts.delete(glass)
+      expect(glass.visible).toBe(true)
+      expect(drawersOf(glass)).toEqual([])
+      expect(root.children.some((o) => o.name === 'pane' && o !== glass)).toBe(false)
+    }
   })
 })

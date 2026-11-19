@@ -55,19 +55,27 @@ export function surfaceFamily(mesh: THREE.Object3D): string | null {
   return (mesh.userData[KEY] as SurfaceTag | undefined)?.family ?? null
 }
 
-const drawers = new WeakMap<THREE.Object3D, THREE.Object3D>()
+const drawers = new WeakMap<THREE.Object3D, THREE.Object3D[]>()
 
 /**
  * markDrawnBy: the surface tagged `mesh`, hidden, is drawn by `drawer` (a merged mesh that does
- * not respond to rays); the inspector deems it visible when `drawer` is.
+ * not respond to rays); the inspector deems it visible when its first drawer is. A surface split
+ * between probes is drawn by several, one per part: each call adds one.
  */
 export function markDrawnBy(mesh: THREE.Object3D, drawer: THREE.Object3D): void {
-  drawers.set(mesh, drawer)
+  const list = drawers.get(mesh)
+  if (!list) drawers.set(mesh, [drawer])
+  else if (!list.includes(drawer)) list.push(drawer)
 }
 
-/** drawnBy — the merged mesh that draws the hidden surface `mesh` (`markDrawnBy`), null if it draws itself. */
+/** drawnBy — the (first) merged mesh that draws the hidden surface `mesh` (`markDrawnBy`), null if it draws itself. */
 export function drawnBy(mesh: THREE.Object3D): THREE.Object3D | null {
-  return drawers.get(mesh) ?? null
+  return drawers.get(mesh)?.[0] ?? null
+}
+
+/** drawersOf — every mesh that draws a part of the hidden surface `mesh`; empty if it draws itself. */
+export function drawersOf(mesh: THREE.Object3D): readonly THREE.Object3D[] {
+  return drawers.get(mesh) ?? []
 }
 
 /**
@@ -82,7 +90,7 @@ export function clearDrawnBy(mesh: THREE.Object3D): void {
 }
 
 function visible(o: THREE.Object3D): boolean {
-  const drawn = drawers.get(o) ?? o
+  const drawn = drawers.get(o)?.[0] ?? o
   for (let n: THREE.Object3D | null = drawn; n; n = n.parent) if (!n.visible) return false
   return true
 }

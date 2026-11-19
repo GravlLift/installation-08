@@ -21,7 +21,7 @@ import * as THREE from 'three'
 
 import { BACK_FACE_NAME } from './backFaces3d'
 import { cssColor } from './cssColor'
-import { drawnBy, inObjectLayer, surfaceFamily } from './surfaceProbe3d'
+import { drawersOf, inObjectLayer, surfaceFamily } from './surfaceProbe3d'
 import { flatShare, hiddenFromTop, type HeightSpan } from './topDownLogic'
 import { flatTopLight } from './topDownShade3d'
 
@@ -137,11 +137,11 @@ export class TopDownStage {
         // The flat share is only read for a map cutout: the rest is decided without it.
         const flat = cutout && !objectLayer && family !== null ? flatShare(...worldTriangles(mesh)) : 1
         const hide = hiddenFromTop({ family, instanced: (mesh as THREE.InstancedMesh).isInstancedMesh === true, transparent, cutout, objectLayer, flat })
-        const drawer = drawnBy(mesh)
+        const drawn = drawersOf(mesh)
         if (hide) {
           out.add(mesh)
-          if (drawer) out.add(drawer)
-        } else if (drawer && family !== null) kept.add(drawer)
+          for (const d of drawn) out.add(d)
+        } else if (family !== null) for (const d of drawn) kept.add(d)
       })
     }
     for (const k of kept) out.delete(k)

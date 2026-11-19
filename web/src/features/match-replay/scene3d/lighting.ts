@@ -412,7 +412,7 @@ export class Lighting {
    * assignProbes gives each triangle of `meshes` the nearest probe (`splitByProbe`); a material
    * shared by surfaces or parts with different probes is copied per probe. A surface split
    * between probes keeps its largest part's material and publishes its parts (`probeParts`),
-   * which the merged draws draw each with its own. Returns the assigned materials.
+   * which `batchLayered` draws each with its own. Returns the assigned materials.
    */
   private assignProbes(meshes: readonly THREE.Mesh[]): Set<THREE.MeshStandardMaterial> {
     const perProbe = new Map<THREE.MeshStandardMaterial, Map<number, THREE.MeshStandardMaterial>>()

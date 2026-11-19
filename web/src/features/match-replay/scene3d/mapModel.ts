@@ -149,8 +149,8 @@ export interface MapModel extends SurfaceModel {
   /**
    * batchDraws draws the merged-material surfaces of a given node and material as one mesh
    * (`batchLayered`), after every probe capture: a reattach's probes give the surfaces new
-   * materials and new probe parts, and the previous batch is released first. With no merge,
-   * nothing.
+   * materials and new probe parts, and the previous batch is released first. Every other
+   * surface split between probes is drawn one mesh per part, merge or not.
    */
   batchDraws(): void
 }
@@ -304,7 +304,6 @@ export async function loadMapModel(buffer: ArrayBuffer, onStep: StepCallback, kt
     sun: sunAngles(scene.userData),
     baked,
     batchDraws() {
-      if (!merge) return
       unbatch?.()
       unbatch = batchLayered(merge, model.surfaces, tightenBounds)
     },
