@@ -9,14 +9,16 @@
  * The contract uses the replay's own terms: points in GAME coordinates (z up, headings in
  * degrees from +x toward +y). Key times are SCRIPT milliseconds; an optional `clock` maps
  * script time to document milliseconds (the film's own time) through a rate track, so a shot
- * can slow, speed or freeze the world while the camera keeps moving. The pose is returned in
- * THREE coordinates via `toThree`. Player anchors resolve at the clock's document time, not at
+ * can slow, speed or freeze the world while the camera keeps moving. An optional `holds` array
+ * takes players out of the film to pose for the camera (docs/design/hold.md). The pose is
+ * returned in THREE coordinates via `toThree`. Player anchors resolve at the clock's document time, not at
  * the key's script time; without a clock, script time is document time. A `cut` splits the
  * script into runs the Catmull-Rom spline never crosses.
  */
 import { toThree, type Vec3 } from './tracks3d'
 import { verticalFovOf } from '../model/fovLogic'
 import { BODY_CENTER } from './body3d'
+import { parseHolds, type Hold } from './hold3d'
 
 export type Ease = 'smooth' | 'linear' | 'in' | 'out' | 'cut'
 export type ScriptVec3 = [number, number, number]
@@ -54,6 +56,7 @@ export interface CameraScript {
   name: string
   keys: CameraKey[]
   clock?: ScriptClock
+  holds?: Hold[]
 }
 
 export const CAMERA_SCRIPT_MAX_KEYS = 512
@@ -206,8 +209,16 @@ export function parseCameraScript(raw: unknown, expectedMatchId?: string): Parse
     clock = parsed.clock
   }
 
+  let holds: Hold[] | undefined
+  if (r.holds !== undefined) {
+    const parsed = parseHolds(r.holds)
+    if ('error' in parsed) return { ok: false, error: parsed.error }
+    holds = parsed.holds
+  }
+
   const script: CameraScript = { version: 1, matchId: r.matchId, name: r.name, keys }
   if (clock !== undefined) script.clock = clock
+  if (holds !== undefined) script.holds = holds
   return { ok: true, script }
 }
 

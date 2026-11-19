@@ -254,6 +254,33 @@ describe('parseCameraScript (clock)', () => {
   })
 })
 
+describe('parseCameraScript (holds)', () => {
+  function rawWithHolds(holds: unknown): Record<string, unknown> {
+    return { ...script([key(0, w([0, 0, 0]), w([0, 0, 0]))]), holds }
+  }
+
+  it('round-trips a script with holds and drops unknown fields', () => {
+    const raw = rawWithHolds([
+      { xuid: 'B', at: 2000, clip: 'idle', junk: 1 },
+      { xuid: 'A', at: 1000, clip: 'mp:intro_emote:i_see_you', heading: 135, weapon: 'hide' },
+    ])
+    const s = accepts(raw)
+    expect(s.holds).toEqual([
+      { xuid: 'A', at: 1000, clip: 'mp:intro_emote:i_see_you', loop: false, blendMs: 250, heading: 135, turnMs: 400, pitch: 0, weapon: 'hide', until: null },
+      { xuid: 'B', at: 2000, clip: 'idle', loop: false, blendMs: 250, heading: null, turnMs: 400, pitch: 0, weapon: 'keep', until: null },
+    ])
+  })
+
+  it('keeps a hold-less script hold-less', () => {
+    expect(accepts(script([key(0, w([0, 0, 0]), w([0, 0, 0]))])).holds).toBeUndefined()
+  })
+
+  it('a bad hold fails the whole parse with the hold\'s message', () => {
+    expect(rejects(rawWithHolds([{ xuid: 'A', at: 0, clip: 'idle', blendMs: 3000 }]))).toContain('holds[0].blendMs')
+    expect(rejects(rawWithHolds('nope'))).toContain('holds')
+  })
+})
+
 describe('scriptClockOf', () => {
   const STEPS = 20000
   // docMs(s) approximated as startMs + a midpoint-rule sum of rateAt over [0, s] at STEPS steps.
