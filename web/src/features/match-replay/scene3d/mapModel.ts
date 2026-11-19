@@ -106,6 +106,11 @@ interface MaterialExtras {
   emissionAnim?: unknown
   /** The game material's GlobalID. */
   id?: number
+  /**
+   * A dark pane's stand-in (himap `vitres_sombres.go`): the GlobalID of the glass the game draws
+   * there. Drawn dark and opaque, but the game's glass lets the sun through.
+   */
+  vitreSombre?: number
 }
 
 /** A view GLB's surfaces (the map, or a layer placed over it), with the view's materials placed. */
@@ -561,7 +566,9 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
     tagSurface(o, source, extras.shader, key)
     placeMaterial(o, source, extras, key, ctx)
     groups[key].push(o)
-    o.castShadow = key !== 'seeThrough'
+    // A dark pane stands in for glass: as in the game, the sun crosses it (Recharge's skylight
+    // casts its girder lattice on the floor, not one solid shadow).
+    o.castShadow = key !== 'seeThrough' && extras.vitreSombre === undefined
     o.receiveShadow = true
   }))
   await timed(`${label}:layered`, () => Promise.all(ctx.jobs))

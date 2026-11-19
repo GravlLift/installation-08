@@ -325,3 +325,17 @@ describe('the stencil decal', () => {
     layer.dispose()
   })
 })
+
+describe('dark pane stand-in', () => {
+  it('draws the Recharge skylight pane dark and opaque but lets the sun through it', async () => {
+    const pane = { name: 'mat_fffffffe', pbrMetallicRoughness: { baseColorFactor: [0.05, 0.05, 0.05, 1] }, extras: { melange: 0, teinte: [0.05, 0.05, 0.05], vitreSombre: 0x4faa9c4f } }
+    const wall = { name: 'wall', extras: { melange: 0, teinte: [0.5, 0.5, 0.5] } }
+    const layer = await loadLayerModel(glbOf([pane, wall]), null)
+    const p = meshUnder(layer.root, 'n0')
+    expect((p.material as THREE.MeshStandardMaterial).transparent).toBe(false)
+    expect(p.castShadow).toBe(false)
+    expect(p.receiveShadow).toBe(true)
+    expect(meshUnder(layer.root, 'n1').castShadow).toBe(true)
+    layer.dispose()
+  })
+})
