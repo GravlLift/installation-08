@@ -159,6 +159,8 @@ export const SHIELD_CHASE_MS = 1000
 export const SHIELD_CHASE_INK = 'rgb(255, 129, 129)'
 /** The game's chase-band bitmap, served by the app (game bitmap 1a61d06e). */
 export const SHIELD_CHASE_URL = '/static/weapons-assets/halo_infinite/hud/ShieldChase.png'
+/** The game's shield bar quad, served by the app (game bitmap 1a9b2c75); only its alpha is the bar's shape. */
+export const SHIELD_QUAD_URL = '/static/weapons-assets/halo_infinite/hud/ShieldQuad.png'
 
 /** The animator's curve: hold, then cubic ease-out reaching the live value at `SHIELD_CHASE_MS`. */
 function chaseEase(ageMs: number): number {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1-test.10
+
+Changes since 0.1.1-test.9.
+
+- The shield bar takes the game's own shape, read from your install: the game's shield bitmap, with its angled ends, its shallower middle and its hex pattern, instead of our hand-drawn outline. The fill still drains from both ends and the red band still marks the shield just lost. In the viewer only for now; the video export still draws the old shape. The first start after updating rebuilds the HUD icons once to add it; until then the old shape draws.
+
 ## 0.1.1-test.9
 
 Changes since 0.1.1-test.8.
