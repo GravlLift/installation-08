@@ -46,7 +46,8 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
    segment.** Each key's `ease` says how the camera arrives at that key from the previous one:
    `smooth` (ease in and out, the default), `linear`, `in`, `out`, or `cut` (a jump at the key's
    time, with no blend). A `cut` splits the script into runs, and the spline's neighbor points never
-   cross a cut. At the ends of a run the end point is duplicated. Before the first key the camera
+   cross a cut. At the ends of a run the missing neighbor is a phantom point mirrored through
+   the end key (`2*P1 - P2`), so the first and last segments still curve. Before the first key the camera
    holds the first key's pose, and after the last key it holds the last key's pose, both still
    resolved at `t`, so a held key on a player keeps following that player. `fov` and `roll` are
    eased linearly with the same ease.
