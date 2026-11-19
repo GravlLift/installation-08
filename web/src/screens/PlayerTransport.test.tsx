@@ -149,6 +149,23 @@ it('draws scoreboard, settings, export and fullscreen as icon buttons with toolt
   }
 })
 
+it('shows the camera-script button only when onToggleCamera is given, and calls it', () => {
+  renderTransport()
+  expect(screen.queryByRole('button', { name: 'Camera script' })).toBeNull()
+
+  const onToggleCamera = vi.fn()
+  renderTransport({ onToggleCamera })
+  fireEvent.click(screen.getByRole('button', { name: 'Camera script' }))
+  expect(onToggleCamera).toHaveBeenCalledOnce()
+})
+
+it('sits between settings and export and is pressed while the panel is open', () => {
+  const { utils } = renderTransport({ onToggleCamera: noop, cameraOpen: true })
+  const tools = [...utils.container.querySelectorAll('.bc-ctl-tools .bc-icon-btn')].map((b) => b.getAttribute('aria-label'))
+  expect(tools).toEqual(['Scoreboard', 'Settings', 'Camera script', 'Export film', 'Fullscreen'])
+  expect(screen.getByRole('button', { name: 'Camera script' })).toHaveAttribute('aria-pressed', 'true')
+})
+
 it('fires the handler of every icon button', () => {
   const handlers = {
     onToggleScoreboard: vi.fn(), onToggleSettings: vi.fn(), onToggleExport: vi.fn(), onToggleFullscreen: vi.fn(),

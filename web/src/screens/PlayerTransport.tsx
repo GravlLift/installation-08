@@ -33,6 +33,7 @@ import { displayPlayerName } from '../lib/players/displayName'
 import { ScrubBar } from './ScrubBar'
 import type { PlayerEvent } from './scrubMarks'
 import {
+  CameraScriptIcon,
   ExitFullscreenIcon,
   ExportIcon,
   FullscreenIcon,
@@ -71,6 +72,10 @@ export interface PlayerTransportProps {
   scoreboardOn: boolean
   onToggleSettings: () => void
   settingsRef: RefObject<HTMLButtonElement | null>
+  /** Toggles the camera-script panel; the button is shown only when this is given (the 3D view). */
+  onToggleCamera?: () => void
+  /** The camera-script panel is open (the button is pressed). */
+  cameraOpen?: boolean
   onToggleExport: () => void
   exportDisabled: boolean
   /** The running export's progress (0..100), null when none runs: the button carries it, so
@@ -198,6 +203,11 @@ export function PlayerTransport(props: PlayerTransportProps) {
             <IconButton label="Settings" tip="Settings" buttonRef={props.settingsRef} onClick={props.onToggleSettings}>
               <SettingsIcon />
             </IconButton>
+            {props.onToggleCamera && (
+              <IconButton label="Camera script" tip="Camera script" pressed={props.cameraOpen} onClick={props.onToggleCamera}>
+                <CameraScriptIcon />
+              </IconButton>
+            )}
             <IconButton
               label={exportLabel}
               tip={exportLabel}

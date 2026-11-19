@@ -24,6 +24,8 @@ import { useReplayFullscreen } from '../features/match-replay/hooks/useReplayFul
 import { useReplayShortcuts } from '../features/match-replay/hooks/useReplayShortcuts'
 import type { SceneView3d } from '../features/match-replay/scene3d/topDownLogic'
 import { ReplaySettingsDrawer } from '../features/match-replay/settings/ReplaySettingsDrawer'
+import { useCameraScriptEditor } from '../features/match-replay/camera-script/useCameraScriptEditor'
+import { CameraScriptPanel } from '../features/match-replay/camera-script/CameraScriptPanel'
 import type { Action3dShow } from '../features/match-replay/scene3d/action3dInputs'
 import { usePlaybackLoop } from './usePlaybackLoop'
 import { scriptPlayback, setScriptPlaybackTime, stopScript } from '../features/match-replay/scene3d/cameraScriptStore'
@@ -127,11 +129,12 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
   usePlayerChromeInsets(boxRef, topRef, barRef)
   // One panel opens from the bar at a time, on the right inside the scene's box (in fullscreen,
   // between the strip and the bar laid over it).
-  const [panel, setPanel] = useState<'settings' | 'export' | null>(null)
-  const togglePanel = useCallback((which: 'settings' | 'export') => setPanel((open) => (open === which ? null : which)), [])
-  const closePanel = useCallback((which: 'settings' | 'export') => setPanel((open) => (open === which ? null : open)), [])
+  const [panel, setPanel] = useState<'settings' | 'export' | 'camera' | null>(null)
+  const togglePanel = useCallback((which: 'settings' | 'export' | 'camera') => setPanel((open) => (open === which ? null : which)), [])
+  const closePanel = useCallback((which: 'settings' | 'export' | 'camera') => setPanel((open) => (open === which ? null : open)), [])
   const settingsOpen = panel === 'settings'
   const exportOpen = panel === 'export'
+  const cameraOpen = panel === 'camera'
   const settingsButtonRef = useRef<HTMLButtonElement>(null)
   const [scoreboardHeld, setScoreboard] = useScoreboardHold()
   const [scrubbing, setScrubbing] = useState(false)
@@ -195,6 +198,13 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
     },
     [doc.frameCount, fps, sound.seek],
   )
+  // showFrame moves the film to a frame WITHOUT stopping a playing script: the camera script's
+  // preview/playback drives the camera here, so a script must keep its own set time.
+  const showFrame = useCallback((f: number) => {
+    frameRef.current = f
+    sound.seek(f * 1000 / fps)
+    setFrame(Math.round(f))
+  }, [fps, sound.seek])
   const seekBy = useCallback((seconds: number) => stepFrames(seconds * fps), [stepFrames, fps])
   const togglePlay = useCallback(() => {
     if (held) return
@@ -278,6 +288,22 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
     return inputs
   }, [doc, shotFx, kills, mapObjectives, identity, inks, show])
 
+  // The camera-script editor lives in the page, not the panel, so closing the panel keeps the
+  // edits. It is always mounted; the panel is a view over it (rendered only in the 3D view).
+  const editor = useCameraScriptEditor({
+    matchId,
+    doc,
+    frameRef,
+    playing,
+    setPlaying,
+    cameraMode: camera.mode,
+    setCameraMode: camera.setMode,
+    showFrame,
+  })
+  // The camera panel names players; `action.nameOfXuid` can be null for an absent xuid, so fall
+  // back to the xuid itself (a display name is always a string).
+  const cameraNameOfXuid = (xuid: string): string => action.nameOfXuid(xuid) ?? xuid
+
   // The playback loop lives here (it did in the old PlaybackBar).
   usePlaybackLoop({ doc, playing, speed, fps, frameRef, setFrame, setPlaying, tick: sound.tick, seek: sound.seek, onEnded: sound.endMatch })
 
@@ -304,7 +330,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
     enabled: !held,
   })
 
-  const menuOpen = settingsOpen || exportOpen || scoreboardHeld
+  const menuOpen = settingsOpen || exportOpen || cameraOpen || scoreboardHeld
   // Windowed, the strip and the bar sit above and below the scene; in fullscreen they are laid
   // over it and auto-hide.
   const chrome = usePlayerChromeVisibility({ overlay: fullscreen.active, menuOpen, scrubbing })
@@ -380,7 +406,7 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
             <canvas ref={exportCanvasRef} hidden />
           </div>
 
-          {(settingsOpen || (exportOpen && exportScene)) && (
+          {(settingsOpen || cameraOpen || (exportOpen && exportScene)) && (
             <div className="bc-panel">
               {settingsOpen && (
                 <ReplaySettingsDrawer
@@ -390,6 +416,14 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
                   toggle={toggle}
                   triggerRef={settingsButtonRef}
                   onClose={() => closePanel('settings')}
+                />
+              )}
+              {cameraOpen && view === '3d' && (
+                <CameraScriptPanel
+                  editor={editor}
+                  players={doc.roster.map((r) => ({ xuid: r.xuid, name: cameraNameOfXuid(r.xuid) }))}
+                  nameOfXuid={cameraNameOfXuid}
+                  onClose={() => closePanel('camera')}
                 />
               )}
               {exportOpen && exportScene && capture.videoExport && (
@@ -427,6 +461,8 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
           scoreboardOn={scoreboardHeld}
           onToggleSettings={() => togglePanel('settings')}
           settingsRef={settingsButtonRef}
+          onToggleCamera={view === '3d' ? () => togglePanel('camera') : undefined}
+          cameraOpen={cameraOpen}
           onToggleExport={() => togglePanel('export')}
           exportDisabled={!exportScene || !capture.videoExport?.supported}
           exportProgress={capture.videoExport && isExportBusy(capture.videoExport.state) ? capture.videoExport.state.pct : null}

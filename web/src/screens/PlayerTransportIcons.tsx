@@ -135,6 +135,18 @@ export function SettingsIcon() {
   )
 }
 
+/** A camera on a path: a small camera body (with a lens) in the lower left and the dotted arc of
+ *  the path it flies. */
+export function CameraScriptIcon() {
+  return (
+    <Glyph>
+      <rect x="1.75" y="7" width="6.5" height="4.5" rx="0.5" />
+      <circle cx="5" cy="9.25" r="0.9" />
+      <path d="M4.5 3.25a6.5 6.5 0 0 1 8 8.25" strokeDasharray="0.6 1.5" />
+    </Glyph>
+  )
+}
+
 /** Export: an arrow down into a tray (the film is saved as a file). */
 export function ExportIcon() {
   return (
