@@ -121,6 +121,29 @@ describe('ReplayCamera3d', () => {
     expect(camera.position.y).toBeCloseTo(0.82) // the third-person camera above the eye, not the script's key
   })
 
+  it('exposes the active script and the set time', () => {
+    const script: CameraScript = {
+      version: 1,
+      matchId: 'm',
+      name: 's',
+      keys: [{ t: 0, pos: { at: 'world', point: [0, 0, 5] }, look: { at: 'world', point: [0, 0, 0] } }],
+    }
+    const camera = new THREE.PerspectiveCamera()
+    const placement = new ReplayCamera3d({ tracks: null, povXuid: 'A', mode: 'free', action: null, originAboveFloor: 0, camera, subjects: { feetAt: () => null }, gameFov: 100, pickables: () => [], raycaster: new THREE.Raycaster() })
+    expect(placement.activeScript()).toBeNull()
+    expect(placement.scriptTime()).toBe(0)
+    placement.setScript(script)
+    placement.setScriptTime(1234)
+    expect(placement.activeScript()).toBe(script)
+    expect(placement.scriptTime()).toBe(1234)
+    // A script never drives a tracked camera, so it is not active there.
+    const tracked = new ReplayCamera3d({ tracks: null, povXuid: 'A', mode: 'tp', action: null, originAboveFloor: 0, camera, subjects: { feetAt: () => null }, gameFov: 100, pickables: () => [], raycaster: new THREE.Raycaster() })
+    tracked.setScript(script)
+    expect(tracked.activeScript()).toBeNull()
+    placement.setScript(null)
+    expect(placement.activeScript()).toBeNull()
+  })
+
   it('clearing the script stops the placement', () => {
     const script: CameraScript = {
       version: 1,

@@ -143,7 +143,7 @@ function ease01(u: number): number {
 }
 
 /** `a` toward `b` by `u` the SHORT way around (across 359/0), normalized to [0, 360). */
-function lerpHeading(a: number, b: number, u: number): number {
+export function lerpHeading(a: number, b: number, u: number): number {
   const delta = ((b - a + 540) % 360) - 180
   const v = a + delta * u
   return ((v % 360) + 360) % 360

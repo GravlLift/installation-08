@@ -78,6 +78,12 @@ export class ReplayCamera3d {
   /** scripted: a script is set and the camera is free (a script never moves a tracked camera). */
   scripted(): boolean { return this.script !== null && this.state.mode === 'free' }
 
+  /** activeScript: the script driving the free camera when it is scripted, else null. */
+  activeScript(): CameraScript | null { return this.scripted() ? this.script : null }
+
+  /** scriptTime: the script's current time (script ms). */
+  scriptTime(): number { return this.scriptMs }
+
   /**
    * placeCamera places the camera on the tracked player (see povState); a set script drives the
    * free camera (see placeScripted), else the free camera stays where it is. `dt`: the seconds of

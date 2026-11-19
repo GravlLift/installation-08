@@ -56,7 +56,12 @@ import { serialize } from './serialiser3d'
 import { now, measureDuration, timedSync } from './perf3d'
 import { probeSurface, type SurfaceProbe } from './surfaceProbe3d'
 import { aimDirThree, toThree, type PlayerState3d, type Tracks3d } from './tracks3d'
-import type { CameraScript, ScriptSubjects } from './cameraScript3d'
+import { scriptClockOf, type CameraScript, type ScriptClockView, type ScriptSubjects } from './cameraScript3d'
+import { activeHolds, holdStateAt, lerpHeading, type Hold, type HoldState } from './hold3d'
+import { holdMix } from './holdPose3d'
+import { type ClipMix } from './clipSample3d'
+import { PoseClips } from './poseClips3d'
+import { type SpartanClip } from './clips3d'
 import { ScopeView3d } from './scopeView3d'
 import { ReplayExportScene3d } from './replayExportScene3d'
 import { measureOriginAboveFloor, ReplayCamera3d } from './replayCamera3d'
@@ -147,6 +152,12 @@ export class ReplayScene3d implements Replay3DExportSource {
   private gameFovDeg = GAME_FOV_DEFAULT
   /** The players' feet for a camera script's player anchors (`scriptSubjectAt`). */
   private readonly scriptSubjects: ScriptSubjects = { feetAt: (xuid, docMs) => this.scriptSubjectAt(xuid, docMs / this.msPerFrame) }
+  /** The pose clips on demand (`poseClips3d`), for a held player (docs/design/hold.md); disposed with the scene. */
+  private readonly poseClips = new PoseClips()
+  /** The script clocks, built once per set script object (`scriptClockOf`). */
+  private readonly scriptClocks = new WeakMap<CameraScript, ScriptClockView>()
+  /** The holds active at the current script time, cached on (script, time) by `currentHolds`. */
+  private holdsCache: { script: CameraScript | null; sMs: number; holds: Map<string, Hold> } | null = null
   private fps = 30
   private weaponModels: WeaponModels | null = null
   private armory: SpartanArmory | null = null
@@ -477,11 +488,67 @@ export class ReplayScene3d implements Replay3DExportSource {
   }
 
   /**
+   * currentHolds: the holds active at the current script time, by xuid (`activeHolds`); empty when
+   * the camera is not scripted. Cached on (script, time) so a frame's many reads resolve once.
+   */
+  private currentHolds(): Map<string, Hold> {
+    const script = this.cameraPlacement.activeScript()
+    const sMs = this.cameraPlacement.scriptTime()
+    const c = this.holdsCache
+    if (c && c.script === script && c.sMs === sMs) return c.holds
+    const holds = script ? activeHolds(script.holds ?? [], sMs) : new Map<string, Hold>()
+    this.holdsCache = { script, sMs, holds }
+    return holds
+  }
+
+  /** scriptClock: the script's clock view, built once per script object. */
+  private scriptClock(script: CameraScript): ScriptClockView {
+    let c = this.scriptClocks.get(script)
+    if (!c) {
+      c = scriptClockOf(script)
+      this.scriptClocks.set(script, c)
+    }
+    return c
+  }
+
+  /**
+   * holdOf: a player's hold at the current script time: the hold, the film's sample at the hold's
+   * start frame (`at`), the start frame itself, and the pose state (`holdStateAt`); null when the
+   * camera is not scripted, the player is not held, the film has no sample at the start (the
+   * player falls back to the film), or the rejoin blend has fully run out.
+   */
+  private holdOf(xuid: string): { hold: Hold; held: PlayerState3d; atFrame: number; state: HoldState } | null {
+    const script = this.cameraPlacement.activeScript()
+    if (!script || !this.tracks) return null
+    const hold = this.currentHolds().get(xuid)
+    if (!hold) return null
+    const atFrame = this.scriptClock(script).docMsAt(hold.at) / this.msPerFrame
+    const held = this.tracks.sample(xuid, atFrame) ?? this.tracks.lastLifeBefore(xuid, atFrame)
+    if (!held) return null
+    const state = holdStateAt(hold, this.cameraPlacement.scriptTime(), { h: held.h, p: held.p })
+    if (!state) return null
+    return { hold, held, atFrame, state }
+  }
+
+  /**
+   * holdClip: a hold's clip for player `a`: a gameplay clip of the Spartan's own catalog, else a
+   * pose clip from the pose catalog (null while it loads; the film's pose is held until it does).
+   */
+  private holdClip(a: Avatar, name: string): SpartanClip | null {
+    return a.spartan?.rig.clips?.clips.get(name) ?? this.poseClips.get(name) ?? null
+  }
+
+  /**
    * scriptSubjectAt: a player's feet in GAME coordinates (z up) and heading in game degrees at a
    * frame, for a camera script's player anchors (aboard a vehicle, the vehicle's position);
-   * null when the player has no state there.
+   * null when the player has no state there. A held player answers with the held body (feet at
+   * the hold's start, the hold's heading), so a key anchored on them orbits a body that stays put.
    */
   scriptSubjectAt(xuid: string, frame: number): { x: number; y: number; z: number; h: number } | null {
+    const held = this.holdOf(xuid)
+    // The feet use the drop the bodies are drawn with (`placeAvatars`: `originAboveFloor`), so an
+    // anchor lines up with the body on screen.
+    if (held) return { x: held.held.x, y: held.held.y, z: held.held.z - this.originAboveFloor, h: held.state.heading }
     const tracks = this.tracks
     if (!tracks) return null
     const s = tracks.sample(xuid, frame) ?? tracks.lastLifeBefore(xuid, frame) ?? tracks.firstLifeAfter(xuid, frame)
@@ -491,7 +558,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       return { x: rider.x, y: -rider.z, z: rider.y, h: action?.riderHeadingAt(xuid, frame) ?? (s?.h ?? 0) }
     }
     if (!s) return null
-    return { x: s.x, y: s.y, z: s.z - this.feetDrop, h: s.h }
+    return { x: s.x, y: s.y, z: s.z - this.originAboveFloor, h: s.h }
   }
   setPov(xuid: string | null): void {
     if (this.exportScene.held) this.exportScene.held.pov = xuid
@@ -769,6 +836,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.sizer.cancel()
     this.orbit.dispose()
     this.fly.dispose()
+    this.poseClips.dispose()
     this.action?.dispose()
     this.setSpartanArmory(null)
     this.setWeaponModels(null)
@@ -812,12 +880,58 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.topDead.length = 0
     this.drawnSlots.clear()
     const eye = this.view === 'top' && this.top ? this.top.camera.position : this.camera.position // the name-tag eye: the drawing camera
+    const holds = this.currentHolds() // the holds active at the current script time (empty when not scripted)
+    const sMs = holds.size > 0 ? this.cameraPlacement.scriptTime() : 0
     for (const p of tracks.players) {
       const a = this.avatars.get(p.xuid)
       if (!a) continue
       const s = tracks.sample(p.xuid, f)
       const rider = this.action?.riderAt(p.xuid, f) ?? null // aboard, the biped stops replicating: it follows its vehicle
       const firstPerson = !rider && p.xuid === this.povXuid && this.mode === 'fp' && this.view === '3d'
+      const heldInfo = holds.size > 0 ? this.holdOf(p.xuid) : null // a held player leaves the film at the hold's start
+      if (heldInfo) {
+        // A held player is drawn even if the film kills them after `at`: their state is the film's
+        // at the start frame, posed on script time; from `until` the film at f blends back in by
+        // the hold's weight (dead at f, the held branch keeps running until the weight runs out).
+        const { hold, held, atFrame, state } = heldInfo
+        const clip = this.holdClip(a, hold.clip)
+        const w = state.weight
+        const rejoining = hold.until !== null && sMs >= hold.until
+        let feet: THREE.Vector3
+        let h: number
+        let pitch: number
+        let mix: ClipMix | null
+        if (rejoining && s) {
+          const liveFeet = rider ?? feetOf(s, this.originAboveFloor)
+          feet = feetOf(held, this.originAboveFloor).lerp(liveFeet, 1 - w) // its own vector: topPlayers keeps it
+          h = lerpHeading(state.heading, rider ? this.action?.riderHeadingAt(p.xuid, f) ?? s.h : s.h, 1 - w)
+          pitch = s.p
+          const film = this.action?.motion(p.xuid, f, rider !== null, a.mix) ?? null
+          mix = film ? holdMix(film, clip, state, hold.loop) : null
+        } else {
+          feet = feetOf(held, this.originAboveFloor)
+          h = state.heading
+          pitch = state.pitch
+          const film = this.action?.motion(p.xuid, atFrame, false, a.mix) ?? null
+          mix = film ? holdMix(film, clip, state, hold.loop) : null
+        }
+        this.buildAvatar(p.xuid, a)
+        placeBody(a, feet, { h, p: pitch, crouch: false, eyeDrop: 0, mix }, firstPerson, this.lighting.probeAt(feet))
+        this.drawnSlots.set(held.slot, { xuid: p.xuid, firstPerson })
+        const heldWeapon = hold.weapon === 'hide' ? null : this.action?.heldWeapon(held.slot, atFrame) ?? null // the weapon held at `at`, or none
+        const fx = this.action?.bodyFx(p.xuid, atFrame) ?? null
+        const weaponModel = heldWeapon?.model ?? null
+        const weaponKey = heldWeapon?.key ? weaponModelKey(heldWeapon.key) : null
+        if (weaponModel && weaponKey && this.armory) void this.armory.paintWeapon(p.xuid, weaponKey, weaponModel)
+        const weaponCoat = weaponModel && weaponKey ? (this.armory?.weaponCoat(p.xuid, weaponKey, weaponModel) ?? null) : null
+        showWeapon(a, heldWeapon, weaponModel, firstPerson ? viewGripOf(heldWeapon?.key ?? null) : null, weaponCoat)
+        showBodyFx(a, fx)
+        if (fx && !firstPerson) this.post.outline.add(a.group, fx) // team outline: every visible player, self excepted in first person
+        a.group.visible = true
+        a.tagOpacity = placeTag(a.tag, feet, firstPerson ? null : eye, this.view === 'top' || p.xuid === this.povXuid || !!this.action?.aids().allNameTags) // top: every tag, a map key
+        this.topPlayers.push({ xuid: p.xuid, feet, heading: h, avatar: a })
+        continue
+      }
       if (!s && !rider) {
         a.group.visible = false
         a.tag.visible = false
