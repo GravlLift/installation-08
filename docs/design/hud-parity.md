@@ -38,8 +38,8 @@ reference only, gitignored: `data/reference/hud/infinite-hud-weapons-killfeed.pn
 - Present today: the shield bar.
 - Missing: the red damage indicator above the shield (the red glow and band over the shield frame
   in both frames).
-- Missing: the directional damage arc around the reticle. It is a red arc pointing toward where
-  the player was hit from (the arc left of the reticle in frame 2).
+- Present since 2026-11-19: the directional damage arc around the reticle, a red arc pointing
+  toward where the player was hit from (the arc left of the reticle in frame 2). See Plan item 5.
 
 ## Left: kill feed and pings
 
@@ -104,10 +104,13 @@ day (`exportHud.ts` paints the same corner, equipment included), checked on pain
    grenade or splash hit points at the thrower and not at the blast. All hits look the same
    strength, because the document has no damage amount.
    Model done 2026-11-18: `damageArcsAt` in `model/damageArcs.ts` (bearing, age and attacker per
-   live arc, one arc per attacker; `readHud` returns it as `damageArcs`). Not drawn yet: the
-   arc's art, ring size and lifetime must come from the game's HUD. `DAMAGE_ARC_MS` (1 s) is a
-   placeholder until then. Since decoded: art, geometry, animation and the 2 s lifetime
-  (see "The HUD's own data, decoded" below).
+   live arc, one arc per attacker; `readHud` returns it as `damageArcs`).
+   Drawn 2026-11-19 (live HUD and video export, `ui/damageArcPaint.ts`) with the game's art,
+   geometry, reveal ramp, hit pulse and the 8-arc cap (see "The HUD's own data, decoded" below).
+   Inferred, not measured: the 2 s lifetime is the `uihg` "damage indicator response duration";
+   an attacker's hits less than 2 s apart form one arc; the meter (how much of the arc shows) is
+   the vitality, (shield + health) / 2, the chain's hits took off, a life with no reading yet
+   counting as full; the fade is linear. Checked in the viewer at frames 2400, 4899 and 11000.
 6. The red damage indicator above the shield: drawn on damage taken and from the `hp` health
    reading. Its exact look and rule must come from the game's HUD tags (to research before
    building, not tuned by eye).

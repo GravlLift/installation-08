@@ -15,6 +15,7 @@ import { ReplayHudFeed3d } from './ReplayHudFeed3d'
 import { ReplayHudScope3d } from './ReplayHudScope3d'
 import { ReplayKillPopup3d } from './ReplayKillPopup3d'
 import { ShieldBar3d } from './ShieldBar3d'
+import { DAMAGE_ARC_URL, paintDamageArcs } from './damageArcPaint'
 import { shieldFlash } from '../model/shieldHud'
 import { frameToMs, formatClock } from '@/lib/replay/replayLogic'
 import { MIRROR_STYLE, weaponFullIcon } from '../model/weaponFullIcon'
@@ -28,6 +29,10 @@ import { CALLOUT_LABEL, calloutName, calloutOfLivesAt, type PreparedCallouts } f
 const RETICLE_CSS_SIZE = `max(${RETICLE_MIN_PX}px, ${RETICLE_HEIGHT_SHARE * 100}cqh)`
 
 const HUD_STYLE = { color: tokenCssVar('replay-hud-on-dark'), fontSize: 'clamp(19px, calc(7.7px + 2.87cqh), 39px)', textShadow: '0 1px 2px var(--replay-hud-shadow)' }
+
+/** The game's damage-arc bitmap, loaded once; the canvas layer below paints with it when it is ready. */
+const damageArcImage = new Image()
+damageArcImage.src = DAMAGE_ARC_URL
 
 /**
  * ScoreBanner — the match score and clock, bottom center: drawn at every HUD level (`hudLevel`),
@@ -43,6 +48,16 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
   const [onEnemy, setOnEnemy] = useState(false)
   // The held weapon and its zoom level, read by the frame loop below (its range decides the red reticle).
   const heldRef = useRef<HeldWeapon | null>(null)
+  // The damage-arc canvas: a full-size layer under the reticle, repainted each frame.
+  const damageArcCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  // Repaint once the bitmap has loaded (a paused frame would otherwise stay without its arcs).
+  const [damageArcReady, setDamageArcReady] = useState(() => damageArcImage.complete && damageArcImage.naturalWidth > 0)
+  useEffect(() => {
+    if (damageArcReady) return
+    const onLoad = () => setDamageArcReady(true)
+    damageArcImage.addEventListener('load', onLoad)
+    return () => damageArcImage.removeEventListener('load', onLoad)
+  }, [damageArcReady])
   const source = useMemo(() => prepareHud(doc, xuid, kills), [doc, xuid, kills])
   const lives = useMemo(() => buildLivesByXuid(doc.tracks), [doc])
   useEffect(() => {
@@ -84,6 +99,26 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
     heldRef.current = weaponId ? { weaponId, zoomLevel: zoom.level } : null
   }, [weaponId, zoom.level])
   const reticle = ath ? reticleGeometry(ath.shape, ath.elimination, ath.hit) : null
+  // Repaint the damage-arc ring when the frame moves (the arcs derive from it). The canvas is
+  // only mounted under the shield bar's condition, so the ref is null otherwise and this no-ops.
+  const damageArcs = ath?.damageArcs ?? []
+  useEffect(() => {
+    const canvas = damageArcCanvasRef.current
+    if (!canvas) return
+    const dpr = window.devicePixelRatio || 1
+    const w = canvas.clientWidth
+    const h = canvas.clientHeight
+    if (w === 0 || h === 0) return
+    const bw = Math.round(w * dpr)
+    const bh = Math.round(h * dpr)
+    if (canvas.width !== bw) canvas.width = bw
+    if (canvas.height !== bh) canvas.height = bh
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    ctx.clearRect(0, 0, w, h)
+    paintDamageArcs(ctx, damageArcs, { x: w / 2, y: h / 2 }, h, damageArcReady ? damageArcImage : null)
+  }, [frame, damageArcs, damageArcReady])
   const icon = ath?.label?.img ? weaponFullIcon(ath.label.img) : null
   // The away weapon (small, dimmed, left of the upper row) and the selected grenade's label
   // (rank null = the selection is indeterminate, the box carries the generic text).
@@ -107,6 +142,9 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
       <ShieldBar3d fraction={ath.shieldState.fraction} state={ath.shieldState.state} flash={shieldFlash(frameToMs(ath.shieldState.since, doc), frameToMs(frame, doc))} label={REPLAY_TEXT[locale].shieldLabel} />
     </div>}
     {aim && ath && ads && <ReplayHudScope3d spec={ads} levelIndex={aimState.adsLevel} amount={zoom.amount} reticleColor={reticleColor} ammo={adsAmmoText(ath.ammo?.mag)} />}
+    {/* The directional damage ring (damageArcs): a full-size canvas under the reticle, shown
+        with the shield bar. */}
+    {ath?.shieldState && <canvas ref={damageArcCanvasRef} aria-hidden="true" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }} />}
     {aim && reticle && aimState.reticleShown && (
       <svg viewBox="0 0 100 100" aria-hidden="true" style={{ color: reticleColor, position: 'absolute', width: RETICLE_CSS_SIZE, height: RETICLE_CSS_SIZE, left: '50%', top: '50%', transform: `translate(-50%, -50%) scale(${aimState.reticleScale})`, overflow: 'visible' }} fill="none" stroke="currentColor" strokeWidth={RETICLE_STROKE}>
         {reticle.ring !== null && <circle cx="50" cy="50" r={reticle.ring} />}

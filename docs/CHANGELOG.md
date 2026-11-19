@@ -10,6 +10,7 @@ Changes since 0.1.1-test.5.
 - 15 weapons now fire with the game's own shot instead of a single file: BR75, Bandit, S7, Bulldog, Hydra, SPNKr, Fuel Rod, Skewer, Cindershot, Heatwave, Disruptor, Mangler, Pulse Carbine, Stalker Rifle and Vestige Carbine. Each shot draws a random take for its near, mid and far layers, so two players firing together no longer phase on the same sample, and the layers fade with distance on the game's curves, so a far shot sounds far. The automatic weapons and four weapons with several shot sounds (Sidekick, Plasma Pistol, Ravager, Mutilator) keep their current sound.
 - The zone reverb is 3 dB quieter.
 - The first start after updating extracts the new footstep and shot sounds once.
+- When the followed player takes damage, a red arc on a ring around the reticle points toward the attacker and turns with the player's view, as in the game. It uses the game's own arc art, size and hit pulse. It shows more of the arc the more damage the attacker's hits did, and fades over 2 seconds. Shown in first person in the viewer and in the video export. Not shown when the attacker is unknown, for self damage or for falls. A grenade or splash hit points at the thrower.
 
 ## 0.1.1-test.5
 
