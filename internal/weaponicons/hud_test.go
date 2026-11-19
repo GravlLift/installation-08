@@ -131,6 +131,26 @@ func TestShieldQuadDecodeCrop(t *testing.T) {
 	}
 }
 
+func TestDecodeTeamEmblemTooShort(t *testing.T) {
+	// A payload shorter than a 64x64 mip 0 is refused.
+	if _, err := decodeTeamEmblem(make([]byte, bcSize(64, 64)-1)); err == nil {
+		t.Fatal("expected an error for a payload shorter than a 64x64 mip 0")
+	}
+}
+
+func TestDecodeTeamEmblem(t *testing.T) {
+	// A synthetic zero payload: mip 0 (64x64) plus one more mip (32x32), so mipGuide has
+	// a witness to read. It decodes to a 64x64 image.
+	payload := make([]byte, bcSize(64, 64)+bcSize(32, 32))
+	img, err := decodeTeamEmblem(payload)
+	if err != nil {
+		t.Fatalf("decodeTeamEmblem = %v", err)
+	}
+	if got := img.Bounds(); got.Dx() != teamEmblemSize || got.Dy() != teamEmblemSize {
+		t.Errorf("bounds = %v, want %dx%d", got, teamEmblemSize, teamEmblemSize)
+	}
+}
+
 func TestGrenadeHUDSources(t *testing.T) {
 	want := map[string]hudSource{
 		"Frag":   {atlas: 0xa2dcd69e, index: 0},
