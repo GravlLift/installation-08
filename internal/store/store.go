@@ -86,6 +86,24 @@ func (r *Root) matchDir(id string) (string, error) {
 	return filepath.Join(r.MatchesDir(), id), nil
 }
 
+// CameraScriptNameValid says whether name is a legal camera script name: lowercase
+// [a-z0-9_-], 1 to 64 characters. It is the guard that keeps a script name from reaching a
+// file path.
+func CameraScriptNameValid(name string) bool {
+	if name == "" || len(name) > 64 {
+		return false
+	}
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		switch {
+		case c >= '0' && c <= '9', c >= 'a' && c <= 'z', c == '_', c == '-':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 // MatchChunksDir is the match's chunks/ folder.
 func (r *Root) MatchChunksDir(id string) (string, error) {
 	d, err := r.matchDir(id)
@@ -129,6 +147,30 @@ func (r *Root) MatchMetaPath(id string) (string, error) {
 		return "", err
 	}
 	return filepath.Join(d, "match.json"), nil
+}
+
+// MatchCameraScriptsDir is the match's camera-scripts/ folder (one file per camera script,
+// created on first save).
+func (r *Root) MatchCameraScriptsDir(id string) (string, error) {
+	d, err := r.matchDir(id)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(d, "camera-scripts"), nil
+}
+
+// MatchCameraScriptPath is one of the match's camera scripts:
+// matches\<id>\camera-scripts\<name>.json. The name is validated so it cannot escape the
+// folder either.
+func (r *Root) MatchCameraScriptPath(id, name string) (string, error) {
+	d, err := r.MatchCameraScriptsDir(id)
+	if err != nil {
+		return "", err
+	}
+	if !CameraScriptNameValid(name) {
+		return "", fmt.Errorf("invalid camera script name %q", name)
+	}
+	return filepath.Join(d, name+".json"), nil
 }
 
 // MeshPath is a map's geometry file for a texture quality: maps\<moduleKey>.glb for standard,
