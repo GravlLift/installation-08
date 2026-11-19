@@ -83,6 +83,7 @@ describe('the pre-game quality choice', () => {
     expect(screen.getByTestId('build-quality-standard').textContent).toContain('850 MB')
     expect(screen.getByTestId('build-quality-high').textContent).toContain('about 8 min')
     expect(screen.getByTestId('build-quality-high').textContent).toContain('1.4 GB')
+    expect(screen.getByText('Each map only needs to be built once per quality. Matches on this map will skip this step after that.')).toBeInTheDocument()
     // The default (Standard) is the marked one.
     expect(screen.getByTestId('build-quality-standard')).toHaveClass('on')
     expect(screen.queryByTestId('replay-viewer')).toBeNull()

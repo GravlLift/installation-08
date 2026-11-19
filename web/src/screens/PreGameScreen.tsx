@@ -199,6 +199,9 @@ function QualityChoice({
         })}
       </div>
       <p className="bc-quality-note">
+        Each map only needs to be built once per quality. Matches on this map will skip this step after that.
+      </p>
+      <p className="bc-quality-note">
         Approximate, measured on the largest map. You can change the quality later on the matches page or in the
         player settings.
       </p>
