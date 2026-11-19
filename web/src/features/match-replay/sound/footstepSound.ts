@@ -56,8 +56,13 @@ const MIN_STEP_SPEED = 0.5
 //    not the foot fall rate; a stride distance is the one quantity that turns a speed into a
 //    cadence, and these give about two steps a second at each gait's measured speed. --
 const STRIDE: Record<FootstepGait, number> = { walk: 0.8, run: 1.1, sprint: 1.4 }
-// A slide foot-scrape every this distance (world units). ESTIMATED, same reason as the strides.
-const SLIDE_STRIDE = 1
+// -- THE SLIDE plays two sounds, as the game's movement events do: the slide_into at the start
+//    and the slide_outof at the end. The game's slide_outof event resolves to the surface's own
+//    slide takes (its 39 takes are exactly the 13 surfaces' 3 slide takes, checked 2026-11-19
+//    against footsteps.json; the switch on the surface is INFERRED), and its plain slide event is
+//    an empty no-op (`internal/footstepsounds/tags.go`). Nothing scrapes during the slide: an
+//    earlier scrape per world unit replayed those same 1.1 s takes, and 38% of slides put the last
+//    one within 150 ms of the slide_outof (measured on six matches, 1854 slides), heard twice. --
 
 // -- LANDING FALL HEIGHTS (world units). ESTIMATED: a fall beyond LAND_SOFT plays the soft
 //    landing, beyond LAND_HARD the hard one. A track without Z never reaches here, so a landing is
@@ -105,7 +110,6 @@ export function footstepTimedEvents(input: FootstepInput): FootstepTimedEvent[] 
   let peakZ: number | null = null
   let sliding = false
   let stepAcc = 0
-  let slideAcc = 0
 
   for (let i = 1; i < points.length; i++) {
     const p = points[i]
@@ -130,7 +134,6 @@ export function footstepTimedEvents(input: FootstepInput): FootstepTimedEvent[] 
       // The slide span ends at the take-off: the slide_outof.
       if (sliding) out.push({ timeMs, kind: 'slide', action: 'slide_outof', xuid, position: at(p) })
       stepAcc = 0
-      slideAcc = 0
       sliding = false
       continue
     }
@@ -145,20 +148,13 @@ export function footstepTimedEvents(input: FootstepInput): FootstepTimedEvent[] 
       inAir = false
       peakZ = null
       stepAcc = 0
-      slideAcc = 0
     }
 
     if (slide) {
       if (!sliding) {
-        // The slide begins: the slide_into, then the surface slide scrape per distance.
+        // The slide begins: the slide_into. Nothing more until it ends.
         out.push({ timeMs, kind: 'slide', action: 'slide_into', xuid, position: at(p) })
         sliding = true
-        slideAcc = 0
-      }
-      slideAcc += dist
-      if (slideAcc >= SLIDE_STRIDE) {
-        slideAcc -= SLIDE_STRIDE
-        out.push({ timeMs, kind: 'slide', action: 'slide', xuid, position: at(p) })
       }
     } else {
       // The slide ends: the slide_outof, at the last sliding frame.
@@ -185,7 +181,10 @@ function entryFor(manifest: FootstepManifest, surface: string, kind: FootstepTim
     case 'step':
       return manifest.feet[surface]?.[action]
     case 'slide':
-      if (action === 'slide_into' || action === 'slide_outof') return manifest.movement[action]
+      // The slide_outof plays the surface's own slide takes where it has them (see the SLIDE
+      // note above), else the event's takes drawn across every surface.
+      if (action === 'slide_outof') return manifest.feet[surface]?.slide ?? manifest.movement.slide_outof
+      if (action === 'slide_into') return manifest.movement.slide_into
       return manifest.feet[surface]?.slide
     case 'land':
       return manifest.movement[action]

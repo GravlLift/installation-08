@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1-test.11
+
+- The video export draws the shield bar in the game's own shape too, matching the viewer: the same angled ends, hex pattern, draining fill and red band. Exports made before the HUD icons rebuild still draw the old shape.
+- A slide no longer sometimes sounds twice. It plays the game's slide-in sound at the start and the surface's slide sound once at the end, as the game's slide events do. The viewer used to also repeat that slide sound along the slide, and the last repeat often landed right on the end one.
+
 ## 0.1.1-test.10
 
 Changes since 0.1.1-test.9.

@@ -4,13 +4,33 @@
  *
  * The bar's edges sag toward the center and its ends are chamfered to a point below the middle
  * (read off the 1280x720 and 1920x1080 in-game captures). `ShieldBar3d.tsx` traces the same
- * shape in SVG and the video export traces it on a canvas; both read their numbers here.
+ * shape in SVG and the video export traces it on a canvas; both read their numbers here. The
+ * game's own quad (`SHIELD_QUAD_*`) carries the bar's shape in the game's 940x80 units when the
+ * quad bitmap is loaded, in place of the hand-made 1000x74 shape.
  */
 
 export const SHIELD_BAR_W = 1000
 export const SHIELD_BAR_H = 74
 /** The fill clip's center: the bar is symmetric about x 500, the fill drains from both ends. */
 export const SHIELD_CENTER = 500
+
+/**
+ * The game's own quad (`SHIELD_QUAD_URL`), a 940x80 bitmap whose alpha is the bar's shape: the
+ * numbers below are the bar's shape in the game's own units, as `ShieldBar3d.tsx` uses them in
+ * quad mode and the video export paints them on a canvas.
+ */
+export const SHIELD_QUAD_W = 940
+export const SHIELD_QUAD_H = 80
+/** The fill clip's center in quad units: the fill drains from both ends toward it. */
+export const SHIELD_QUAD_CENTER = 470
+/** The half-width in quad units: a full shield spans the whole quad. */
+export const SHIELD_QUAD_HALF = 470
+/** The chase bitmap's own height in quad units (the bitmap is quad-width). */
+export const SHIELD_QUAD_CHASE_H = 64
+// INFERRED: where the 64-tall chase sits vertically in the 80-tall quad. The screen dump does not
+// settle a clean nested offset (both quads render at the same 40-unit height from bitmaps of
+// different native heights, the main quad's margin_top -8 vs the chase's 0), so it is centered.
+export const SHIELD_QUAD_CHASE_Y = (SHIELD_QUAD_H - SHIELD_QUAD_CHASE_H) / 2
 
 /** The minimal path interface the bar's tracers need (satisfied by `CanvasRenderingContext2D`). */
 export interface ShieldBarPath {
