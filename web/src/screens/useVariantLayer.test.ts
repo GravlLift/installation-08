@@ -16,6 +16,31 @@ it('builds an absent variant and exposes its URL when ready', async () => {
   expect(fetchMock.mock.calls[1][1].method).toBe('POST')
 })
 
+it('rebuilds an outdated variant instead of skipping it', async () => {
+  let highChecks = 0
+  const fetchMock = vi.fn(async (url: string, _init?: RequestInit) => {
+    let state = 'outdated' // the Standard layer (the High fallback) is outdated too
+    if (url.includes('/build')) state = 'queued'
+    else if (url.includes('quality=high')) state = ++highChecks === 1 ? 'outdated' : 'ready'
+    return { ok: true, json: async () => ({ state }) }
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  const { result } = renderHook(() => useVariantSource('abc', 'high'))
+  await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2))
+  expect(fetchMock.mock.calls[1][0]).toBe('/api/matches/abc/variant/build?quality=high')
+  expect(fetchMock.mock.calls[1][1]?.method).toBe('POST')
+  await waitFor(() => expect(result.current.path).toBe('/api/matches/abc/variant.glb?quality=high'), { timeout: 4000 })
+})
+
+it('asks for a build once: a build answering outdated settles without the layer', async () => {
+  const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ state: 'outdated' }) })
+  vi.stubGlobal('fetch', fetchMock)
+  const { result } = renderHook(() => useVariantSource('abc'))
+  await waitFor(() => expect(result.current.pending).toBe(false))
+  expect(result.current.path).toBeNull()
+  expect(fetchMock).toHaveBeenCalledTimes(2)
+})
+
 it('serves the High layer from the quality URL', async () => {
   const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ state: 'ready' }) })
   vi.stubGlobal('fetch', fetchMock)

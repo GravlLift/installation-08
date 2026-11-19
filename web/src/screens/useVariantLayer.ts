@@ -6,7 +6,7 @@ import { qualityQuery, type MeshQuality } from '../lib/api/standalone'
 /**
  * useVariantSource — the match's variant layer as the server has it: its URL once built, and
  * `pending` while the state is still being checked or the layer is queued or building (an absent
- * layer is built on the spot). Not pending without a URL: the match has no layer, or it could not
+ * layer, or one built by an older version, is built on the spot). Not pending without a URL: the match has no layer, or it could not
  * be checked or built. The variant route takes the same `?quality=` as the mesh route, so a
  * `high` layer is a separate file the server builds on first request; standard sends no
  * parameter (the URL stays the pre-quality one).
@@ -35,7 +35,10 @@ export function useVariantSource(matchId: string, quality?: MeshQuality): { path
         const body = await response.json() as { state: string; progress?: number; stage?: string }
         if (controller.signal.aborted) return
         if (body.state === 'ready') settle(`${base}.glb${q}`)
-        else if (body.state === 'absent') void check(true)
+        // An outdated layer (built by an older version, `meshjobs.StateOutdated`) is rebuilt like an
+        // absent one: skipping it dropped the match's Forge objects. Asked once; a build request
+        // that still answers absent or outdated settles without the layer instead of looping.
+        else if ((body.state === 'absent' || body.state === 'outdated') && !build) void check(true)
         else if (body.state === 'queued' || body.state === 'building') {
           if (quality === 'high' && !fallback) {
             try {
