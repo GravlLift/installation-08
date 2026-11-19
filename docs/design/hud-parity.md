@@ -118,6 +118,20 @@ day (`exportHud.ts` paints the same corner, equipment included), checked on pain
    serve it as a web font, with Bahnschrift as the fallback. Then the kill feed, the medals and
    the corner all use it.
 
+**Where the game keeps the HUD art (research, 2026-11-18).** A read-only scan of the Steam install
+(`any/globals/globals-rtx-new.module` and the other readable modules, full tag-group census) by the
+local worker; the probe and raw dumps stay in the gitignored `data/probe/`.
+- No `chud` / `chdt` tag group exists. Infinite's HUD is data-driven UI: one `uigm` (d5acd3b9),
+  62 `uiwi`, 738 `uslg` tags, whose body format no reader here decodes. The damage arc's geometry
+  and lifetime and the red glow over the shield almost certainly live there (inferred). Decoding
+  that format is the real cost behind items 5 (drawing), 6 and 7.
+- Team emblems: not found. The one `embl` tag (a47c83f7) is a property table, not a bitmap
+  atlas. Sampled UI tags reference no `bitm` tag directly.
+- Font: found. 104 `font` tags plus the `fntf` registry (d35037d1) name the UI families: Normative
+  Pro (Light to Bold, the primary family; inferred to be the HUD's), Industry, Baksheesh, Consolas.
+  The glyphs are in `maps/fonts/font_package.bin` (344 KB, plus per-locale packages), a binary
+  glyph format. The install has no ttf or otf file, and the BC7 icon reader does not apply.
+
 **Phase 4: pings (decoder research, open-ended).**
 9. Find out whether the film carries pings at all. The only lead is the unexported `managed-navpoint`
    object grammar. If the film carries them, decode them, then add feed rows ("Enemy at
