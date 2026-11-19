@@ -46,28 +46,64 @@ var hudSources = map[string]hudSource{
 
 const hudIconSize = 96
 
+// damageArcTag is the `bitm` tag id of the HUD's directional damage indicator: the arc
+// that shows the bearing of an incoming threat. Its pixels sit inside the tag's own bytes
+// (mip 0 at HeaderSize + DataSize of the `ucsh` header), unlike the HUD icon atlases, whose
+// pixels live in the module's resource table. The CUI damage indicator screen `cusc`
+// 0583f411 references this bitmap.
+const damageArcTag = 0x41d89be1
+
+// damageArcW and damageArcH are the damage-arc bitmap's dimensions.
+const (
+	damageArcW = 720
+	damageArcH = 390
+)
+
 // HudOutDir is the HUD icon set's folder below the data directory.
 func HudOutDir(dataDir string) string {
 	return filepath.Join(dataDir, "assets", "weapons-icons", "halo_infinite", "hud")
 }
 
 // HudFileNames returns the sorted stems of the HUD icon files the build writes (one per
-// piece of equipment and grenade, in LevelUp's public file names). The route serves only
-// these names, so the list is the surface of the set.
+// piece of equipment and grenade, in LevelUp's public file names, plus the damage arc).
+// The route serves only these names, so the list is the surface of the set.
 func HudFileNames() []string {
-	out := make([]string, 0, len(hudSources))
+	out := make([]string, 0, len(hudSources)+1)
 	for stem := range hudSources {
 		out = append(out, stem)
 	}
+	out = append(out, "DamageArc")
 	sort.Strings(out)
 	return out
 }
 
-// HudSetReady says whether the HUD icon set is built: index.json is present in the output
-// folder.
+// HudSetReady says whether the HUD icon set is built: index.json AND DamageArc.png are both
+// present in the output folder. A set built before the damage arc was added has no
+// DamageArc.png, so it is not ready and gets rebuilt once.
 func HudSetReady(dataDir string) bool {
-	_, err := os.Stat(filepath.Join(HudOutDir(dataDir), "index.json"))
+	dir := HudOutDir(dataDir)
+	if _, err := os.Stat(filepath.Join(dir, "index.json")); err != nil {
+		return false
+	}
+	_, err := os.Stat(filepath.Join(dir, "DamageArc.png"))
 	return err == nil
+}
+
+// inlineBC7Image decodes mip 0 of a `ucsh` tag whose pixels sit inside the tag's own bytes
+// (mip 0 at HeaderSize + DataSize of the header), w x h, full color. It refuses a tag that
+// is not `ucsh` and one whose mip 0 does not fit.
+func inlineBC7Image(tag []byte, w, h int) (*image.NRGBA, error) {
+	hdr, ok := parseTagHeader(tag)
+	if !ok {
+		return nil, fmt.Errorf("not a ucsh tag")
+	}
+	off := int(hdr.HeaderSize) + int(hdr.DataSize)
+	need := ((w + 3) / 4) * ((h + 3) / 4) * 16
+	if off < 0 || off+need > len(tag) {
+		return nil, fmt.Errorf("mip 0 of %dx%d needs %d bytes at offset %d, tag is %d", w, h, need, off, len(tag))
+	}
+	img, _, _, _ := decodeBC7(tag[off:off+need], w, h, nil)
+	return img, nil
 }
 
 // hudName is one named image of the HUD atlas.
@@ -111,9 +147,45 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 	if fi, err := os.Stat(filepath.Join(out, "index.json")); err == nil {
 		total += int(fi.Size())
 	}
+	arcFiles, arcBytes, err := buildDamageArc(ctx, ix, out)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	written += arcFiles
+	total += arcBytes
 	slog.InfoContext(ctx, "hud icon set built", "files", written, "named", len(entries),
 		"bytes", total, "out", out)
 	return written, len(entries), total, nil
+}
+
+// buildDamageArc writes DamageArc.png, the directional damage indicator bitmap, from its
+// tag (damageArcTag) into out. It returns the number of files written (0 or 1) and the
+// file's byte count.
+func buildDamageArc(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
+	if err := ctx.Err(); err != nil {
+		return 0, 0, err
+	}
+	ref, ok := pickRef(ix.byID[damageArcTag])
+	if !ok {
+		return 0, 0, fmt.Errorf("damage arc tag %08x not found in the install", damageArcTag)
+	}
+	tag, err := ix.extract(ref)
+	if err != nil {
+		return 0, 0, fmt.Errorf("damage arc tag %08x: %w", damageArcTag, err)
+	}
+	img, err := inlineBC7Image(tag, damageArcW, damageArcH)
+	if err != nil {
+		return 0, 0, fmt.Errorf("damage arc tag %08x: %w", damageArcTag, err)
+	}
+	path := filepath.Join(out, "DamageArc.png")
+	if err := writePNG(path, img); err != nil {
+		return 0, 0, fmt.Errorf("write DamageArc.png: %w", err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return 0, 0, err
+	}
+	return 1, int(fi.Size()), nil
 }
 
 // writeHudAtlas decodes each named image, scales it to hudIconSize×hudIconSize, and

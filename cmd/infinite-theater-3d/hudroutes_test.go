@@ -66,6 +66,17 @@ func TestHudRouteServesBuiltFile(t *testing.T) {
 	if rec.Header().Get("Content-Type") != "application/json" {
 		t.Fatalf("Content-Type = %q, want application/json", rec.Header().Get("Content-Type"))
 	}
+
+	rec = get(t, h, hudRoute+"DamageArc.png", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("DamageArc status = %d, want 200", rec.Code)
+	}
+	if rec.Header().Get("Content-Type") != "image/png" {
+		t.Fatalf("DamageArc Content-Type = %q, want image/png", rec.Header().Get("Content-Type"))
+	}
+	if body := rec.Body.String(); body != "fixture-DamageArc" {
+		t.Fatalf("DamageArc body = %q", body)
+	}
 }
 
 // TestHudRouteUnknownName — a name that is not a built file is a 404.

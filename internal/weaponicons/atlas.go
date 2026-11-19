@@ -13,6 +13,18 @@ import (
 	"github.com/JGtm/halo-infinite-map-images/himap"
 )
 
+// DecodeBC7 decodes w x h of BC7 blocks (mip 0, rows of 4x4 blocks of 16 bytes), full color.
+// It is for bitmaps whose pixels sit inside the tag itself, as the CUI HUD bitmaps' do,
+// rather than in the module's resource table that AtlasImage reads.
+func DecodeBC7(data []byte, w, h int) (*image.NRGBA, error) {
+	need := ((w + 3) / 4) * ((h + 3) / 4) * 16
+	if need > len(data) {
+		return nil, fmt.Errorf("BC7 %dx%d needs %d bytes, have %d", w, h, need, len(data))
+	}
+	img, _, _, _ := decodeBC7(data[:need], w, h, nil)
+	return img, nil
+}
+
 // AtlasImage decodes image idx of the bitm tag id from the game install at gameRoot
 // (empty auto-detects it the way the other builds always do), full color, as the game
 // ships it (the icon builds' white-mass simplification is not applied).

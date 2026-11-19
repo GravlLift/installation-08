@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1-test.6
+
+Changes since 0.1.1-test.5.
+
+- The weapon name tag no longer pushes the rest of the weapon corner up when it appears: it hangs below the ammo row. It is smaller, as in the game, and sits on a dark plate that fades with it, in the viewer and the video export.
+
 ## 0.1.1-test.5
 
 Changes since 0.1.1-test.4.

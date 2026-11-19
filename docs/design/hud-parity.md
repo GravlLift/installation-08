@@ -106,7 +106,8 @@ day (`exportHud.ts` paints the same corner, equipment included), checked on pain
    Model done 2026-11-18: `damageArcsAt` in `model/damageArcs.ts` (bearing, age and attacker per
    live arc, one arc per attacker; `readHud` returns it as `damageArcs`). Not drawn yet: the
    arc's art, ring size and lifetime must come from the game's HUD. `DAMAGE_ARC_MS` (1 s) is a
-   placeholder until then.
+   placeholder until then. Since decoded: art, geometry, animation and the 2 s lifetime
+  (see "The HUD's own data, decoded" below).
 6. The red damage indicator above the shield: drawn on damage taken and from the `hp` health
    reading. Its exact look and rule must come from the game's HUD tags (to research before
    building, not tuned by eye).
@@ -117,6 +118,51 @@ day (`exportHud.ts` paints the same corner, equipment included), checked on pain
 8. Game font: find the HUD typeface in the install, extract it to the gitignored data folder, and
    serve it as a web font, with Bahnschrift as the fallback. Then the kill feed, the medals and
    the corner all use it.
+
+**Where the game keeps the HUD art (research, 2026-11-18).** A read-only scan of the Steam install
+(`any/globals/globals-rtx-new.module` and the other readable modules, full tag-group census) by the
+local worker; the probe and raw dumps stay in the gitignored `data/probe/`.
+- No `chud` / `chdt` tag group exists. Infinite's HUD is data-driven UI: one `uigm` (d5acd3b9),
+  62 `uiwi`, 738 `uslg` tags, whose body format no reader here decodes. The damage arc's geometry
+  and lifetime and the red glow over the shield almost certainly live there (inferred). Decoding
+  that format is the real cost behind items 5 (drawing), 6 and 7.
+- Team emblems: not found. The one `embl` tag (a47c83f7) is a property table, not a bitmap
+  atlas. Sampled UI tags reference no `bitm` tag directly.
+- Font: found. 104 `font` tags plus the `fntf` registry (d35037d1) name the UI families: Normative
+  Pro (Light to Bold, the primary family; inferred to be the HUD's), Industry, Baksheesh, Consolas.
+  The glyphs are in `maps/fonts/font_package.bin` (344 KB, plus per-locale packages), a binary
+  glyph format. The install has no ttf or otf file, and the BC7 icon reader does not apply.
+
+**The HUD's own data, decoded (2026-11-19).** Infinite's HUD is CUI: `cusc` screen tags (602),
+each a component tree with property values, bitmap references, keyframed animations, expressions
+and data-context bindings, plus the `uihg` HUD globals (2 tags). `DumpTag` in
+`internal/weaponicons/tagdump.go` walks any tag with a community layout plugin and checks every
+block's live size against it. The layouts that match the installed game are Z-15's
+Halo-Infinite-Tag-Editor `Tag_Structures` (March 2023): `uihg` 560 = 560 bytes, all 602 `cusc`
+roots match (Gamergotten's December 2022 set is off by 256 and 16 bytes). Those layouts carry no
+license, so they stay in the gitignored `data/probe/plugins/`, never in the repo. The probes are
+`data/probe/uidump` (all `uihg` and `cusc`), `tagone` (one tag) and `bitminline` (a bitmap whose
+BC7 pixels sit inside the tag, as the CUI bitmaps' do).
+- `uihg` 0000397e (confirmed, every block and tag reference of the live root falls where the
+  layout puts it): damage indicator response duration 2 s, shield bar recent damage duration 1 s,
+  damage flash response duration 0.2 s, hit tick persist time 0.25 s. Also medal fanfare animation
+  lifetime 2.5 s (in 0.25 s, out begins at 1.5 s), max medals on screen 5, medal score message
+  lifetime 3 s, event feed lifetime 4.5 s. That the arc's lifetime is the "damage indicator response
+  duration" is inferred from the name: the screen itself only sees a normalized lifetime.
+- `cusc` 0583f411 is the directional damage indicator (`damageindicatordc`). Confirmed from the dump:
+  a list of up to 8 `damageinstance` items in a 780x780 container on a 3840x2160 reference screen.
+  Each item is rotated by the instance's `damagedegreeangle` and holds two 1024x512
+  two-tone-gradient quads of bitmap `41d89be1`, pivoted at their bottom center. One is normal blend
+  and one additive, the additive one starting at opacity 0. Bindings and animations:
+  `normalizedaccumulateddamage` drives the quads' meter value from 0.15 to 1 over its range;
+  `normalizedlifetimeduration` drives the item's opacity from 1 to 0. On spawn, the tint blend
+  alpha goes from 0.5 to 0 in 100 ms, and the additive quad scales from 1 to 1.2 over 633 ms while
+  its opacity goes from 0.5 to 0 over 300 ms.
+- Bitmap `41d89be1` decodes (720x390, BC7, pixels inline after the tag's data): a red half ring,
+  with blue varying along the arc. That blue is the ramp the meter value reveals: inferred from the
+  two-tone meter widget, not yet confirmed.
+- `cusc` 9299c419 holds the shield bar (`shieldbardc`, `overshield`, `shield_chase`): 55
+  components, not yet read.
 
 **Phase 4: pings (decoder research, open-ended).**
 9. Find out whether the film carries pings at all. The only lead is the unexported `managed-navpoint`
