@@ -15,7 +15,8 @@ import * as THREE from 'three'
 import { isMergedMaterial } from './layeredArrays3d'
 import type { LayeredMerge } from './layeredMerge3d'
 import { concatIndices } from './layeredPlan3d'
-import { markDrawnBy } from './surfaceProbe3d'
+import { probeParts } from './probes3d'
+import { clearDrawnBy, markDrawnBy } from './surfaceProbe3d'
 
 // The attributes a merged material reads; the others stay with the original surfaces.
 const DRAWN_ATTRIBUTES = ['position', 'cMacro', 'cUv', 'cRow'] as const
@@ -33,9 +34,18 @@ function releaseGpuIndex(geometry: THREE.BufferGeometry): void {
   for (const [name, a] of Object.entries(attributes)) geometry.setAttribute(name, a)
 }
 
-function groupKey(mesh: THREE.Mesh, idOf: (o: object) => number): string | null {
+/** A share of a surface drawn by a merged mesh: the whole surface, or one probe's part of it (`probeParts`). */
+interface Drawn {
+  mesh: THREE.Mesh
+  material: THREE.Material
+  index: ArrayLike<number>
+  /** The surface is split between probes: every part is drawn by a merged mesh, even alone in its group. */
+  split: boolean
+}
+
+function groupKey(mesh: THREE.Mesh, material: THREE.Material, idOf: (o: object) => number): string | null {
   const g = mesh.geometry
-  const parts: number[] = [idOf(mesh.parent as object), idOf(mesh.material as object)]
+  const parts: number[] = [idOf(mesh.parent as object), idOf(material)]
   for (const name of DRAWN_ATTRIBUTES) {
     const a = g.getAttribute(name)
     if (!a) return null
@@ -45,14 +55,14 @@ function groupKey(mesh: THREE.Mesh, idOf: (o: object) => number): string | null 
 }
 
 /** drawOnce places under their node the mesh that draws `group` (same buffer, same material) and hides its members. */
-function drawOnce(group: readonly THREE.Mesh[], tighten: (g: THREE.BufferGeometry) => void): THREE.Mesh {
-  const first = group[0]
+function drawOnce(group: readonly Drawn[], tighten: (g: THREE.BufferGeometry) => void, hidden: Set<THREE.Mesh>): THREE.Mesh {
+  const first = group[0].mesh
   const geometry = new THREE.BufferGeometry()
   for (const name of DRAWN_ATTRIBUTES) geometry.setAttribute(name, first.geometry.getAttribute(name))
-  const parts = group.map((m) => (m.geometry.index as THREE.BufferAttribute).array)
+  const parts = group.map((d) => d.index)
   geometry.setIndex(new THREE.BufferAttribute(concatIndices(parts, first.geometry.getAttribute('position').count), 1))
   tighten(geometry)
-  const mesh = new THREE.Mesh(geometry, first.material)
+  const mesh = new THREE.Mesh(geometry, group[0].material)
   mesh.name = 'merged-map'
   mesh.position.copy(first.position)
   mesh.quaternion.copy(first.quaternion)
@@ -61,7 +71,9 @@ function drawOnce(group: readonly THREE.Mesh[], tighten: (g: THREE.BufferGeometr
   mesh.receiveShadow = first.receiveShadow
   mesh.raycast = () => {}
   first.parent?.add(mesh)
-  for (const m of group) {
+  for (const { mesh: m } of group) {
+    if (hidden.has(m)) continue
+    hidden.add(m)
     m.visible = false
     markDrawnBy(m, mesh)
     releaseGpuIndex(m.geometry)
@@ -79,23 +91,31 @@ export function batchLayered(merge: LayeredMerge, meshes: readonly THREE.Mesh[],
   const start = performance.now()
   const ids = new Map<object, number>()
   const idOf = (o: object) => ids.get(o) ?? (ids.set(o, ids.size), ids.size - 1)
-  const groups = new Map<string, THREE.Mesh[]>()
+  const groups = new Map<string, Drawn[]>()
   let alone = 0
   for (const mesh of meshes) {
     if (!mesh.visible || !mesh.geometry.index || !isMergedMaterial(mesh.material)) continue
-    const key = groupKey(mesh, idOf)
-    if (key === null) {
+    const parts = probeParts.get(mesh)
+    const drawn: Drawn[] = parts
+      ? parts.map((p) => ({ mesh, material: p.material, index: p.index, split: true }))
+      : [{ mesh, material: mesh.material, index: mesh.geometry.index.array, split: false }]
+    const keys = drawn.map((d) => groupKey(mesh, d.material, idOf))
+    // A surface that cannot be grouped draws itself (with its largest probe share's material).
+    if (keys.includes(null)) {
       alone++
       continue
     }
-    const group = groups.get(key)
-    if (group) group.push(mesh)
-    else groups.set(key, [mesh])
+    drawn.forEach((d, i) => {
+      const group = groups.get(keys[i] as string)
+      if (group) group.push(d)
+      else groups.set(keys[i] as string, [d])
+    })
   }
   const batches: THREE.Mesh[] = []
+  const hidden = new Set<THREE.Mesh>()
   for (const group of groups.values()) {
-    if (group.length < 2) alone += group.length
-    else batches.push(drawOnce(group, tighten))
+    if (group.length < 2 && !group[0].split) alone++
+    else batches.push(drawOnce(group, tighten, hidden))
   }
   const s = merge.stats
   const upload = merge.atlas.uploadMs
@@ -111,6 +131,11 @@ export function batchLayered(merge: LayeredMerge, meshes: readonly THREE.Mesh[],
       mesh.removeFromParent()
       for (const name of DRAWN_ATTRIBUTES) mesh.geometry.deleteAttribute(name)
       mesh.geometry.dispose()
+    }
+    // The surfaces draw themselves again, so a new capture's probes can batch them anew.
+    for (const m of hidden) {
+      m.visible = true
+      clearDrawnBy(m)
     }
   }
 }
