@@ -4,7 +4,7 @@ import { formatClock, frameToMs } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { ReplayLocale } from '../i18n/i18n'
 import { hudClock, readHud, readKillFeed, readScoreHud, prepareHud } from '../model/hud3d_logic'
-import { SHIELD_CHASE_INK, shieldFlash } from '../model/shieldHud'
+import { SHIELD_CHASE_INK, SHIELD_CHASE_URL, shieldFlash } from '../model/shieldHud'
 import { SHIELD_BAR_H, SHIELD_BAR_W, SHIELD_CENTER } from '../ui/shieldBarGeometry'
 import type { ReplayKill } from '../model/killFeedLogic'
 import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
@@ -19,6 +19,7 @@ import { buildLivesByXuid } from '../model/livesPosition'
 import { CALLOUT_LABEL, calloutName, calloutOfLivesAt, type PreparedCallouts } from '../model/mapCallouts'
 import type { HeldWeapon } from '../scene3d/redReticle3d'
 import { DAMAGE_ARC_URL, paintDamageArcs } from '../ui/damageArcPaint'
+import { tintedChase } from '../ui/shieldChaseArt'
 import { adsOverlaysOfDoc, createAdsOverlayAtlas, paintAdsAmmo, type SvgImageLoader } from './adsOverlayRaster'
 
 /** `color-mix(in srgb, color, #000 65%)` in hex: darken `hex` toward black by `amount` (0..1). */
@@ -64,7 +65,11 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
   for (const kill of kills) if (kill.weaponImageUrl) urls.add(weaponFullIcon(kill.weaponImageUrl).url)
   // The game's damage-arc bitmap, awaited with the icons so the first exported frame has it
   // (only when the match has damage events: without them no arc is ever drawn).
-  if (doc.damages?.length) urls.add(DAMAGE_ARC_URL)
+  if (doc.damages?.length) {
+    urls.add(DAMAGE_ARC_URL)
+    // The game's chase-band bitmap too: the band only ever shows right after a hit.
+    urls.add(SHIELD_CHASE_URL)
+  }
   const images = new Map<string, HTMLImageElement>()
   await Promise.all([...urls].map((url) => new Promise<void>((resolve) => {
     const img = new Image()
@@ -188,9 +193,22 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
           barPath()
           ctx.clip()
           ctx.globalCompositeOperation = 'lighter'
-          ctx.fillStyle = SHIELD_CHASE_INK
-          ctx.fillRect(toX(SHIELD_CENTER - chaseHalf), oy, (chaseHalf - half) * s, bh)
-          ctx.fillRect(toX(SHIELD_CENTER + half), oy, (chaseHalf - half) * s, bh)
+          const chaseBitmap = images.get(SHIELD_CHASE_URL)
+          if (chaseBitmap) {
+            // The game's bitmap stretched to the bar's box, revealed by clipping to the band's
+            // two x ranges: INFERRED the clip equals the game's B-threshold reveal (the ramp is
+            // linear in x, 128 at the center) to within a few pixels.
+            ctx.beginPath()
+            ctx.rect(toX(SHIELD_CENTER - chaseHalf), oy, (chaseHalf - half) * s, bh)
+            ctx.rect(toX(SHIELD_CENTER + half), oy, (chaseHalf - half) * s, bh)
+            ctx.clip()
+            ctx.drawImage(tintedChase(chaseBitmap), ox, oy, bw, bh)
+          } else {
+            // The bitmap not loaded: the flat tinted band it replaces.
+            ctx.fillStyle = SHIELD_CHASE_INK
+            ctx.fillRect(toX(SHIELD_CENTER - chaseHalf), oy, (chaseHalf - half) * s, bh)
+            ctx.fillRect(toX(SHIELD_CENTER + half), oy, (chaseHalf - half) * s, bh)
+          }
           ctx.restore()
         }
         // The rim: the bar outline, pale blue at rest, pulsing red when low or broken.

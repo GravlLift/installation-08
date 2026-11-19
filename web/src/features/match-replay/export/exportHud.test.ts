@@ -108,6 +108,26 @@ function shieldDoc(after = 0.1) {
   })
 }
 
+/**
+ * A shield doc that also has damage events, on a slot that is not the followed player: the
+ * export then preloads the chase bitmap, while the followed player's damage ring stays empty.
+ */
+function shieldDocWithDamages() {
+  return testReplayDoc({
+    roster: [
+      { filmIndex: 0, xuid: 'A', name: 'Alpha', team: 0 },
+      { filmIndex: 1, xuid: 'B', name: 'Bravo', team: 0 },
+      { filmIndex: 2, xuid: 'C', name: 'Charlie', team: 1 },
+    ],
+    tracks: [
+      { slot: 0, team: 0, xuid: 'A', points: [{ t: 0, x: 0, y: 0, sh: 0.5 }, { t: 100, x: 0, y: 0, sh: 0.1 }, { t: 200, x: 0, y: 0, sh: 0.1 }] },
+      { slot: 1, team: 0, xuid: 'B', points: [{ t: 0, x: 0, y: 0 }, { t: 200, x: 0, y: 0 }] },
+      { slot: 2, team: 1, xuid: 'C', points: [{ t: 0, x: 0, y: 0 }, { t: 200, x: 0, y: 0 }] },
+    ],
+    damages: [{ t: 50, slot: 99, by: 512 }],
+  })
+}
+
 /** A recording canvas context that also captures `fillRect`, `strokeStyle`, and gradient stops. */
 function recordingCtxFull() {
   const state: Record<string, unknown> = {}
@@ -357,6 +377,44 @@ describe('createExportHud', () => {
       expect(bands.some((c) => c.args[0] === 460 + 250 * 0.36 && c.args[2] === 250 * 0.36)).toBe(true)
       expect(bands.some((c) => c.args[0] === 460 + 500 * 0.36 && c.args[2] === 250 * 0.36)).toBe(true)
       expect(dropped.sets.some((s) => s.prop === 'fillStyle' && s.value === SHIELD_CHASE_INK)).toBe(true)
+    })
+
+    it('with the bitmap loaded, draws the tinted band under a clip, not the flat rects', async () => {
+      // The bitmap preloads only when the match has damage events, and it loads (jsdom never
+      // fires load on its own): the same microtask stub the icon tests use.
+      class FakeImage {
+        onload: (() => void) | null = null
+        onerror: (() => void) | null = null
+        set src(_url: string) { queueMicrotask(() => this.onload?.()) }
+      }
+      vi.stubGlobal('Image', FakeImage)
+      // The bitmap read by `tintedChase`: a canvas stub over a buffer of the bitmap's own size.
+      const buffer = new Uint8ClampedArray(940 * 64 * 4)
+      const bitmapCtx = {
+        drawImage: () => { buffer.fill(77) },
+        getImageData: () => ({ data: buffer }),
+        putImageData: () => {},
+      }
+      vi.spyOn(document, 'createElement').mockImplementation((tag: string) =>
+        tag === 'canvas' ? ({ width: 0, height: 0, getContext: () => bitmapCtx } as unknown as HTMLElement) : ({} as HTMLElement))
+      const hud = await createExportHud(shieldDocWithDamages(), 'A', [], null, null, 'en')
+      const dropped = callRecorder()
+      hud(dropped.ctx, VIEW, 100)
+      // The band: one drawImage of the tinted bitmap stretched to the bar's box, additive.
+      const draws = dropped.named('drawImage')
+      expect(draws).toHaveLength(1)
+      const [, dx, dy, dw, dh] = draws[0].args as [unknown, number, number, number, number]
+      expect(dx).toBe(460)
+      expect(dy).toBe(720 * 0.08)
+      expect(dw).toBe(360)
+      expect(dh).toBeCloseTo(360 * 74 / 1000, 12)
+      expect(dropped.sets.some((s) => s.prop === 'globalCompositeOperation' && s.value === 'lighter')).toBe(true)
+      // No flat fallback: no band-width rect at the bar's y, no tint fillStyle.
+      const rectsAtBar = dropped.named('fillRect').filter((c) => c.args[1] === 720 * 0.08)
+      expect(rectsAtBar.some((c) => c.args[2] === 200 * 0.36)).toBe(false)
+      expect(dropped.sets.some((s) => s.prop === 'fillStyle' && s.value === SHIELD_CHASE_INK)).toBe(false)
+      vi.unstubAllGlobals()
+      vi.restoreAllMocks()
     })
 
     it('does not draw the old plain rectangle shield', async () => {
