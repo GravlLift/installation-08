@@ -15,6 +15,7 @@ import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import type { ReplayKill } from '../model/killFeedLogic'
 import type { AnnouncerTrackInput } from './announcerSound'
 import type { ObjectiveSide } from './objectiveSound'
+import { footTakeStem } from './footstepManifest'
 import { footstepSoundEvents } from './footstepSound'
 import { withGameShots } from './gameShotSound'
 import { reloadSoundEvents } from './reloadSound'
@@ -47,7 +48,7 @@ export function useSoundTimeline(
   doc: ReplayDocumentReady,
   kills: readonly ReplayKill[],
   inputs: SoundTimelineInputs,
-): { timeline: ReplaySoundEvent[]; announcer: AnnouncerTrackInput | undefined } {
+): { timeline: ReplaySoundEvent[]; announcer: AnnouncerTrackInput | undefined; introTheme: string | undefined } {
   const { categories, sideOfXuid, allyTeam, on } = inputs
   const announcer = useAnnouncerTrack(inputs.announcer, on)
   const weaponSounds = useReloadTrack(doc, on)
@@ -64,5 +65,7 @@ export function useSoundTimeline(
     const shots = footsteps?.shots ? withGameShots(track, footsteps) : track
     return extras.length === 0 ? shots : [...shots, ...extras].sort((a, b) => a.ms - b.ms)
   }, [doc, kills, categories, sideOfXuid, allyTeam, announcer, weaponSounds, footsteps, followed])
-  return { timeline, announcer }
+  // The whole theme the intro plays the rise of, when the install gave it (`introSound.ts`).
+  const introTheme = footsteps?.intro ? footTakeStem(footsteps.intro.file) : undefined
+  return { timeline, announcer, introTheme }
 }

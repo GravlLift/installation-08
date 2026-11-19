@@ -25,10 +25,28 @@ import { ambienceLoopAt, prepareReverbZones, type AmbienceLayout, type PreparedA
 import type { SoundListener } from './soundSpatial'
 
 /** The one level still chosen here, by ear (Jordan, 0.1.1-test.5: "slightly loud"): 3 dB under
- * the game's own chain (impulse response level x wet level). Each sound's send into the reverb bus
- * (a game-defined aux send, falling with distance in the sound's attenuation) and that bus's own
- * volume are not read yet. */
+ * the game's own chain (impulse response level x wet level), for a sound sending at the
+ * reference below. The reverb bus's own volume is not read. */
 export const REVERB_SEND_DB = -3
+
+/**
+ * THE SEND A SOUND'S OWN SEND IS MEASURED FROM. The game gives each sound a game-defined aux send
+ * (node property 0x17, summed along its node chain, `wwise.MediaMix.GameAuxSendDB`), falling
+ * with distance on the same curve as its volume (curve use 1 of its attenuation is curve 0 on
+ * the shots and foot steps probed). Those sends are large and positive on world sounds (median
+ * +20 dB over the 3439 foot step, movement and shot takes extracted 2026-11-19, quartiles +18
+ * and +24), so the game's reverb bus is quiet and they only make sense against each other: a
+ * sound sending at +20 keeps the level tuned above, one at +23 is 3 dB wetter, the shooter's own
+ * shot (-60) is dry. A sound without data sends at the reference.
+ */
+export const REVERB_SEND_REFERENCE_DB = 20
+
+/** reverbSendOf — the linear send of a sound into the zone reverb, against its dry level; 0 when inaudible. */
+export function reverbSendOf(reverbDb: number | undefined): number {
+  if (reverbDb === undefined) return 1
+  const g = 10 ** ((reverbDb - REVERB_SEND_REFERENCE_DB) / 20)
+  return g < 1e-4 ? 0 : g
+}
 /** How long a new environment must hold the listener before the reverb switches (doorways). */
 export const REVERB_SWITCH_HOLD_S = 0.3
 /** The switch: send into the old convolver down and into the new one up over this many seconds. */

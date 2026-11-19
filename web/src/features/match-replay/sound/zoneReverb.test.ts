@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it, vi } from 'vitest'
 
-import { REVERB_CROSSFADE_S, REVERB_SEND_DB, REVERB_SWITCH_HOLD_S, ZoneReverbPlayer, type ReverbBus } from './zoneReverb'
+import { REVERB_CROSSFADE_S, REVERB_SEND_DB, REVERB_SEND_REFERENCE_DB, REVERB_SWITCH_HOLD_S, ZoneReverbPlayer, reverbSendOf, type ReverbBus } from './zoneReverb'
 import type { AmbienceLayout } from './ambienceZones'
 
 function fakeBus() {
@@ -120,5 +120,14 @@ describe('ZoneReverbPlayer', () => {
     expect(ctx.decodeAudioData).toHaveBeenCalledOnce()
     expect(gains).toHaveLength(0)
     expect(convolvers).toHaveLength(0)
+  })
+})
+
+describe('reverbSendOf — a sound\'s game send against the common one', () => {
+  it('is 1 without data or at the reference, 6 dB under at 6 dB under, 0 for a dry first-person shot', () => {
+    expect(reverbSendOf(undefined)).toBe(1)
+    expect(reverbSendOf(REVERB_SEND_REFERENCE_DB)).toBe(1)
+    expect(reverbSendOf(REVERB_SEND_REFERENCE_DB - 6)).toBeCloseTo(10 ** (-6 / 20), 9)
+    expect(reverbSendOf(-60)).toBe(0)
   })
 })

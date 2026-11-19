@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { FootstepManifest } from './footstepManifest'
-import { withGameShots } from './gameShotSound'
+import { FIRST_PERSON_SHOT_DB, withGameShots } from './gameShotSound'
 import type { ReplaySoundEvent } from './replaySoundVariants'
 import { falloffGain } from './soundSpatial'
 
@@ -30,14 +30,15 @@ const MANIFEST: FootstepManifest = {
 const FIRST_PERSON: FootstepManifest = {
   ...MANIFEST,
   shotsFirstPerson: {
-    hinf_bandit: { takes: [take(11, 4.5, ''), take(12, 4.5, ''), take(13, -5, ''), take(14, -8, '')], layers: [[0, 1], [2], [3]] },
+    hinf_bandit: { takes: [{ ...take(11, 4.5, ''), reverbDb: -60 }, { ...take(12, 4.5, ''), reverbDb: -60 }, { ...take(13, -5, ''), reverbDb: 0 }, take(14, -8, '')], layers: [[0, 1], [2], [3]] },
   },
 }
 
 describe('withGameShots', () => {
-  it('plays the followed player\'s own shot as the first-person event: its layers, loudest at 0 dB, no falloff', () => {
+  it('plays the followed player\'s own shot as the first-person event: its layers, loudest at the trim, no falloff, its own reverb sends', () => {
     const out = withGameShots([{ ms: 0, stem: 'hinf_bandit', gainDb: -2 }], FIRST_PERSON)
-    expect(out.map((e) => [e.stem, e.gainDb, e.falloff])).toEqual([['foot_11', -2, undefined], ['foot_13', -11.5, undefined], ['foot_14', -14.5, undefined]])
+    const t = FIRST_PERSON_SHOT_DB
+    expect(out.map((e) => [e.stem, e.gainDb, e.falloff, e.reverbDb])).toEqual([['foot_11', -2 + t, undefined, -60], ['foot_13', -11.5 + t, undefined, 0], ['foot_14', -14.5 + t, undefined, undefined]])
     expect(out[0].variants).toEqual(['foot_11', 'foot_12'])
   })
 

@@ -70,6 +70,11 @@ export interface ReplaySoundEvent {
    */
   falloff?: SoundFalloff
   /**
+   * The game's own reverb send of the sound, in dB against its level (`zoneReverb.reverbSendOf`):
+   * absent, it feeds the zone reverb at the common level.
+   */
+  reverbDb?: number
+  /**
    * The weapon key whose RANGED variation this event draws (`WEAPON_SOUND_VARIATIONS`), when its
    * stem is not that key: a layer take of the game's own shot (`gameShotSound.ts`). Absent = the
    * stem itself.

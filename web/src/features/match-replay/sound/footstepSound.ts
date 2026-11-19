@@ -234,6 +234,7 @@ export function footstepReplayEvents(
     layers.forEach((takes, i) => {
       const take = pickTake(e, i, takes)
       const ev: ReplaySoundEvent = { ms: e.timeMs, stem: take.stem, gainDb: take.gainDb ?? FOOTSTEP_GAIN_DB, footstep: true }
+      if (take.reverbDb !== undefined) ev.reverbDb = take.reverbDb
       if (!own) {
         ev.at = e.position
         const falloff = falloffOf(manifest, take)

@@ -34,6 +34,7 @@ import {
   type SoundDraw,
 } from './weaponSoundLogic'
 import { INAUDIBLE_LEVEL, type SoundPlacement } from './soundSpatial'
+import { reverbSendOf } from './zoneReverb'
 
 /**
  * CEILING of played duration, in seconds — not the cut: the duration of a sound is that of its
@@ -489,8 +490,8 @@ export class ReplayAudioPlayer {
    * before the end of the preload) or absent: silence, never a wait — a sound late on its image is
    * worse than a missed sound.
    */
-  play(url: string, draw?: SoundDraw, shape?: SoundShape, place?: SoundPlacement, slot: { when?: number; footstep?: boolean } = {}): void {
-    this.start(url, soundKindOf({}), { draw, shape, place, when: slot.when, footstep: slot.footstep, wet: true })
+  play(url: string, draw?: SoundDraw, shape?: SoundShape, place?: SoundPlacement, slot: { when?: number; footstep?: boolean; reverbDb?: number } = {}): void {
+    this.start(url, soundKindOf({}), { draw, shape, place, when: slot.when, footstep: slot.footstep, wet: true, reverbDb: slot.reverbDb })
   }
 
   /**
@@ -545,7 +546,7 @@ export class ReplayAudioPlayer {
   private start(
     url: string,
     kind: SoundKind,
-    opts: { draw?: SoundDraw; shape?: SoundShape; offsetS?: number; place?: SoundPlacement; when?: number; footstep?: boolean; wet?: boolean } = {},
+    opts: { draw?: SoundDraw; shape?: SoundShape; offsetS?: number; place?: SoundPlacement; when?: number; footstep?: boolean; wet?: boolean; reverbDb?: number } = {},
   ): void {
     const footstep = opts.footstep === true
     const { draw, shape, place } = opts
@@ -584,15 +585,24 @@ export class ReplayAudioPlayer {
     // The PAN is born only if demanded and at a SIDE: without `place`, or `pan` at 0,
     // the wiring stays exactly gain -> master, no node more.
     let panner: StereoPannerNode | null = null
+    let out: AudioNode = gain
     if (place && place.pan !== 0) {
       panner = this.ctx.createStereoPanner()
       panner.pan.value = place.pan
       gain.connect(panner)
-      panner.connect(this.master)
-      if (opts.wet) panner.connect(this.send)
-    } else {
-      gain.connect(this.master)
-      if (opts.wet) gain.connect(this.send)
+      out = panner
+    }
+    out.connect(this.master)
+    // THE REVERB SEND: at the common level, or at the sound's own game send against it
+    // (`reverbSendOf`): a node only when it differs, none at all when it is dry.
+    const sendLevel = opts.wet ? reverbSendOf(opts.reverbDb) : 0
+    let sendGain: GainNode | null = null
+    if (sendLevel === 1) out.connect(this.send)
+    else if (sendLevel > 0) {
+      sendGain = this.ctx.createGain()
+      sendGain.gain.value = sendLevel
+      out.connect(sendGain)
+      sendGain.connect(this.send)
     }
     // A HELD SOUND (`loop`) is held back: the pause and the jump cut it (`stopHeld`), otherwise a
     // burst of ten seconds would keep firing on a stopped image.
@@ -608,6 +618,7 @@ export class ReplayAudioPlayer {
       src.disconnect()
       gain.disconnect()
       if (panner) panner.disconnect()
+      if (sendGain) sendGain.disconnect()
     }
     src.start(t0, offsetS)
     src.stop(t0 + stopS)

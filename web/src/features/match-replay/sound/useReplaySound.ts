@@ -51,7 +51,7 @@ import type { AnnouncerContext } from './useAnnouncerTrack'
 import { useSoundTimeline } from './useSoundTimeline'
 import { useSoundCategoryFilter } from './useSoundCategoryFilter'
 import { endMatchSoundsFor, soundFamiliesFor } from './exportSoundFamilies'
-import { INTRO_MUSIC_STEM, playIntroAligned } from './introSound'
+import { INTRO_MUSIC_STEM, INTRO_THEME_START_S, playIntroFrom } from './introSound'
 import { COUNTDOWN_TICK_STEM } from './countdownSound'
 import { ReplayAudioPlayer, SOUND_LOOKAHEAD_S, soundShapeOf } from './replayAudio'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
@@ -299,7 +299,9 @@ export function useReplaySound(
 
   // Track PLAYED, categories cut removed AT THE CONSTRUCTION (never downstream, in the
   // player); AVAILABILITY OF THE PANEL independent of this filter (hasSoundEvents above).
-  const { timeline, announcer } = useSoundTimeline(doc, kills, { categories, sideOfXuid, allyTeam, announcer: context, on })
+  const { timeline, announcer, introTheme } = useSoundTimeline(doc, kills, { categories, sideOfXuid, allyTeam, announcer: context, on })
+  const introThemeRef = useRef(introTheme)
+  introThemeRef.current = introTheme
   // The END-OF-MATCH VOICE is the announcer's too: cutting the category keeps the fanfare alone.
   const endMatch = useMemo(
     () => (context.endMatch && !categories.announcer ? { ...context.endMatch, voiced: false as const } : context.endMatch),
@@ -311,7 +313,7 @@ export function useReplaySound(
   // The takes of the END enter the preload with the track: the drawing only takes place
   // at the arrival at the end, and a file requested at that moment would sound after the silence.
   const urls = useMemo(
-    () => soundURLsFor(timeline, [...endMatchSoundStems(endMatch), INTRO_MUSIC_STEM, COUNTDOWN_TICK_STEM, ...engine.stems, ...shields.stems]),
+    () => soundURLsFor(timeline, [...endMatchSoundStems(endMatch), ...(introTheme ? [introTheme] : []), INTRO_MUSIC_STEM, COUNTDOWN_TICK_STEM, ...engine.stems, ...shields.stems]),
     [timeline, endMatch, engine.stems, shields.stems],
   )
 
@@ -526,7 +528,7 @@ export function useReplaySound(
         withEventGain(drawVariation(WEAPON_SOUND_VARIATIONS[e.weapon ?? stem], tuning.variationPercentRef.current), e),
         shape,
         placeOf(listener.current, e),
-        { when, footstep: e.footstep === true },
+        { when, footstep: e.footstep === true, reverbDb: e.reverbDb },
       )
     }
   }, [tuning.variationPercentRef, engine.stop, engine.sync, ambience.setAudible, shields.stop, shields.sync])
@@ -567,7 +569,11 @@ export function useReplaySound(
   // THE INTRO: ordinary route, aligned on the kickoff even decoded late (`introSound.ts`).
   const playIntro = useCallback(() => {
     const [url, player, speed] = [urlsRef.current.get(INTRO_MUSIC_STEM), playerRef.current, speedRef.current]
-    if (url && player && onRef.current && soundPlaysAtSpeed(speed)) void playIntroAligned(player, url, speed)
+    if (!url || !player || !onRef.current || !soundPlaysAtSpeed(speed)) return
+    // The whole theme first (it rings out), the shipped excerpt when the install gave none.
+    const theme = introThemeRef.current ? urlsRef.current.get(introThemeRef.current) : undefined
+    const sources = theme ? [{ url: theme, startS: INTRO_THEME_START_S }, { url, startS: 0 }] : [{ url, startS: 0 }]
+    void playIntroFrom(player, sources, speed)
   }, [])
 
   // THE COUNTDOWN TICK: the same beep on each number (no per-number take exists in the game).

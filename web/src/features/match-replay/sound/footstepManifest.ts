@@ -48,6 +48,8 @@ export interface FootstepTake {
   gainDb?: number
   /** The key in `falloffs` of the distance falloff it plays with (version 3). */
   falloff?: string
+  /** Its game-defined reverb send, in dB against its own level (version 5, `zoneReverb.reverbSendOf`). */
+  reverbDb?: number
 }
 
 /** The set of takes one sound draws from. */
@@ -76,6 +78,8 @@ export interface FootstepManifest {
    * falloff), stereo, with the low thump the third-person layers lack (version 4).
    */
   shotsFirstPerson?: Readonly<Record<string, FootstepEntry>>
+  /** The whole multiplayer theme the intro plays the rise of, ringing out on its own (version 5, `introSound.ts`). */
+  intro?: FootstepTake
   /** The distance falloffs the takes name, by attenuation id (version 3). */
   falloffs?: Readonly<Record<string, { volume: SoundFalloff }>>
 }

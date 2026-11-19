@@ -64,7 +64,8 @@ export function withGameShots(track: readonly ReplaySoundEvent[], manifest: Foot
       const ev: ReplaySoundEvent = { ...e, stem: l.stems[0], weapon: e.stem }
       delete ev.variants
       if (l.stems.length > 1) ev.variants = l.stems
-      let gainDb = (e.gainDb ?? 0) + l.gainDb
+      if (l.reverbDb !== undefined) ev.reverbDb = l.reverbDb
+      let gainDb = (e.gainDb ?? 0) + l.gainDb + (firstPerson ? FIRST_PERSON_SHOT_DB : 0)
       if (!own) {
         if (l.falloff) ev.falloff = l.falloff
       } else if (l.falloff) {
@@ -85,7 +86,17 @@ interface ShotLayer {
   stems: string[]
   gainDb: number
   falloff?: ReturnType<typeof falloffOf>
+  /** The layer's game reverb send (`zoneReverb.reverbSendOf`): the first-person main take's is -60, dry. */
+  reverbDb?: number
 }
+
+/**
+ * THE FIRST-PERSON SHOT'S TRIM, chosen by ear (Jordan, 0.1.1-test.7: the Bandit "too loud", the
+ * S7 "might be too loud overall"). With its loudest layer at 0 dB, the Bandit's first-person take
+ * measures -18.2 dB RMS and the S7's -12.5; test.6's own Bandit (-19.5) was already "slightly too
+ * loud". At -4 dB they sit at -22.2 and -16.5, the S7 at the shipped file's level (-16.0).
+ */
+export const FIRST_PERSON_SHOT_DB = -4
 
 /**
  * shotLayers — the playable layers of a shot, or `null` when it has none. A layer plays at its
@@ -99,6 +110,7 @@ function shotLayers(manifest: FootstepManifest, entry: FootstepEntry | undefined
     stems: takes.map((t) => t.stem),
     gainDb: takes[0].gainDb ?? 0,
     falloff: falloffOf(manifest, takes[0]),
+    reverbDb: takes[0].reverbDb,
   }))
   const peak = Math.max(...out.map(peakDb))
   for (const l of out) l.gainDb -= peak

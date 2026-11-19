@@ -493,3 +493,28 @@ describe('ReplayAudioPlayer — the recording track', () => {
     expect(p.recordingTrack()).toBeNull()
   })
 })
+
+describe('ReplayAudioPlayer — the reverb send of a sound', () => {
+  const URL_ = '/static/sounds/halo_infinite/foot_00000001.ogg'
+  const voiceOf = (p: ReplayAudioPlayer, reverbDb?: number) => {
+    const before = ctx.gains.length
+    p.play(URL_, undefined, undefined, undefined, { reverbDb })
+    return ctx.gains.slice(before)
+  }
+  it('feeds the send directly without data, through its own level with one, not at all when dry', async () => {
+    const p = new ReplayAudioPlayer(1)
+    const { send } = p.reverbBus()
+    p.preload([URL_])
+    await flush()
+    const [plain] = voiceOf(p)
+    expect(plain.connections).toContain(send)
+    const [voice, sendGain] = voiceOf(p, 14)
+    expect(voice.connections).not.toContain(send)
+    expect(voice.connections).toContain(sendGain)
+    expect(sendGain.gain.value).toBeCloseTo(0.5012, 3)
+    expect(sendGain.connections).toContain(send)
+    const dry = voiceOf(p, -60)
+    expect(dry).toHaveLength(1)
+    expect(dry[0].connections).not.toContain(send)
+  })
+})

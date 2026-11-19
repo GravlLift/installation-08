@@ -19,9 +19,11 @@ Measured on the stand-ins (energy of the response plus the wet level, the reverb
 
 Each tested by requiring a zero-padded partition (half the inverse transform silent), on partitions 0 to 2 of two or more presets: interleaved complex over the whole data; SIMD-4 and SIMD-8 split blocks; per-partition split re/im; per-plane interleaved complex (512 bins, 1024 point); complex-packed (Z-domain) 512 and 1024; DC/Nyquist packed in bin 0; a Hartley transform of 1024; plain stereo time-domain samples; consecutive frames overlapping by half.
 
-## Per-sound send (found 2026-11-19, not applied)
+## Per-sound send (found and applied 2026-11-19, 0.1.1-test.8)
 
-- A sound's send into the zone reverb is a Wwise game-defined aux send: node property 0x17 (dB, +5 on most foot steps and shot takes, +2 on some), plus the attenuation's game-aux curve by distance (the second curve of the foot step attenuations: -5 dB near, about -9.5 dB at mid range, -40 dB at the end). The viewer sends every world sound at 0 dB; reading these would let near sounds stay drier than far ones, as in the game. The attenuation layout is in `internal/wwise/attenuation.go`.
+- A sound's send into the zone reverb is a Wwise game-defined aux send: node property 0x17 in dB, which adds along the node chain like the volume (`wwise.MediaMix.GameAuxSendDB`). Summed, it is large and positive on world sounds: median +20 dB over 3439 foot step, movement and shot takes, quartiles +18 and +24. The Bandit's third-person shot layers send +18 and +23; its first-person shot sends -60 (dry, the tail is in the stereo take), while the thump and click of that shot send 0.
+- On the shots and foot steps probed, the attenuation's game-aux curve (curve use 1) is curve 0, the volume curve: the send falls with distance exactly as the dry sound does, which the viewer already gets by sending post-falloff.
+- Applied relative to the median (`zoneReverb.REVERB_SEND_REFERENCE_DB` = 20): a sound sending +20 keeps the level tuned in test.5, others differ by their difference, sounds without data send at the reference. The absolute level of the game's reverb bus is not read, so the reference stands in for it.
 
 ## Next ideas
 
