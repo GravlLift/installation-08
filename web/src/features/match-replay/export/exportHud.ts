@@ -11,6 +11,7 @@ import { displayClockMs, type ReplayWindowBounds } from '../model/replayWindow'
 import { weaponFullIcon } from '../model/weaponFullIcon'
 import { tintedIconCanvas } from '../layers/replayDraw'
 import { REPLAY_TEXT } from '../i18n/i18n'
+import { catalogText } from '../i18n/catalogLabel'
 import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
 import { adsAmmoText } from '../model/adsOverlay'
 import { aimHudAt, heldModelKey, RETICLE_DOT_R, RETICLE_KILL_STROKE, RETICLE_STROKE, reticleBoxPx, reticleGeometry, type ReticleGeometry, type Segment } from '../model/aimHud'
@@ -58,6 +59,7 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
   const urls = new Set<string>()
   for (const label of Object.values(doc.weaponLabels ?? {})) if (label.img) urls.add(weaponFullIcon(label.img).url)
   for (const label of Object.values(doc.grenadeLabels ?? {})) if (label.img) urls.add(label.img)
+  for (const label of Object.values(doc.abilityLabels ?? {})) if (label.img) urls.add(label.img)
   for (const kill of kills) if (kill.weaponImageUrl) urls.add(weaponFullIcon(kill.weaponImageUrl).url)
   const images = new Map<string, HTMLImageElement>()
   await Promise.all([...urls].map((url) => new Promise<void>((resolve) => {
@@ -217,6 +219,48 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       ctx.restore()
     }
     if (ath) {
+      // THE CORNER LAYOUT OF THE LIVE HUD (`ReplayHud3d`): the upper row, from the right edge
+      // leftward = the equipment box, the one grenade box and the away weapon (small, dimmed);
+      // the mag | reserve and the in-hand weapon below; the in-hand weapon's name under it, only
+      // right after a swap, fading as the game fades it.
+      const right = w * 0.97
+      // One bordered box of the upper row: an icon (or its name when the image is not loaded),
+      // a trailing number; laid out from its right edge leftward, its center line at `cy`.
+      // Returns its left edge so the next item sits to its left.
+      const box = (right: number, cy: number, text: string, img: string | undefined, tinted: boolean, num: number | null, alpha: number): number => {
+        ctx.font = `700 ${size * 0.6}px system-ui`
+        const count = num != null ? String(num) : '', countWidth = ctx.measureText(count).width
+        const width = size * 0.78, height = size * 0.78
+        const hasIcon = !!img && images.has(img)
+        const labelWidth = hasIcon ? width : ctx.measureText(text).width
+        const boxWidth = countWidth + labelWidth + size * 0.45
+        ctx.save(); ctx.globalAlpha = alpha; ctx.textAlign = 'right'
+        ctx.fillStyle = 'rgba(0,0,0,.8)'; ctx.fillRect(right - boxWidth, cy - height / 2, boxWidth, height)
+        ctx.strokeStyle = weaponInk; ctx.strokeRect(right - boxWidth, cy - height / 2, boxWidth, height)
+        ctx.fillStyle = weaponInk; ctx.fillText(count, right - size * 0.12, cy)
+        const iconX = right - countWidth - size * 0.15
+        if (!icon(ctx, img, weaponInk, tinted, false, iconX - width, cy - height / 2, width, height)) ctx.fillText(text, iconX, cy)
+        ctx.restore()
+        return right - boxWidth
+      }
+      // The carried equipment, rightmost: the icon and its uses left, dimmed when spent.
+      let left = right
+      if (ath.equipment) {
+        const label = doc.abilityLabels?.[String(ath.equipment.rank)]
+        left = box(left, h * 0.86, catalogText(label, locale) ?? `rank ${ath.equipment.rank}`, label?.img, !!label?.tinted, ath.equipment.uses, ath.equipment.uses === 0 ? 0.45 : 1) - size * 0.3
+      }
+      // The one grenade box the game draws at a time (`ath.grenade`).
+      const grenadeLabel = ath.grenade.rank != null ? doc.grenadeLabels?.[ath.grenade.rank] : undefined
+      left = box(left, h * 0.86, ath.grenade.name, grenadeLabel?.img, !!grenadeLabel?.tinted, ath.grenade.count, 1) - size * 0.3
+      // The away weapon: small (60% of the in-hand icon), dimmed, the silhouette the same way
+      // the in-hand icon is painted.
+      const awayIcon = ath.away?.label?.img ? weaponFullIcon(ath.away.label.img) : null
+      if (awayIcon) {
+        const awayWidth = size * 1.68, awayHeight = size * 0.66
+        ctx.save(); ctx.globalAlpha = 0.5; ctx.textAlign = 'right'
+        if (!icon(ctx, awayIcon.url, weaponInk, !!ath.away?.label?.tinted, !awayIcon.mirrored, left - awayWidth, h * 0.86 - awayHeight / 2, awayWidth, awayHeight)) ctx.fillText(catalogText(ath.away?.label, locale) ?? '', left - size * 0.2, h * 0.86)
+        ctx.restore()
+      }
       const weapon = ath.label?.img ? weaponFullIcon(ath.label.img) : null
       const iconWidth = size * 2.8, iconHeight = size * 1.1
       const hasWeapon = weapon && icon(ctx, weapon.url, weaponInk, !!ath.label?.tinted, !weapon.mirrored, w * 0.97 - iconWidth, h * 0.94 - iconHeight, iconWidth, iconHeight)
@@ -224,23 +268,13 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       ctx.textAlign = 'right'; ctx.font = `700 ${size}px system-ui`
       const ammo = [ath.ammo?.mag, ath.ammo?.res].filter((v) => v != null).join(' | ')
       if (ammo) ctx.fillText(ammo, w * 0.97 - (hasWeapon ? iconWidth + size * 0.3 : 0), h * 0.92)
-      // The one grenade box the game draws at a time (`ath.grenade`); the full corner layout
-      // (away weapon, equipment) is a separate task.
-      {
-        const grenade = ath.grenade
+      // The in-hand weapon's name tag, under the in-hand row, right-aligned, fading with the game.
+      if (ath.nameTag) {
+        ctx.save(); ctx.globalAlpha = ath.nameTag.opacity
+        ctx.fillStyle = weaponInk
         ctx.font = `700 ${size * 0.6}px system-ui`
-        const label = grenade.rank != null ? doc.grenadeLabels?.[grenade.rank] : undefined
-        const count = grenade.count != null ? String(grenade.count) : '', countWidth = ctx.measureText(count).width
-        const right = w * 0.97
-        const width = size * 0.78, height = size * 0.78
-        const hasIcon = !!label?.img && images.has(label.img)
-        const labelWidth = hasIcon ? width : ctx.measureText(grenade.name).width
-        const boxWidth = countWidth + labelWidth + size * 0.45
-        ctx.fillStyle = 'rgba(0,0,0,.8)'; ctx.fillRect(right - boxWidth, h * 0.86 - height / 2, boxWidth, height)
-        ctx.strokeStyle = weaponInk; ctx.strokeRect(right - boxWidth, h * 0.86 - height / 2, boxWidth, height)
-        ctx.fillStyle = weaponInk; ctx.fillText(count, right - size * 0.12, h * 0.86); const iconX = right - countWidth - size * 0.15
-        if (icon(ctx, label?.img, weaponInk, !!label?.tinted, false, iconX - width, h * 0.86 - height / 2, width, height)) { /* icon painted */ }
-        else ctx.fillText(grenade.name, iconX, h * 0.86)
+        ctx.fillText(ath.nameTag.text, w * 0.97, h * 0.94 + size * 0.45)
+        ctx.restore()
       }
     }
     ctx.restore()
