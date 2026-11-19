@@ -58,6 +58,10 @@ const BTN =
   'rounded border border-border bg-muted px-2 py-0.5 text-xs text-foreground transition-colors hover:bg-muted/80 disabled:cursor-not-allowed disabled:opacity-50'
 const SELECT = 'rounded border border-border bg-muted px-1.5 py-0.5 text-xs text-foreground'
 const INPUT = 'rounded border border-border bg-muted px-1.5 py-0.5 text-xs text-foreground'
+// The number inputs are NARROW on purpose: they hold at most a few digits plus a sign, and a
+// full-width input is what pushed the key and hold rows past the panel's edge.
+const NUM_INPUT = 'w-14 rounded border border-border bg-muted px-1.5 py-0.5 text-xs text-foreground'
+const NUM_LABEL = 'shrink-0 text-xs text-muted-foreground'
 
 interface CameraScriptPanelProps {
   editor: CameraScriptEditor
@@ -77,8 +81,12 @@ export function CameraScriptPanel({ editor, players, nameOfXuid, onClose }: Came
   canCaptureRef.current = editor.canCapture
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  const refreshRef = useRef(editor.refresh)
+  refreshRef.current = editor.refresh
 
   useEffect(() => {
+    // Refresh on open: a script written by another tool must show up without a page reload.
+    refreshRef.current()
     panelRef.current?.focus({ preventScroll: true })
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') {
@@ -398,7 +406,7 @@ function KeyRow({ index, t, summary, ease, fov, roll, canCapture, onEase, onFov,
         <span className="truncate text-xs text-foreground">{summary}</span>
         <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatScriptMs(t)}</span>
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         <select
           className={SELECT}
           aria-label={`${label} ease`}
@@ -411,8 +419,9 @@ function KeyRow({ index, t, summary, ease, fov, roll, canCapture, onEase, onFov,
             </option>
           ))}
         </select>
+        <span className={NUM_LABEL}>FOV</span>
         <input
-          className={INPUT}
+          className={NUM_INPUT}
           type="number"
           aria-label={`${label} fov`}
           value={fov === undefined ? '' : String(fov)}
@@ -421,8 +430,9 @@ function KeyRow({ index, t, summary, ease, fov, roll, canCapture, onEase, onFov,
             if (value !== null) onFov(value)
           }}
         />
+        <span className={NUM_LABEL}>Roll</span>
         <input
-          className={INPUT}
+          className={NUM_INPUT}
           type="number"
           aria-label={`${label} roll`}
           value={roll === undefined ? '' : String(roll)}
@@ -567,9 +577,10 @@ function HoldRow({
           Hide weapon
         </label>
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+        <span className={NUM_LABEL}>Blend</span>
         <input
-          className={INPUT}
+          className={NUM_INPUT}
           type="number"
           aria-label={`${label} blend`}
           value={String(blendMs)}
@@ -578,8 +589,9 @@ function HoldRow({
             if (value !== null) onBlendMs(value)
           }}
         />
+        <span className={NUM_LABEL}>Turn</span>
         <input
-          className={INPUT}
+          className={NUM_INPUT}
           type="number"
           aria-label={`${label} turn`}
           value={String(turnMs)}
@@ -588,8 +600,9 @@ function HoldRow({
             if (value !== null) onTurnMs(value)
           }}
         />
+        <span className={NUM_LABEL}>Pitch</span>
         <input
-          className={INPUT}
+          className={NUM_INPUT}
           type="number"
           aria-label={`${label} pitch`}
           value={String(pitch)}
@@ -599,16 +612,18 @@ function HoldRow({
           }}
         />
       </div>
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+        <span className={NUM_LABEL}>Heading</span>
         <input
-          className={INPUT}
+          className={NUM_INPUT}
           type="number"
           aria-label={`${label} heading`}
           value={heading === null ? '' : String(heading)}
           onChange={(e) => onOptionalNumber(e.target.value, onHeading)}
         />
+        <span className={NUM_LABEL}>Until</span>
         <input
-          className={INPUT}
+          className={NUM_INPUT}
           type="number"
           aria-label={`${label} until`}
           value={until === null ? '' : String(until)}

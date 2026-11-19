@@ -207,6 +207,13 @@ function ExportForm({
   onClose: () => void
 }) {
   const run3d = view3d?.run ?? null
+  // A speed-changed script exports silent (useReplayExport skips the mix): the checkbox must
+  // not read as ON for a choice the export will not honor.
+  const silentScript =
+    withScript &&
+    cameraScript !== null &&
+    cameraScript.clock !== undefined &&
+    cameraScript.clock.rates.some((r) => r.rate !== 1)
   return (
     <>
       {withScript && cameraScript ? (
@@ -236,15 +243,19 @@ function ExportForm({
       <FormatChoice t={t} format={format} />
       {/* Framing belongs to the 2D map: in 3D, the camera serves that role instead. */}
       {exporter.zoomLevel > 1 && !run3d && <FramingChoice t={t} framing={framing} zoomLevel={exporter.zoomLevel} />}
-      <label className="mt-3 flex cursor-pointer items-center gap-2 text-[12.5px] text-foreground">
-        <input
-          type="checkbox"
-          checked={sound.on}
-          onChange={(e) => sound.set(e.currentTarget.checked)}
-          className="size-3.5 cursor-pointer accent-primary"
-        />
-        {t.exportWithSound}
-      </label>
+      <div className="mt-3 flex items-center gap-2 text-[12.5px] text-foreground">
+        <label className={`flex items-center gap-2 ${silentScript ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
+          <input
+            type="checkbox"
+            checked={sound.on}
+            disabled={silentScript}
+            onChange={(e) => sound.set(e.currentTarget.checked)}
+            className="size-3.5 accent-primary"
+          />
+          {t.exportWithSound}
+        </label>
+        {silentScript && <span className="text-[11.5px] text-muted-foreground">Silent: the script changes the film's speed.</span>}
+      </div>
       {!withScript && (
         <p className="mt-2 text-[11.5px] text-muted-foreground">
           {t.exportLengthFmt(exporter.lengthClock(bounds))}

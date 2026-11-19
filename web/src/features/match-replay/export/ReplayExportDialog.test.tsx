@@ -315,6 +315,25 @@ describe('ReplayExportDialog — the clean frame and the camera script', () => {
     expect(screen.queryByLabelText(/Export camera script/)).not.toBeInTheDocument()
   })
 
+  it('a script that changes the film speed disables the sound checkbox, with a note', async () => {
+    load3d()
+    const user = userEvent.setup()
+    const slow: CameraScript = { ...SCRIPT, clock: { startMs: 0, rates: [{ s: 0, rate: 0.5, ease: 'smooth' }] } }
+    render(<ReplayExportDialog exporter={makeExport()} locale="en" onClose={vi.fn()} cameraScript={slow} />)
+    await user.click(screen.getByLabelText(`Export camera script 'My cut'`))
+    expect(screen.getByLabelText('Include sound')).toBeDisabled()
+    expect(screen.getByText("Silent: the script changes the film's speed.")).toBeInTheDocument()
+  })
+
+  it('a clock-less script leaves the sound checkbox enabled, without the note', async () => {
+    load3d()
+    const user = userEvent.setup()
+    render(<ReplayExportDialog exporter={makeExport()} locale="en" onClose={vi.fn()} cameraScript={SCRIPT} />)
+    await user.click(screen.getByLabelText(`Export camera script 'My cut'`))
+    expect(screen.getByLabelText('Include sound')).not.toBeDisabled()
+    expect(screen.queryByText(/Silent/)).not.toBeInTheDocument()
+  })
+
   it('exports the script when chosen: the script is passed, and its length is announced', async () => {
     load3d()
     const user = userEvent.setup()

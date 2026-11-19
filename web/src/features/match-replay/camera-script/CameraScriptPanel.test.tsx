@@ -92,6 +92,26 @@ function renderPanel(editor: CameraScriptEditor, onClose = vi.fn()) {
   }
 }
 
+it('refreshes the script list when the panel opens', () => {
+  const editor = makeEditor()
+  renderPanel(editor)
+  expect(editor.refresh).toHaveBeenCalledOnce()
+})
+
+it('a key row shows visible FOV and Roll labels beside its inputs', () => {
+  // Two keys in the script, so one label per key row.
+  renderPanel(makeEditor({ script: SCRIPT }))
+  expect(screen.getAllByText('FOV')).toHaveLength(2)
+  expect(screen.getAllByText('Roll')).toHaveLength(2)
+})
+
+it('a hold row shows visible Blend, Turn, Pitch, Heading and Until labels', () => {
+  renderPanel(makeEditor({ script: SCRIPT_HOLD }))
+  for (const label of ['Blend', 'Turn', 'Pitch', 'Heading', 'Until']) {
+    expect(screen.getByText(label)).toBeInTheDocument()
+  }
+})
+
 it('opening a script from the list calls open with its name', () => {
   const editor = makeEditor({ scripts: [summary('intro')] })
   renderPanel(editor)
