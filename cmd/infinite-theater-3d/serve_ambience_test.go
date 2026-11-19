@@ -75,8 +75,8 @@ func TestServeAmbienceLayoutAndTakes(t *testing.T) {
 				map[string]any{"file": "ambience_3475f271.ogg", "media": 880145009, "durationMs": 54784, "channels": 4},
 			},
 			"loops": map[string]any{
-				"5d6cc1cb": []any{map[string]any{"file": "ambience_3475f271.ogg", "media": 880145009, "durationMs": 54784, "channels": 4}},
-				"0602311e": []any{map[string]any{"file": "ambience_00000001.ogg", "media": 1, "durationMs": 1000, "channels": 4}},
+				"5d6cc1cb": []any{map[string]any{"file": "ambience_3475f271.ogg", "media": 880145009, "durationMs": 54784, "channels": 4, "gainDb": -17}},
+				"0602311e": []any{map[string]any{"file": "ambience_00000001.ogg", "media": 1, "durationMs": 1000, "channels": 4, "gainDb": -9}},
 			},
 			"shapes": []any{
 				map[string]any{"zone": 0, "loop": "5d6cc1cb", "floor": 0, "height": 250, "points": [][2]float64{{-250, -250}, {250, 250}}},
@@ -105,6 +105,10 @@ func TestServeAmbienceLayoutAndTakes(t *testing.T) {
 	files, _ := body["files"].(map[string]any)
 	if files["5d6cc1cb"] != "ambience_3475f271.ogg" || files["0602311e"] != "ambience_00000001.ogg" {
 		t.Fatalf("files %v", files)
+	}
+	gains, _ := body["gains"].(map[string]any)
+	if gains["5d6cc1cb"] != float64(-17) || gains["0602311e"] != float64(-9) {
+		t.Fatalf("gains %v", gains)
 	}
 	if zones, _ := body["zones"].([]any); len(zones) != 1 {
 		t.Fatalf("zones %v", body["zones"])

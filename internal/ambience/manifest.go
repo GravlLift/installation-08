@@ -28,7 +28,7 @@ const ManifestName = "ambience.json"
 
 // ManifestVersion is the manifest's format version; a manifest of an older version is stale and
 // the extraction runs again.
-const ManifestVersion = 2
+const ManifestVersion = 3
 
 // takeFile is the name of every take file a manifest lists: ambience_<media id, 8 hex digits>.ogg.
 // A rebuild removes the ones its manifest no longer lists, and no other file.
@@ -72,15 +72,17 @@ type Shape struct {
 type Layout struct {
 	Fallback string // loop id, a key of Files
 	Files    map[string]string
+	Gains    map[string]float64
 	Zones    []Shape
 }
 
 // Take is one extracted media.
 type Take struct {
-	File       string `json:"file"`
-	Media      uint32 `json:"media"`
-	DurationMs int    `json:"durationMs"`
-	Channels   int    `json:"channels"`
+	File       string  `json:"file"`
+	Media      uint32  `json:"media"`
+	DurationMs int     `json:"durationMs"`
+	Channels   int     `json:"channels"`
+	GainDB     float64 `json:"gainDb"`
 }
 
 // ManifestStatus reads the manifest in dir: built when it is there and readable, stale when its
@@ -124,16 +126,19 @@ func (m *Manifest) Layout(mapKey string) (Layout, bool) {
 		return Layout{}, false
 	}
 	files := map[string]string{}
+	gains := map[string]float64{}
 	for loop, takes := range bed.Loops {
 		if len(takes) == 0 {
 			continue
 		}
 		files[loop] = takes[0].File
+		gains[loop] = takes[0].GainDB
 	}
 	if _, ok := files[bed.Loop]; !ok {
 		files[bed.Loop] = bed.Takes[0].File
+		gains[bed.Loop] = bed.Takes[0].GainDB
 	}
-	return Layout{Fallback: bed.Loop, Files: files, Zones: bed.Shapes}, true
+	return Layout{Fallback: bed.Loop, Files: files, Gains: gains, Zones: bed.Shapes}, true
 }
 
 // writeManifest writes the manifest into dir.

@@ -249,7 +249,7 @@ func TestManifestRoundTripAndStaleTakes(t *testing.T) {
 			Takes: []Take{{File: takeName(880145009), Media: 880145009, DurationMs: 54784, Channels: 4}},
 			Loops: map[string][]Take{
 				"5d6cc1cb": {{File: takeName(880145009), Media: 880145009, DurationMs: 54784, Channels: 4}},
-				"0602311e": {{File: takeName(1), Media: 1, DurationMs: 1000, Channels: 4}},
+				"0602311e": {{File: takeName(1), Media: 1, DurationMs: 1000, Channels: 4, GainDB: -9}},
 			},
 			Shapes: []Shape{{Zone: 0, Loop: "5d6cc1cb", Floor: 0, Height: 250, Points: [][2]float64{{-250, -250}, {250, 250}}}},
 		},
@@ -292,6 +292,16 @@ func TestManifestRoundTripAndStaleTakes(t *testing.T) {
 	}
 	if lay.Files["5d6cc1cb"] != "ambience_3475f271.ogg" || lay.Files["0602311e"] != takeName(1) {
 		t.Fatalf("layout files %v", lay.Files)
+	}
+	if lay.Gains["0602311e"] != -9 {
+		t.Fatalf("layout gains %v", lay.Gains)
+	}
+	delete(got.Maps["fo09_academy"].Loops, "5d6cc1cb")
+	bed := got.Maps["fo09_academy"]
+	bed.Takes[0].GainDB = -17
+	got.Maps["fo09_academy"] = bed
+	if fallback, _ := got.Layout("fo09_academy"); fallback.Gains["5d6cc1cb"] != -17 {
+		t.Fatalf("fallback gains %v", fallback.Gains)
 	}
 	if len(lay.Zones) != 1 || lay.Zones[0].Loop != "5d6cc1cb" || len(lay.Zones[0].Points) != 2 {
 		t.Fatalf("layout zones %+v", lay.Zones)

@@ -28,6 +28,7 @@ export interface AmbienceZone {
 export interface AmbienceLayout {
   fallback: string
   files: Record<string, string>
+  gains?: Record<string, number>
   zones: AmbienceZone[]
 }
 

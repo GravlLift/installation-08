@@ -1,10 +1,11 @@
 # Changelog
 
-## 0.1.1-test.3
+## 0.1.1-test.4
 
 Changes since 0.1.0.
 
 - The ambient sound now follows the map's own sound zones: the viewer plays the background loop of the zone the camera is in and crossfades when the camera moves into another one. Outside every zone, and in the 2D view, it plays the map's main loop. Before, every map played one loop everywhere, and on Live Fire that was the wrong one. The first start after updating extracts the extra loops once.
+- Each ambient loop now plays at the game's own volume for it (its Wwise volume, summed with the groups above it) instead of one level for every loop. Ambience is quieter overall, and differs by map as in the game: Live Fire's main bed is 12 dB below Streets'.
 - The pre-game screen fits its window: on a short window the roster shrinks to fit and the page scrolls, so the button below it stays reachable. Big-team rosters use tighter rows.
 - The window has a minimum size (1024 x 640 at 100 % scale) and a maximum size of 5120 x 2160. A remembered size smaller than the minimum opens at the default size instead.
 - The window opens at 1920 x 1080 (at 100 % scale; was 1600 x 900) the first time, shrunk to fit a smaller screen.

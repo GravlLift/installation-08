@@ -4,9 +4,50 @@ package wwise
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"reflect"
 	"testing"
 )
+
+func TestEventMediaGains(t *testing.T) {
+	decode := func(s string) []byte {
+		b, err := hex.DecodeString(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
+	}
+	sound := HircObject{Type: HircSound, ID: 0x1d0b5ebb, Body: decode("01000400024dbdf7152614000008000000000000007c87dc050002003a000080c000000000")}
+	mixer := HircObject{Type: HircActorMix, ID: 0x05dc877c, Body: decode("00000000000000493e6c1a00010000000040")}
+	root := HircObject{Type: HircActorMix, ID: 0x1a6c3e49, Body: decode("000000542324ea0000000000020007000070c10000c842")}
+	live := HircObject{Type: HircActorMix, ID: 0x051d4bd5, Body: decode("00000000000000493e6c1a000100000010c1")}
+	if parent, gain, ok := nodeParams(live); !ok || parent != root.ID || gain != -9 {
+		t.Fatalf("live mixer: %x %v %v", parent, gain, ok)
+	}
+	fx := HircObject{Type: HircLayer, Body: append([]byte{0, 1, 0, 0, 1, 2, 3, 4, 0, 0}, mixer.Body[2:]...)}
+	if parent, gain, ok := nodeParams(fx); !ok || parent != root.ID || gain != 2 {
+		t.Fatalf("fx: %x %v %v", parent, gain, ok)
+	}
+	for i := 0; i < len(sound.Body); i++ {
+		if _, _, ok := nodeParams(HircObject{Type: HircSound, Body: sound.Body[:i]}); ok {
+			t.Fatalf("accepted truncated sound at %d", i)
+		}
+	}
+	bk := &Bank{Objects: map[uint32]HircObject{
+		100:      {Type: HircEvent, ID: 100, Body: append([]byte{1}, le32(nil, 200)...)},
+		200:      {Type: HircAction, ID: 200, Body: le32(binary.LittleEndian.AppendUint16(nil, 0x0403), sound.ID)},
+		sound.ID: sound,
+	}}
+	bk.LinkObjects(map[uint32]HircObject{mixer.ID: mixer, root.ID: root})
+	if got := bk.EventMediaGains(100)[0x15f7bd4d]; got != -17 {
+		t.Fatalf("gain = %v, want -17", got)
+	}
+	root.Body = decode("000000000000007c87dc05000100000070c1")
+	bk.LinkObjects(map[uint32]HircObject{root.ID: root})
+	if got := bk.EventMediaGains(100)[0x15f7bd4d]; got != -17 {
+		t.Fatalf("cycle gain = %v", got)
+	}
+}
 
 // hircObject encodes one HIRC object: type, size, id, body.
 func hircObject(typ byte, id uint32, body []byte) []byte {

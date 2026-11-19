@@ -37,13 +37,18 @@ let decodeTarget: string | null = null
 
 function fakeBus() {
   const sources: FakeSource[] = []
+  const ramps: ReturnType<typeof vi.fn>[] = []
   const ctx = {
     currentTime: 0,
-    createGain: () => ({
-      gain: { value: 1, setValueAtTime: vi.fn(), linearRampToValueAtTime: vi.fn(), cancelScheduledValues: vi.fn() },
-      connect: vi.fn(),
-      disconnect: vi.fn(),
-    }),
+    createGain: () => {
+      const ramp = vi.fn()
+      ramps.push(ramp)
+      return {
+        gain: { value: 1, setValueAtTime: vi.fn(), linearRampToValueAtTime: ramp, cancelScheduledValues: vi.fn() },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      }
+    },
     createBufferSource: () => {
       const rec: FakeSource = { buffer: null, loop: false, started: [], stopped: [], onended: null }
       sources.push(rec)
@@ -66,7 +71,7 @@ function fakeBus() {
     createBuffer: (channels: number, seconds: number, sampleRate: number) => fakeBuffer(channels, seconds / 44100, sampleRate),
     decodeAudioData: vi.fn(async () => buffers[decodeTarget ?? '']),
   }
-  return { bus: { ctx, out: {} } as unknown as AmbienceBus, ctx, sources }
+  return { bus: { ctx, out: {} } as unknown as AmbienceBus, ctx, sources, ramps }
 }
 
 /** The files of the layouts used below, keyed by file name; `buffers` is what decodeAudioData hands back. */
@@ -136,6 +141,23 @@ describe('bedOffsetS', () => {
 })
 
 describe('AmbienceZonesPlayer', () => {
+  it('fades each loop to its Wwise gain, defaulting to unity', async () => {
+    buffers['fb.ogg'] = fakeBuffer(2)
+    buffers['a.ogg'] = fakeBuffer(2)
+    const { bus, ctx, sources, ramps } = fakeBus()
+    const { layout, inA } = zoneLayout()
+    layout.gains = { fb: -17 }
+    const { fetcher } = layoutFetcher({ layout })
+    const player = new AmbienceZonesPlayer(bus, LAYOUT_URL, fileUrlOf, fetcher)
+    player.setAudible(true)
+    await vi.waitFor(() => expect(sources).toHaveLength(1))
+    expect(ramps[0]).toHaveBeenCalledWith(10 ** (-17 / 20), AMBIENCE_CROSSFADE_S)
+    player.setListener(inA)
+    ctx.currentTime = 0.5
+    player.setListener(inA)
+    await vi.waitFor(() => expect(sources).toHaveLength(2))
+    expect(ramps[1]).toHaveBeenCalledWith(1, 0.5 + AMBIENCE_CROSSFADE_S)
+  })
   it('a layout 404 is a clean silence and fetches no file', async () => {
     const { bus, sources } = fakeBus()
     const { fetcher, urls } = layoutFetcher({ layout: null })

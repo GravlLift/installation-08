@@ -18,7 +18,7 @@ import (
 )
 
 // ambienceLayout answers GET /api/matches/{id}/ambience.json with the match's map layout:
-// {"fallback", "files", "zones"}. A match whose map has no extracted bed (library not built yet,
+// {"fallback", "files", "gains", "zones"}. A match whose map has no extracted bed (library not built yet,
 // or a map the game gives none) is a JSON 404 naming the module; nothing is enqueued.
 func (h serverHandlers) ambienceLayout(w http.ResponseWriter, r *http.Request) {
 	m, module, ok := h.ambienceLookup(w, r)
@@ -30,7 +30,7 @@ func (h serverHandlers) ambienceLayout(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, map[string]string{"error": "ambience_not_built", "moduleKey": module})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"fallback": lay.Fallback, "files": lay.Files, "zones": lay.Zones})
+	writeJSON(w, http.StatusOK, map[string]any{"fallback": lay.Fallback, "files": lay.Files, "gains": lay.Gains, "zones": lay.Zones})
 }
 
 // ambienceTake answers GET /api/matches/{id}/ambience/{file} with one take file

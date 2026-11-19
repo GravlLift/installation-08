@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 )
 
 // HIRC object types (Wwise nomenclature) this package interprets.
@@ -25,6 +26,108 @@ type HircObject struct {
 	Type byte
 	ID   uint32
 	Body []byte
+}
+
+// nodeParams reads the direct parent and authored volume of a v135 node.
+func nodeParams(o HircObject) (uint32, float64, bool) {
+	off := 0
+	switch o.Type {
+	case HircSound:
+		off = 14
+	case HircRandomSeq, HircSwitch, HircActorMix, HircLayer:
+	default:
+		return 0, 0, false
+	}
+	b := o.Body
+	if len(b)-off < 2 {
+		return 0, 0, false
+	}
+	nfx := int(b[off+1])
+	off += 2
+	if nfx > 0 {
+		off += 1 + nfx*7
+	}
+	if off > len(b) || len(b)-off < 11 {
+		return 0, 0, false
+	}
+	parent := binary.LittleEndian.Uint32(b[off+5:])
+	off += 10
+	n := int(b[off])
+	off++
+	if n > 64 || len(b)-off < n*5 {
+		return 0, 0, false
+	}
+	var volume float64
+	for i := 0; i < n; i++ {
+		if b[off+i] == 0 {
+			volume = float64(math.Float32frombits(binary.LittleEndian.Uint32(b[off+n+i*4:])))
+		}
+	}
+	return parent, volume, true
+}
+
+// EventMediaGains returns authored node volume sums in dB for the event's media.
+func (bk *Bank) EventMediaGains(eventID uint32) map[uint32]float64 {
+	out := map[uint32]float64{}
+	ev, ok := bk.Objects[eventID]
+	if !ok || ev.Type != HircEvent {
+		return out
+	}
+	seen := map[uint32]bool{}
+	var walk func(uint32)
+	walk = func(id uint32) {
+		if seen[id] {
+			return
+		}
+		seen[id] = true
+		o, ok := bk.object(id)
+		if !ok {
+			return
+		}
+		if o.Type != HircSound {
+			for _, child := range bk.children(o.Body) {
+				walk(child)
+			}
+			return
+		}
+		if len(o.Body) < 9 {
+			return
+		}
+		media := binary.LittleEndian.Uint32(o.Body[5:])
+		if media == 0 {
+			return
+		}
+		if _, exists := out[media]; exists {
+			return
+		}
+		var gain float64
+		parents := map[uint32]bool{}
+		for {
+			if parents[o.ID] {
+				break
+			}
+			parents[o.ID] = true
+			parent, volume, ok := nodeParams(o)
+			if !ok {
+				break
+			}
+			gain += volume
+			if parent == 0 {
+				break
+			}
+			o, ok = bk.object(parent)
+			if !ok {
+				break
+			}
+		}
+		out[media] = gain
+	}
+	for _, act := range bk.eventActions(ev.Body) {
+		if target, ok := bk.playTarget(act); ok {
+			walk(target)
+		}
+	}
+	return out
 }
 
 // Bank is a parsed sound bank: its header, its embedded media index and its hierarchy.

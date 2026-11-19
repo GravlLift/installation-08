@@ -256,12 +256,14 @@ func (b *builder) loopTakes(tags tagSource, loop uint32) ([]Take, string, error)
 		return nil, "", err
 	}
 	var takes []Take
+	gains := bank.EventMediaGains(event)
 	for _, id := range bank.EventMedia(event) {
 		tk, ok, err := b.extract(bank, id)
 		if err != nil {
 			return nil, "", err
 		}
 		if ok {
+			tk.GainDB = gains[id]
 			takes = append(takes, tk)
 		}
 	}

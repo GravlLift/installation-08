@@ -32,8 +32,12 @@
 import { prepareAmbienceZones, ambienceLoopAt, type PreparedAmbience } from './ambienceZones'
 import type { SoundListener } from './soundSpatial'
 
-/** The beds' level under the master: quiet, a floor under the action, never a layer over it. */
-export const AMBIENCE_BUS_GAIN = 0.35
+/**
+ * Unity: each loop's level is the game's own, the summed Wwise volume of its sound and every
+ * container above it (the layout's `gains`, in dB; Streets' main bed -17 dB, Live Fire's -29 dB).
+ * The output bus those containers feed is not read, so this is the one level still chosen here.
+ */
+export const AMBIENCE_BUS_GAIN = 1
 /** Fades, in seconds: in slow enough to be felt as a room settling, out as short as a pause. */
 export const AMBIENCE_FADE_IN_S = 0.8
 export const AMBIENCE_FADE_OUT_S = 0.25
@@ -100,6 +104,7 @@ export class AmbienceZonesPlayer {
   private readonly fetcher: (url: string) => Promise<Response>
   private prepared: PreparedAmbience | null = null
   private files: Record<string, string> | null = null
+  private gains: Record<string, number> = {}
   private target: string | null = null
   private candidate: string | null = null
   private candidateSince = 0
@@ -174,6 +179,7 @@ export class AmbienceZonesPlayer {
       if (this.disposed) return
       this.prepared = prepareAmbienceZones(layout)
       this.files = layout.files
+      this.gains = layout.gains ?? {}
       this.target = layout.fallback
       this.ensureLoaded(layout.fallback)
     } catch (err) {
@@ -221,7 +227,7 @@ export class AmbienceZonesPlayer {
     const t0 = ctx.currentTime
     const gain = ctx.createGain()
     gain.gain.setValueAtTime(0, t0)
-    gain.gain.linearRampToValueAtTime(1, t0 + fadeInS)
+    gain.gain.linearRampToValueAtTime(10 ** ((this.gains[loop] ?? 0) / 20), t0 + fadeInS)
     const src = ctx.createBufferSource()
     src.buffer = buf
     src.loop = true
