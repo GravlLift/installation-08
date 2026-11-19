@@ -53,6 +53,21 @@ func TestApplyWebViewEnvDefaults(t *testing.T) {
 		}
 	})
 
+	t.Run("IT3D_DEVTOOLS_PORT opens the DevTools port, a bad value does not", func(t *testing.T) {
+		t.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "")
+		t.Setenv(devToolsPortEnv, "9333")
+		applyWebViewEnvDefaults()
+		if got, want := os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"), webviewAdditionalBrowserArguments+" --remote-debugging-port=9333"; got != want {
+			t.Errorf("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = %q, want %q", got, want)
+		}
+		t.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "")
+		t.Setenv(devToolsPortEnv, "nope")
+		applyWebViewEnvDefaults()
+		if got := os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"); got != webviewAdditionalBrowserArguments {
+			t.Errorf("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = %q, want the defaults alone", got)
+		}
+	})
+
 	t.Run("values the user set are kept", func(t *testing.T) {
 		t.Setenv("WEBVIEW2_USER_DATA_FOLDER", "C:\\mine")
 		t.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--user-set")
