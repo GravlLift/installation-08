@@ -15,9 +15,15 @@ func instanceDe(rtgo uint32, mats ...uint32) Instance {
 
 // TestVitreSombreRecharge (LOCAL-CHANGE (infinite-theater-3d)): Recharge's roof pane (rtgo
 // 1a27c1cf) and its long hall windows (rtgo 43ec8b62) share the glass 0x4faa9c4f. The pane is
-// written as a dark opaque material, the windows stay glass.
+// written as a dark opaque material, the windows stay glass. The pane is no longer listed
+// (2026-11-18), so the test lists it for its own run.
 func TestVitreSombreRecharge(t *testing.T) {
 	const verre, toit, fenetres = 0x4faa9c4f, 0x1a27c1cf, 0x43ec8b62
+	if _, listed := vitresSombresConstatees[toit]; listed {
+		t.Fatal("Recharge's roof pane must stay clear glass")
+	}
+	vitresSombresConstatees[toit] = [3]float32{0.05, 0.05, 0.05}
+	defer delete(vitresSombresConstatees, toit)
 	m := &MaillageMonde{Materiaux: map[uint32]Materiau{verre: {ID: verre, Shader: 0x71ea41c5, Melange: MelangeAlpha}}}
 	pane := m.assombrit(instanceDe(toit, verre))
 	window := m.assombrit(instanceDe(fenetres, verre))

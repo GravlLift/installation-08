@@ -14,12 +14,10 @@ package himap
 import "fmt"
 
 // vitresSombresConstatees: rtgo GlobalID -> the linear color the pane is drawn with.
-var vitresSombresConstatees = map[uint32][3]float32{
-	// Recharge: the roof pane over the batteries' girder lattice (bsp instance 651, glass
-	// 0x4faa9c4f). In game, dark grey through every gap of the lattice (user screenshot,
-	// 2026-11-15). The long hall's windows (rtgo 43ec8b62, same material) stay glass.
-	0x1a27c1cf: {0.05, 0.05, 0.05},
-}
+//
+// Empty since 2026-11-18: Recharge's roof pane (rtgo 1a27c1cf, glass 0x4faa9c4f) was listed here
+// from a 2026-11-15 screenshot, and drawing it dark grey lost the clear skylight; it is glass again.
+var vitresSombresConstatees = map[uint32][3]float32{}
 
 // surfaceSombre: the GLB material standing in for a pane's glass.
 type surfaceSombre struct {
