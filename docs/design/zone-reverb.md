@@ -19,6 +19,10 @@ Measured on the stand-ins (energy of the response plus the wet level, the reverb
 
 Each tested by requiring a zero-padded partition (half the inverse transform silent), on partitions 0 to 2 of two or more presets: interleaved complex over the whole data; SIMD-4 and SIMD-8 split blocks; per-partition split re/im; per-plane interleaved complex (512 bins, 1024 point); complex-packed (Z-domain) 512 and 1024; DC/Nyquist packed in bin 0; a Hartley transform of 1024; plain stereo time-domain samples; consecutive frames overlapping by half.
 
+## Per-sound send (found 2026-11-19, not applied)
+
+- A sound's send into the zone reverb is a Wwise game-defined aux send: node property 0x17 (dB, +5 on most foot steps and shot takes, +2 on some), plus the attenuation's game-aux curve by distance (the second curve of the foot step attenuations: -5 dB near, about -9.5 dB at mid range, -40 dB at the end). The viewer sends every world sound at 0 dB; reading these would let near sounds stay drier than far ones, as in the game. The attenuation layout is in `internal/wwise/attenuation.go`.
+
 ## Next ideas
 
 - A fixed permutation of bins (an FFT's native output order) within each partition.
