@@ -17,6 +17,7 @@ type shotFixture struct {
 	projGroup    string
 	firing       uint32
 	barrelStride int
+	noAnchors    bool
 }
 
 func putRef(b []byte, at int, id uint32, group string) {
@@ -34,7 +35,8 @@ func (f shotFixture) build(t *testing.T) []byte {
 	}
 	le := binary.LittleEndian
 	blocks := weapRootBlockFields
-	structs := 1 + len(blocks) + 1
+	// The root's block fields, the barrel's firing effects, and its two distribution offset blocks.
+	structs := 1 + len(blocks) + 3
 	nBlocks := 3
 	header := 0x50 + nBlocks*0x10 + structs*0x20
 	rootLen := 0x1200 + f.shift
@@ -71,13 +73,28 @@ func (f shotFixture) build(t *testing.T) []byte {
 	le.PutUint32(b[e+0x14:], 2)
 	le.PutUint32(b[e+0x18:], 1)
 	le.PutUint32(b[e+0x1C:], barrelOffFiringEffects)
+	if !f.noAnchors {
+		for i, off := range []int{barrelOffDirectionOffsets, barrelOffPositionOffsets} {
+			e := st + (len(blocks)+2+i)*0x20
+			le.PutUint16(b[e+0x10:], 1)
+			le.PutUint32(b[e+0x14:], math.MaxUint32)
+			le.PutUint32(b[e+0x18:], 1)
+			le.PutUint32(b[e+0x1C:], uint32(off))
+		}
+	}
 	barrel := header + rootLen
+	le.PutUint32(b[barrel+barrelOffRoundsPerSecond:], math.Float32bits(60))
+	le.PutUint32(b[barrel+barrelOffRoundsPerSecond+4:], math.Float32bits(60))
+	le.PutUint16(b[barrel+barrelOffShotsPerFire:], 3)
+	le.PutUint16(b[barrel+barrelOffShotsPerFire+2:], 3)
+	le.PutUint32(b[barrel+barrelOffFireRecovery:], math.Float32bits(1))
+	le.PutUint16(b[barrel+barrelOffProjectilesPerShot:], 1)
 	putRef(b, barrel+barrelOffProjectile, f.projectile, f.projGroup)
 	putRef(b, barrel+stride+firingOffEffect, f.firing, groupEffect)
 	return b
 }
 
-// TestReadBarrelShot — the projectile and the firing effect are read from the barrel the struct
+// TestReadBarrelShot — the projectile, the firing effect and the burst are read from the barrel the struct
 // table names, with or without fields added to the root before it.
 func TestReadBarrelShot(t *testing.T) {
 	for _, shift := range []int{0, 64} {
@@ -85,7 +102,8 @@ func TestReadBarrelShot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("shift %d: %v", shift, err)
 		}
-		if s.Projectile != 0x96555d72 || s.FiringEffect != 0x136580d8 {
+		if s.Projectile != 0x96555d72 || s.FiringEffect != 0x136580d8 || s.ShotsPerFire != [2]int{3, 3} ||
+			s.RoundsPerSecond != [2]float32{60, 60} || s.FireRecovery != 1 || s.ProjectilesPerShot != 1 || s.ErrorAngle != [2]float32{} {
 			t.Fatalf("shift %d: %+v", shift, s)
 		}
 	}
@@ -99,5 +117,8 @@ func TestReadBarrelShotRefuses(t *testing.T) {
 	}
 	if _, err := ReadBarrelShot(shotFixture{projectile: 0x1234, projGroup: "proj", firing: 0x1, barrelStride: 908}.build(t)); err == nil {
 		t.Error("barrel of 908 bytes: want an error")
+	}
+	if _, err := ReadBarrelShot(shotFixture{projectile: 0x1234, projGroup: "proj", firing: 0x1, noAnchors: true}.build(t)); err == nil {
+		t.Error("barrel without its distribution offset blocks: want an error")
 	}
 }

@@ -14,11 +14,31 @@
 // block and reference fields on the live tag's own struct and tag-reference tables (every Shock
 // Rifle variant: 1a22fee6, 9387a8b9, 9ee5ff15), and every read checks the group of what it reads,
 // refusing anything else.
+//
+// THE FIRING (measured 2026-11-20 on the same tags, raw barrel bytes against the reference order):
+//
+//	+0    flags (int32)                          0x200
+//	+4    firing/rounds per second (real bounds) 60, 60
+//	+56   firing/shots per fire (short bounds)   3, 3: a trigger pull fires a burst of three
+//	+60   firing/fire recovery time (s)          1
+//	+90   rounds per shot (short)                1 (one round of the magazine per projectile)
+//	+140  projectile distribution/function       0 "point"
+//	+142  projectile distribution/projectiles per shot (short)  1
+//	+144  projectile distribution/direction offset (block, empty)   anchors
+//	+164  projectile distribution/position offsets (block, empty)
+//	+216  projectile error/error angle (angle bounds, radians)  0, 0: no spread
+//
+// The fields from +0 to +80 follow the reference order with no field added; the reference's
+// first four fields after +80 sit four bytes later (a field was added at +84); the distribution
+// and error fields are placed from the two block fields the struct table names at +144 and +164
+// (checked on every read: a barrel without them is refused).
 
 package weaponicons
 
 import (
+	"encoding/binary"
 	"fmt"
+	"math"
 	"sync"
 )
 
@@ -34,6 +54,14 @@ const (
 	firingEffectStride     = 784
 	firingOffEffect        = 4
 	groupProjectile        = "proj"
+	// The firing fields (see the header).
+	barrelOffRoundsPerSecond    = 4
+	barrelOffShotsPerFire       = 56
+	barrelOffFireRecovery       = 60
+	barrelOffProjectilesPerShot = 142
+	barrelOffDirectionOffsets   = 144
+	barrelOffPositionOffsets    = 164
+	barrelOffErrorAngle         = 216
 )
 
 var loadBarrelLayout = sync.OnceValues(func() (*blockLayout, error) { return weapBlockLayout(pathBarrels) })
@@ -43,6 +71,15 @@ var loadBarrelLayout = sync.OnceValues(func() (*blockLayout, error) { return wea
 type BarrelShot struct {
 	Projectile   uint32
 	FiringEffect uint32
+	// RoundsPerSecond: the barrel's rate of fire bounds (the spacing of a burst's shots);
+	// ShotsPerFire: the shots one trigger pull fires (bounds); FireRecovery: seconds before the
+	// next pull; ProjectilesPerShot: projectiles per shot; ErrorAngle: the projectile error bounds
+	// (radians).
+	RoundsPerSecond    [2]float32
+	ShotsPerFire       [2]int
+	FireRecovery       float32
+	ProjectilesPerShot int
+	ErrorAngle         [2]float32
 }
 
 // refOfGroup reads the tag reference at abs when it names a tag of group `group` (0: a null
@@ -96,6 +133,25 @@ func ReadBarrelShot(tag []byte) (BarrelShot, error) {
 	var out BarrelShot
 	if out.Projectile, err = refOfGroup(tag, abs+barrelOffProjectile, groupProjectile); err != nil {
 		return BarrelShot{}, fmt.Errorf("barrel projectile: %w", err)
+	}
+	if !wt.hasBlockField(blk, barrelOffDirectionOffsets) || !wt.hasBlockField(blk, barrelOffPositionOffsets) {
+		return BarrelShot{}, fmt.Errorf("barrel: no distribution offset blocks at +%d and +%d (layout moved)", barrelOffDirectionOffsets, barrelOffPositionOffsets)
+	}
+	le := binary.LittleEndian
+	f32 := func(o int) float32 { return math.Float32frombits(le.Uint32(tag[abs+o:])) }
+	i16 := func(o int) int { return int(int16(le.Uint16(tag[abs+o:]))) }
+	out.RoundsPerSecond = [2]float32{f32(barrelOffRoundsPerSecond), f32(barrelOffRoundsPerSecond + 4)}
+	out.ShotsPerFire = [2]int{i16(barrelOffShotsPerFire), i16(barrelOffShotsPerFire + 2)}
+	out.FireRecovery = f32(barrelOffFireRecovery)
+	out.ProjectilesPerShot = i16(barrelOffProjectilesPerShot)
+	out.ErrorAngle = [2]float32{f32(barrelOffErrorAngle), f32(barrelOffErrorAngle + 4)}
+	for _, v := range []float32{out.RoundsPerSecond[0], out.RoundsPerSecond[1], out.FireRecovery, out.ErrorAngle[0], out.ErrorAngle[1]} {
+		if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) || v < 0 || v > 1e4 {
+			return BarrelShot{}, fmt.Errorf("barrel firing: %g out of range (layout moved)", v)
+		}
+	}
+	if out.ShotsPerFire[0] < 0 || out.ShotsPerFire[1] < out.ShotsPerFire[0] || out.ShotsPerFire[1] > 64 {
+		return BarrelShot{}, fmt.Errorf("barrel shots per fire %v out of range (layout moved)", out.ShotsPerFire)
 	}
 	fx := wt.childBlock(blk, barrelOffFiringEffects)
 	if fx < 0 {

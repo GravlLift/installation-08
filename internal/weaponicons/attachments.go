@@ -230,6 +230,20 @@ func (w weapTag) childBlock(parent, fieldOff int) int {
 	return -1
 }
 
+// hasBlockField says whether the struct table names a tag block field at `fieldOff` of block
+// `parent`, empty or not (childBlock answers -1 for both an empty block and a missing field).
+func (w weapTag) hasBlockField(parent, fieldOff int) bool {
+	for i := 0; i < w.structs; i++ {
+		b := w.structTab + i*0x20
+		if binary.LittleEndian.Uint16(w.tag[b+0x10:]) == 1 &&
+			int(int32(binary.LittleEndian.Uint32(w.tag[b+0x18:]))) == parent &&
+			int(binary.LittleEndian.Uint32(w.tag[b+0x1C:])) == fieldOff {
+			return true
+		}
+	}
+	return false
+}
+
 // ReadMagazineSize reads the rounds a `weap` tag's first magazine holds loaded (its `rounds loaded
 // maximum`): the denominator of the engine's `primary_ammunition`. 0 for a weapon without a magazine.
 func ReadMagazineSize(tag []byte) (int, error) {

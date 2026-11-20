@@ -45,7 +45,8 @@ func TestShockShotEffectsFromGame(t *testing.T) {
 	if !ok {
 		t.Fatalf("shock rifle: no shot (%+v)", got.Weapons)
 	}
-	if w.Projectile != "96555d72" || w.InitialVelocity != 5000 || w.FinalVelocity != 5000 || w.MaxRange != 500 {
+	if w.Projectile != "96555d72" || w.InitialVelocity != 5000 || w.FinalVelocity != 5000 || w.MaxRange != 500 ||
+		w.ShotsPerFire != [2]int{3, 3} || w.RoundsPerSecond != [2]float32{60, 60} || w.ProjectilesPerShot != 1 {
 		t.Errorf("projectile %+v", w)
 	}
 	if w.Firing != "136580d8" || len(w.Flight) != 1 || w.Flight[0] != "9f69be2d" || w.Impact != "3b3d55b3" || w.ImpactFrom != "material effects" {

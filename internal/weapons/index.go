@@ -134,7 +134,9 @@ const EquipmentRuleCurrent = 2
 // since the impact). 10: the weapons' shot effects (shot_effects: the Shock Rifle's firing, flight
 // and impact effects, its projectile's speed and range) and their fx-* files; a particle property
 // may be a periodic function (himap effet_arme.go), so idle effects gain the systems it had left out.
-const SchemaCurrent = 10
+// 11: a weapon shot carries its barrel's burst (shots per fire, rate of fire, projectiles per shot,
+// error angle, fire recovery): the Shock Rifle's three projectiles per trigger pull.
+const SchemaCurrent = 11
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).

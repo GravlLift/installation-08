@@ -6,7 +6,8 @@
 //
 // THE CHAIN (the Shock Rifle, weap 1a22fee6, measured on the installed game 2026-11-20):
 //
-//	weap barrels[0]            projectile proj 96555d72; firing effects[0] effe 136580d8
+//	weap barrels[0]            projectile proj 96555d72; firing effects[0] effe 136580d8; a
+//	                           burst of 3 shots at 60 a second, 1 projectile each, error angle 0
 //	                           (weaponicons.ReadBarrelShot)
 //	proj 96555d72 root         object/attachments: effe 9f69be2d (the flight effect, at the
 //	                           projectile's `root`), lsnd 7bab12d7 (its sound, not read here);
@@ -107,6 +108,14 @@ type WeaponShot struct {
 	InitialVelocity float32 `json:"initialVelocity"`
 	FinalVelocity   float32 `json:"finalVelocity"`
 	MaxRange        float32 `json:"maxRange"`
+	// The barrel's burst (weaponicons.BarrelShot): the shots one trigger pull fires (bounds), the
+	// rate they are fired at (rounds a second, bounds), the projectiles each fires, the error angle
+	// (radians, bounds) and the seconds before the next pull.
+	ShotsPerFire       [2]int     `json:"shotsPerFire"`
+	RoundsPerSecond    [2]float32 `json:"roundsPerSecond"`
+	ProjectilesPerShot int        `json:"projectilesPerShot"`
+	ErrorAngle         [2]float32 `json:"errorAngle"`
+	FireRecovery       float32    `json:"fireRecovery"`
 	// Firing: the barrel's firing effect, played at the weapon's markers ("" without one);
 	// Markers, MarkerRotations: those markers on the weapon's third-person model (as an idle
 	// effect's: model space at the rest pose, GLB axes).
@@ -339,7 +348,9 @@ func (r shotReader) weapon(ctx context.Context, weap uint32, shot weaponicons.Ba
 		return WeaponShot{}, fmt.Errorf("projectile %08x: %w", shot.Projectile, err)
 	}
 	ws := WeaponShot{Projectile: fmt.Sprintf("%08x", shot.Projectile), InitialVelocity: p.initial, FinalVelocity: p.final,
-		MaxRange: p.maxRange, Flight: []string{}, Markers: map[string][][3]float64{}, MarkerRotations: map[string][][4]float64{}}
+		MaxRange: p.maxRange, ShotsPerFire: shot.ShotsPerFire, RoundsPerSecond: shot.RoundsPerSecond,
+		ProjectilesPerShot: shot.ProjectilesPerShot, ErrorAngle: shot.ErrorAngle, FireRecovery: shot.FireRecovery,
+		Flight: []string{}, Markers: map[string][][3]float64{}, MarkerRotations: map[string][][4]float64{}}
 	if shot.FiringEffect != 0 {
 		fx, err := r.effect(ctx, shot.FiringEffect, effects)
 		if err != nil {
