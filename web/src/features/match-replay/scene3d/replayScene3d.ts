@@ -59,6 +59,7 @@ import { aimDirThree, toThree, type PlayerState3d, type Tracks3d } from './track
 import { scriptClockOf, type CameraScript, type ScriptClockView, type ScriptSubjects } from './cameraScript3d'
 import { activeHolds, holdStateAt, lerpHeading, type Hold, type HoldState } from './hold3d'
 import { holdMix } from './holdPose3d'
+import { NO_SHIELD_FX } from './shields3d'
 import { type ClipMix } from './clipSample3d'
 import { PoseClips } from './poseClips3d'
 import { type SpartanClip } from './clips3d'
@@ -928,7 +929,11 @@ export class ReplayScene3d implements Replay3DExportSource {
         placeBody(a, feet, { h, p: pitch, crouch: false, eyeDrop: 0, mix }, firstPerson, this.lighting.probeAt(feet))
         this.drawnSlots.set(held.slot, { xuid: p.xuid, firstPerson })
         const heldWeapon = hold.weapon === 'hide' ? null : this.action?.heldWeapon(held.slot, atFrame) ?? null // the weapon held at `at`, or none
-        const fx = this.action?.bodyFx(p.xuid, atFrame) ?? null
+        // A held player has left the film: the shield's hit glow, break and recharge belong to the
+        // film's fight and stay there (frozen at `at`, a hit's flood would light the whole hold).
+        // Camo and overshield are the player's own state and are kept.
+        const filmFx = this.action?.bodyFx(p.xuid, atFrame) ?? null
+        const fx = filmFx ? { ...filmFx, shield: NO_SHIELD_FX } : null
         const weaponModel = heldWeapon?.model ?? null
         const weaponKey = heldWeapon?.key ? weaponModelKey(heldWeapon.key) : null
         if (weaponModel && weaponKey && this.armory) void this.armory.paintWeapon(p.xuid, weaponKey, weaponModel)
