@@ -32,6 +32,7 @@ import { measureSyncPhases } from './clipSample3d'
 import { EquipmentKeys } from './equipmentKeys3d'
 import { darkMetalFallback } from './fallbackMetal3d'
 import { FlagBanners } from './flagBanner3d'
+import { graftHeroLights } from './heroLightShader3d'
 import { giveFiniteNormal } from './lighting'
 import { fetchMesh } from './meshFetch'
 import { ReticleRanges } from './reticleRanges3d'
@@ -230,6 +231,8 @@ export function prepareModel(root: THREE.Object3D): void {
     darkMetalFallback(m)
     m.flatShading = true
     giveFiniteNormal(m)
+    // A camera script's hero lights reach the weapon the model is (`heroLightShader3d`); off, nothing changes.
+    graftHeroLights(m)
     m.side = THREE.FrontSide
     m.needsUpdate = true
     o.castShadow = true

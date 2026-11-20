@@ -19,6 +19,7 @@ import { toThree, type Vec3 } from './tracks3d'
 import { verticalFovOf } from '../model/fovLogic'
 import { BODY_CENTER } from './body3d'
 import { parseHolds, type Hold } from './hold3d'
+import { parseHeroLights, type HeroLight } from './heroLights3d'
 
 export type Ease = 'smooth' | 'linear' | 'in' | 'out' | 'cut'
 export type ScriptVec3 = [number, number, number]
@@ -57,6 +58,8 @@ export interface CameraScript {
   keys: CameraKey[]
   clock?: ScriptClock
   holds?: Hold[]
+  /** Hero light rigs on players while the script plays (`heroLights3d`). */
+  lights?: HeroLight[]
 }
 
 export const CAMERA_SCRIPT_MAX_KEYS = 512
@@ -230,9 +233,17 @@ export function parseCameraScript(raw: unknown, expectedMatchId?: string): Parse
     holds = parsed.holds
   }
 
+  let lights: HeroLight[] | undefined
+  if (r.lights !== undefined) {
+    const parsed = parseHeroLights(r.lights)
+    if ('error' in parsed) return { ok: false, error: parsed.error }
+    lights = parsed.lights
+  }
+
   const script: CameraScript = { version: 1, matchId: r.matchId, name: r.name, keys }
   if (clock !== undefined) script.clock = clock
   if (holds !== undefined) script.holds = holds
+  if (lights !== undefined) script.lights = lights
   return { ok: true, script }
 }
 

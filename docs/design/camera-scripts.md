@@ -143,6 +143,26 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
 - `fov` (optional, 10 to 150), `roll` (optional, degrees, positive turns the frame clockwise),
   `ease` (optional, default `smooth`; the first key's `ease` is ignored).
 - `name`: 1 to 64 characters, `[a-z0-9_-]`. The server writes the name that is in the URL.
+- `lights` (optional): hero light rigs, cinematography rather than a game effect, at most 8, one
+  per player: `[{ "xuid": "2533...", "key": 2.5, "fill": 0.8, "rim": 3, "azimuth": 40,
+  "elevation": 25, "rimColor": "team" }]`. While the script plays, each rig follows its player's
+  body center (resolved like a player anchor: at the clock's document time, a held player's held
+  body) and lights only Spartans and their weapons, never the map (`scene3d/heroLightShader3d.ts`
+  grafts it into those materials alone). A rig is three shadowless directional lights that reach
+  fragments within 0.6 u of the body center, fading out by 0.9 u, so it lights its player, their
+  weapon, and at most someone standing right against them.
+  - `key`, `fill`, `rim`: intensities 0 to 10, in three.js directional-light units (the view's sun
+    at full daylight is 3.2). Defaults 2.5, 0.8, 3; 0 turns that light off.
+  - `azimuth` (degrees, -180 to 180, default 40) and `elevation` (degrees, -90 to 90, default 25)
+    place the key relative to the camera's view of the player: azimuth 0 is the camera's own side,
+    positive turns the key toward screen right, elevation lifts it above the horizontal. The fill
+    mirrors the key across the camera axis (`-azimuth`) at half the elevation; the rim sits behind
+    the player, straight opposite the camera, at the key's elevation. The rig turns with the
+    camera every frame (`heroRigOf`, `scene3d/heroLights3d.ts`).
+  - `rimColor`: `white` (default) or `team` (the player's team color at full brightness).
+  - Validation refuses more than 8 rigs, an empty or repeated `xuid`, and any value out of range.
+    A rig on a player with no state at the time draws nothing. No script, a tracked camera, or a
+    stopped script: no hero light. The export places the rigs after the camera on every frame.
 - Validation rejects an unknown `version`, a `matchId` that differs from the route's, a key with
   no `pos` or `look`, a non-finite number, an out-of-range `fov`, and more than 512 keys. A
   player anchor whose xuid is not in the match is not a validation error: it resolves to null, and

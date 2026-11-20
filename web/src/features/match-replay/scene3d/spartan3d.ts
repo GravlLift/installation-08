@@ -20,6 +20,7 @@ import { ARMURE_NEUTRE, RUGOSITE_ARMURE_NEUTRE, armorMaterial } from './armorMat
 import type { Dress } from './armory3d'
 import type { BakedLight } from './bakedLightShader'
 import { spartanClipsOf } from './clips3d'
+import { graftHeroLights } from './heroLightShader3d'
 import { ClipRig } from './clipSample3d'
 import { rigSpartan, type SpartanRig } from './pose3d'
 import { dressSpartan } from './spartanArmor3d'
@@ -55,6 +56,8 @@ export function copySpartan(source: THREE.Object3D, tint: THREE.Color, dress: Dr
   }
   const materials = dressed ? copyMaterials(root, (m) => paintMaterial(m, dress.coat.get(m))) : copyMaterials(root, (m) => tinted(m, tint))
   if (baked) for (const m of materials) baked.apply(m)
+  // A camera script's hero lights light Spartans only (`heroLightShader3d`); off, nothing changes.
+  for (const m of materials) graftHeroLights(m)
   return { source, rig, materials, skeletons }
 }
 

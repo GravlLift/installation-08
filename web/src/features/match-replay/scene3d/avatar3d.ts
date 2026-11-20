@@ -30,6 +30,7 @@ import type { BakedLight } from './bakedLightShader'
 import { AIM_HEIGHT, BODY_CENTER, BODY_LENGTH, BODY_RADIUS, CROUCH_DROP, EYE_HEIGHT } from './body3d'
 import { makeShell, releaseShell, showShell, type BodyFxState, type BodyShell } from './bodyShell3d'
 import { newClipMix, type ClipMix } from './clipSample3d'
+import { graftHeroLights } from './heroLightShader3d'
 import { poseSpartan, type SpartanPose } from './pose3d'
 import { assignPlayerProbes } from './playerProbe3d'
 import { recoilActive, type Recoil } from './recoil3d'
@@ -324,7 +325,12 @@ export function applyWeaponCoating(model: THREE.Object3D, coat: Coat): Map<THREE
       }
       if (!paint) { next.push(m); continue }
       let copy = copies.get(m)
-      if (!copy) { copy = armorMaterial(m as THREE.MeshStandardMaterial, paint); copies.set(m, copy) }
+      if (!copy) {
+        copy = armorMaterial(m as THREE.MeshStandardMaterial, paint)
+        // The copy drops the source's hero-light graft (`heroLightShader3d`): it takes its own.
+        graftHeroLights(copy)
+        copies.set(m, copy)
+      }
       next.push(copy)
     }
     o.material = Array.isArray(o.material) ? next : next[0]
