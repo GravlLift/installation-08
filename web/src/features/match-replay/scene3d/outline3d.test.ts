@@ -25,6 +25,7 @@ function fx(ally: boolean | null, over: Partial<BodyFxState> = {}): BodyFxState 
     teamColor: (ally ? ALLY : ENEMY).clone(),
     overshieldColor: new THREE.Color(),
     camoColor: new THREE.Color(),
+    shieldHit: null,
     ...over,
   }
 }

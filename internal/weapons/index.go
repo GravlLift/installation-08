@@ -99,6 +99,9 @@ type Index struct {
 	// (idle_effects.go: the Shock Rifle's electricity). Always written, empty included: an index
 	// without the field predates it and is stale.
 	IdleEffects map[string][]IdleEffect `json:"idle_effects"`
+	// ShieldHit: the Spartan shield's impact generator (shield_hit.go), its parameters and the
+	// fx-* textures it samples; null when the game holds no readable one (the view draws no hit).
+	ShieldHit *ShieldGenerator `json:"shield_hit"`
 	// Equipment: per equipment family of the title's manifest whose pad items share one model, the
 	// model key of that model (equipment.go), for the items a power-up or equipment pad publishes
 	// by family. Always written, empty included: an index without the field predates it and is
@@ -121,8 +124,9 @@ const EquipmentRuleCurrent = 2
 // parts) is read from its declared emissive_intensity and its tint map. 4: the weapons' idle
 // particle effects (idle_effects, the Shock Rifle's electricity) and their fx-* files. 5: the idle
 // effects' weapon functions carry their mapping (the Heatwave's `fx_camo_off` is 1 - camo).
-// 6: vehicle models and the Spartan's vehicle-seat animations.
-const SchemaCurrent = 6
+// 6: vehicle models and the Spartan's vehicle-seat animations. 7: the Spartan shield's impact
+// generator (shield_hit) and its fx-* textures.
+const SchemaCurrent = 7
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).

@@ -14,6 +14,7 @@ import * as THREE from 'three'
 import type { ActionContext } from './actionScene3d'
 import type { BodyFxState } from './bodyShell3d'
 import { equipFxAt, NO_EQUIP_FX } from './equip3d'
+import { ShieldHitAssets } from './shieldGenerator3d'
 import { NO_SHIELD_FX } from './shields3d'
 
 /** The overshield: the theme's ink paled toward white (a light shell, not a team tint). */
@@ -29,11 +30,19 @@ export class BodyFx3d {
     teamColor: new THREE.Color(),
     overshieldColor: new THREE.Color(),
     camoColor: new THREE.Color(),
+    shieldHit: null,
   }
   private readonly ctx: ActionContext
+  /** The game's shield impact generator, from the weapon library (created once it is known). */
+  private hitAssets: ShieldHitAssets | null = null
 
   constructor(ctx: ActionContext) {
     this.ctx = ctx
+  }
+
+  dispose(): void {
+    this.hitAssets?.dispose()
+    this.hitAssets = null
   }
 
   /** at: the body state of player `xuid` at frame `frame` (overwritten on every call). */
@@ -52,6 +61,11 @@ export class BodyFx3d {
     s.teamColor.copy(this.ctx.ink.of(s.ally === null ? inputs.inks.fx.core : inputs.inks.teamColorOf(s.ally)))
     s.overshieldColor.copy(this.ctx.ink.of(inputs.inks.body.overshield)).lerp(WHITE, OVERSHIELD_WHITE)
     s.camoColor.copy(this.ctx.ink.of(inputs.inks.fx.core))
+    if (!this.hitAssets) {
+      const base = this.ctx.weaponLibrary?.() ?? null
+      if (base) this.hitAssets = new ShieldHitAssets(base)
+    }
+    s.shieldHit = this.hitAssets?.get() ?? null
     return s
   }
 }
