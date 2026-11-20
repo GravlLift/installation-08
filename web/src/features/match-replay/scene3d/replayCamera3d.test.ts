@@ -144,6 +144,54 @@ describe('ReplayCamera3d', () => {
     expect(placement.activeScript()).toBeNull()
   })
 
+  it('reports the script pose lens each placement, and none without one', () => {
+    const lenses: unknown[] = []
+    const camera = new THREE.PerspectiveCamera()
+    const state = { tracks: null, povXuid: 'A', mode: 'free' as const, action: null, originAboveFloor: 0, camera, subjects: { feetAt: () => null }, gameFov: 100, pickables: () => [], raycaster: new THREE.Raycaster(), setLens: (l: unknown) => lenses.push(l) }
+    const placement = new ReplayCamera3d(state)
+    const base = { version: 1 as const, matchId: 'm', name: 's' }
+    placement.setScript({ ...base, keys: [{ t: 0, pos: { at: 'world', point: [0, 0, 0] }, look: { at: 'world', point: [4, 0, 0] }, aperture: 1.4 }] })
+    placement.placeCamera(0)
+    expect(lenses.at(-1)).toEqual({ focusDistance: 4, aperture: 1.4 })
+    placement.setScript({ ...base, keys: [{ t: 0, pos: { at: 'world', point: [0, 0, 0] }, look: { at: 'world', point: [4, 0, 0] } }] })
+    placement.placeCamera(0)
+    expect(lenses.at(-1)).toBeNull() // a script without an aperture has no depth of field
+    placement.setScript({ ...base, keys: [] })
+    placement.placeCamera(0)
+    expect(lenses.at(-1)).toBeNull() // a keyless script places nothing
+    placement.setScript({ ...base, keys: [{ t: 0, pos: { at: 'world', point: [0, 0, 0] }, look: { at: 'world', point: [4, 0, 0] }, aperture: 2 }] })
+    placement.placeCamera(0)
+    expect(lenses.at(-1)).toEqual({ focusDistance: 4, aperture: 2 })
+    placement.setScript(null)
+    expect(lenses.at(-1)).toBeNull() // stopping the script clears the lens at once
+    const tracked = new ReplayCamera3d({ ...state, mode: 'tp' })
+    tracked.setScript({ ...base, keys: [{ t: 0, pos: { at: 'world', point: [0, 0, 0] }, look: { at: 'world', point: [4, 0, 0] }, aperture: 2 }] })
+    lenses.push('marker')
+    tracked.placeCamera(0)
+    expect(lenses.at(-1)).toBeNull() // a tracked camera has no lens
+  })
+
+  it('a shake turns the camera after its `at`, and leaves it exactly as before it', () => {
+    const keys: CameraScript['keys'] = [{ t: 0, pos: { at: 'world', point: [0, 0, 5] }, look: { at: 'world', point: [10, 0, 5] } }]
+    const pose = (shakes: CameraScript['shakes'], sMs: number) => {
+      const camera = new THREE.PerspectiveCamera()
+      const placement = new ReplayCamera3d({ tracks: null, povXuid: 'A', mode: 'free', action: null, originAboveFloor: 0, camera, subjects: { feetAt: () => null }, gameFov: 100, pickables: () => [], raycaster: new THREE.Raycaster() })
+      placement.setScript({ version: 1, matchId: 'm', name: 's', keys, ...(shakes ? { shakes } : {}) })
+      placement.setScriptTime(sMs)
+      placement.placeCamera(0)
+      return camera
+    }
+    const shakes = [{ at: 1000, amp: 4, decay: 300 }]
+    const still = pose(undefined, 1040)
+    expect(pose(shakes, 500).quaternion.toArray()).toEqual(still.quaternion.toArray()) // before `at`: untouched
+    const shaken = pose(shakes, 1040)
+    const angle = (shaken.quaternion.angleTo(still.quaternion) * 180) / Math.PI
+    expect(angle).toBeGreaterThan(0.1)
+    expect(angle).toBeLessThanOrEqual(4 * Math.SQRT2 + 1e-6)
+    expect(shaken.position.toArray()).toEqual(still.position.toArray()) // a shake turns the camera, it does not move it
+    expect(pose(shakes, 1040).quaternion.toArray()).toEqual(shaken.quaternion.toArray()) // deterministic
+  })
+
   it('clearing the script stops the placement', () => {
     const script: CameraScript = {
       version: 1,

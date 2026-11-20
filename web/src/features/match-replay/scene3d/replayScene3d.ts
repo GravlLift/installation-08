@@ -210,6 +210,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       get action() { return self.action }, get originAboveFloor() { return self.originAboveFloor },
       get subjects() { return self.scriptSubjects }, get gameFov() { return self.gameFovDeg },
       camera: this.camera, pickables: () => self.groundSurfaces(), raycaster: this.raycaster,
+      setLens: (lens) => self.post.setLens(lens), // a playing script's depth of field, screen and export alike
     })
     this.exportScene = new ReplayExportScene3d({
       renderer: this.renderer, camera: this.camera, orbit: this.orbit, labels: this.labels,
@@ -751,6 +752,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.post.outline.linePass.enabled = fx && k.outline
     this.post.gtao.enabled = fx && k.ao && this.lookOcclusion
     if (this.post.bloom) this.post.bloom.enabled = fx && k.bloom
+    if (this.post.dof) this.post.dof.enabled = fx
     this.post.output.enabled = fx
     this.post.grade.enabled = fx
     this.post.smaa.enabled = fx && k.smaa

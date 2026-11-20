@@ -12,6 +12,10 @@
  * Bloom (`bloom3d`): the glow of self-lit surfaces, on the HDR image between the ambient
  * occlusion and the output pass. Present only while the drawer's "Bloom" setting is on
  * (`setBloom`): off, the pass leaves the chain and its render targets are released.
+ *
+ * Depth of field (`dof3d`): a camera script's lens, on the HDR image after the bloom and before
+ * the output pass. Present only while the current script pose has a lens (`setLens`); without
+ * one the pass is out of the chain and the image is exactly the default look.
  */
 import * as THREE from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
@@ -22,6 +26,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js'
 
 import { GlowBloomPass } from './bloom3d'
+import { DofPass, type Lens3d } from './dof3d'
 import { GpuTimer } from './gpuTimer3d'
 import { Outline3d } from './outline3d'
 
@@ -44,8 +49,16 @@ export interface PostFx3d {
   readonly bloomGpu: GpuTimer
   /** True for a frame whose bloom pass is to be timed by `bloomGpu` (the frame's own timer then stays off). */
   timeBloom: boolean
-  /** setBloom puts the bloom pass in the chain (before the output pass) or takes it out and releases it. */
+  /** setBloom puts the bloom pass in the chain (before the depth of field, else the output pass) or takes it out and releases it. */
   setBloom(on: boolean): void
+  /** The depth of field pass while a lens is set, null while none is (out of the chain). */
+  readonly dof: DofPass | null
+  /**
+   * setLens sets the frame's lens (a playing camera script's focus distance and f-number): the
+   * depth of field pass enters the chain before the output pass, or, with null, leaves it and is
+   * released. Called every frame; only a change of presence touches the chain.
+   */
+  setLens(lens: Lens3d | null): void
   resetCosts(): void
   dispose(): void
 }
@@ -78,7 +91,7 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
   // The scene's depth stays readable after its render: ambient occlusion compares against it.
   const target = new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType, depthTexture: new THREE.DepthTexture(1, 1) })
   const composer = new EffectComposer(renderer, target)
-  const scenePass = new RenderPass(scene, camera)
+  const scenePass = new DepthKeepingRenderPass(scene, camera)
   composer.addPass(scenePass)
   const outline = new Outline3d(camera)
   composer.addPass(outline.maskPass)
@@ -123,6 +136,7 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
     costs,
     bloomGpu,
     timeBloom: false,
+    dof: null,
     setBloom(on) {
       const self = fx as { bloom: GlowBloomPass | null }
       if (on === (self.bloom !== null)) return
@@ -136,13 +150,33 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
       }
       const pass = new GlowBloomPass()
       meterPass(renderer, pass, costs.bloom, () => (fx.timeBloom ? bloomGpu : null))
-      composer.insertPass(pass, composer.passes.indexOf(output))
+      // The glow is part of the scene the lens sees: it goes before the depth of field.
+      composer.insertPass(pass, composer.passes.indexOf(fx.dof ?? output))
       self.bloom = pass
+    },
+    setLens(lens) {
+      const self = fx as { dof: DofPass | null }
+      if (!lens) {
+        if (self.dof) {
+          composer.removePass(self.dof)
+          self.dof.dispose()
+          self.dof = null
+        }
+        return
+      }
+      if (!self.dof) {
+        const pass = new DofPass(camera, () => scenePass.depth)
+        composer.insertPass(pass, composer.passes.indexOf(output))
+        self.dof = pass
+      }
+      self.dof.focusDistance = lens.focusDistance
+      self.dof.aperture = lens.aperture
     },
     resetCosts() {
       for (const name of PASS_NAMES) costs[name].calls = costs[name].triangles = 0
     },
     dispose() {
+      fx.setLens(null)
       fx.setBloom(false)
       bloomGpu.dispose()
       outline.dispose()
@@ -174,6 +208,26 @@ function meterPass(renderer: THREE.WebGLRenderer, pass: Meterable, cost: PassCos
     cost.calls += info.calls - calls
     cost.triangles += info.triangles - triangles
   }) as never
+}
+
+/**
+ * DepthKeepingRenderPass — the scene's render pass, which records the depth texture of the target
+ * it draws into (the compositor swaps its two targets, so which one holds the scene changes): the
+ * depth of field reads the scene's depth from it.
+ */
+class DepthKeepingRenderPass extends RenderPass {
+  depth: THREE.DepthTexture | null = null
+
+  render(
+    renderer: THREE.WebGLRenderer,
+    writeBuffer: THREE.WebGLRenderTarget,
+    readBuffer: THREE.WebGLRenderTarget,
+    deltaTime: number,
+    maskActive: boolean,
+  ): void {
+    this.depth = this.renderToScreen ? null : readBuffer.depthTexture
+    super.render(renderer, writeBuffer, readBuffer, deltaTime, maskActive)
+  }
 }
 
 /**

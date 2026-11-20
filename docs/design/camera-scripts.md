@@ -72,7 +72,8 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
    setting applies.
 
 7. **Evaluation is one pure function**, `evaluateCameraScript(script, tMs, resolve)`, that returns
-   `{ position, target, verticalFov, roll }` in three.js coordinates. The screen loop, scrubbing
+   `{ position, target, verticalFov, rollDeg, focusDistance, aperture, shake }` in three.js
+   coordinates (the lens and shake: decision 10). The screen loop, scrubbing
    and the export all reach it through `ReplayCamera3d.placeCamera`, which the export already calls
    with each frame (`replayExportScene3d.ts`, `exportFrame`). One path means the video matches what
    you previewed.
@@ -99,6 +100,30 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
      intended authoring layer above keys: a maneuver is a function from script time to a pose,
      and a chain of maneuvers can be compiled into keys plus a clock. Where that layer lives is
      open; this format is its compile target either way.
+
+10. **The lens: depth of field and camera shake (added 2026-11-19).** Both are pure functions of
+    script time, so the preview and the export agree, and a script without the new fields draws
+    exactly as before (the depth of field pass is not even in the compositor then).
+    - **Depth of field** is physically based (`scene3d/dof3d.ts`): a thin lens on a full-frame
+      sensor (36 x 24 mm), its focal length from the camera's vertical field over the sensor's
+      24 mm height (`f = 12 mm / tan(vfov / 2)`), world units of 3.048 m. A point at distance D,
+      focused at S with f-number N, blurs to a circle of confusion of diameter
+      `f^2 / (N (S - f)) * |D - S| / D` on the sensor, clamped to a radius of 2% of the frame's
+      height (21.6 px at 1080p). Because the blur follows the real optics, a wide field blurs
+      little: at the game's default 100 degrees (an 18 mm lens) f/1.4 focused at 3 m gives under
+      2 px of background blur (radius, 1080p); a 40 degree `fov` (a 59 mm lens) gives about 18 px. Shoot
+      shallow focus with a narrow `fov`, as a cinematographer would. The pass runs on the HDR
+      image after the bloom, before tone mapping: separate near and far fields at half size
+      (the foreground's blur bleeds over in-focus edges, the background's never pulls in a sharp
+      silhouette, so there is no halo), a ring gather of up to 289 taps, and a CoC-aware upsample.
+      `ReplayCamera3d.placeCamera` hands each frame's lens to `PostFx3d.setLens` (null when no
+      script plays), on screen and in the export alike. The 2D (top-down) view never draws it.
+    - **Shake** turns the camera about its own axes after the key's roll (yaw and pitch at the
+      full size, roll at half); it never moves the camera's position. Each entry is a sum of
+      three sines per axis, all starting at phase 0 (the jolt starts from zero, with no jump), with
+      frequency ratios and signs seeded from the entry's index and `at`, inside an envelope
+      `amp * exp(-(s - at) / decay)`. Entries add. It runs on script time, so a frozen world can
+      still shake.
 
 ## Script format, version 1
 
@@ -142,6 +167,24 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
   `window` to 400.
 - `fov` (optional, 10 to 150), `roll` (optional, degrees, positive turns the frame clockwise),
   `ease` (optional, default `smooth`; the first key's `ease` is ignored).
+- `aperture` (optional, per key): the lens's f-number, 0.7 to 32 (1.4 is very shallow, 8 is
+  deep). When NO key has one, the script has no depth of field. A key without one takes the
+  nearest earlier key's aperture, else the nearest later key's, across cuts, so a lens set once on
+  the first key holds for the whole script. Between keys the aperture follows the same C1 curve as
+  `fov`, in stops (log2 of the f-number): f/1.4 to f/5.6 passes f/2.8 halfway.
+- `focus` (optional, per key): the point the lens focuses on, the same shapes as `pos`/`look` (a
+  player point without `offset` is the body's center); absent, or a player who is not in the
+  match, it is the key's `look` point. The focus distance is measured ALONG THE VIEW AXIS (a lens
+  focuses on a plane: a subject off the center of the frame is sharp at its depth), at least 0.05
+  units. In a run where no key has a `focus`, the lens focuses on the look target at every frame
+  (the exact distance from the camera to the target). In a run where some key has one, each key's
+  focus distance (its look distance when it has none) follows the same C1 curve as `fov`: a focus
+  pull. The pose carries `focusDistance` (world units) and `aperture`, both null without depth of field.
+- `shakes` (optional, top level): at most 64 entries sorted by `at`, each
+  `{ "at": 4200, "amp": 1.5, "decay": 250, "freq": 12 }`: `at` script ms (at least 0) where the
+  jolt starts; `amp` its starting size in degrees of rotation, in (0, 10]; `decay` its e-folding
+  time in ms, in (0, 10000] (the size falls to 37% after `decay`, 5% after 3 x `decay`); `freq`
+  its main frequency in Hz, in (0, 60], default 12. Overlapping entries add.
 - `name`: 1 to 64 characters, `[a-z0-9_-]`. The server writes the name that is in the URL.
 - Validation rejects an unknown `version`, a `matchId` that differs from the route's, a key with
   no `pos` or `look`, a non-finite number, an out-of-range `fov`, and more than 512 keys. A
@@ -216,9 +259,10 @@ view selector at the top left.
 
 ## Out of scope for version 1
 
-Time-stretched sound under slow motion, depth of field, camera shake, a render endpoint so
-another tool can trigger an export remotely, and finding a player's best kill automatically. The format
-leaves room for each: a later version adds top-level fields, and `version` gates them.
+Time-stretched sound under slow motion, a render endpoint so another tool can trigger an export
+remotely, and finding a player's best kill automatically. The format leaves room for each: a
+later version adds top-level fields, and `version` gates them. (Depth of field and camera shake,
+once listed here, are in version 1 as optional fields: decision 10.)
 
 ## Units of work
 

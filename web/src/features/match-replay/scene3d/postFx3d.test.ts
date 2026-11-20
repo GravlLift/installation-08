@@ -7,6 +7,7 @@ import type { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 import { BLOOM_EXCESS_MAX, BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, GlowBloomPass } from './bloom3d'
+import { DofPass } from './dof3d'
 import { buildPostFx, GRADE_GAIN, PASS_NAMES, type PostFx3d } from './postFx3d'
 import type { Outline3d } from './outline3d'
 
@@ -102,6 +103,63 @@ describe('buildPostFx — the bloom pass', () => {
       expect(end).toHaveBeenCalledTimes(1)
       fx.resetCosts()
       expect(fx.costs.bloom).toEqual({ calls: 0, triangles: 0 })
+    } finally {
+      fx.dispose()
+    }
+  })
+})
+
+describe('buildPostFx — the depth of field pass', () => {
+  const lens = { focusDistance: 2, aperture: 1.4 }
+  const dofAt = (fx: PostFx3d) => fx.composer.passes.findIndex((p) => p instanceof DofPass)
+
+  it('is out of the chain until a lens is set: the default chain is unchanged', () => {
+    const fx = buildPostFx(rendererFactice(), new THREE.Scene(), new THREE.PerspectiveCamera())
+    try {
+      expect(fx.dof).toBeNull()
+      expect(dofAt(fx)).toBe(-1)
+      expect(places(fx).output).toBe(places(fx).bloom + 1)
+    } finally {
+      fx.dispose()
+    }
+  })
+
+  it('enters after the bloom and before the output, takes the lens, and leaves released', () => {
+    const fx = buildPostFx(rendererFactice(), new THREE.Scene(), new THREE.PerspectiveCamera())
+    try {
+      const count = fx.composer.passes.length
+      fx.setLens(lens)
+      const pass = fx.dof!
+      expect(pass).toBeInstanceOf(DofPass)
+      expect(dofAt(fx)).toBe(places(fx).bloom + 1)
+      expect(places(fx).output).toBe(dofAt(fx) + 1)
+      expect([pass.focusDistance, pass.aperture]).toEqual([2, 1.4])
+      fx.setLens({ focusDistance: 7, aperture: 4 }) // a new frame's lens: the same pass
+      expect(fx.dof).toBe(pass)
+      expect(fx.composer.passes.length).toBe(count + 1)
+      expect([pass.focusDistance, pass.aperture]).toEqual([7, 4])
+      const release = vi.spyOn(pass, 'dispose')
+      fx.setLens(null)
+      expect(fx.dof).toBeNull()
+      expect(fx.composer.passes).not.toContain(pass)
+      expect(fx.composer.passes.length).toBe(count)
+      expect(release).toHaveBeenCalledTimes(1)
+      fx.setLens(null) // idempotent
+      expect(fx.composer.passes.length).toBe(count)
+    } finally {
+      fx.dispose()
+    }
+  })
+
+  it('keeps the bloom before it whatever the order they are turned on in', () => {
+    const fx = buildPostFx(rendererFactice(), new THREE.Scene(), new THREE.PerspectiveCamera(), false)
+    try {
+      fx.setLens(lens)
+      expect(dofAt(fx)).toBe(places(fx).ao + 1)
+      fx.setBloom(true)
+      expect(places(fx).bloom).toBe(places(fx).ao + 1)
+      expect(dofAt(fx)).toBe(places(fx).bloom + 1)
+      expect(places(fx).output).toBe(dofAt(fx) + 1)
     } finally {
       fx.dispose()
     }
