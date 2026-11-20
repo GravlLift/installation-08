@@ -551,7 +551,11 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     a weapon object function's `default function` bytes (the Heatwave's `fx_camo_off` maps `camo`
     through 1 - x). `MarqueurArme.Model` (LOCAL-CHANGE) is the marker's model-space frame at the
     rest pose (`NodeModelTransform` of its node, then its translation and rotation): the Heatwave's
-    fin markers turn a quarter about up.
+    fin markers turn a quarter about up. A particle property may be a periodic function (type 3,
+    LOCAL-CHANGE): `FonctionParticule.Periodic` carries its sub-functions (one, two when ranged),
+    decoded by the emissive functions' `Periodique` reader and refused when their count does not
+    match the ranged flag (the Shock Rifle projectile's jittering sprite, the systems some idle
+    effects had left out). Covered by `TestProprietePeriodique`.
   - `himap/animation_functions.go` (new, LOCAL-CHANGE), `animations.go` (modified: a member keeps
     its function list): `GrapheAnimation.Functions` decodes the functions an animation sets (the
     member's list at +216, its curves in blob section 16) and `Arsenal.ReloadFunctions`
