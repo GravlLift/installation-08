@@ -30,8 +30,11 @@ import type { BodyFxState } from './bodyShell3d'
 import { LINE_FRAGMENT, QUAD_VERTEX, SUBJECT_FRAGMENT, SUBJECT_VERTEX } from './outlineShaders3d'
 import { skeletonOf, StandFigure } from './outlineStand3d'
 
-/** The line's thickness (CSS px): crisp at a glance at game distances. */
-export const OUTLINE_PX = 1.5
+/**
+ * The line's thickness (CSS px), out from the silhouette's edge: crisp at a glance at game
+ * distances. The edge fade (`SOFT_PX`) adds half its width outside and its whole width inside.
+ */
+export const OUTLINE_PX = 1
 /** What the shield's flare adds to it at most (CSS px). */
 export const FLARE_PX = 2.5
 /** The width of the line's edge fade (CSS px): the anti-aliasing. */
@@ -48,7 +51,7 @@ const AVATAR_HEIGHT = 2 * BODY_CENTER
 /**
  * Below this on-screen height (target px), a player enters the mask through its stick-figure
  * silhouette: it fits in under sixteen texels there, where armor and sticks no longer stand
- * apart under a 1.5 px line. Above it, the sticks depart from the armor (weapon, twisted
+ * apart under a 1 px line. Above it, the sticks depart from the armor (weapon, twisted
  * torso): whole.
  */
 export const STAND_BELOW_PX = 32

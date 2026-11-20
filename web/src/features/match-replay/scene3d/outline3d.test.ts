@@ -56,7 +56,7 @@ describe('Outline3d — the players drawn in one frame', () => {
     o.begin()
     o.add(g, fx(false, { shield: { ...NO_SHIELD_FX, hit: 1.4 } }))
     expect(o.subjectsOf()[0].flare).toBe(1)
-    expect(OUTLINE_PX).toBeGreaterThanOrEqual(1.5)
+    expect(OUTLINE_PX).toBeGreaterThanOrEqual(1)
     expect(FLARE_PX).toBeGreaterThan(0)
     o.dispose()
   })
