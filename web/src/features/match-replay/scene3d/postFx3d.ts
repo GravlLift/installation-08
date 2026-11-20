@@ -14,11 +14,11 @@
  * (`setBloom`): off, the pass leaves the chain and its render targets are released.
  *
  * Film look (`filmLook3d`, a camera script's `look`): while set (`setFilmLook`), the output pass
- * tone maps with AgX at the look's exposure instead of the view's ACES (the renderer's own
- * settings are swapped in only around that pass, so nothing else drawn sees them), bloom is in
- * the chain at the look's strength whatever the drawer says, and a film pass (contrast,
- * saturation, warmth, vignette, grain) runs after SMAA, before the outline's line. Cleared, the
- * chain is the default one again, with the drawer's bloom setting.
+ * tone maps at the look's exposure, on the view's ACES or, when the look asks, AgX (the
+ * renderer's own settings are swapped in only around that pass, so nothing else drawn sees
+ * them); bloom is in the chain at the look's strength whatever the drawer says; and a film pass
+ * (film curve, saturation, warmth, vignette, grain) runs after SMAA, before the outline's line.
+ * Cleared, the chain is the default one again, with the drawer's bloom setting.
  */
 import * as THREE from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
@@ -29,7 +29,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js'
 
 import { BLOOM_STRENGTH, GlowBloomPass } from './bloom3d'
-import { FILM_FRAGMENT, filmSeed, resolveFilmLook, warmthGain, type FilmLook, type FilmLookSettings } from './filmLook3d'
+import { FILM_FRAGMENT, filmSeed, resolveFilmLook, seedOffset, warmthGain, type FilmLook, type FilmLookSettings } from './filmLook3d'
 import { GpuTimer } from './gpuTimer3d'
 import { Outline3d } from './outline3d'
 
@@ -94,8 +94,8 @@ const shaderGrade = {
   fragmentShader: 'uniform sampler2D tDiffuse; uniform vec3 uGain; varying vec2 vUv; void main() { vec4 c = texture2D(tDiffuse, vUv); gl_FragColor = vec4(c.rgb * uGain, c.a); }',
 }
 
-/** The film look's tone curve (the default view's is the renderer's, ACES, set by `lighting`). */
-export const FILM_TONE_MAPPING = THREE.AgXToneMapping
+/** The tone curve of a film look with `tone: 'agx'`; with 'aces' (the default) the view's own curve stays (ACES, set by `lighting`). */
+export const FILM_AGX_TONE_MAPPING = THREE.AgXToneMapping
 
 /** The film pass's shader (`filmLook3d`): its uniforms are set from the look each frame. */
 function shaderFilm() {
@@ -108,7 +108,7 @@ function shaderFilm() {
       uSaturation: { value: 1 },
       uVignette: { value: 0 },
       uGrain: { value: 0 },
-      uSeed: { value: 0 },
+      uSeedOffset: { value: new THREE.Vector2(0, 0) },
     },
     vertexShader: shaderGrade.vertexShader,
     fragmentShader: FILM_FRAGMENT,
@@ -133,16 +133,16 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
   // ambient occlusion intact (the target it writes to may be the scene's).
   output.material.depthTest = false
   output.material.depthWrite = false
-  // A film look tone maps this pass alone with its own curve and exposure: the renderer's
-  // settings are swapped in for the pass and given back after it (the minimap, drawn straight to
-  // the screen after the composer, keeps the view's own).
+  // A film look tone maps this pass alone at its exposure (and with AgX when it asks): the
+  // renderer's settings are swapped in for the pass and given back after it (the minimap, drawn
+  // straight to the screen after the composer, keeps the view's own).
   const outputRender = output.render.bind(output) as (renderer: THREE.WebGLRenderer, ...rest: unknown[]) => void
   output.render = ((renderer: THREE.WebGLRenderer, ...rest: unknown[]) => {
     const film = fx.film
     if (!film) return outputRender(renderer, ...rest)
     const toneMapping = renderer.toneMapping
     const exposure = renderer.toneMappingExposure
-    renderer.toneMapping = FILM_TONE_MAPPING
+    if (film.tone === 'agx') renderer.toneMapping = FILM_AGX_TONE_MAPPING
     renderer.toneMappingExposure = exposure * Math.pow(2, film.exposure)
     try {
       outputRender(renderer, ...rest)
@@ -248,7 +248,7 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
         u.uGrain.value = s.film.grain
         syncBloom()
       }
-      s.filmPass!.uniforms.uSeed.value = filmSeed(scriptMs)
+      ;(s.filmPass!.uniforms.uSeedOffset.value as THREE.Vector2).set(...seedOffset(filmSeed(scriptMs)))
     },
     resetCosts() {
       for (const name of PASS_NAMES) costs[name].calls = costs[name].triangles = 0

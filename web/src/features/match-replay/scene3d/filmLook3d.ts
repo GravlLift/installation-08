@@ -2,19 +2,29 @@
 /**
  * filmLook3d.ts — THE FILM LOOK of a camera script (`look`, docs/design/camera-scripts.md): an
  * opt-in lens and film response for broadcast shots. It never adds light: it changes how the
- * light the view already renders is developed (tone curve, exposure, bloom strength, grade,
- * vignette, grain). Without `look` the compositor draws the game-matched default, untouched.
+ * light the view already renders is developed (exposure, bloom strength, grade, vignette, grain).
+ * Without `look` the compositor draws the game-matched default, untouched.
+ *
+ * The base is the view's own tone curve (ACES, game-matched); the film response is drawn on top
+ * of it by the film pass: a toe that deepens the blacks, a mid contrast slope, a highlight
+ * shoulder that rolls into white, saturation, warmth, a vignette and grain. AgX is there only on
+ * request (`tone: 'agx'`).
  *
  * Pure part: the type, its validation (`parseFilmLook`), its defaults (`resolveFilmLook`), and the
  * grade math the film pass runs (`FILM_FRAGMENT`), mirrored in TypeScript so it can be tested
  * (`contrastCurve`, `saturate`, `warmthGain`, `vignetteAt`, `grainNoise`, `filmGrade`).
  */
 
+export type FilmTone = 'aces' | 'agx'
+export const FILM_TONES: readonly FilmTone[] = ['aces', 'agx']
+
 export interface FilmLook {
   preset: 'film'
+  /** The tone curve under the film response: the view's ACES (default) or AgX. */
+  tone?: FilmTone
   /** Stops on top of the view's exposure. */
   exposure?: number
-  /** Slope of the S-curve at mid grey; 1 leaves contrast as the tone curve gives it. */
+  /** Slope of the film curve at mid grey; 1 keeps the mid tones' contrast. Above 1 the toe also deepens the blacks. */
   contrast?: number
   /** 1 leaves saturation as is, 0 is black and white. */
   saturation?: number
@@ -28,11 +38,11 @@ export interface FilmLook {
   warmth?: number
 }
 
-/** A film look with every tunable resolved. */
+/** A film look with every field resolved. */
 export type FilmLookSettings = Required<Omit<FilmLook, 'preset'>>
-type Tunable = keyof FilmLookSettings
+type Tunable = Exclude<keyof FilmLookSettings, 'tone'>
 
-/** Each tunable's accepted range, inclusive. */
+/** Each numeric tunable's accepted range, inclusive. */
 export const FILM_LOOK_RANGES: Readonly<Record<Tunable, readonly [number, number]>> = {
   exposure: [-3, 3],
   contrast: [0.5, 2],
@@ -43,13 +53,17 @@ export const FILM_LOOK_RANGES: Readonly<Record<Tunable, readonly [number, number
   warmth: [-1, 1],
 }
 
-/** The 'film' preset: a touch more contrast and color than the tone curve alone, a soft vignette, fine grain, a stronger glow, slightly warm. */
+/**
+ * The 'film' preset, on the view's ACES: deeper blacks and punchier mids (contrast 1.35 at mid
+ * grey), richer color, corners 30 % darker, fine grain, a stronger glow, slightly warm.
+ */
 export const FILM_LOOK_DEFAULTS: Readonly<FilmLookSettings> = {
+  tone: 'aces',
   exposure: 0,
-  contrast: 1.2,
-  saturation: 1.1,
+  contrast: 1.35,
+  saturation: 1.2,
   vignette: 0.3,
-  grain: 0.25,
+  grain: 0.2,
   bloom: 0.5,
   warmth: 0.15,
 }
@@ -62,6 +76,12 @@ export function parseFilmLook(raw: unknown): { look: FilmLook } | { error: strin
   const r = raw as Record<string, unknown>
   if (r.preset !== 'film') return { error: "look.preset must be 'film'" }
   const look: FilmLook = { preset: 'film' }
+  if (r.tone !== undefined) {
+    if (typeof r.tone !== 'string' || !FILM_TONES.includes(r.tone as FilmTone)) {
+      return { error: `look.tone must be one of ${FILM_TONES.join(', ')}` }
+    }
+    look.tone = r.tone as FilmTone
+  }
   for (const name of TUNABLES) {
     const v = r[name]
     if (v === undefined) continue
@@ -74,9 +94,10 @@ export function parseFilmLook(raw: unknown): { look: FilmLook } | { error: strin
   return { look }
 }
 
-/** resolveFilmLook fills the tunables a look leaves out with the preset's defaults. */
+/** resolveFilmLook fills the fields a look leaves out with the preset's defaults. */
 export function resolveFilmLook(look: FilmLook): FilmLookSettings {
   const out = { ...FILM_LOOK_DEFAULTS }
+  if (look.tone !== undefined) out.tone = look.tone
   for (const name of TUNABLES) {
     const v = look[name]
     if (v !== undefined) out[name] = v
@@ -84,8 +105,10 @@ export function resolveFilmLook(look: FilmLook): FilmLookSettings {
   return out
 }
 
-/** Mid grey (linear 0.18) in screen (sRGB-encoded) values: the contrast curve's pivot. */
+/** Mid grey (linear 0.18) in screen (sRGB-encoded) values: the film curve's pivot. */
 export const FILM_PIVOT = 0.4614
+/** The film curve's slope at white: under 1, the highlights roll into white instead of clipping. */
+export const FILM_SHOULDER = 0.5
 /** Rec. 709 luma weights. */
 const LUMA = [0.2126, 0.7152, 0.0722] as const
 /** Red and blue gain per unit of warmth. */
@@ -97,13 +120,19 @@ export const VIGNETTE_END = 1
 export const GRAIN_AMPLITUDE = 0.08
 
 /**
- * contrastCurve: an S-curve on a screen value in [0, 1] through 0, `FILM_PIVOT` and 1, with slope
- * `k` at the pivot: power curves on each side, so it is monotonic and never clips.
+ * contrastCurve: the film curve on a screen value in [0, 1], through 0, `FILM_PIVOT` and 1 with
+ * slope `k` at the pivot. Below it a power toe (`k` above 1 presses the blacks down, slope 0 at
+ * black); above it a cubic shoulder from slope `k` to slope `s` at white. Monotonic for `k` up
+ * to 2 and `s` in [0, 1]; the identity for k = s = 1.
  */
-export function contrastCurve(x: number, k: number): number {
+export function contrastCurve(x: number, k: number, s: number = FILM_SHOULDER): number {
   const c = Math.min(Math.max(x, 0), 1)
   const p = FILM_PIVOT
-  return c <= p ? p * Math.pow(c / p, k) : 1 - (1 - p) * Math.pow((1 - c) / (1 - p), k)
+  if (c <= p) return p * Math.pow(c / p, k)
+  const t = (c - p) / (1 - p)
+  const t2 = t * t
+  const t3 = t2 * t
+  return p + (1 - p) * (k * (t3 - 2 * t2 + t) + (3 * t2 - 2 * t3) + s * (t3 - t2))
 }
 
 function luma(rgb: readonly number[]): number {
@@ -136,13 +165,6 @@ export function vignetteAt(u: number, v: number, strength: number): number {
   return 1 - strength * smoothstep(VIGNETTE_START, VIGNETTE_END, d)
 }
 
-/** pcg: the PCG integer hash (32 bits), as the film pass's shader runs it on unsigned integers. */
-export function pcg(v: number): number {
-  const state = (Math.imul(v >>> 0, 747796405) + 2891336453) >>> 0
-  const word = Math.imul(((state >>> ((state >>> 28) + 4)) ^ state) >>> 0, 277803737) >>> 0
-  return ((word >>> 22) ^ word) >>> 0
-}
-
 /**
  * filmSeed: the grain's seed for a frame drawn at script ms `sMs`: identical frames get identical
  * grain (the export is reproducible, a paused frame does not swim), each new frame new grain. An
@@ -153,10 +175,31 @@ export function filmSeed(sMs: number): number {
   return ((Math.round(sMs) % 16777216) + 16777216) % 16777216
 }
 
+/** The seed's offset of the grain's pixel grid: two integers under 4096 (exact, and small enough for the hash's precision). */
+export function seedOffset(seed: number): [number, number] {
+  return [seed % 4096, Math.floor(seed / 4096) % 4096]
+}
+
+function fract(x: number): number {
+  return x - Math.floor(x)
+}
+
+/** hash12: a float-only hash of a 2D point to [0, 1) (Dave Hoskins' "hash without sine"), as the film pass runs it. */
+export function hash12(x: number, y: number): number {
+  let a = fract(x * 0.1031)
+  let b = fract(y * 0.1031)
+  let c = fract(x * 0.1031)
+  const d = a * (b + 33.33) + b * (c + 33.33) + c * (a + 33.33)
+  a += d
+  b += d
+  c += d
+  return fract((a + b) * c)
+}
+
 /** grainNoise: the grain at pixel (x, y) for seed `seed`, in [-1, 1). */
 export function grainNoise(x: number, y: number, seed: number): number {
-  const h = pcg((x >>> 0) + pcg((y >>> 0) + pcg(seed >>> 0)))
-  return (h / 4294967296) * 2 - 1
+  const [ox, oy] = seedOffset(seed)
+  return hash12(Math.floor(x) + ox, Math.floor(y) + oy) * 2 - 1
 }
 
 /** grainWeight: grain shows most in the mid tones, a quarter of it in black and white. */
@@ -165,17 +208,18 @@ export function grainWeight(l: number): number {
 }
 
 /**
- * filmGrade: the film pass on one screen pixel, exactly as `FILM_FRAGMENT` runs it: warmth,
- * contrast per channel, saturation, vignette at (u, v), then grain at pixel (x, y).
+ * filmGrade: the film pass on one screen pixel, the same math as `FILM_FRAGMENT`: warmth, the
+ * film curve per channel, saturation, vignette at (u, v), then grain at pixel (x, y).
  */
 export function filmGrade(
   rgb: readonly [number, number, number],
   at: { u: number; v: number; x: number; y: number },
   look: FilmLookSettings,
   seed: number,
+  shoulder: number = FILM_SHOULDER,
 ): [number, number, number] {
   const w = warmthGain(look.warmth)
-  const c = rgb.map((v, i) => contrastCurve(Math.min(Math.max(v, 0), 1) * w[i], look.contrast)) as [number, number, number]
+  const c = rgb.map((v, i) => contrastCurve(Math.min(Math.max(v, 0), 1) * w[i], look.contrast, shoulder)) as [number, number, number]
   const s = saturate(c, look.saturation)
   const g = vignetteAt(at.u, at.v, look.vignette)
   const vig = s.map((v) => v * g) as [number, number, number]
@@ -183,7 +227,9 @@ export function filmGrade(
   return [vig[0] + n, vig[1] + n, vig[2] + n]
 }
 
-/** The film pass's shader: `filmGrade` on every pixel (screen values in, screen values out). */
+const f = (v: number) => v.toFixed(4)
+
+/** The film pass's shader: `filmGrade` on every pixel (screen values in, screen values out). Floats only. */
 export const FILM_FRAGMENT = /* glsl */ `
 uniform sampler2D tDiffuse;
 uniform vec3 uWarmth;
@@ -191,32 +237,35 @@ uniform float uContrast;
 uniform float uSaturation;
 uniform float uVignette;
 uniform float uGrain;
-uniform float uSeed;
+uniform vec2 uSeedOffset;
 varying vec2 vUv;
-const float PIVOT = ${FILM_PIVOT.toFixed(4)};
-const vec3 LUMA = vec3(${LUMA.map((v) => v.toFixed(4)).join(', ')});
-float contrastCurve(float x) {
+const float PIVOT = ${f(FILM_PIVOT)};
+const float SHOULDER = ${f(FILM_SHOULDER)};
+const vec3 LUMA = vec3(${LUMA.map(f).join(', ')});
+float filmCurve(float x) {
   float c = clamp(x, 0.0, 1.0);
-  return c <= PIVOT ? PIVOT * pow(c / PIVOT, uContrast) : 1.0 - (1.0 - PIVOT) * pow((1.0 - c) / (1.0 - PIVOT), uContrast);
+  if (c <= PIVOT) return PIVOT * pow(c / PIVOT, uContrast);
+  float t = (c - PIVOT) / (1.0 - PIVOT);
+  float t2 = t * t;
+  float t3 = t2 * t;
+  return PIVOT + (1.0 - PIVOT) * (uContrast * (t3 - 2.0 * t2 + t) + (3.0 * t2 - 2.0 * t3) + SHOULDER * (t3 - t2));
 }
-uint pcg(uint v) {
-  uint state = v * 747796405u + 2891336453u;
-  uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-  return (word >> 22u) ^ word;
+float hash12(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
 }
 void main() {
   vec4 src = texture2D(tDiffuse, vUv);
   vec3 c = clamp(src.rgb, 0.0, 1.0) * uWarmth;
-  c = vec3(contrastCurve(c.r), contrastCurve(c.g), contrastCurve(c.b));
+  c = vec3(filmCurve(c.r), filmCurve(c.g), filmCurve(c.b));
   float l = dot(c, LUMA);
-  c = max(vec3(l) + (c - vec3(l)) * uSaturation, 0.0);
+  c = max(vec3(l) + (c - vec3(l)) * uSaturation, vec3(0.0));
   float d = length((vUv - 0.5) * 2.0) * 0.70710678;
-  c *= 1.0 - uVignette * smoothstep(${VIGNETTE_START.toFixed(4)}, ${VIGNETTE_END.toFixed(4)}, d);
-  uvec2 p = uvec2(gl_FragCoord.xy);
-  uint h = pcg(p.x + pcg(p.y + pcg(uint(uSeed))));
-  float n = float(h) / 4294967296.0 * 2.0 - 1.0;
+  c *= 1.0 - uVignette * smoothstep(${f(VIGNETTE_START)}, ${f(VIGNETTE_END)}, d);
+  float n = hash12(floor(gl_FragCoord.xy) + uSeedOffset) * 2.0 - 1.0;
   l = dot(c, LUMA);
-  c += uGrain * ${GRAIN_AMPLITUDE.toFixed(4)} * n * (0.25 + 3.0 * l * (1.0 - l));
+  c += vec3(uGrain * ${f(GRAIN_AMPLITUDE)} * n * (0.25 + 3.0 * l * (1.0 - l)));
   gl_FragColor = vec4(c, src.a);
 }
 `

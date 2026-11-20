@@ -8,13 +8,15 @@ import {
   FILM_LOOK_DEFAULTS,
   FILM_LOOK_RANGES,
   FILM_PIVOT,
+  FILM_SHOULDER,
   filmGrade,
   filmSeed,
   grainNoise,
+  hash12,
   parseFilmLook,
-  pcg,
   resolveFilmLook,
   saturate,
+  seedOffset,
   vignetteAt,
   warmthGain,
   type FilmLookSettings,
@@ -24,13 +26,20 @@ const KEY = { t: 0, pos: { at: 'world', point: [0, 0, 0] }, look: { at: 'world',
 const script = (extra: Record<string, unknown> = {}) => ({ version: 1, matchId: 'm', name: 'shot', keys: [KEY], ...extra })
 
 /** Every tunable neutral: the film pass leaves a pixel as it is. */
-const NEUTRAL: FilmLookSettings = { exposure: 0, contrast: 1, saturation: 1, vignette: 0, grain: 0, bloom: 0, warmth: 0 }
+const NEUTRAL: FilmLookSettings = { tone: 'aces', exposure: 0, contrast: 1, saturation: 1, vignette: 0, grain: 0, bloom: 0, warmth: 0 }
 
 describe('parseFilmLook', () => {
   it('accepts a full look and returns a clean copy without unknown fields', () => {
-    const raw = { preset: 'film', exposure: -0.5, contrast: 1.3, saturation: 0.9, vignette: 0.4, grain: 0.1, bloom: 1, warmth: -0.2, lut: 'x' }
+    const raw = { preset: 'film', tone: 'agx', exposure: -0.5, contrast: 1.3, saturation: 0.9, vignette: 0.4, grain: 0.1, bloom: 1, warmth: -0.2, lut: 'x' }
     const r = parseFilmLook(raw)
-    expect(r).toEqual({ look: { preset: 'film', exposure: -0.5, contrast: 1.3, saturation: 0.9, vignette: 0.4, grain: 0.1, bloom: 1, warmth: -0.2 } })
+    expect(r).toEqual({ look: { preset: 'film', tone: 'agx', exposure: -0.5, contrast: 1.3, saturation: 0.9, vignette: 0.4, grain: 0.1, bloom: 1, warmth: -0.2 } })
+  })
+
+  it("accepts tone 'aces' or 'agx' and rejects anything else", () => {
+    expect(parseFilmLook({ preset: 'film', tone: 'aces' })).toEqual({ look: { preset: 'film', tone: 'aces' } })
+    for (const tone of ['neutral', 1, null, 'ACES']) {
+      expect(parseFilmLook({ preset: 'film', tone })).toEqual({ error: 'look.tone must be one of aces, agx' })
+    }
   })
 
   it('accepts the preset alone, leaving the tunables out (defaults apply at draw time)', () => {
@@ -61,8 +70,9 @@ describe('parseFilmLook', () => {
   })
 
   it('the defaults sit inside their ranges', () => {
+    expect(FILM_LOOK_DEFAULTS.tone).toBe('aces') // the view's game-matched curve is the base
     for (const [name, [min, max]] of Object.entries(FILM_LOOK_RANGES)) {
-      const v = FILM_LOOK_DEFAULTS[name as keyof FilmLookSettings]
+      const v = FILM_LOOK_DEFAULTS[name as keyof typeof FILM_LOOK_RANGES]
       expect(v).toBeGreaterThanOrEqual(min)
       expect(v).toBeLessThanOrEqual(max)
     }
@@ -95,26 +105,40 @@ describe('resolveFilmLook', () => {
 })
 
 describe('the film grade math', () => {
-  it('contrastCurve maps 0 to 0, 1 to 1 and the pivot to itself, is monotonic, and is the identity at k = 1', () => {
-    for (const k of [0.5, 0.8, 1, 1.2, 2]) {
-      expect(contrastCurve(0, k)).toBe(0)
-      expect(contrastCurve(1, k)).toBeCloseTo(1, 12)
-      expect(contrastCurve(FILM_PIVOT, k)).toBeCloseTo(FILM_PIVOT, 12)
-      let prev = -1
-      for (let i = 0; i <= 1000; i++) {
-        const y = contrastCurve(i / 1000, k)
-        expect(y).toBeGreaterThanOrEqual(prev)
-        expect(y).toBeGreaterThanOrEqual(0)
-        expect(y).toBeLessThanOrEqual(1)
-        prev = y
+  it('contrastCurve maps 0 to 0, 1 to 1 and the pivot to itself, and is monotonic over the whole range of contrast', () => {
+    for (const s of [0, FILM_SHOULDER, 1]) {
+      for (const k of [0.5, 0.8, 1, 1.2, 1.35, 2]) {
+        expect(contrastCurve(0, k, s)).toBe(0)
+        expect(contrastCurve(1, k, s)).toBeCloseTo(1, 12)
+        expect(contrastCurve(FILM_PIVOT, k, s)).toBeCloseTo(FILM_PIVOT, 12)
+        let prev = -1
+        for (let i = 0; i <= 1000; i++) {
+          const y = contrastCurve(i / 1000, k, s)
+          expect(y).toBeGreaterThanOrEqual(prev)
+          expect(y).toBeGreaterThanOrEqual(0)
+          expect(y).toBeLessThanOrEqual(1 + 1e-12)
+          prev = y
+        }
       }
     }
-    for (let i = 0; i <= 20; i++) expect(contrastCurve(i / 20, 1)).toBeCloseTo(i / 20, 12)
-    // More contrast: shadows darker, highlights brighter; out-of-range input is clamped.
-    expect(contrastCurve(0.2, 1.5)).toBeLessThan(0.2)
-    expect(contrastCurve(0.8, 1.5)).toBeGreaterThan(0.8)
+    for (let i = 0; i <= 20; i++) expect(contrastCurve(i / 20, 1, 1)).toBeCloseTo(i / 20, 12)
+    // Out-of-range input is clamped.
     expect(contrastCurve(-1, 1.5)).toBe(0)
     expect(contrastCurve(3, 1.5)).toBeCloseTo(1, 12)
+  })
+
+  it('at the film defaults: deeper blacks, punchier mids, and a shoulder that rolls into white', () => {
+    const k = FILM_LOOK_DEFAULTS.contrast
+    // The toe: a dark value goes much darker (slope 0 at black), black stays black.
+    expect(contrastCurve(0.1, k)).toBeLessThan(0.07)
+    expect(contrastCurve(0.02, k)).toBeLessThan(0.01)
+    // The mids: steeper than the identity around mid grey.
+    const slope = (contrastCurve(FILM_PIVOT + 0.01, k) - contrastCurve(FILM_PIVOT - 0.01, k)) / 0.02
+    expect(slope).toBeGreaterThan(1.3)
+    // The highlights: brighter than the identity, and the curve flattens toward white (no hard clip).
+    expect(contrastCurve(0.75, k)).toBeGreaterThan(0.75)
+    const top = (contrastCurve(1, k) - contrastCurve(0.99, k)) / 0.01
+    expect(top).toBeLessThan(0.6)
   })
 
   it('saturate keeps a color at 1, turns it grey at 0, and never goes negative', () => {
@@ -151,7 +175,8 @@ describe('the film grade math', () => {
   })
 
   it('the grain is deterministic per pixel and seed, centered, and new on every frame', () => {
-    expect(pcg(0)).toBe(pcg(0))
+    expect(hash12(3, 4)).toBe(hash12(3, 4))
+    expect(seedOffset(4096 * 5 + 7)).toEqual([7, 5])
     expect(grainNoise(10, 20, 1234)).toBe(grainNoise(10, 20, 1234))
     expect(grainNoise(10, 20, 1234)).not.toBe(grainNoise(10, 20, 1235))
     expect(grainNoise(10, 20, 1234)).not.toBe(grainNoise(11, 20, 1234))
@@ -166,7 +191,7 @@ describe('the film grade math', () => {
       if (n !== grainNoise(i % 64, Math.floor(i / 64), 78)) changed++
     }
     expect(Math.abs(sum / N)).toBeLessThan(0.05)
-    expect(changed).toBe(N)
+    expect(changed).toBeGreaterThan(0.99 * N)
   })
 
   it('filmSeed: the same script time gives the same seed, frames 1/60 s apart differ, always an exact float integer', () => {
@@ -178,9 +203,9 @@ describe('the film grade math', () => {
     expect(filmSeed(2 ** 30)).toBeLessThan(2 ** 24)
   })
 
-  it('filmGrade leaves a pixel unchanged with every tunable neutral', () => {
+  it('filmGrade leaves a pixel unchanged with every tunable neutral (and a straight shoulder)', () => {
     const at = { u: 0.1, v: 0.9, x: 3, y: 4 }
-    const out = filmGrade([0.2, 0.5, 0.7], at, NEUTRAL, 5)
+    const out = filmGrade([0.2, 0.5, 0.7], at, NEUTRAL, 5, 1)
     expect(out[0]).toBeCloseTo(0.2, 12)
     expect(out[1]).toBeCloseTo(0.5, 12)
     expect(out[2]).toBeCloseTo(0.7, 12)
@@ -200,7 +225,15 @@ describe('the film grade math', () => {
 
   it('the shader carries the same constants as the TypeScript mirror', () => {
     expect(FILM_FRAGMENT).toContain(`const float PIVOT = ${FILM_PIVOT.toFixed(4)};`)
-    expect(FILM_FRAGMENT).toContain('747796405u')
-    expect(FILM_FRAGMENT).toContain('uSeed')
+    expect(FILM_FRAGMENT).toContain(`const float SHOULDER = ${FILM_SHOULDER.toFixed(4)};`)
+    expect(FILM_FRAGMENT).toContain('uniform vec2 uSeedOffset;')
+    // Floats only: no unsigned integer arithmetic for a GPU compiler to refuse.
+    expect(FILM_FRAGMENT).not.toMatch(/\buint\b|\buvec/)
+  })
+
+  it('the corners of the film preset are 25 to 35 % darker than the center', () => {
+    const corner = vignetteAt(0, 0, FILM_LOOK_DEFAULTS.vignette)
+    expect(1 - corner).toBeGreaterThanOrEqual(0.25)
+    expect(1 - corner).toBeLessThanOrEqual(0.35)
   })
 })
