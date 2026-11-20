@@ -79,6 +79,7 @@ import { clesRigsRejeu } from './riggedWeapons3d'
 import { GAME_FOV_DEFAULT, verticalFovOf } from '../model/fovLogic'
 import { labelKeyOf, magsForWeapon, scopeOf } from '../model/scopeLogic'
 import { weaponModelKey, type WeaponModels } from './weaponModels3d'
+import { indexReads } from './indexField3d'
 import { readRedReticle, type HeldWeapon } from './redReticle3d'
 import type { FilmAllegiance } from '@/lib/replay/filmAllegiance'
 export type CameraMode3d = 'fp' | 'tp' | 'free'
@@ -986,11 +987,14 @@ export class ReplayScene3d implements Replay3DExportSource {
   }
   /**
    * Loads still in flight: one gate counts the weapon models, armor and rigs (cf. `loadGate3d`),
-   * and a held player's pose clip loads on its own (`poseClips`). Resolves true on a timeout.
+   * a held player's pose clip loads on its own (`poseClips`), and the weapon index's fields read on
+   * their own (`indexReads`, the Shock Rifle's shot table among them). Resolves true on a timeout.
    */
   exportPendingLoads(): Promise<boolean> | null {
     const gate = this.weaponModels?.gate
-    const gateWait = gate && gate.pending > 0 ? gate.idle(EXPORT_LOAD_WAIT_MS).then((r) => r.timedOut) : null
+    const modelWait = gate && gate.pending > 0 ? gate.idle(EXPORT_LOAD_WAIT_MS).then((r) => r.timedOut) : null
+    const indexWait = indexReads.pending > 0 ? indexReads.idle(EXPORT_LOAD_WAIT_MS).then((r) => r.timedOut) : null
+    const gateWait = modelWait && indexWait ? Promise.all([modelWait, indexWait]).then(([a, b]) => a || b) : modelWait ?? indexWait
     const poses = this.poseClips.pending()
     if (!poses) return gateWait
     const poseWait = Promise.race([

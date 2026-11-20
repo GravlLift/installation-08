@@ -10,8 +10,18 @@
 import { api } from '@/lib/api/client'
 import { isNotFound } from '@/lib/replay/queries'
 
+import { LoadGate } from './loadGate3d'
+
 /** Delay before reading the index again after a failed read (ms). */
 const RETRY_MS = 15_000
+
+/**
+ * Every field read in flight, across the page: an export frame that asked for a field waits for
+ * it and renders again (`exportPendingLoads`), as it does for a weapon model. Without it, a frame
+ * painted right after the page loads draws what the field's absence draws (the Shock Rifle's
+ * pull without its rounds, `shots3d.burstOf`).
+ */
+export const indexReads = new LoadGate()
 
 export type FetchJson = (url: string, signal: AbortSignal) => Promise<unknown>
 
@@ -46,7 +56,7 @@ export class IndexField<T> {
   private load(): void {
     if (this.loading || performance.now() < this.retryAt) return
     this.loading = true
-    this.fetchJson(this.indexUrl, this.abort.signal).then(
+    const read = this.fetchJson(this.indexUrl, this.abort.signal).then(
       (doc) => {
         this.value = this.parse(doc)
         if (!this.value) this.retryAt = performance.now() + RETRY_MS
@@ -57,5 +67,6 @@ export class IndexField<T> {
         this.retryAt = performance.now() + RETRY_MS
       },
     ).finally(() => { this.loading = false })
+    indexReads.track(read)
   }
 }
