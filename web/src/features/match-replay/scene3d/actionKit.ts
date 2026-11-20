@@ -13,6 +13,7 @@ import * as THREE from 'three'
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
 
 import { cssColor } from './cssColor'
+import { drawRecorder } from './drawRecorder3d'
 import { toThree } from './tracks3d'
 
 /** A player or event's label: the same pill everywhere (view and export). */
@@ -85,6 +86,7 @@ export class InstancePool {
     this.mesh.setMatrixAt(this.n, scratch.m)
     this.mesh.setColorAt(this.n, color)
     this.n++
+    drawRecorder.adds++
   }
 
   end(): void {

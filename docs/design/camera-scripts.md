@@ -398,7 +398,7 @@ view selector at the top left.
 - **Camera track**: an export run by URL (`#/matches/<id>?autoexport=<script>...`) also uploads
   the camera of every encoded frame to `PUT /api/matches/{id}/exports/{name}/camera`, stored as
   `exports\<name>.camera.json` beside the clip (`GET` the same path to read it):
-  `{version:1, matchId, script, fps, units, clipping, samples:[{i, frame, scriptMs, pos, dir, fov, target, sightBlockedAt, nearCover, clippedPct, ceilingStops}]}`
+  `{version:1, matchId, script, fps, units, clipping, coverage, samples:[{i, frame, scriptMs, pos, dir, fov, target, sightBlockedAt, nearCover, clippedPct, ceilingStops}]}`
   in world coordinates (world units, z up); `fov` is the camera's VERTICAL degrees, `target` the
   script's look point. A camera path is measured from it (speed, turn rate, distance to the
   subject) instead of judged by eye. `sightBlockedAt` is the distance from the camera to the first
@@ -413,6 +413,34 @@ view selector at the top left.
   `clipping` sums them up: `{level, warnAbovePct, grid, frames, meanPct, maxPct, maxAt:{i, frame,
   scriptMs}, warn}` (null when no frame was measured); the export warns in the console when a
   frame passes 2 % (`export/clipMetric.ts` says why 220 and 2).
+- **Render coverage**: the same sidecar carries `coverage`, whether the render drew every event
+  of the clip's window. The window is the plan's film frames, first to last, and their document
+  instants (`frame x frameIntervalMs`). The events are the match ledger's in that window
+  (`GET /api/matches/{id}/ledger?fromMs=&toMs=`, `serve_ledger.go`: kill, death, medal, shot,
+  damage, melee, throwStart, grenade, projectile, detonation, weaponChange, pickup, score). What
+  drew them comes from the layers themselves: while an export records, every layer that adds an
+  instance, starts an effect or plays an animation clip for an event marks that event's ledger id
+  (`scene3d/drawRecorder3d.ts`, a no-op outside exports), and `export/renderCoverage.ts` joins
+  the two:
+  `{window:{fromFrame, toFrame, fromMs, toMs}, hud, events:[{id, kind, frame, actor, target, drawn, by}], summary:{events, drawn, undrawn, undrawnByKind:{<kind>: n}, byKind:{<kind>: {events, drawn, undrawn}}}, notes?}`.
+  `actor` and `target` are gamertags (`team <n>` for a score tick). `by` names every layer that
+  drew the event (`<layer>/<what>` joined with ` + `, for example `flights3d/stuck + motion3d/grenade`),
+  `hud-hidden` on an undrawn kill, medal or score when the export painted no HUD (`hud` false: a
+  clean frame, or no followed player, which is every camera-script export; the HUD is their only
+  painter), and null otherwise: an undrawn event is named, never dropped. "Drawn" means placed in
+  the scene at an exported frame, not necessarily inside the camera's frame. A score tick's id
+  is its team and value, and counts as drawn only when that value was painted at or after the
+  tick. A ledger that cannot be read leaves `{window, error}`, and the export warns in the console
+  when events go undrawn. No QC spec for this sidecar existed when it was written
+  (`spartan-studio/docs/specs/broadcast-qc.md` was absent), so these names are the reference.
+  What marks each kind today: `shots3d/<tracer|bolt|beam|spread>` (shot), `bodyShell3d/shield_hit`
+  (damage), `motion3d/meleeStart` and `motion3d/melee` (melee; the lethal strike also marks its
+  kill), `flights3d/flight|at_rest|stuck` and `motion3d/grenade` (grenade), `flights3d/flight|at_rest`
+  (projectile), `flights3d/explosion|nappe|halo` (detonation), `corpses3d/body` (death),
+  `avatar3d/held_weapon` and `motion3d/swap` (weaponChange; a weapon pickup by the held weapon),
+  `exportHud/killFeed` and `deaths3d/marker` (kill), `exportHud/score` (score). Nothing marks a
+  throwStart, a medal (the export HUD has no medal painter), a grenade or equipment pickup, or a
+  weapon drop.
 - **Motion blur** (`&blur=<subframes 1..32>`, default 1 = off; `&shutter=<degrees 1..360>`,
   default 180): each file frame is the GPU average, in linear light, of N subframes centered on
   the frame's time and spread over `shutter / 360` of the frame interval

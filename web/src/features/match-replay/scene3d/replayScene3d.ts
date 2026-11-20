@@ -34,7 +34,8 @@ import { buildActionScene } from './actionLayers3d'
 import type { ActionScene3d } from './actionScene3d'
 import type { SpartanArmory } from './armory3d'
 import { attachBoneOf, drawnWeapon, makeAvatar, placeBody, releaseWeapon, showBodyFx, showWeapon, wearSpartan, type Avatar } from './avatar3d'
-import { NO_IMPACTS } from './bodyShell3d'
+import { NO_IMPACTS, type BodyFxState } from './bodyShell3d'
+import { drawRecorder, ledgerId, markHeldWeapon } from './drawRecorder3d'
 import { viewGripOf } from './viewGrip3d'
 import { BODY_CENTER, EYE_HEIGHT } from './body3d'
 import { placeTag } from './nameTags3d'
@@ -562,6 +563,17 @@ export class ReplayScene3d implements Replay3DExportSource {
       this.scriptClocks.set(script, c)
     }
     return c
+  }
+
+  /**
+   * recordBodyDraws: an export's draw records for a body placed at frame `f` (`drawRecorder3d`): the
+   * weapon shown in its hand (`heldKey`, null when none is shown) for the takes of that weapon, and
+   * the shield hits its shell shows for their damages.
+   */
+  private recordBodyDraws(slot: number, f: number, heldKey: string | null, fx: BodyFxState | null, firstPerson: boolean): void {
+    if (heldKey && this.doc) markHeldWeapon(this.doc, slot, f, heldKey, firstPerson ? 'firstPersonArms3d/held_weapon' : 'avatar3d/held_weapon')
+    if (!fx) return
+    for (const hit of fx.impacts) if (hit.damage !== undefined && hit.damage >= 0) drawRecorder.mark(ledgerId.damage(hit.damage), 'bodyShell3d/shield_hit')
   }
 
   /**
@@ -1143,6 +1155,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       const weaponCoat = weaponModel && weaponKey ? (this.armory?.weaponCoat(p.xuid, weaponKey, weaponModel) ?? null) : null
       showWeapon(a, held, weaponModel, firstPerson ? viewGripOf(held?.key ?? null) : null, weaponCoat)
       showBodyFx(a, fx)
+      if (drawRecorder.on && s) this.recordBodyDraws(s.slot, f, held && (weaponModel || rigVisible) ? held.key : null, fx, firstPerson)
       if (fx && !firstPerson) this.post.outline.add(a.group, fx) // team outline: every visible player, self excepted in first person
       if (firstPerson) this.inView = held?.key ? { key: held.key, name: held.name, rig: rigVisible } : null
       a.group.visible = !(firstPerson && rider) // aboard in first person: no weapon shown

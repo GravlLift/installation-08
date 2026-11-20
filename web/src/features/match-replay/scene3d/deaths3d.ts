@@ -35,6 +35,7 @@ import { InstancePool, LabelPool, SegmentPool, firstFrom } from './actionKit'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { BODY_CENTER, TAG_HEIGHT } from './body3d'
 import { Corpses3d, type Corpse } from './corpses3d'
+import { drawRecorder, killIdsOf, ledgerId } from './drawRecorder3d'
 import { bodyPosition } from './deathCamera3d'
 import { fallKindOf, type FallKind } from './fall3d'
 import { FRAME_BUDGET_MS, RagdollBakery, type BakeryStats } from './ragdollBakery3d'
@@ -60,7 +61,9 @@ export interface Death3d {
    * The body: the frame where the victim is no longer alive (start of the fall) and its fall; null
    * when the life that ends is not re-read near the kill (never a body next to a live player).
    */
-  body: { start: number; fall: Corpse } | null
+  body: { start: number; fall: Corpse; slot?: number } | null
+  /** The kill's ledger id (`drawRecorder3d.killIdsOf`), for the export's draw records. */
+  killId?: string
 }
 
 /** The maximum lag between the feed's kill and the end of its victim's life (s). */
@@ -103,8 +106,16 @@ export class Deaths3dLayer implements ActionLayer3d {
     const [from, to] = lingeringRange(this.deaths, frame, hold)
     for (let i = from; i < to; i++) {
       const d = this.deaths[i]
-      if (inputs.show.kills) this.draw(d, frame - d.frame, inputs.shotHoldFrames)
-      if (d.body && d.body.start <= frame) this.drawBody(d, d.body, (frame - d.body.start) / fps)
+      if (inputs.show.kills) {
+        const before = drawRecorder.adds
+        this.draw(d, frame - d.frame, inputs.shotHoldFrames)
+        if (drawRecorder.on && d.killId && drawRecorder.adds > before) drawRecorder.mark(d.killId, 'deaths3d/marker')
+      }
+      if (d.body && d.body.start <= frame) {
+        const before = drawRecorder.adds
+        this.drawBody(d, d.body, (frame - d.body.start) / fps)
+        if (drawRecorder.on && d.body.slot !== undefined && drawRecorder.adds > before) drawRecorder.mark(ledgerId.death(d.body.slot), 'corpses3d/body')
+      }
     }
     this.labels.end()
     this.crosses.end()
@@ -247,6 +258,7 @@ export function buildDeaths3d(ctx: ActionContext, kills: readonly ReplayKill[]):
   const posOf = buildCarrierPosAt(doc)
   const seated = ctx.inputs().seatedOfXuid
   const out: Death3d[] = []
+  const ids = killIdsOf(kills)
   for (const k of kills) {
     if (!k.victimXuid) continue
     const frame = deathFrame(ctx, k.victimXuid, Math.round(msToFrames(k.replayMs, doc)))
@@ -255,7 +267,7 @@ export function buildDeaths3d(ctx: ActionContext, kills: readonly ReplayKill[]):
     const from = seated(k.xuid, frame) ? feetAt(ctx, posOf(k.xuid, frame), k.xuid, frame) : null
     const kind = fallKindOf(k, familyOf(k.weaponKey ? ctx.doc.killEffects?.[k.weaponKey] : undefined))
     const body = bodyOf(ctx, k.victimXuid, frame, at, from, kind)
-    out.push({ frame, killer: k.xuid, victim: k.victimXuid, at, from, weapon: k.weaponLabel, body })
+    out.push({ frame, killer: k.xuid, victim: k.victimXuid, at, from, weapon: k.weaponLabel, body, killId: ids.get(k) })
   }
   return out.sort((p, q) => p.frame - q.frame)
 }
@@ -298,8 +310,9 @@ function bodyOf(
     const [x, , z] = aimDirThree(last.h, 0)
     dir.set(-x, 0, -z)
   }
-  start = ctx.tracks.life(victim, start - DEATH_LAG_STEP)?.t1 ?? start
-  return { start, fall: { at, dir: dir.normalize(), h: last.h, kind } }
+  const life = ctx.tracks.life(victim, start - DEATH_LAG_STEP)
+  start = life?.t1 ?? start
+  return { start, fall: { at, dir: dir.normalize(), h: last.h, kind }, ...(life ? { slot: life.slot } : {}) }
 }
 
 /** feetAt: a replay point (x, y) placed at the player's feet height, or on the ground otherwise. */

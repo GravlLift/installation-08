@@ -44,6 +44,7 @@ import * as THREE from 'three'
 import type { ShotFamily } from '../layers/shotEffects'
 import type { ShotFxEntry } from '../model/shotFx'
 import { InstancePool, SegmentPool, firstFrom } from './actionKit'
+import { drawRecorder, ledgerId } from './drawRecorder3d'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { EYE_HEIGHT, MUZZLE_HEIGHT } from './body3d'
 import { newClipMix, type ClipMix } from './clipSample3d'
@@ -296,7 +297,10 @@ export class Shots3dLayer implements ActionLayer3d {
         const path = this.pathOf(e, fp)
         const mix = e.tint === 'kinetic' || !fx.tint[e.tint] ? CORE_MIX : ENERGY_CORE_MIX
         const tint = this.c.copy(this.ctx.ink.of(fx.tint[e.tint] || fx.core)).lerp(core, mix)
-        if (path) this.draw(path, (frame - e.time) / fps, tint, core, { e, fam: e.fam, hold, view: fp })
+        if (!path) continue
+        const before = drawRecorder.adds
+        this.draw(path, (frame - e.time) / fps, tint, core, { e, fam: e.fam, hold, view: fp })
+        if (drawRecorder.on && e.index !== undefined && drawRecorder.adds > before) drawRecorder.mark(ledgerId.shot(e.index), `shots3d/${flightForm(e.fam)}`)
       }
     }
     for (const pool of this.pools) pool.end()

@@ -24,6 +24,7 @@ import { newClipMix, type ClipMix } from './clipSample3d'
 import {
   mixStride,
   selectClips,
+  type MotionActionKind,
   type MotionEvents,
   type MotionGait,
   type MotionInput,
@@ -31,6 +32,7 @@ import {
   type Span,
   type WeaponSwap,
 } from './clipSelect3d'
+import { drawRecorder, killIdsOf, ledgerId } from './drawRecorder3d'
 import { dodgeShots, firstPersonUses, type DodgeShot, type UseShot } from './equipmentUse3d_logic'
 import { fallKindOf } from './fall3d'
 import { bracketAt, gaitAt, headingAt, smoothAt, type Bracket, type Gait } from './gait3d'
@@ -142,7 +144,33 @@ export class Motion3d {
     this.events.reload = this.reloadAt(xuid, life, frame)
     this.events.dodges = this.usesAt(q.fps).dodges.get(life.slot) ?? NO_DODGES
     q.reloadClip = this.reloadClip(clips, life.slot, frame, q.weapon)
+    q.played = drawRecorder.on ? (kind, t) => this.recordPlayed(xuid, life.slot, kind, t) : undefined
     return selectClips(q, clips, out)
+  }
+
+  /**
+   * recordPlayed: an export's draw record for an action clip the body plays (`MotionInput.played`):
+   * the film's events behind that clip's frame, by the same joins this file feeds the clips with (a
+   * melee strike by its action, a lethal strike by its kill and the strikes it absorbs, a throw by
+   * its grenade, a weapon swap by its weapon change).
+   */
+  private recordPlayed(xuid: string, slot: number, kind: MotionActionKind, t: number): void {
+    const by = `motion3d/${kind}`
+    const doc = this.ctx.doc
+    if (kind === 'meleeStart' || kind === 'melee') {
+      doc.actions.forEach((a, i) => {
+        if (a.kind === 'melee' && a.slot === slot && Math.abs(msToFrames(a.ms, doc) - t) <= (kind === 'melee' ? 3 : 0)) drawRecorder.mark(ledgerId.action(i), by)
+      })
+      if (kind === 'melee') {
+        for (const [k, id] of killIdsOf(this.ctx.inputs().kills)) if (k.xuid === xuid && Math.round(msToFrames(k.replayMs, doc)) === t) drawRecorder.mark(id, by)
+      }
+      return
+    }
+    if (kind === 'grenade') {
+      doc.grenades.forEach((g, i) => { if (g.slot === slot && g.t === t) drawRecorder.mark(ledgerId.grenade(i), by) })
+      return
+    }
+    doc.weaponChanges.forEach((c, i) => { if (c.slot === slot && c.t === t) drawRecorder.mark(ledgerId.weaponChange(i), by) })
   }
 
   /** The same stances feed the first-person animations. */

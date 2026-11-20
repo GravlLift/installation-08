@@ -49,6 +49,8 @@ export interface ShieldImpact {
   dir: THREE.Vector3
   /** Seconds since the impact. */
   age: number
+  /** The hit's index in `doc.damages` (the ledger's `damage/<i>`, the export's draw record). */
+  damage?: number
 }
 
 /** A shot's flight line as the view draws it (from the muzzle, toward where it ends), null without one. */
@@ -144,6 +146,8 @@ export function pairShot(shots: readonly ShotFxEntry[], d: DamageEntry): ShotFxE
 export class ShieldImpacts {
   private readonly src: ImpactSources
   private readonly damages = new Map<number, DamageEntry[]>()
+  /** Each damage's index in `doc.damages` (the ledger's `damage/<i>`). */
+  private readonly damageIndex = new Map<DamageEntry, number>()
   private readonly points = new Map<number, ReplayDocumentReady['tracks'][number]['points']>()
   private shotSource: readonly ShotFxEntry[] | null = null
   private shots = new Map<number, ShotFxEntry[]>()
@@ -155,7 +159,8 @@ export class ShieldImpacts {
 
   constructor(src: ImpactSources) {
     this.src = src
-    for (const d of src.doc.damages) {
+    for (const [i, d] of src.doc.damages.entries()) {
+      this.damageIndex.set(d, i)
       const list = this.damages.get(d.slot) ?? []
       list.push(d)
       this.damages.set(d.slot, list)
@@ -193,6 +198,7 @@ export class ShieldImpacts {
       const impact = this.slot(out.length)
       if (!this.ray(shot, slot, frame, impact)) continue
       impact.age = age
+      impact.damage = this.damageIndex.get(d) ?? -1
       out.push(impact)
     }
     return out
@@ -212,7 +218,7 @@ export class ShieldImpacts {
   private slot(i: number): ShieldImpact {
     let s = this.pool[i]
     if (!s) {
-      s = { origin: new THREE.Vector3(), dir: new THREE.Vector3(), age: 0 }
+      s = { origin: new THREE.Vector3(), dir: new THREE.Vector3(), age: 0, damage: -1 }
       this.pool[i] = s
     }
     return s

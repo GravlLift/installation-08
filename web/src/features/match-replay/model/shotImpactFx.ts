@@ -62,7 +62,7 @@ function tintOrDefault(raw: string | undefined): FxTint {
  */
 export function buildShotImpactFx(doc: ReplayDocumentReady): GrenadeRestFx[] {
   const out: GrenadeRestFx[] = []
-  for (const pr of doc.projectiles) {
+  for (const [pi, pr] of doc.projectiles.entries()) {
     if (pr.shot === undefined || pr.shot === null || !pr.detoLue) continue
     const shot = doc.shots[pr.shot]
     if (!shot) continue
@@ -77,6 +77,7 @@ export function buildShotImpactFx(doc: ReplayDocumentReady): GrenadeRestFx[] {
       seed: explosionSeedOf(pr.detoT),
       tint: impact.tint,
       impactStem: impact.impactStem,
+      id: `detonation/projectile/${pi}`,
     })
   }
   return out

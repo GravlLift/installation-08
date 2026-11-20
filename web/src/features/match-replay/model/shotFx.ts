@@ -115,6 +115,8 @@ export interface ShotFxEntry {
   seed: number
   /** Shot of a VEHICLE WEAPON; `null` for a shot on foot or a player weapon. */
   vehicleShot: VehicleShotSource | null
+  /** The shot's index in `doc.shots` (the ledger's `shot/<i>`); absent for a full-auto blow (`fireBursts`). */
+  index?: number
 }
 
 /**
@@ -144,7 +146,9 @@ export function buildShotFx(
   // first one that comes would read the gaze of another life of the same player.
   const bySlot = buildLivesBySlot(doc.tracks)
   const out: ShotFxEntry[] = []
-  for (const s of tirs) {
+  const published = doc.shots.length
+  for (let i = 0; i < tirs.length; i++) {
+    const s = tirs[i]
     if (seatedAtSlot && !seatedAtSlot(s.slot, s.t, s.t)) continue
     const label = s.w ? doc.weaponLabels?.[s.w] : undefined
     // TWO JOINS, IN THIS ORDER — the SAME one as that of the sound (`shotSoundStem`): the registry
@@ -168,6 +172,7 @@ export function buildShotFx(
       tint: fxTintOf(label?.tint ?? style?.tint),
       seed: s.t + s.slot,
       vehicleShot: vehicleShotSourceOf(doc, s, s.t),
+      ...(i < published ? { index: i } : {}),
     })
   }
   return out

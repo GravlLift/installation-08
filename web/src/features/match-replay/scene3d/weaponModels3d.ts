@@ -30,6 +30,7 @@ import { rawMaps } from './armorLibrary3d'
 import { clipsOf, registerSpartanClips, type GltfAnimationJson, type WeaponClips } from './clips3d'
 import { measureSyncPhases } from './clipSample3d'
 import { EquipmentKeys } from './equipmentKeys3d'
+import { drawRecorder } from './drawRecorder3d'
 import { darkMetalFallback } from './fallbackMetal3d'
 import { FlagBanners } from './flagBanner3d'
 import { graftHeroLights } from './heroLightShader3d'
@@ -279,6 +280,7 @@ export class WeaponModelPool {
     copy.quaternion.copy(rotation)
     copy.visible = true
     this.used.push(copy)
+    drawRecorder.adds++
   }
 
   dispose(): void {
