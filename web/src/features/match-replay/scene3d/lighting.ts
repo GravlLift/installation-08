@@ -139,10 +139,28 @@ export function captureSkyScale(sunIntensity: number, sky: THREE.Color): number 
 
 const guarded = new WeakSet<THREE.Material>()
 
+/** The constant vertex normal given to surfaces whose GLB carries none (`giveFiniteNormal`). */
+export const FINITE_NORMAL: readonly number[] = [0, 1, 0]
+
+/**
+ * giveFiniteNormal gives `material` a constant vertex normal (`FINITE_NORMAL`) for geometries
+ * that carry no `normal` attribute (the tool's GLBs: map, Spartan, armor pieces, weapons). Without
+ * it the attribute reads WebGL's generic vertex value, (0, 0, 0) unless another program left
+ * something at that location: three's shadow pass normalizes it (`shadowmap_vertex`,
+ * `shadowWorldNormal`), the sun's shadow coordinate becomes NaN, and the sun's shadow test on
+ * that surface is undefined (the GPU's compiler decides: never shadowed, or always shadowed).
+ * Shading never reads it: faceted rendering takes its normal from screen-space derivatives, and
+ * the shadow's normal bias is zero, so any finite normal gives the true shadow lookup.
+ */
+export function giveFiniteNormal(material: THREE.Material): void {
+  const withDefaults = material as THREE.Material & { defaultAttributeValues?: Record<string, readonly number[]> }
+  withDefaults.defaultAttributeValues = { ...withDefaults.defaultAttributeValues, normal: FINITE_NORMAL }
+}
+
 /**
  * guardMaterial prepares a map material for lighting.
- * - Constant vertex normal: the GLB carries none, and the missing attribute reads as (0, 0, 0),
- *   whose normalization yields NaN in the shadow coordinate: everything would be lit. Faceted
+ * - Constant vertex normal (`giveFiniteNormal`): the GLB carries none, and the missing attribute
+ *   reads as (0, 0, 0), whose normalization yields NaN in the shadow coordinate. Faceted
  *   rendering derives its normals from screen-space derivatives, not this attribute.
  * - A non-finite pixel is written black: degenerate game triangles give a NaN faceted normal;
  *   invisible on screen, a few of them in the environment capture are enough to poison the
@@ -152,8 +170,7 @@ const guarded = new WeakSet<THREE.Material>()
 export function guardMaterial(material: THREE.Material | undefined): void {
   if (!material || guarded.has(material)) return
   guarded.add(material)
-  const withDefaults = material as THREE.Material & { defaultAttributeValues?: Record<string, number[]> }
-  withDefaults.defaultAttributeValues = { ...withDefaults.defaultAttributeValues, normal: [0, 1, 0] }
+  giveFiniteNormal(material)
   const previous = material.onBeforeCompile
   material.onBeforeCompile = (shader, renderer) => {
     previous.call(material, shader, renderer)

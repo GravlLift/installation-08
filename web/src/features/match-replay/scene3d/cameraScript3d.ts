@@ -20,6 +20,7 @@ import { verticalFovOf } from '../model/fovLogic'
 import { BODY_CENTER } from './body3d'
 import { parseHolds, type Hold } from './hold3d'
 import { parseFilmLook, type FilmLook } from './filmLook3d'
+import { parseHeroLights, type HeroLight } from './heroLights3d'
 
 export type Ease = 'smooth' | 'linear' | 'in' | 'out' | 'cut'
 export type ScriptVec3 = [number, number, number]
@@ -62,6 +63,8 @@ export interface CameraScript {
   holds?: Hold[]
   /** An opt-in film look for the shot (`filmLook3d`); absent, the view's default look. */
   look?: FilmLook
+  /** Hero light rigs on players while the script plays (`heroLights3d`). */
+  lights?: HeroLight[]
 }
 
 export const CAMERA_SCRIPT_MAX_KEYS = 512
@@ -247,11 +250,18 @@ export function parseCameraScript(raw: unknown, expectedMatchId?: string): Parse
     if ('error' in parsed) return { ok: false, error: parsed.error }
     look = parsed.look
   }
+  let lights: HeroLight[] | undefined
+  if (r.lights !== undefined) {
+    const parsed = parseHeroLights(r.lights)
+    if ('error' in parsed) return { ok: false, error: parsed.error }
+    lights = parsed.lights
+  }
 
   const script: CameraScript = { version: 1, matchId: r.matchId, name: r.name, keys }
   if (clock !== undefined) script.clock = clock
   if (holds !== undefined) script.holds = holds
   if (look !== undefined) script.look = look
+  if (lights !== undefined) script.lights = lights
   return { ok: true, script }
 }
 

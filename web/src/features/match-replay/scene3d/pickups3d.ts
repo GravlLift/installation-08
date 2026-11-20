@@ -299,6 +299,9 @@ export function glowMaterialOf(source: THREE.Material, ink: THREE.Color): THREE.
   copy.userData = userData
   copy.onBeforeCompile = source.onBeforeCompile
   copy.customProgramCacheKey = source.customProgramCacheKey
+  // The constant normal for the sun's shadow lookup (`lighting.giveFiniteNormal`): `clone` drops it.
+  const defaults = (source as THREE.Material & { defaultAttributeValues?: unknown }).defaultAttributeValues
+  if (defaults !== undefined) Object.assign(copy, { defaultAttributeValues: defaults })
   const std = copy as THREE.MeshStandardMaterial
   // A self-lit surface (a light strip, `selfLit3d`) keeps its own light.
   if (std.emissive instanceof THREE.Color && !userData.selfLit) {

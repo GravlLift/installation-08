@@ -10,7 +10,9 @@ import type * as THREE from 'three'
  * 2026-11-18 sweep, one painted copy per piece per player), a full Array.from of every
  * DataTexture's pixels, and a copy whose `armorMaps` held plain JSON instead of the textures.
  * Here the copy gets the same references: its flags read the same, and its textures are the
- * source's.
+ * source's. The vertex attribute defaults (`defaultAttributeValues`, the constant normal
+ * `lighting.giveFiniteNormal` gives a normal-less GLB's surfaces for the sun's shadow lookup) are
+ * not copied by `clone` on a standard material: the copy gets them too.
  */
 export function cloneMaterial<T extends THREE.Material>(m: T): T {
   const userData = m.userData
@@ -18,6 +20,8 @@ export function cloneMaterial<T extends THREE.Material>(m: T): T {
   try {
     const copy = m.clone() as T
     copy.userData = { ...userData }
+    const defaults = (m as THREE.Material & { defaultAttributeValues?: unknown }).defaultAttributeValues
+    if (defaults !== undefined) Object.assign(copy, { defaultAttributeValues: defaults })
     return copy
   } finally {
     m.userData = userData

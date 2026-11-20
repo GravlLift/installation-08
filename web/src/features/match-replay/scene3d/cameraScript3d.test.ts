@@ -282,6 +282,26 @@ describe('parseCameraScript (holds)', () => {
   })
 })
 
+describe('parseCameraScript (lights)', () => {
+  function rawWithLights(lights: unknown): Record<string, unknown> {
+    return { ...script([key(0, w([0, 0, 0]), w([0, 0, 0]))]), lights }
+  }
+
+  it('round-trips a script with hero lights and drops unknown fields', () => {
+    const s = accepts(rawWithLights([{ xuid: 'A', key: 3, rim: 5, azimuth: -30, rimColor: 'team', junk: 1 }, { xuid: 'B' }]))
+    expect(s.lights).toEqual([{ xuid: 'A', key: 3, rim: 5, azimuth: -30, rimColor: 'team' }, { xuid: 'B' }])
+  })
+
+  it('keeps a light-less script light-less', () => {
+    expect(accepts(script([key(0, w([0, 0, 0]), w([0, 0, 0]))])).lights).toBeUndefined()
+  })
+
+  it('a bad light fails the whole parse with the light\'s message', () => {
+    expect(rejects(rawWithLights([{ xuid: 'A', key: 11 }]))).toContain('lights[0].key')
+    expect(rejects(rawWithLights('nope'))).toContain('lights')
+  })
+})
+
 describe('scriptClockOf', () => {
   const STEPS = 20000
   // docMs(s) approximated as startMs + a midpoint-rule sum of rateAt over [0, s] at STEPS steps.
