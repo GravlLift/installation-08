@@ -78,8 +78,8 @@ function holdFraction(a: number, b: number, f: number, tick: number): number {
 /**
  * fineLifePoints: the life's points at the film's rate, aim included. After a silence longer
  * than `HOLD_AFTER_TICKS` ticks (outside a gap), a holding point repeats the previous position
- * one tick before the sample that follows the silence, so `tracks3d`'s linear interpolation
- * holds the body still during the silence.
+ * one tick before the sample that follows the silence, so `tracks3d`'s interpolation holds the
+ * body still during the silence (its monotone cubic keeps a flat stretch flat, `gait3d.cubicAt`).
  */
 export function fineLifePoints(fr: ReplayFullRateReady): FineLifePoint[] {
   const tick = lifeTick(fr.t)
