@@ -233,6 +233,19 @@ view selector at the top left.
   in world coordinates (world units, z up); `fov` is the camera's VERTICAL degrees, `target` the
   script's look point. A camera path is measured from it (speed, turn rate, distance to the
   subject) instead of judged by eye.
+- **Motion blur** (`&blur=<subframes 1..32>`, default 1 = off; `&shutter=<degrees 1..360>`,
+  default 180): each file frame is the GPU average, in linear light, of N subframes centered on
+  the frame's time and spread over `shutter / 360` of the frame interval
+  (`export/exportShutter.ts`, `scene3d/exportAccumulator3d.ts`). A script export spreads them in
+  script time and maps each to its film frame with the script's clock; a plain export
+  interpolates toward the next plan frame. Tags, HUD and the camera track are the center
+  subframe's. Rendering cost grows with N.
+- **Supersampling** (`&ss=1|2`, default 1): the 3D frame renders at 2x the file's size on each
+  side (through the pixel ratio, so the outline keeps its share of the frame) and is box-filtered
+  down. It needs about four times the GPU memory of a plain export.
+- Both are 3D-export options of `ExportRunOptions` (`motionBlur`, `supersample`); the export
+  dialog does not offer them yet. An invalid value is refused with its reason, like the other
+  parameters.
 
 ## Out of scope for version 1
 

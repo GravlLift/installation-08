@@ -94,7 +94,14 @@ import {
   type ExportBounds,
   type ExportPlan,
 } from './replayExportPlan'
-import { scriptClockOf, type CameraScript } from '../scene3d/cameraScript3d'
+import { scriptClockOf, type CameraScript, type ScriptClockView } from '../scene3d/cameraScript3d'
+import {
+  normalizeMotionBlur,
+  planShutterSteps,
+  scriptShutterSteps,
+  type MotionBlur,
+  type ShutterStep,
+} from './exportShutter'
 import { setScriptPlaybackTime, startScript, stopScript } from '../scene3d/cameraScriptStore'
 import type { ReplayDocumentReady } from '../../../lib/replay/replayNormalize'
 import {
@@ -120,7 +127,7 @@ import type { ReplaySoundEvent } from '../sound/replaySoundVariants'
 import type { EnginePlan } from '../sound/vehicleEngineSound'
 import { readVictory } from '../model/victoryLogic'
 import { make3dPainter, type Export3dOptions } from './export3dFrame'
-import { replay3DExportEntry, type ExportCamera3d, type Replay3DExportSource } from './replay3dExportStore'
+import { replay3DExportEntry, type ExportCamera3d, type ExportSubframe3d, type Replay3DExportSource } from './replay3dExportStore'
 import { createExportHud } from './exportHud'
 import type { ReplayKill } from '../model/killFeedLogic'
 
@@ -233,6 +240,17 @@ export interface ExportRunOptions {
    * `view3d`.
    */
   script?: CameraScript | null
+  /**
+   * MOTION BLUR (3D export only): each file frame is the average of `subframes` poses spread
+   * over a `shutterDeg` shutter centered on the frame's time (`exportShutter.ts`). Absent, or one
+   * subframe: a single pose per frame, exactly as without it.
+   */
+  motionBlur?: MotionBlur | null
+  /**
+   * SUPERSAMPLING (3D export only): the 3D frame renders at this many times the file's size on
+   * each side and is filtered down to it. Absent or 1: the file's size.
+   */
+  supersample?: 1 | 2
 }
 
 /** The state the dialog shows. `total` is 0 until an export has started. */
@@ -489,6 +507,8 @@ interface Scene3dRun {
   scriptMs: number[] | null
   /** Filled by the painter: the camera of each file frame, once its image is final. */
   track: CameraTrackSample[]
+  /** Motion blur: the subframe steps of file frame `index`; null without blur. */
+  shutter?: ((index: number) => ShutterStep[]) | null
 }
 
 /**
@@ -496,7 +516,7 @@ interface Scene3dRun {
  * the requested 3D view is no longer loaded: the export says so, it does not fall back to a
  * 2D export instead.
  */
-function take3dScene(view3d: Export3dOptions, format: ExportFormat, frame: number, frameMs: number): Replay3DExportSource {
+function take3dScene(view3d: Export3dOptions, format: ExportFormat, frame: number, frameMs: number, supersample: 1 | 2): Replay3DExportSource {
   const entry = replay3DExportEntry()
   if (!entry) throw new Error('3D view is not loaded')
   entry.source.beginExport({
@@ -506,8 +526,39 @@ function take3dScene(view3d: Export3dOptions, format: ExportFormat, frame: numbe
     pov: view3d.pov,
     frame,
     frameMs,
+    supersample,
   })
   return entry.source
+}
+
+/**
+ * shutterOf: the subframe steps of each file frame of `plan` under `blur`. A camera-script plan
+ * spreads them in SCRIPT time and maps each to its film frame with the script's clock, the
+ * plan's own conversion; a plain plan interpolates the film frame toward the next plan frame.
+ */
+function shutterOf(
+  blur: MotionBlur,
+  plan: ExportPlan & { scriptMs?: number[] },
+  clock: ScriptClockView | null,
+  doc: ReplayDocumentReady,
+): (index: number) => ShutterStep[] {
+  const scriptMs = plan.scriptMs
+  if (clock && scriptMs) {
+    const frameAt = (s: number) => msToFrames(clock.docMsAt(s), doc)
+    return (i) => scriptShutterSteps(scriptMs[i], plan.frames[i], blur, plan.fps, clock.lengthMs, frameAt)
+  }
+  return (i) => planShutterSteps(plan.frames, i, blur)
+}
+
+/**
+ * subframesOf hands a frame's steps to the scene: a camera-script step sets the script's time
+ * right before it is posed, so the camera and any held player move within the shutter too.
+ */
+function subframesOf(steps: readonly ShutterStep[]): ExportSubframe3d[] {
+  return steps.map((s) => {
+    const sMs = s.scriptMs
+    return { frame: s.frame, render: s.render, center: s.center, before: sMs === null ? undefined : () => setScriptPlaybackTime(sMs) }
+  })
 }
 
 /**
@@ -532,6 +583,7 @@ async function framePainter(
   // (reticle, ADS overlays); both draw the place label from the areas the view already loaded.
   // A clean frame carries no HUD at all.
   const scene = scene3d.scene
+  const shutter = scene3d.shutter ?? null
   const hud = !clean && scene3d.view3d.pov
     ? await createExportHud(o.doc, scene3d.view3d.pov, o.kills ?? [], o.playWindow, o.timeLimitMs ?? null, o.locale, {
         aim: scene3d.view3d.camera === 'fp',
@@ -554,6 +606,9 @@ async function framePainter(
       : null,
     overlay: (ctx, view, frame) => { hud?.(ctx, view, frame); paintPanel(ctx, view, source, paint, frame) },
     clean,
+    // Motion blur: the frame's subframes, from its file index (a frame painted without one is a
+    // single pose).
+    subframes: shutter ? (_frame, index) => (index === undefined ? null : subframesOf(shutter(index))) : undefined,
   })
   const scriptMs = scene3d.scriptMs
   return async (frame, index) => {
@@ -736,14 +791,25 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         }
         // The 3D scene is only taken here, at the last moment: the screen's own view stays
         // alive during preparation.
-        if (view3d) scene3d = take3dScene(view3d, format, mixBounds.startFrame, frameToMs(1, o.doc))
+        // Film quality (3D only): motion blur and supersampling. Off, the frame is the single
+        // pose at the file's size, exactly as before they existed.
+        const blur = view3d ? normalizeMotionBlur(options?.motionBlur) : null
+        const supersample = view3d && options?.supersample === 2 ? 2 : 1
+        if (view3d) scene3d = take3dScene(view3d, format, mixBounds.startFrame, frameToMs(1, o.doc), supersample)
         const track: CameraTrackSample[] = []
         const painter = await framePainter(
           canvas,
           o,
           { source, paint: { ink, fonts, backdrop } },
           scene3d && view3d
-            ? { scene: scene3d, format, view3d, scriptMs: script ? (plan as ExportPlan & { scriptMs: number[] }).scriptMs : null, track }
+            ? {
+                scene: scene3d,
+                format,
+                view3d,
+                scriptMs: script ? (plan as ExportPlan & { scriptMs: number[] }).scriptMs : null,
+                track,
+                shutter: blur ? shutterOf(blur, plan, clock, o.doc) : null,
+              }
             : null,
           options?.clean === true,
         )

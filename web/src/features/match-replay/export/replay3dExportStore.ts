@@ -34,6 +34,27 @@ export interface Export3dSetup {
    * the posed frames, never on the wall clock, which in an offline export measures render cost.
    */
   frameMs: number
+  /**
+   * Supersampling: the 3D frame renders at this many times the file's size on each side and is
+   * filtered down to it (2x2 box in linear light). Absent or 1: the file's size, as before.
+   */
+  supersample?: 1 | 2
+}
+
+/**
+ * One subframe of a motion-blurred export frame (`exportFrame`), in time order. The scene poses
+ * each, draws the `render` ones and averages them; the `center` one's camera and tags are the
+ * file frame's (camera track, name tags, HUD).
+ */
+export interface ExportSubframe3d {
+  /** The film frame posed (fractional). */
+  frame: number
+  /** Drawn and added to the average; false: posed only (an even count's exact center). */
+  render: boolean
+  /** The file frame's exact time. */
+  center: boolean
+  /** Called right before the subframe is posed: a camera-script export sets its time here. */
+  before?: () => void
 }
 
 /** A player tag projected into the exported image, in file pixels. */
@@ -56,8 +77,12 @@ export interface Replay3DExportSource {
    * Poses frame `frame`, renders it and returns a 2D canvas read out of the drawing buffer right
    * after the render (`exportReadback3d`), valid until the next call. Never the WebGL canvas: in a
    * hidden tab that one kept serving the first exported image.
+   *
+   * `subframes` (motion blur): the frame is the GPU average of those poses instead of the single
+   * pose at `frame`; the tags and camera read afterwards are the `center` subframe's. Absent:
+   * the single pose, exactly as without motion blur.
    */
-  exportFrame(frame: number): HTMLCanvasElement
+  exportFrame(frame: number, subframes?: readonly ExportSubframe3d[]): HTMLCanvasElement
   /** The visible tags of the last rendered frame. */
   exportTags(): readonly ExportTag3d[]
   /**

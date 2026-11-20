@@ -208,6 +208,123 @@ describe('ReplayExportScene3d', () => {
     }
   })
 
+  describe('motion blur and supersampling', () => {
+    /** An accumulator double: records begin/add/resolve in the scene's call list. */
+    function accumulatorDouble(calls: string[]) {
+      const begun: [number, number, number][] = []
+      let disposed = 0
+      const make = () => ({
+        begin: (w: number, h: number, s: number) => { begun.push([w, h, s]); calls.push('begin') },
+        add: () => calls.push('add'),
+        resolve: () => { calls.push('resolve'); return { width: 100, height: 50 } },
+        dispose: () => { disposed++ },
+      })
+      return { make, begun, disposed: () => disposed }
+    }
+
+    /** The double with a real camera the poses move, and a camera reader for the track. */
+    function blurredDouble() {
+      const d = sceneDouble()
+      const acc = accumulatorDouble(d.calls)
+      const camera = new THREE.PerspectiveCamera()
+      const posed: number[] = []
+      Object.assign(d.scene, {
+        camera,
+        avatars: new Map(),
+        action: { settle: () => d.calls.push('settle'), update: () => d.calls.push('effects'), labelPools: () => [] },
+        placeCamera: (f: number, dt: number) => { d.calls.push('camera'); d.steps.push(dt); posed.push(f); camera.position.set(f, 0, 0) },
+        readCamera: () => ({ pos: [camera.position.x, 0, 0], dir: [1, 0, 0], fov: 50, target: null }),
+      })
+      const exported = new ReplayExportScene3d(d.scene as never, acc.make as never)
+      return { ...d, exported, acc, camera, posed }
+    }
+
+    it('without subframes at scale 1 the frame never touches the accumulator (today\'s path)', () => {
+      const { exported, calls, acc } = blurredDouble()
+      exported.beginExport({ width: 1920, height: 1080, camera: 'tp', pov: null, frame: 10, frameMs: 100 / 3 })
+      exported.exportFrame(10)
+      expect(calls).not.toContain('begin')
+      expect(acc.begun).toEqual([])
+      expect(calls.slice(-3)).toEqual(['render', 'screen', 'read'])
+    })
+
+    it('draws each subframe, adds it, then reads the average back once', () => {
+      const { exported, calls } = blurredDouble()
+      exported.beginExport({ width: 1920, height: 1080, camera: 'tp', pov: null, frame: 10, frameMs: 100 / 3 })
+      calls.length = 0
+      exported.exportFrame(10, [
+        { frame: 9.75, render: true, center: false },
+        { frame: 10, render: false, center: true },
+        { frame: 10.25, render: true, center: false },
+      ])
+      const pose = ['settle', 'avatars', 'camera', 'arms', 'retag', 'effects']
+      const drawn = ['shadows', 'render', 'screen', 'add']
+      expect(calls).toEqual(['begin', ...pose, ...drawn, ...pose, ...pose, ...drawn, 'resolve', 'read', 'screen'])
+    })
+
+    it('steps the spring arm by the subframe spacing, forward only, and on into the next frame', () => {
+      const { exported, steps } = blurredDouble()
+      exported.beginExport({ width: 1920, height: 1080, camera: 'tp', pov: null, frame: 9.75, frameMs: 100 / 3 })
+      const sub = (f: number) => [
+        { frame: f - 0.25, render: true, center: false },
+        { frame: f, render: false, center: true },
+        { frame: f + 0.25, render: true, center: false },
+      ]
+      exported.exportFrame(10, sub(10))
+      exported.exportFrame(11, sub(11))
+      const quarter = 0.25 * (100 / 3) / 1000
+      expect(steps[0]).toBe(0)
+      for (const s of [steps[1], steps[2]]) expect(s).toBeCloseTo(quarter, 12)
+      expect(steps[3]).toBeCloseTo(2 * quarter, 12) // 10.25 -> 10.75: the gap between frames
+      for (const s of [steps[4], steps[5]]) expect(s).toBeCloseTo(quarter, 12)
+      // The total equals what the two plain frames would have stepped from 9.75 to 11.25.
+      expect(steps.reduce((a, b) => a + b, 0)).toBeCloseTo(1.5 * (100 / 3) / 1000, 12)
+    })
+
+    it('the tags, the camera track and the camera itself are the CENTER subframe\'s', () => {
+      const { exported, camera, posed } = blurredDouble()
+      exported.beginExport({ width: 1920, height: 1080, camera: 'tp', pov: null, frame: 10, frameMs: 100 / 3 })
+      exported.exportFrame(10, [
+        { frame: 9.5, render: true, center: false },
+        { frame: 10, render: true, center: true },
+        { frame: 10.5, render: true, center: false },
+      ])
+      expect(posed).toEqual([9.5, 10, 10.5])
+      expect(exported.exportCamera()?.pos[0]).toBe(10)
+      expect(camera.position.x).toBe(10) // put back at the center after the last subframe
+      // A plain frame after it reads the live pose again.
+      exported.exportFrame(11)
+      expect(exported.exportCamera()?.pos[0]).toBe(11)
+    })
+
+    it('calls each subframe\'s `before` right before posing it (the script time)', () => {
+      const { exported, calls } = blurredDouble()
+      exported.beginExport({ width: 1920, height: 1080, camera: 'tp', pov: null, frame: 10, frameMs: 100 / 3 })
+      calls.length = 0
+      exported.exportFrame(10, [
+        { frame: 9.75, render: true, center: false, before: () => calls.push('t1') },
+        { frame: 10.25, render: true, center: true, before: () => calls.push('t2') },
+      ])
+      expect(calls.indexOf('t1')).toBe(1)
+      expect(calls[calls.indexOf('t2') + 1]).toBe('settle')
+    })
+
+    it('supersampling renders at 2x through the pixel ratio and filters down through the accumulator; the end releases it', () => {
+      const { exported, scene, acc, calls } = blurredDouble()
+      const ratios: number[] = []
+      Object.assign(scene.renderer, { setPixelRatio: (r: number) => { ratios.push(r) } })
+      exported.beginExport({ width: 1920, height: 1080, camera: 'tp', pov: null, frame: 10, frameMs: 100 / 3, supersample: 2 })
+      expect(ratios).toEqual([2])
+      calls.length = 0
+      exported.exportFrame(10)
+      expect(acc.begun).toEqual([[100, 50, 2]]) // the file's size (the renderer's CSS size), at 2x
+      expect(calls.filter((c) => c === 'add')).toHaveLength(1)
+      exported.endExport()
+      expect(acc.disposed()).toBe(1)
+      expect(ratios[ratios.length - 1]).toBe(1) // the screen's own ratio is back
+    })
+  })
+
   it('exportStepSeconds never runs backward', () => {
     expect(exportStepSeconds(10, 9, 33)).toBe(0)
     expect(exportStepSeconds(10, 11, 33)).toBeCloseTo(0.033, 9)

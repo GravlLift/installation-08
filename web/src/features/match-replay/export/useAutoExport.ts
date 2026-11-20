@@ -7,8 +7,9 @@
  * question; a navigation must not rewrite a run under way). The hook then waits for the two
  * things the export needs to exist — the loaded 3D scene (`exportScene`) and the page's
  * offline export (`videoExport`, supported) — fetches the named script, and runs it EXACTLY
- * as the dialog does: free camera, no minimap, the chosen sound/format/clean, the script in
- * hand (the script decides the range, so the bounds are ignored by the run). When the run
+ * as the dialog does: free camera, no minimap, the chosen sound/format/clean (and the URL's
+ * motion blur and supersampling, which the dialog does not offer), the script in hand (the
+ * script decides the range, so the bounds are ignored by the run). When the run
  * ends in `done`, the clip's blob goes up by upload instead of waiting for a "Save" click,
  * and the clip is released; a `failed` phase fails the run with the run's own message.
  *
@@ -110,6 +111,9 @@ export function useAutoExport(o: AutoExportInputs): { state: AutoExportState | n
         view3d: { camera: 'free', pov: null, minimap: false },
         clean: request.clean,
         script,
+        // Film quality, as the URL chose (defaults: no blur, no supersampling).
+        motionBlur: request.motionBlur,
+        supersample: request.supersample,
       })
     } catch (err) {
       if (liveRef.current) setState({ status: 'failed', reason: reasonOf(err) })

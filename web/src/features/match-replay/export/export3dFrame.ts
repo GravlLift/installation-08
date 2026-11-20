@@ -4,7 +4,7 @@
  * Both export formats use the same 960x540 logical layout at their respective pixel densities. */
 import type { CameraMode3d } from '../scene3d/replayScene3d'
 import type { ExportFormat } from './exportFormats'
-import type { ExportTag3d, Replay3DExportSource } from './replay3dExportStore'
+import type { ExportSubframe3d, ExportTag3d, Replay3DExportSource } from './replay3dExportStore'
 
 /** Options selected for a 3D export. */
 export interface Export3dOptions {
@@ -65,20 +65,28 @@ export interface Paint3dDeps {
    * footage that gets graphics composited over it later.
    */
   clean?: boolean
+  /**
+   * Motion blur: the subframes of file frame `index` (film frame `frame`), or null for a single
+   * pose. Absent: every frame is a single pose. The tags, minimap and overlays are painted once
+   * per file frame either way (the scene reads its tags at the center subframe).
+   */
+  subframes?: (frame: number, index: number | undefined) => readonly ExportSubframe3d[] | null
 }
 
 /** Create a video-sized canvas and repaint it for each frame. */
-export function make3dPainter(d: Paint3dDeps): (frame: number) => HTMLCanvasElement {
+export function make3dPainter(d: Paint3dDeps): (frame: number, index?: number) => HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = d.format.width
   canvas.height = d.format.height
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('2D context unavailable for 3D composition')
   const view = { width: d.format.width / d.pixelRatio, height: d.format.height / d.pixelRatio }
-  return (frame) => {
+  return (frame, index) => {
     ctx.setTransform(1, 0, 0, 1, 0, 0)
     ctx.globalAlpha = 1
-    ctx.drawImage(d.source.exportFrame(frame), 0, 0, canvas.width, canvas.height)
+    const subframes = d.subframes?.(frame, index) ?? null
+    const image = subframes ? d.source.exportFrame(frame, subframes) : d.source.exportFrame(frame)
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height)
     if (!d.clean) {
       ctx.setTransform(d.pixelRatio, 0, 0, d.pixelRatio, 0, 0)
       paintTags(ctx, d.source.exportTags(), d.pixelRatio, d)

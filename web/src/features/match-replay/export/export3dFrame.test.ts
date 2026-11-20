@@ -193,6 +193,33 @@ describe('make3dPainter — the frame\'s composition', () => {
     expect(map2d).not.toHaveBeenCalled()
     expect(overlay).not.toHaveBeenCalled()
   })
+
+  it('MOTION BLUR: hands the file frame\'s subframes to the scene, and paints the tags once', () => {
+    const spy = vi.spyOn(HTMLCanvasElement.prototype, 'getContext')
+    const { ctx, calls } = fakeCtx()
+    spy.mockReturnValue(ctx as never)
+    const subs = [
+      { frame: 6.9, render: true, center: false },
+      { frame: 7, render: false, center: true },
+      { frame: 7.1, render: true, center: false },
+    ]
+    const asked: (number | undefined)[] = []
+    let tagsRead = 0
+    source.exportTags = () => { tagsRead++; return [{ x: 100, y: 100, name: 'A', color: '#f00', opacity: 1 }] }
+    try {
+      const paint = make3dPainter({ ...deps(), subframes: (_f, index) => { asked.push(index); return index === undefined ? null : subs } })
+      paint(7, 3)
+      expect(source.exportFrame).toHaveBeenLastCalledWith(7, subs)
+      // A frame painted without its file index is a single pose: the plain call, one argument.
+      paint(7)
+      expect(vi.mocked(source.exportFrame).mock.lastCall).toEqual([7])
+    } finally {
+      source.exportTags = () => []
+    }
+    expect(asked).toEqual([3, undefined])
+    expect(tagsRead).toBe(2) // once per file frame, not per subframe
+    expect(calls.filter((c) => c === 'fillText')).toHaveLength(2)
+  })
 })
 
 describe('view3dChoice', () => {

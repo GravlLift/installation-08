@@ -85,6 +85,15 @@ describe('ExportReadback3d', () => {
     expect(ctx.put[2].length).toBe(6 * 3 * 4)
   })
 
+  it('a given size reads the bound framebuffer at that size (the supersampled average, not the 2x buffer)', () => {
+    const readback = new ExportReadback3d()
+    const { gl, reads } = fakeGl(8, 4, (y) => 20 + y)
+    const canvas = readback.read(gl, { width: 4, height: 2 })
+    expect(reads).toEqual([[0, 0, 4, 2]])
+    expect([canvas.width, canvas.height]).toEqual([4, 2])
+    expect([ctx.put[0][0], ctx.put[0][4 * 4]]).toEqual([21, 20]) // upright
+  })
+
   it('a lost context fails the export instead of encoding black frames', () => {
     const readback = new ExportReadback3d()
     const { gl, reads } = fakeGl(4, 2, () => 1, true)
