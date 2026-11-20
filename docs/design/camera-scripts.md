@@ -35,6 +35,20 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
    position follows `ReplayCamera3d.povState`'s rule for any player: alive, their sample; dead,
    where they fell; not yet spawned, their first spawn.
 
+   **Smooth anchors (2026-11-19).** A player's sample is read on a C1 curve through the track's
+   points (`tracks3d.pointStateAt`, `gait3d.cubicAt`: a monotone cubic Hermite in time per axis,
+   PCHIP slopes), not a straight line between them: it passes every published point exactly,
+   never overshoots a stop, and its velocity is continuous, so a body or a camera following it in
+   slow motion no longer steps at the film's 30 or 60 Hz replication rate. On top of that, a
+   player point's `smooth` (default 250 ms) averages the feet over a centered Gaussian window
+   (±`smooth` document ms, sigma `smooth / 2`, a sample every ~20 ms, at most 24 per side), which
+   removes the replication noise the curve still passes through. The film is known ahead, so the
+   window is centered and adds no lag on a constant velocity; on a curve it sits slightly inside
+   the turn (about acceleration × sigma² / 2). A side of the window stops at a jump faster than
+   50 u/s (a respawn or a replication gap) or where the player has no position, so the camera
+   cuts with the player instead of gliding across the map. `smooth: 0` is the raw sample. It is a
+   pure function of `t`.
+
 4. **A player-relative offset is either world-aligned or turns with the player's heading.**
    `world`: the offset is in game axes and only follows the player's position, so the camera
    never swings when they flick their aim (the default). `heading`: the offset is in the player's
@@ -136,10 +150,12 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
   until `s`, then jumps). Before the first entry the first rate holds, after the last the last
   rate holds. The script's length is the later of its last key's `t` and its last rate's `s`.
 - `pos`, `look`: `{ at: "world", point: [x, y, z] }` or
-  `{ at: "player", xuid, offset?: [x, y, z], relative?: "world" | "heading", window?: ms }`.
+  `{ at: "player", xuid, offset?: [x, y, z], relative?: "world" | "heading", window?: ms, smooth?: ms }`.
   A player point is that player's feet at `t`, plus `offset`. Without `offset`, a `look` aims at
   the body's center (`BODY_CENTER` above the feet, `body3d.ts`). `relative` defaults to `world`,
-  `window` to 400.
+  `window` to 400. `smooth` (document ms, 0 to 2000, default 250) is the half-width of the
+  centered Gaussian average of the feet (decision 3); 0 reads the raw sample. The heading of a
+  `heading` offset keeps its own `window`.
 - `fov` (optional, 10 to 150), `roll` (optional, degrees, positive turns the frame clockwise),
   `ease` (optional, default `smooth`; the first key's `ease` is ignored).
 - `look` (optional): `{ "preset": "film", "tone": "aces", "exposure": 0, "contrast": 1.35,
@@ -237,6 +253,19 @@ view selector at the top left.
   in world coordinates (world units, z up); `fov` is the camera's VERTICAL degrees, `target` the
   script's look point. A camera path is measured from it (speed, turn rate, distance to the
   subject) instead of judged by eye.
+- **Motion blur** (`&blur=<subframes 1..32>`, default 1 = off; `&shutter=<degrees 1..360>`,
+  default 180): each file frame is the GPU average, in linear light, of N subframes centered on
+  the frame's time and spread over `shutter / 360` of the frame interval
+  (`export/exportShutter.ts`, `scene3d/exportAccumulator3d.ts`). A script export spreads them in
+  script time and maps each to its film frame with the script's clock; a plain export
+  interpolates toward the next plan frame. Tags, HUD and the camera track are the center
+  subframe's. Rendering cost grows with N.
+- **Supersampling** (`&ss=1|2`, default 1): the 3D frame renders at 2x the file's size on each
+  side (through the pixel ratio, so the outline keeps its share of the frame) and is box-filtered
+  down. It needs about four times the GPU memory of a plain export.
+- Both are 3D-export options of `ExportRunOptions` (`motionBlur`, `supersample`); the export
+  dialog does not offer them yet. An invalid value is refused with its reason, like the other
+  parameters.
 
 ## Out of scope for version 1
 

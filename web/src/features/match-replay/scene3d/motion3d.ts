@@ -33,7 +33,7 @@ import {
 } from './clipSelect3d'
 import { dodgeShots, firstPersonUses, type DodgeShot, type UseShot } from './equipmentUse3d_logic'
 import { fallKindOf } from './fall3d'
-import { bracketAt, gaitAt, lerpAt, type Bracket, type Gait } from './gait3d'
+import { bracketAt, gaitAt, headingAt, smoothAt, type Bracket, type Gait } from './gait3d'
 import { heldWeaponAt, type HeldWeapon3d } from './heldWeapon3d'
 import { filmPosture } from './posturesFilm3d'
 import { thrusterBursts } from './thruster3d_logic'
@@ -178,8 +178,10 @@ export class Motion3d {
     const br = bracketAt(life.pts, frame, this.bracket)
     const m = this.motion
     m.speed = g.speed
-    m.rel = g.speed > 0 ? g.heading - (life.pts[br.lo].h + angleStep(life.pts[br.lo].h, life.pts[br.hi].h) * br.u) : 0
-    m.phase = lerpAt(this.phaseOf(life, fps, clips), br)
+    // The body's heading and the phase on the body's own C1 curve (`gait3d.cubicAt`), so the
+    // feet keep pace with a body that no longer changes speed at each point.
+    m.rel = g.speed > 0 ? g.heading - headingAt(life.pts, br) : 0
+    m.phase = smoothAt(life.pts, this.phaseOf(life, fps, clips), br)
     return m
   }
 
@@ -276,11 +278,6 @@ export class Motion3d {
     }
     return list
   }
-}
-
-/** angleStep: the shortest path from heading `a` to heading `b` (degrees). */
-function angleStep(a: number, b: number): number {
-  return ((b - a + 540) % 360) - 180
 }
 
 /**
