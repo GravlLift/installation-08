@@ -5,8 +5,10 @@
  * Another tool writes camera scripts to the server and needs the rendered clip on disk without
  * a human clicking the export dialog. It opens the match at
  * `#/matches/<id>?autoexport=<scriptName>[&format=1080p|720p][&clean=0|1][&sound=0|1][&out=<name>]`
- * `[&blur=<subframes 1..32>][&shutter=<degrees 1..360>][&ss=1|2]`
- * and the page renders it, uploads it, and reports each step (`useAutoExport.ts`). This module
+ * `[&blur=<subframes 1..32>][&shutter=<degrees 1..360>][&ss=1|2][&stills=<script ms>,<script ms>...]`
+ * and the page renders it, uploads it, and reports each step (`useAutoExport.ts`). `stills`
+ * renders only the frames nearest those script times, one file frame each, silent
+ * (`exportStills.ts`): a beat check in seconds rather than a whole clip. This module
  * only READS that question: a pure function of the hash string, testable without a page.
  *
  * THE HASH ROUTER HAS ALREADY DONE ITS PART: `parseHash` (`App.tsx`) drops the `?query` part
@@ -16,6 +18,7 @@
  */
 import { DEFAULT_EXPORT_FORMAT_ID, EXPORT_FORMAT_IDS, type ExportFormatId } from './exportFormats'
 import { MOTION_BLUR_MAX_SUBFRAMES, SHUTTER_DEFAULT_DEG, type MotionBlur } from './exportShutter'
+import { MAX_STILLS } from './exportStills'
 
 /** An export's stored name, the server's rule (a camera script's name obeys the same one). */
 const EXPORT_NAME_RE = /^[a-z0-9_-]{1,64}$/
@@ -43,7 +46,12 @@ export interface AutoExportRequest {
   motionBlur: MotionBlur
   /** Supersampling: the 3D frame renders at 1x or 2x the file's size; 1 when the URL does not choose. */
   supersample: 1 | 2
+  /** STILLS: the script times (ms) whose nearest frames are the only ones rendered; null for the whole clip. */
+  stills: number[] | null
 }
+
+/** A script time written plainly: digits, optionally a decimal fraction (`3721.5`). */
+const SCRIPT_MS_RE = /^\d{1,7}(\.\d{1,3})?$/
 
 /** A request the page refuses AT ONCE, with the stated reason (see `useAutoExport`). */
 export interface AutoExportRefusal {
@@ -90,6 +98,15 @@ export function parseAutoExport(hash: string): AutoExportRequest | AutoExportRef
   }
   const ss = params.get('ss')
   if (ss !== null && ss !== '1' && ss !== '2') return { error: `ss '${ss}' must be 1 or 2` }
+  const stillsRaw = params.get('stills')
+  let stills: number[] | null = null
+  if (stillsRaw !== null) {
+    const parts = stillsRaw.split(',')
+    if (parts.length > MAX_STILLS || parts.some((p) => !SCRIPT_MS_RE.test(p))) {
+      return { error: `stills '${stillsRaw}' must be 1 to ${MAX_STILLS} script times in ms, comma-separated` }
+    }
+    stills = parts.map(Number)
+  }
   return {
     name,
     format: format === null ? DEFAULT_EXPORT_FORMAT_ID : (format as ExportFormatId),
@@ -101,5 +118,6 @@ export function parseAutoExport(hash: string): AutoExportRequest | AutoExportRef
       shutterDeg: shutter === null ? SHUTTER_DEFAULT_DEG : Number(shutter),
     },
     supersample: ss === '2' ? 2 : 1,
+    stills,
   }
 }

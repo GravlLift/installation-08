@@ -132,6 +132,7 @@ import { createExportHud } from './exportHud'
 import { clipWarning, summarizeClipping, type ClipSummary } from './clipMetric'
 import { drawRecorder } from '../scene3d/drawRecorder3d'
 import { renderDrawsOf, type RenderDraws } from './renderCoverage'
+import { stillIndices } from './exportStills'
 import type { ReplayKill } from '../model/killFeedLogic'
 
 declare global {
@@ -254,6 +255,12 @@ export interface ExportRunOptions {
    * each side and is filtered down to it. Absent or 1: the file's size.
    */
   supersample?: 1 | 2
+  /**
+   * STILLS (camera-script export only, `exportStills.ts`): render only the plan frames nearest
+   * these script times (ms), one file frame each, in this order, silent. Absent or empty: the
+   * whole clip.
+   */
+  stills?: readonly number[] | null
 }
 
 /** The state the dialog shows. `total` is 0 until an export has started. */
@@ -742,6 +749,8 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
       // A script whose clock slows, freezes or speeds the film cannot carry its sound: the
       // clip's time and the match's time no longer run together, so the clip is silent.
       const scriptSilent = script !== null && (script.clock?.rates ?? []).some((r) => r.rate !== 1)
+      // STILLS: a script export of a few chosen frames only (`exportStills.ts`), always silent.
+      const stills = script && options?.stills && options.stills.length > 0 ? options.stills : null
       // A first plan WITHOUT the hold: it gives the range's duration, which the mix needs.
       let plan: ExportPlan = script ? buildScriptExportPlan(script, o.doc, wantedFps) : buildExportPlan(bounds, o.doc, wantedFps)
       // PHASE 1: preparation. The bar does not show "frame 0" — it says what is happening.
@@ -772,7 +781,7 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         // `try`) goes through a React render: we WAIT for the canvas to actually be at the
         // format before opening the encoder — hence the order: request, wait, open.
         await waitForExportLayout(canvas, format, o.redraw)
-        const mix = options?.sound === false || scriptSilent
+        const mix = options?.sound === false || scriptSilent || stills
           ? null
           : await mixExportAudio(o, mixBounds, plan, view3d, {
               cancelled: () => cancelRef.current,
@@ -837,9 +846,11 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         // The script starts NOW, at script time 0: every painted frame sets its own script
         // time afterwards (the painter reads it from the frame index).
         if (script) startScript(script, 0)
+        // STILLS: the plan's frames nearest the asked script times, painted with their own index.
+        const order = stills ? stillIndices((plan as ExportPlan & { scriptMs: number[] }).scriptMs, stills) : null
         // PHASE 2: encoding. Only here does the frame count mean something, and the remaining
         // time can be estimated.
-        const total = plan.frames.length
+        const total = order ? order.length : plan.frames.length
         const start = performance.now()
         // THE DRAW RECORDS (3D only): every layer marks the ledger events it draws while the frames
         // render (`drawRecorder3d`); the render coverage joins them to the ledger afterwards.
@@ -858,7 +869,10 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
               fpsFallback,
             }),
           sink,
-        })
+        }, order)
+        // STILLS: the painter files each camera sample under its plan index; the file holds them in
+        // the order painted, so the track is too.
+        if (order) track.splice(0, track.length, ...order.map((i) => track[i]))
         const marks = drawRecorder.on ? drawRecorder.stop() : null
         // The HUD (kill feed, score) is painted only with a followed player and without a clean frame.
         const draws = marks ? renderDrawsOf(marks, plan.frames, o.doc, view3d !== null && options?.clean !== true && !!view3d.pov) : null
@@ -989,25 +1003,31 @@ interface EncodeHooks {
  *
  * Returns `false` if the user cancelled — that is what decides, for the caller, between
  * handing back a file and handing back none.
+ *
+ * `order` (stills, `exportStills.ts`): the plan indices to paint, in file order; null paints the
+ * whole plan. A still is painted with its plan index and written at its place in the file.
  */
 async function encodeAll(
   paint: FramePainter,
   frames: readonly number[],
   hooks: EncodeHooks,
+  order: readonly number[] | null = null,
 ): Promise<boolean> {
-  for (let i = 0; i < frames.length; i++) {
+  const count = order ? order.length : frames.length
+  for (let k = 0; k < count; k++) {
     if (hooks.cancelled()) return false
+    const i = order ? order[k] : k
     // The frame is complete before it is handed over (`renderComplete` in 3D): `addFrame` reads
-    // the canvas as it is, and the index alone gives its timestamp. The index also reaches
+    // the canvas as it is, and the file index alone gives its timestamp. The plan index reaches
     // the painter: a camera-script export sets the script's time from it.
-    await hooks.sink.addFrame(await paint(frames[i], i), i)
-    if (i % PROGRESS_EVERY !== 0) continue
-    hooks.progress(i)
+    await hooks.sink.addFrame(await paint(frames[i], i), k)
+    if (k % PROGRESS_EVERY !== 0) continue
+    hooks.progress(k)
     // CONTROL RETURNS TO THE PAGE HERE, through the unthrottled channel: without this, the
     // progress bar would never paint, and "Cancel" would never be read.
     await yieldToEvents()
   }
-  hooks.progress(frames.length)
+  hooks.progress(count)
   return true
 }
 

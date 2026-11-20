@@ -29,6 +29,7 @@ describe('parseAutoExport — the request, defaults filled in', () => {
       out: 'demo-5',
       motionBlur: { subframes: 1, shutterDeg: 180 },
       supersample: 1,
+      stills: null,
     })
   })
 
@@ -41,7 +42,16 @@ describe('parseAutoExport — the request, defaults filled in', () => {
       out: 'clip_1',
       motionBlur: { subframes: 1, shutterDeg: 180 },
       supersample: 1,
+      stills: null,
     })
+  })
+
+  it('stills: script times in ms, in the order given; a malformed or overlong list is refused', () => {
+    expect(request('#/matches/m-1?autoexport=a&stills=3721.5,0,8221').stills).toEqual([3721.5, 0, 8221])
+    expect(parseAutoExport('#/matches/m-1?autoexport=a&stills=1,,2')).toEqual({ error: expect.stringContaining('stills') })
+    expect(parseAutoExport('#/matches/m-1?autoexport=a&stills=-5')).toEqual({ error: expect.stringContaining('stills') })
+    const many = Array.from({ length: 65 }, (_, i) => i).join(',')
+    expect(parseAutoExport(`#/matches/m-1?autoexport=a&stills=${many}`)).toEqual({ error: expect.stringContaining('stills') })
   })
 
   it('each parameter can be chosen on its own', () => {

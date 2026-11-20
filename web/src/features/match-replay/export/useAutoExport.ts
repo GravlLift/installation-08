@@ -127,6 +127,8 @@ export function useAutoExport(o: AutoExportInputs): { state: AutoExportState | n
         // Film quality, as the URL chose (defaults: no blur, no supersampling).
         motionBlur: request.motionBlur,
         supersample: request.supersample,
+        // Stills: only the frames nearest the URL's script times (`exportStills.ts`).
+        stills: request.stills,
       })
     } catch (err) {
       if (liveRef.current) setState({ status: 'failed', reason: reasonOf(err) })

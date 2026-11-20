@@ -469,6 +469,13 @@ view selector at the top left.
 - Both are 3D-export options of `ExportRunOptions` (`motionBlur`, `supersample`); the export
   dialog does not offer them yet. An invalid value is refused with its reason, like the other
   parameters.
+- **Stills** (`&stills=<script ms>,<script ms>...`, 1 to 64 times): a beat check instead of a whole
+  render. Only the script plan's frames nearest those times are painted, each with its own plan
+  index (so it is exactly the frame the full clip carries there), and written one file frame each,
+  in the order asked, silent (`export/exportStills.ts`). The server stores exports as `.mp4` only,
+  so the stills arrive as a short clip of N frames; its camera sidecar has N samples in the same
+  order, each with its `scriptMs` and film `frame`. Extracting frame `n` of the clip gives still
+  `n`. Coverage covers the film window from the plan's first frame to its last, not just the stills.
 
 ## Out of scope for version 1
 
