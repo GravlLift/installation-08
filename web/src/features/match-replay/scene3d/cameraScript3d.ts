@@ -30,6 +30,8 @@ export interface PlayerPoint {
   offset?: ScriptVec3
   relative?: 'world' | 'heading'
   window?: number
+  /** Document ms, 0 to 2000: the feet are a centered Gaussian average over ±smooth (default 250, 0 = raw). */
+  smooth?: number
 }
 export type ScriptPoint = WorldPoint | PlayerPoint
 
@@ -111,6 +113,12 @@ function parsePoint(raw: unknown): { point: ScriptPoint } | { error: string } {
         return { error: 'window must be a finite number in (0, 5000]' }
       }
       out.window = p.window
+    }
+    if (p.smooth !== undefined) {
+      if (!isFiniteNumber(p.smooth) || p.smooth < 0 || p.smooth > PLAYER_SMOOTH_MAX_MS) {
+        return { error: `smooth must be a finite number in [0, ${PLAYER_SMOOTH_MAX_MS}]` }
+      }
+      out.smooth = p.smooth
     }
     return { point: out }
   }
@@ -378,11 +386,70 @@ export function scriptClockOf(script: CameraScript): ScriptClockView {
   }
 }
 
+/** A player point's default smoothing (document ms, `PlayerPoint.smooth`). */
+export const PLAYER_SMOOTH_DEFAULT_MS = 250
+export const PLAYER_SMOOTH_MAX_MS = 2000
+/**
+ * The smoothing's sample spacing target (document ms) and its bounds per side. Samples finer than
+ * the tracks' 30 Hz points keep the replication noise from aliasing through a coarse comb: the
+ * default 250 ms takes 13 per side (27 in all, every 19 ms); 2000 ms takes the cap, 24 per side.
+ */
+const SMOOTH_STEP_MS = 20
+const SMOOTH_SIDE_MIN = 3
+const SMOOTH_SIDE_MAX = 24
+/**
+ * Faster than this between two neighboring smoothing samples (world units per second, about
+ * 150 m/s, beyond any vehicle) is a teleport, a respawn or a gap, not motion: the window stops
+ * on that side, so the camera cuts with the player instead of gliding across the map.
+ */
+const SMOOTH_JUMP_U_PER_S = 50
+
+/**
+ * smoothedFeet: the feet of `xuid` around document ms `tMs` as a centered Gaussian average over
+ * ±`smooth` (sigma = smooth / 2, samples every ~20 ms, `SMOOTH_STEP_MS`). The film is known
+ * ahead, so a centered window removes the tracks' remaining micro-jitter with no lag: on a
+ * constant velocity the average is the center itself (on a curve it sits slightly inside the
+ * turn, by about acceleration * sigma^2 / 2). A side stops at an unknown sample or at a jump
+ * (`SMOOTH_JUMP_U_PER_S`), and the weights renormalize. A pure function of `tMs`.
+ */
+function smoothedFeet(xuid: string, tMs: number, smooth: number, subjects: ScriptSubjects, center: Vec3): Vec3 {
+  if (smooth <= 0) return center
+  const sigma = smooth / 2
+  const side = Math.min(SMOOTH_SIDE_MAX, Math.max(SMOOTH_SIDE_MIN, Math.ceil(smooth / SMOOTH_STEP_MS)))
+  const step = smooth / side
+  const maxStep = (SMOOTH_JUMP_U_PER_S * step) / 1000
+  let sx = center[0]
+  let sy = center[1]
+  let sz = center[2]
+  let sw = 1
+  for (const dir of [-1, 1]) {
+    let px = center[0]
+    let py = center[1]
+    let pz = center[2]
+    for (let i = 1; i <= side; i++) {
+      const s = subjects.feetAt(xuid, tMs + dir * i * step)
+      if (s === null || Math.hypot(s.x - px, s.y - py, s.z - pz) > maxStep) break
+      const d = i * step
+      const w = Math.exp(-(d * d) / (2 * sigma * sigma))
+      sx += s.x * w
+      sy += s.y * w
+      sz += s.z * w
+      sw += w
+      px = s.x
+      py = s.y
+      pz = s.z
+    }
+  }
+  return [sx / sw, sy / sw, sz / sw]
+}
+
 /** Resolves a point at the time being drawn into GAME coordinates; null when the player is unknown. */
 function resolvePoint(point: ScriptPoint, tMs: number, subjects: ScriptSubjects, isLook: boolean): Vec3 | null {
   if (point.at === 'world') return point.point
-  const feet = subjects.feetAt(point.xuid, tMs)
-  if (feet === null) return null
+  const raw = subjects.feetAt(point.xuid, tMs)
+  if (raw === null) return null
+  const [x, y, z] = smoothedFeet(point.xuid, tMs, point.smooth ?? PLAYER_SMOOTH_DEFAULT_MS, subjects, [raw.x, raw.y, raw.z])
+  const feet = { x, y, z, h: raw.h }
   // A look point WITHOUT an offset aims at the body center; every other point uses [0,0,0].
   const offset: ScriptVec3 = point.offset ?? (isLook ? [0, 0, BODY_CENTER] : [0, 0, 0])
   if (point.relative === 'heading') {
