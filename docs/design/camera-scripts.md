@@ -274,8 +274,10 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
   - When the script stops, or plays without a look, the chain is the default one again (ACES at
     the view's exposure, the drawer's bloom setting, no film pass).
   - The highlight ceiling (`scene3d/highlightCeiling3d.ts`, `highlightMeter3d.ts`), on every
-    perspective frame, scripted or not: the output pass meters the frame's HDR image (the 97th
-    percentile of luminance on a 64 x 36 grid, glowing pixels left out) and darkens the whole
+    perspective frame, scripted or not: the scene pass meters its own HDR image once the opaque
+    scene is drawn and before any transparent effect (the 97th percentile of luminance on a 64 x 36
+    grid, lit surfaces only however bright; light given off, marked in alpha by
+    `emissionMark3d.ts`, and every transparent effect are left out) and darkens the whole
     frame, never brightens it, until those highlights keep at least the detail (screen code
     values per stop) the default view gives them, and at least the default view's detail on a
     white surface in full sun. A look's exposure and contrast therefore cannot flatten pale

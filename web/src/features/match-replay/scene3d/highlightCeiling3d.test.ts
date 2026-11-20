@@ -105,6 +105,19 @@ describe('ceilingStops — the highlight ceiling', () => {
     expect(chest).toBeGreaterThan(188)
   })
 
+  it("pulls demo-8's flash-lit freeze (look exposure -0.3, highlight level 1.5 to 2 linear) back by 0.4 to 0.85 stop, inside the cap", () => {
+    const demo8: ToneChain = { ...BASE, film: resolveFilmLook({ preset: 'film', exposure: -0.3 }) }
+    // The export's own freeze frame, inverted through this chain: 97th percentile at about 1.66.
+    const c = ceilingStops(1.66, demo8, BASE)
+    expect(c).toBeLessThan(-0.45)
+    expect(c).toBeGreaterThan(-0.65)
+    expect(ceilingStops(1.5, demo8, BASE)).toBeGreaterThan(-0.5)
+    expect(ceilingStops(2, demo8, BASE)).toBeGreaterThan(-0.9)
+    // The cap only binds on a frame whose highlights pass about 3.3 linear.
+    expect(ceilingStops(3, demo8, BASE)).toBeGreaterThan(-CEILING_MAX_STOPS)
+    expect(ceilingStops(4, demo8, BASE)).toBe(-CEILING_MAX_STOPS)
+  })
+
   it("leaves the look's full exposure on a dark frame", () => {
     expect(ceilingStops(0.1, DEMO3, BASE)).toBe(0)
     expect(ceilingStops(0.02, DEMO3, BASE)).toBe(0)

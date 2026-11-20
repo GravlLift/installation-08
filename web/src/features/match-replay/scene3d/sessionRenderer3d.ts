@@ -17,6 +17,7 @@
  */
 import * as THREE from 'three'
 import { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
+import { installEmissionMarks } from './emissionMark3d'
 import { createKtx2Loader } from './ktx2Textures3d'
 
 let renderer: THREE.WebGLRenderer | null = null
@@ -25,6 +26,8 @@ let ktx2: KTX2Loader | null = null
 /** getSessionRenderer: the session's one WebGLRenderer, created lazily on first use. */
 export function getSessionRenderer(): THREE.WebGLRenderer {
   if (!renderer) {
+    // Before any program is compiled: three caches built-in programs by parameters, not source.
+    installEmissionMarks()
     renderer = new THREE.WebGLRenderer({ antialias: true })
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     renderer.info.autoReset = false
