@@ -31,7 +31,10 @@ describe('graftHeroLights', () => {
     expect(shader.fragmentShader).toContain('#include <lights_pars_begin>')
     expect(shader.fragmentShader.indexOf('uniform int uHeroCount;')).toBeLessThan(shader.fragmentShader.indexOf(HERO_APPLY))
     expect(shader.uniforms.uHeroCount).toBe(heroLightUniforms.uHeroCount)
-    expect(m.customProgramCacheKey()).toMatch(/\|hero-v1$/)
+    expect(m.customProgramCacheKey()).toMatch(/\|hero-v2$/)
+    // The additions roll off at their knees (white armor cannot clip; dark armor keeps the light).
+    expect(HERO_APPLY).toContain('heroDiffuseAdd / (1.0 + max(dot(heroDiffuseAdd, heroLuma), 0.0) / 0.350)')
+    expect(HERO_APPLY).toContain('heroSpecularAdd / (1.0 + max(dot(heroSpecularAdd, heroLuma), 0.0) / 1.500)')
   })
 
   it('composes with a painted armor copy (its own patch runs first)', () => {

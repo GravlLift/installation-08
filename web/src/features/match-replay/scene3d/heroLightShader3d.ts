@@ -68,8 +68,20 @@ uniform vec3 uHeroCenter[HERO_MAX];
 uniform vec3 uHeroDir[HERO_MAX * HERO_PER_RIG];
 uniform vec3 uHeroColor[HERO_MAX * HERO_PER_RIG];`
 
+/**
+ * The knee of what the hero lights may ADD to a fragment, in linear luminance (before exposure and
+ * tone mapping). What they add is divided by (1 + its luminance / knee), the same factor for the
+ * three channels: on dark armor (a small addition) it is nearly 1 and the light reads in full; on
+ * white or pale armor it rolls the addition off, so a key cannot clip it to a featureless white or
+ * push a red past its own hue to pink. The specular knee is higher: a highlight is meant to bloom.
+ */
+export const HERO_DIFFUSE_KNEE = 0.35
+export const HERO_SPECULAR_KNEE = 1.5
+
 export const HERO_APPLY = /* glsl */ `
 #if defined( RE_Direct )
+vec3 heroDiffuse0 = reflectedLight.directDiffuse;
+vec3 heroSpecular0 = reflectedLight.directSpecular;
 for (int heroI = 0; heroI < HERO_MAX; heroI++) {
   if (heroI >= uHeroCount) break;
   vec3 heroCenter = (viewMatrix * vec4(uHeroCenter[heroI], 1.0)).xyz;
@@ -83,6 +95,13 @@ for (int heroI = 0; heroI < HERO_MAX; heroI++) {
     heroLight.visible = true;
     RE_Direct(heroLight, geometryPosition, geometryNormal, geometryViewDir, geometryClearcoatNormal, material, reflectedLight);
   }
+}
+if (uHeroCount > 0) {
+  const vec3 heroLuma = vec3(0.2126, 0.7152, 0.0722);
+  vec3 heroDiffuseAdd = reflectedLight.directDiffuse - heroDiffuse0;
+  vec3 heroSpecularAdd = reflectedLight.directSpecular - heroSpecular0;
+  reflectedLight.directDiffuse = heroDiffuse0 + heroDiffuseAdd / (1.0 + max(dot(heroDiffuseAdd, heroLuma), 0.0) / ${HERO_DIFFUSE_KNEE.toFixed(3)});
+  reflectedLight.directSpecular = heroSpecular0 + heroSpecularAdd / (1.0 + max(dot(heroSpecularAdd, heroLuma), 0.0) / ${HERO_SPECULAR_KNEE.toFixed(3)});
 }
 #endif`
 
@@ -105,7 +124,7 @@ export function graftHeroLights(material: THREE.Material): void {
       .replace('#include <lights_pars_begin>', `#include <lights_pars_begin>${HEAD}`)
       .replace('#include <lights_fragment_begin>', `#include <lights_fragment_begin>${HERO_APPLY}`)
   }
-  material.customProgramCacheKey = () => `${previousKey()}|hero-v1`
+  material.customProgramCacheKey = () => `${previousKey()}|hero-v2`
   material.needsUpdate = true
 }
 
