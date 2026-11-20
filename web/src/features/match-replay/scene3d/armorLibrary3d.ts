@@ -26,7 +26,7 @@ import { API_BASE_URL, api } from '@/lib/api/client'
 import type { CoatingFile, CoatingTable } from './armorCoating3d'
 import { GradientAtlas, SWATCH_SIZE, redBlue } from './armorGradients3d'
 import { prepareArmorUVs, type ArmorMaps } from './armorMaterial3d'
-import { ARMOR_INDEX_SCHEMA, type ArmorIndex } from './armorPlan3d'
+import { ARMOR_INDEX_SCHEMAS, type ArmorIndex } from './armorPlan3d'
 import { fetchMesh } from './meshFetch'
 import { withMeshopt } from './meshoptGeometry3d'
 import { surfaceModelBytes } from './sessionResourceBytes3d'
@@ -98,7 +98,7 @@ export class ArmorLibrary {
     this.indexLoad ??= this.io.fetchJson(`${this.base}/${INDEX_FILE}`, this.abort.signal).then(
       (doc) => {
         const ix = doc as ArmorIndex
-        if (ix.schema === ARMOR_INDEX_SCHEMA) return ix
+        if (ARMOR_INDEX_SCHEMAS.includes(ix.schema)) return ix
         console.warn('3D replay: unknown schema for the armor pieces index', ix.schema)
         return null
       },

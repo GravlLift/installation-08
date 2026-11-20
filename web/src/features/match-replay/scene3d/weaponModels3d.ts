@@ -33,7 +33,7 @@ import { EquipmentKeys } from './equipmentKeys3d'
 import { darkMetalFallback } from './fallbackMetal3d'
 import { FlagBanners } from './flagBanner3d'
 import { graftHeroLights } from './heroLightShader3d'
-import { giveFiniteNormal } from './lighting'
+import { giveFiniteNormal, shadesFaceted } from './lighting'
 import { fetchMesh } from './meshFetch'
 import { ReticleRanges } from './reticleRanges3d'
 import { surfaceModelBytes } from './sessionResourceBytes3d'
@@ -220,16 +220,17 @@ function registerClips(gltf: GLTF): void {
 }
 
 /**
- * prepareModel: faceted (the tool's GLBs carry no vertex normals) with a finite constant normal for
- * the sun's shadow lookup (`giveFiniteNormal`), cast and receive shadows, dark metal on
- * texture-less materials (`darkMetalFallback`).
+ * prepareModel: smooth on the game's vertex normals, faceted only for a GLB built before it carried
+ * them (`shadesFaceted`), with a finite constant normal for the sun's shadow lookup there
+ * (`giveFiniteNormal`, inert where the geometry has normals), cast and receive shadows, dark metal
+ * on texture-less materials (`darkMetalFallback`).
  */
 export function prepareModel(root: THREE.Object3D): void {
   root.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return
     const m = o.material as THREE.MeshStandardMaterial
     darkMetalFallback(m)
-    m.flatShading = true
+    m.flatShading = shadesFaceted(o.geometry as THREE.BufferGeometry)
     giveFiniteNormal(m)
     // A camera script's hero lights reach the weapon the model is (`heroLightShader3d`); off, nothing changes.
     graftHeroLights(m)

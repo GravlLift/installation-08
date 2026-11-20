@@ -37,8 +37,13 @@ export interface ArmorIndex {
   failures: { key: string; reason: string }[]
 }
 
-/** The index version the view knows how to read (`meshproto.SchemaPieces`). */
-export const ARMOR_INDEX_SCHEMA = 2
+/** The index version the library builds today (`spartanpieces.SchemaPieces`). */
+export const ARMOR_INDEX_SCHEMA = 3
+/**
+ * The index versions the view reads: 3 is 2 with the game's vertex normals in the GLBs (the index
+ * itself unchanged), so a library built before them still draws, faceted, until it is rebuilt.
+ */
+export const ARMOR_INDEX_SCHEMAS: readonly number[] = [2, ARMOR_INDEX_SCHEMA]
 /** The default armor's own core permutation (Mark VII, that of the `spartan` model). */
 export const DEFAULT_CORE = '13d24f1f'
 
