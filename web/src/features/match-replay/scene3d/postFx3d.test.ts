@@ -7,7 +7,8 @@ import type { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 import { BLOOM_EXCESS_MAX, BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, GlowBloomPass } from './bloom3d'
-import { buildPostFx, GRADE_GAIN, PASS_NAMES, type PostFx3d } from './postFx3d'
+import { FILM_LOOK_DEFAULTS, filmSeed, warmthGain } from './filmLook3d'
+import { buildPostFx, FILM_TONE_MAPPING, GRADE_GAIN, PASS_NAMES, type PostFx3d } from './postFx3d'
 import type { Outline3d } from './outline3d'
 
 /** Fake renderer: the compositor only reads its pixel ratio from it (the target is supplied). */
@@ -102,6 +103,124 @@ describe('buildPostFx — the bloom pass', () => {
       expect(end).toHaveBeenCalledTimes(1)
       fx.resetCosts()
       expect(fx.costs.bloom).toEqual({ calls: 0, triangles: 0 })
+    } finally {
+      fx.dispose()
+    }
+  })
+})
+
+describe('buildPostFx — the film look', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  /** A fake renderer with the view's own tone mapping; `seen` records what the output pass drew with. */
+  function filmRig(bloom: boolean) {
+    const seen: [THREE.ToneMapping, number][] = []
+    vi.spyOn(OutputPass.prototype, 'render').mockImplementation(function (this: OutputPass, r: THREE.WebGLRenderer) {
+      seen.push([r.toneMapping, r.toneMappingExposure])
+    })
+    const renderer = {
+      getPixelRatio: () => 1,
+      info: { render: { calls: 0, triangles: 0 } },
+      toneMapping: THREE.ACESFilmicToneMapping as THREE.ToneMapping,
+      toneMappingExposure: 1.15,
+    } as unknown as THREE.WebGLRenderer
+    const fx = buildPostFx(renderer, new THREE.Scene(), new THREE.PerspectiveCamera(), bloom)
+    const drawOutput = () => (fx.output.render as (...a: unknown[]) => void)(renderer, null, null, 0, false)
+    return { fx, renderer, seen, drawOutput }
+  }
+
+  it('tone maps the output pass alone with AgX at the look exposure, and gives the renderer its settings back', () => {
+    const { fx, renderer, seen, drawOutput } = filmRig(false)
+    try {
+      drawOutput()
+      fx.setFilmLook({ preset: 'film', exposure: 1 }, 1000)
+      expect(fx.film).not.toBeNull()
+      drawOutput()
+      expect(renderer.toneMapping).toBe(THREE.ACESFilmicToneMapping)
+      expect(renderer.toneMappingExposure).toBe(1.15)
+      fx.setFilmLook(null)
+      drawOutput()
+      expect(seen).toEqual([
+        [THREE.ACESFilmicToneMapping, 1.15],
+        [FILM_TONE_MAPPING, 2.3],
+        [THREE.ACESFilmicToneMapping, 1.15],
+      ])
+      expect(FILM_TONE_MAPPING).toBe(THREE.AgXToneMapping)
+    } finally {
+      fx.dispose()
+    }
+  })
+
+  it('forces bloom on at the look strength, puts the film pass between SMAA and the outline line, and clearing restores the exact chain', () => {
+    const { fx } = filmRig(false)
+    try {
+      const before = [...fx.composer.passes]
+      fx.setFilmLook({ preset: 'film', bloom: 0.8 }, 0)
+      const passes = fx.composer.passes
+      expect(fx.bloom).toBeInstanceOf(GlowBloomPass)
+      expect(fx.bloom!.strength).toBe(0.8)
+      expect(passes.indexOf(fx.bloom!)).toBe(passes.findIndex((p) => p instanceof OutputPass) - 1)
+      const film = fx.filmPass!
+      expect(passes.indexOf(film)).toBe(passes.indexOf(fx.smaa) + 1)
+      expect(passes[passes.length - 1]).toBe(fx.outline.linePass) // grain and vignette never touch the line
+      expect(film.material.depthTest).toBe(false)
+      expect(film.material.depthWrite).toBe(false)
+      // The drawer turning bloom off while the look plays changes nothing until the look ends.
+      fx.setBloom(false)
+      expect(fx.bloom).not.toBeNull()
+      const release = vi.spyOn(film, 'dispose')
+      fx.setFilmLook(null)
+      expect(release).toHaveBeenCalledTimes(1)
+      expect(fx.film).toBeNull()
+      expect(fx.filmPass).toBeNull()
+      expect(fx.bloom).toBeNull()
+      expect(fx.composer.passes.length).toBe(before.length)
+      fx.composer.passes.forEach((p, i) => expect(p).toBe(before[i]))
+      expect((fx.grade.uniforms.uGain.value as THREE.Vector3).toArray()).toEqual(GRADE_GAIN)
+      fx.setFilmLook(null) // idempotent
+      expect(fx.composer.passes.length).toBe(before.length)
+    } finally {
+      fx.dispose()
+    }
+  })
+
+  it("with the drawer's bloom on, the same pass is kept and goes back to the view's strength", () => {
+    const { fx } = filmRig(true)
+    try {
+      const pass = fx.bloom!
+      expect(pass.strength).toBe(BLOOM_STRENGTH)
+      fx.setFilmLook({ preset: 'film' }, 0)
+      expect(fx.bloom).toBe(pass)
+      expect(pass.strength).toBe(FILM_LOOK_DEFAULTS.bloom)
+      fx.setFilmLook(null)
+      expect(fx.bloom).toBe(pass)
+      expect(pass.strength).toBe(BLOOM_STRENGTH)
+    } finally {
+      fx.dispose()
+    }
+  })
+
+  it('sets the film uniforms from the look, and seeds the grain from the script time of each frame', () => {
+    const { fx } = filmRig(false)
+    try {
+      const look = { preset: 'film' as const, contrast: 1.4, saturation: 0.7, vignette: 0.5, grain: 0.6, warmth: 1 }
+      fx.setFilmLook(look, 1000)
+      const u = fx.filmPass!.uniforms
+      expect(u.uContrast.value).toBe(1.4)
+      expect(u.uSaturation.value).toBe(0.7)
+      expect(u.uVignette.value).toBe(0.5)
+      expect(u.uGrain.value).toBe(0.6)
+      expect((u.uWarmth.value as THREE.Vector3).toArray()).toEqual(warmthGain(1))
+      const seed = u.uSeed.value
+      expect(seed).toBe(filmSeed(1000))
+      fx.setFilmLook(look, 1000)
+      expect(u.uSeed.value).toBe(seed) // the same frame, the same grain
+      fx.setFilmLook(look, 1016.7)
+      expect(u.uSeed.value).not.toBe(seed)
+      const pass = fx.filmPass
+      fx.setFilmLook({ ...look, grain: 0 }, 1016.7) // a new look object: values follow, the pass stays
+      expect(fx.filmPass).toBe(pass)
+      expect(u.uGrain.value).toBe(0)
     } finally {
       fx.dispose()
     }

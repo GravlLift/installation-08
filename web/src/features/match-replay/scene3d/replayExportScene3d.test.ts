@@ -79,6 +79,13 @@ describe('ReplayExportScene3d', () => {
     expect(calls).toEqual(['settle', 'avatars', 'camera', 'arms', 'retag', 'effects', 'shadows', 'render', 'screen', 'read'])
   })
 
+  it("sets the script's film look after the camera (its script time seeds the grain) and before the render", () => {
+    const { exported, calls, scene } = sceneDouble()
+    ;(scene as { applyFilmLook?: () => void }).applyFilmLook = () => calls.push('look')
+    exported.exportFrame(42)
+    expect(calls).toEqual(['settle', 'avatars', 'camera', 'arms', 'retag', 'effects', 'shadows', 'look', 'render', 'screen', 'read'])
+  })
+
   it('exports the tags the SCREEN shows at the frame\'s camera: full at 8 u, faded at 12 u, gone at 15 u, the followed player always', () => {
     // Four players directly in front of a camera that the frame moves to the origin. The export
     // poses the avatars FIRST (tags measured from the previous, far camera) and places the camera
