@@ -86,6 +86,11 @@ export interface CameraScript {
   look?: FilmLook
   /** Hero light rigs on players while the script plays (`heroLights3d`). */
   lights?: HeroLight[]
+  /**
+   * How long a dead body stays on the floor while the script plays (document ms, 0 to
+   * CAMERA_SCRIPT_DEATH_HOLD_MAX_MS); absent, the view's default hold (`deaths3d`).
+   */
+  deathHoldMs?: number
 }
 
 export const CAMERA_SCRIPT_MAX_KEYS = 512
@@ -113,6 +118,8 @@ export const CAMERA_SHAKE_DECAY_MAX = 10000
 /** A shake's main frequency (Hz) is in (0, CAMERA_SHAKE_FREQ_MAX]; absent, CAMERA_SHAKE_FREQ_DEFAULT. */
 export const CAMERA_SHAKE_FREQ_MAX = 60
 export const CAMERA_SHAKE_FREQ_DEFAULT = 12
+/** A script's `deathHoldMs` (document ms) is in [0, CAMERA_SCRIPT_DEATH_HOLD_MAX_MS]. */
+export const CAMERA_SCRIPT_DEATH_HOLD_MAX_MS = 30000
 
 export type ParseResult = { ok: true; script: CameraScript } | { ok: false; error: string }
 
@@ -318,6 +325,13 @@ export function parseCameraScript(raw: unknown, expectedMatchId?: string): Parse
   if (shakes !== undefined) script.shakes = shakes
   if (look !== undefined) script.look = look
   if (lights !== undefined) script.lights = lights
+  if (r.deathHoldMs !== undefined) {
+    const v = r.deathHoldMs
+    if (!isFiniteNumber(v) || v < 0 || v > CAMERA_SCRIPT_DEATH_HOLD_MAX_MS) {
+      return { ok: false, error: `deathHoldMs must be document milliseconds in [0, ${CAMERA_SCRIPT_DEATH_HOLD_MAX_MS}]` }
+    }
+    script.deathHoldMs = v
+  }
   return { ok: true, script }
 }
 

@@ -339,6 +339,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       firstPersonEffectAnchor: (key, marker, out, instance) => this.arms?.effectAnchor(key, marker, out, instance) ?? false,
       firstPersonAnchorMiss: () => (this.arms ? this.arms.anchorMiss : 'no first-person arms'),
       weaponClipSeconds: (key, action) => this.arms?.clipDuration(key, action) ?? null,
+      scriptDeathHoldMs: () => this.cameraPlacement.activeScript()?.deathHoldMs ?? null,
       flashes: this.lighting.flashes, baked: this.model?.baked ?? null, probeAt: (p) => this.lighting.probeAt(p),
     })
     this.preloadRigs()

@@ -19,10 +19,14 @@
  * killed them (baked on death, `ragdollBakery3d`; by the game's death clips, `fall3d`, until it is
  * ready), and stays where it settled for as long as the cross; it belongs to the world, not the
  * drawer: hiding deaths only clears the cross, the line and the label.
+ *
+ * How long a death lingers is the page's `deathHoldFrames`, unless a playing camera script sets
+ * `deathHoldMs` (`deathHoldFramesOf`): a shot can keep two bodies on the floor together.
  */
 import * as THREE from 'three'
 
 import { msToFrames } from '@/lib/replay/replayLogic'
+import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 
 import { familyOf } from '../layers/shotEffects'
 import { buildCarrierPosAt } from '../model/carrierPosition'
@@ -94,11 +98,11 @@ export class Deaths3dLayer implements ActionLayer3d {
     this.links.begin()
     this.corpses.begin(this.ctx.spartanModel())
     this.syncDeaths()
-    const hold = Math.max(1, inputs.deathHoldFrames)
+    const hold = this.holdFrames()
     const fps = Math.max(1, inputs.framesPerSecond)
-    for (let i = firstFrom(this.deaths, (d) => d.frame, frame - hold); i < this.deaths.length; i++) {
+    const [from, to] = lingeringRange(this.deaths, frame, hold)
+    for (let i = from; i < to; i++) {
       const d = this.deaths[i]
-      if (d.frame > frame) break
       if (inputs.show.kills) this.draw(d, frame - d.frame, inputs.shotHoldFrames)
       if (d.body && d.body.start <= frame) this.drawBody(d, d.body, (frame - d.body.start) / fps)
     }
@@ -112,7 +116,12 @@ export class Deaths3dLayer implements ActionLayer3d {
   /** settle bakes, to completion, the bodies visible at `frame` (the video export, `ActionScene3d.settle`). */
   settle(frame: number): void {
     this.syncDeaths()
-    this.bakery.bakeVisible(frame, Math.max(1, this.ctx.inputs().deathHoldFrames))
+    this.bakery.bakeVisible(frame, this.holdFrames())
+  }
+
+  /** holdFrames: how long a death lingers now, the playing script's `deathHoldMs` first (`deathHoldFramesOf`). */
+  private holdFrames(): number {
+    return deathHoldFramesOf(this.ctx.inputs().deathHoldFrames, this.ctx.scriptDeathHoldMs?.() ?? null, this.ctx.doc)
   }
 
   /** syncDeaths rebuilds the deaths when the page's kill list changed. */
@@ -206,6 +215,30 @@ export function deathText(killer: string | null, victim: string | null, weapon: 
   if (!killer) return null
   const who = victim ? `${killer} › ${victim}` : killer
   return weapon ? `${who} · ${weapon}` : who
+}
+
+/**
+ * deathHoldFramesOf: how long a death (cross, label, body) lingers, in frames: the playing camera
+ * script's `deathHoldMs` (document ms) when it sets one, else the page's `defaultFrames`; at least
+ * one frame. A body past its ragdoll bake's end keeps the last baked pose (`poseBake` clamps).
+ */
+export function deathHoldFramesOf(
+  defaultFrames: number,
+  scriptHoldMs: number | null,
+  doc: Pick<ReplayDocumentReady, 'frameIntervalMs'>,
+): number {
+  return Math.max(1, scriptHoldMs === null ? defaultFrames : msToFrames(scriptHoldMs, doc))
+}
+
+/**
+ * lingeringRange: the indexes [from, to) of the deaths (sorted by frame) that linger at `frame`:
+ * dead at or before it, no more than `hold` frames ago. A pure function of the frame.
+ */
+export function lingeringRange(deaths: readonly Pick<Death3d, 'frame'>[], frame: number, hold: number): [number, number] {
+  const from = firstFrom(deaths, (d) => d.frame, frame - hold)
+  let to = from
+  while (to < deaths.length && deaths[to].frame <= frame) to++
+  return [from, to]
 }
 
 /** buildDeaths3d: the located deaths, sorted by frame, feet placed on the map. */

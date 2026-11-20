@@ -130,6 +130,11 @@ export interface ActionContext {
   firstPersonAnchorMiss?: () => string | null
   /** The length in seconds of the first-person clip `action` of weapon `key` (its rig index), null without one. */
   weaponClipSeconds?: (key: string, action: string) => number | null
+  /**
+   * The playing camera script's `deathHoldMs` (document ms), null when no script drives the camera
+   * or it sets none: the deaths then linger for the page's `deathHoldFrames` (`deaths3d`).
+   */
+  scriptDeathHoldMs?: () => number | null
   /** The brief flash lights: the set opens and closes them around the layers. */
   readonly flashes: FlashLights
   /** The map's baked light (`lighting.takeGameLight`), grafted onto players' armor. */

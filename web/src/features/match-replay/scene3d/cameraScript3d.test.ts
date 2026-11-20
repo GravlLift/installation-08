@@ -285,6 +285,26 @@ describe('parseCameraScript (holds)', () => {
   })
 })
 
+describe('parseCameraScript (deathHoldMs)', () => {
+  const raw = (deathHoldMs: unknown): Record<string, unknown> => ({ ...script([key(0, w([0, 0, 0]), w([0, 0, 0]))]), deathHoldMs })
+
+  it('keeps a valid hold, bounds included', () => {
+    expect(accepts(raw(2500)).deathHoldMs).toBe(2500)
+    expect(accepts(raw(0)).deathHoldMs).toBe(0)
+    expect(accepts(raw(30000)).deathHoldMs).toBe(30000)
+  })
+
+  it('keeps a script without one at the default hold', () => {
+    expect('deathHoldMs' in accepts(script([key(0, w([0, 0, 0]), w([0, 0, 0]))]))).toBe(false)
+  })
+
+  it('rejects a hold out of [0, 30000] or not a finite number', () => {
+    for (const v of [-1, 30001, Number.NaN, Number.POSITIVE_INFINITY, '2500', null]) {
+      expect(rejects(raw(v))).toContain('deathHoldMs')
+    }
+  })
+})
+
 describe('parseCameraScript (lights)', () => {
   function rawWithLights(lights: unknown): Record<string, unknown> {
     return { ...script([key(0, w([0, 0, 0]), w([0, 0, 0]))]), lights }

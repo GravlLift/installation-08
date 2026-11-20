@@ -246,6 +246,14 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
   - Validation refuses more than 8 rigs, an empty or repeated `xuid`, and any value out of range.
     A rig on a player with no state at the time draws nothing. No script, a tracked camera, or a
     stopped script: no hero light. The export places the rigs after the camera on every frame.
+- `deathHoldMs` (optional, top level): how long a dead body stays on the floor while the script
+  plays, in document ms (the film's own time, not script time), 0 to 30000. Absent, the view's
+  default hold (1.4 s, `deathHoldFrames`) exactly. While a script with it drives the camera (free
+  camera, on screen and in the export alike), each death's body, cross and label linger that long
+  after the death (`deathHoldFramesOf`, `scene3d/deaths3d.ts`); when the script stops, the default
+  returns. It is a pure function of the frame: a longer hold only changes which bodies are present
+  at a frame. A ragdoll bake is at most 4 s long; a body held past it keeps the last baked pose.
+  Use it when a shot needs two bodies down together (a posthumous winner and their victim).
 - Validation rejects an unknown `version`, a `matchId` that differs from the route's, a key with
   no `pos` or `look`, a non-finite number, an out-of-range `fov`, and more than 512 keys. A
   player anchor whose xuid is not in the match is not a validation error: it resolves to null, and
