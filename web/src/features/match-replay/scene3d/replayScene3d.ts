@@ -812,6 +812,40 @@ export class ReplayScene3d implements Replay3DExportSource {
       dir: w(d),
       fov: this.camera.fov,
       target: t ? w({ x: t[0], y: t[1], z: t[2] }) : null,
+      sightBlockedAt: t ? this.sightBlockedAt(new THREE.Vector3(t[0], t[1], t[2])) : null,
+    }
+  }
+
+  /**
+   * The distance from the camera to the first MAP surface between it and `target` (world units),
+   * or null when the line of sight is clear. Cast BOTH ways: a camera inside a wall sees only that
+   * wall's back faces, which a front-face raycast skips; from the target the same wall is a front
+   * face. The last LOS_TARGET_MARGIN before the target is not tested (the subject's own floor).
+   */
+  private sightBlockedAt(target: THREE.Vector3): number | null {
+    const LOS_TARGET_MARGIN = 0.1
+    const surfaces = this.groundSurfaces()
+    const cam = this.camera.position
+    const len = cam.distanceTo(target)
+    if (surfaces.length === 0 || len <= LOS_TARGET_MARGIN) return null
+    const rc = this.raycaster
+    const saved = { far: rc.far, near: rc.near, first: rc.firstHitOnly }
+    try {
+      rc.firstHitOnly = true
+      rc.near = 0
+      rc.far = len - LOS_TARGET_MARGIN
+      const dir = target.clone().sub(cam).normalize()
+      rc.set(cam, dir)
+      const fromCam = rc.intersectObjects(surfaces, false)[0]
+      let best = fromCam ? fromCam.distance : Infinity
+      rc.set(target.clone().addScaledVector(dir, -LOS_TARGET_MARGIN), dir.clone().negate())
+      const fromTarget = rc.intersectObjects(surfaces, false)[0]
+      if (fromTarget) best = Math.min(best, len - LOS_TARGET_MARGIN - fromTarget.distance)
+      return Number.isFinite(best) ? Math.max(0, best) : null
+    } finally {
+      rc.far = saved.far
+      rc.near = saved.near
+      rc.firstHitOnly = saved.first
     }
   }
   /**

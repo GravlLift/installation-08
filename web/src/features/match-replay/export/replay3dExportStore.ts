@@ -90,6 +90,12 @@ export interface ExportCamera3d {
   fov: number
   /** The script's look point at this frame, when a camera script posed it; null otherwise. */
   target: [number, number, number] | null
+  /**
+   * The distance (world units) from the camera to the first map surface between it and `target`:
+   * the subject is hidden by a wall, or the camera sits inside one (0 or near 0). Null when the
+   * line of sight is clear or there is no target.
+   */
+  sightBlockedAt?: number | null
 }
 
 /** The view's registration: the scene, and the screen's state used as the dialog's default. */
