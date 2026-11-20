@@ -2,12 +2,15 @@
 /** cameraScript3d.test.ts — the script format (validation) and the pose evaluator. */
 import { describe, expect, it } from 'vitest'
 import {
+  CAMERA_SCRIPT_MIN_FOCUS_U,
   CAMERA_SCRIPT_MIN_KEY_GAP_MS,
   circularMeanDeg,
   evaluateCameraScript,
   parseCameraScript,
   scriptClockOf,
+  shakeAt,
   type CameraKey,
+  type CameraShake,
   type CameraScript,
   type ClockRate,
   type Ease,
@@ -612,5 +615,224 @@ describe('evaluateCameraScript (a run is one move)', () => {
     }
     // Speed sampled densely never drops to a stop strictly inside the run.
     for (let t = 300; t <= 2600; t += 50) expect(speedAt(s, t)).toBeGreaterThan(0)
+  })
+})
+
+/** A key with lens fields. */
+const lensKey = (t: number, pos: ScriptPoint, look: ScriptPoint, lens: Partial<Pick<CameraKey, 'focus' | 'aperture' | 'ease'>>): CameraKey =>
+  ({ t, pos, look, ...lens })
+
+describe('parseCameraScript (lens and shakes)', () => {
+  it('keeps focus, aperture and shakes, and drops their unknown fields', () => {
+    const raw = {
+      version: 1,
+      matchId: 'm',
+      name: 's',
+      keys: [
+        { t: 0, pos: { at: 'world', point: [0, 0, 0] }, look: { at: 'world', point: [1, 0, 0] }, aperture: 1.4, focus: { at: 'player', xuid: 'A', junk: 1 } },
+        { t: 1000, pos: { at: 'world', point: [0, 0, 0] }, look: { at: 'world', point: [1, 0, 0] }, focus: { at: 'world', point: [5, 0, 0] } },
+      ],
+      shakes: [
+        { at: 100, amp: 2, decay: 300 },
+        { at: 500, amp: 0.5, decay: 200, freq: 8, junk: true },
+      ],
+    }
+    const s = accepts(raw)
+    expect(s.keys[0]).toEqual(lensKey(0, w([0, 0, 0]), w([1, 0, 0]), { aperture: 1.4, focus: pl('A') }))
+    expect(s.keys[1]).toEqual(lensKey(1000, w([0, 0, 0]), w([1, 0, 0]), { focus: w([5, 0, 0]) }))
+    expect(s.shakes).toEqual([{ at: 100, amp: 2, decay: 300 }, { at: 500, amp: 0.5, decay: 200, freq: 8 }])
+  })
+
+  it('leaves the lens and shakes absent when the script has none', () => {
+    const s = accepts(script([key(0, w([0, 0, 0]), w([1, 0, 0]))]))
+    expect('focus' in s.keys[0]).toBe(false)
+    expect('aperture' in s.keys[0]).toBe(false)
+    expect('shakes' in s).toBe(false)
+  })
+
+  it('accepts the aperture range ends and an empty shakes list', () => {
+    for (const aperture of [0.7, 32]) {
+      expect(accepts(script([lensKey(0, w([0, 0, 0]), w([1, 0, 0]), { aperture })])).keys[0].aperture).toBe(aperture)
+    }
+    expect(accepts({ ...script([]), shakes: [] }).shakes).toEqual([])
+  })
+
+  it('rejects an aperture outside [0.7, 32] or not a number, naming the key', () => {
+    for (const aperture of [0.69, 32.5, NaN, '2.8' as unknown as number]) {
+      const s = script([key(0, w([0, 0, 0]), w([1, 0, 0])), lensKey(1000, w([0, 0, 0]), w([1, 0, 0]), { aperture })])
+      const error = rejects(s)
+      expect(error).toContain('key 1')
+      expect(error).toContain('aperture')
+    }
+  })
+
+  it('rejects a malformed focus point', () => {
+    const bad = [{ at: 'moon' }, { at: 'world', point: [0, 0] }, { at: 'player', xuid: '' }] as unknown as ScriptPoint[]
+    for (const focus of bad) {
+      const error = rejects(script([lensKey(0, w([0, 0, 0]), w([1, 0, 0]), { focus })]))
+      expect(error).toContain('key 0: focus')
+    }
+  })
+
+  it('rejects each malformed shakes list or entry', () => {
+    const withShakes = (shakes: unknown) => ({ ...script([key(0, w([0, 0, 0]), w([1, 0, 0]))]), shakes })
+    const ok: CameraShake = { at: 0, amp: 1, decay: 100 }
+    expect(rejects(withShakes({}))).toContain('shakes must be an array')
+    expect(rejects(withShakes(Array.from({ length: 65 }, () => ok)))).toContain('at most 64')
+    expect(accepts(withShakes(Array.from({ length: 64 }, () => ok))).shakes).toHaveLength(64)
+    expect(rejects(withShakes([null]))).toContain('shakes[0] is not an object')
+    const cases: [Record<string, unknown>, string][] = [
+      [{ ...ok, at: -1 }, 'at'],
+      [{ ...ok, at: NaN }, 'at'],
+      [{ ...ok, amp: 0 }, 'amp'],
+      [{ ...ok, amp: 10.5 }, 'amp'],
+      [{ ...ok, amp: undefined }, 'amp'],
+      [{ ...ok, decay: 0 }, 'decay'],
+      [{ ...ok, decay: 10001 }, 'decay'],
+      [{ ...ok, freq: 0 }, 'freq'],
+      [{ ...ok, freq: 61 }, 'freq'],
+      [{ ...ok, freq: 'fast' }, 'freq'],
+    ]
+    for (const [entry, field] of cases) expect(rejects(withShakes([ok, entry]))).toContain(`shakes[1].${field}`)
+    expect(rejects(withShakes([{ ...ok, at: 500 }, { ...ok, at: 100 }]))).toContain('not sorted by at')
+  })
+})
+
+describe('evaluateCameraScript (lens)', () => {
+  const near = (v: number | null, expected: number, digits = 5) => {
+    expect(v).not.toBeNull()
+    expect(v!).toBeCloseTo(expected, digits)
+  }
+
+  it('has no lens when no key carries an aperture', () => {
+    const s = script([key(0, w([0, 0, 0]), w([4, 0, 0])), key(1000, w([0, 3, 0]), w([4, 0, 0]))])
+    for (const t of [-100, 0, 500, 1000, 2000]) {
+      const pose = eval_(s, t)!
+      expect(pose.focusDistance).toBeNull()
+      expect(pose.aperture).toBeNull()
+    }
+  })
+
+  it('focuses on the look point by default: the distance to the target at every frame', () => {
+    const s = script([
+      lensKey(0, w([0, 0, 0]), w([4, 0, 0]), { aperture: 2 }),
+      key(1000, w([0, 10, 0]), w([4, 0, 0])),
+      key(2000, w([-5, 0, 3]), w([4, 0, 0])),
+    ])
+    near(eval_(s, 0)!.focusDistance, 4)
+    near(eval_(s, 1000)!.focusDistance, Math.hypot(4, 10))
+    for (const t of [-50, 250, 700, 1300, 1999, 2500]) {
+      const pose = eval_(s, t)!
+      const [p, q] = [pose.position, pose.target]
+      near(pose.focusDistance, Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]))
+    }
+  })
+
+  it('carries an aperture set once to every later key, and back to the keys before it', () => {
+    const s = script([
+      key(0, w([0, 0, 0]), w([4, 0, 0])),
+      lensKey(1000, w([0, 0, 0]), w([4, 0, 0]), { aperture: 2.8 }),
+      lensKey(2000, w([0, 0, 0]), w([4, 0, 0]), { ease: 'cut' }),
+    ])
+    near(eval_(s, 0)!.aperture, 2.8)
+    near(eval_(s, 500)!.aperture, 2.8)
+    near(eval_(s, 2500)!.aperture, 2.8) // across the cut
+  })
+
+  it('moves the aperture in stops between keys', () => {
+    const s = script([lensKey(0, w([0, 0, 0]), w([4, 0, 0]), { aperture: 1.4 }), lensKey(1000, w([0, 0, 0]), w([4, 0, 0]), { aperture: 5.6 })])
+    near(eval_(s, 0)!.aperture, 1.4)
+    near(eval_(s, 500)!.aperture, 2.8, 4) // two stops apart: one stop at the middle of a smooth move
+    near(eval_(s, 1000)!.aperture, 5.6)
+  })
+
+  it('pulls focus from key to key on a C1 curve', () => {
+    // The camera holds still and looks down +x; the focus racks 2 -> 10 -> 4 (game units).
+    const at = (d: number) => w([d, 0, 0])
+    const s = script([
+      lensKey(0, w([0, 0, 0]), w([1, 0, 0]), { aperture: 2, focus: at(2) }),
+      lensKey(1000, w([0, 0, 0]), w([1, 0, 0]), { focus: at(10) }),
+      lensKey(2500, w([0, 0, 0]), w([1, 0, 0]), { focus: at(4) }),
+    ])
+    near(eval_(s, 0)!.focusDistance, 2)
+    near(eval_(s, 500)!.focusDistance, 6) // eased from rest, symmetric halfway
+    near(eval_(s, 1000)!.focusDistance, 10)
+    near(eval_(s, 2500)!.focusDistance, 4)
+    // C1 at the interior key: the slopes on either side agree.
+    const f = (t: number) => eval_(s, t)!.focusDistance!
+    const h = 0.5
+    const left = (f(1000) - f(1000 - h)) / h
+    const right = (f(1000 + h) - f(1000)) / h
+    expect(Math.abs(left - right)).toBeLessThan(1e-3)
+    // A monotone curve never overshoots the keys.
+    for (let t = 0; t <= 2500; t += 25) {
+      expect(f(t)).toBeGreaterThanOrEqual(2 - 1e-9)
+      expect(f(t)).toBeLessThanOrEqual(10 + 1e-9)
+    }
+  })
+
+  it('a key without its own focus uses its look distance inside a pulled run', () => {
+    const s = script([
+      lensKey(0, w([0, 0, 0]), w([3, 0, 0]), { aperture: 2, focus: w([8, 0, 0]) }),
+      key(1000, w([0, 0, 0]), w([3, 0, 0])),
+    ])
+    near(eval_(s, 0)!.focusDistance, 8)
+    near(eval_(s, 1000)!.focusDistance, 3)
+  })
+
+  it('measures focus along the view axis, clamps a point behind the camera, and falls back to the look point', () => {
+    const one = (focus: ScriptPoint) => eval_(script([lensKey(0, w([0, 0, 0]), w([10, 0, 0]), { aperture: 2, focus })]), 0)!.focusDistance
+    near(one(w([3, 4, 0])), 3) // 5 units away, 3 deep: the plane of focus is 3 units out
+    near(one(w([-2, 0, 0])), CAMERA_SCRIPT_MIN_FOCUS_U)
+    near(one(pl('nobody')), 10) // an unknown player: the look point
+    near(one(pl('B', { offset: [0, 0, 0] })), 20) // B stands at (20, 5, 0): 20 deep along +x
+  })
+})
+
+describe('shakeAt', () => {
+  const shakes: CameraShake[] = [{ at: 1000, amp: 3, decay: 200 }]
+  const size = (a: { yawDeg: number; pitchDeg: number; rollDeg: number }) => Math.max(Math.abs(a.yawDeg), Math.abs(a.pitchDeg), Math.abs(a.rollDeg))
+  const peak = (list: CameraShake[], from: number, to: number) => {
+    let m = 0
+    for (let t = from; t <= to; t += 1) m = Math.max(m, size(shakeAt(list, t)))
+    return m
+  }
+
+  it('is zero without shakes, and the pose carries a zero shake', () => {
+    expect(shakeAt(undefined, 500)).toEqual({ yawDeg: 0, pitchDeg: 0, rollDeg: 0 })
+    expect(shakeAt([], 500)).toEqual({ yawDeg: 0, pitchDeg: 0, rollDeg: 0 })
+    expect(eval_(script([key(0, w([0, 0, 0]), w([1, 0, 0]))]), 0)!.shake).toEqual({ yawDeg: 0, pitchDeg: 0, rollDeg: 0 })
+  })
+
+  it('is zero before and at `at`, and starts smoothly from zero', () => {
+    for (const t of [0, 500, 999.9, 1000]) expect(size(shakeAt(shakes, t))).toBe(0)
+    expect(size(shakeAt(shakes, 1000.1))).toBeLessThan(0.1)
+    expect(peak(shakes, 1000, 1100)).toBeGreaterThan(0.5)
+  })
+
+  it('stays inside its envelope and decays', () => {
+    for (let t = 1001; t <= 2500; t += 7) expect(size(shakeAt(shakes, t))).toBeLessThanOrEqual(3 * Math.exp(-(t - 1000) / 200) + 1e-9)
+    const early = peak(shakes, 1000, 1150)
+    const late = peak(shakes, 1600, 1750)
+    expect(late).toBeLessThan(early * Math.exp(-2)) // three e-folds later, far below
+    expect(size(shakeAt(shakes, 1000 + 200 * 13))).toBe(0) // dropped after its tail
+  })
+
+  it('is a deterministic function of script time, linear in amp, and summed over entries', () => {
+    expect(shakeAt(shakes, 1123)).toEqual(shakeAt(shakes, 1123))
+    expect(shakeAt([{ ...shakes[0] }], 1123)).toEqual(shakeAt(shakes, 1123))
+    const one = shakeAt(shakes, 1123)
+    const twice = shakeAt([{ ...shakes[0], amp: 6 }], 1123)
+    expect(twice.yawDeg).toBeCloseTo(2 * one.yawDeg, 12)
+    expect(twice.pitchDeg).toBeCloseTo(2 * one.pitchDeg, 12)
+    // A later entry that has not started yet changes nothing; once both run, they add.
+    const two: CameraShake[] = [shakes[0], { at: 1300, amp: 1, decay: 500, freq: 20 }]
+    expect(shakeAt(two, 1200)).toEqual(shakeAt(shakes, 1200))
+    expect(shakeAt(two, 1400)).not.toEqual(shakeAt(shakes, 1400))
+  })
+
+  it('reaches the pose from the script', () => {
+    const s: CameraScript = { ...script([key(0, w([0, 0, 0]), w([1, 0, 0]))]), shakes }
+    expect(eval_(s, 1123)!.shake).toEqual(shakeAt(shakes, 1123))
   })
 })

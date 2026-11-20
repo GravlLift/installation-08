@@ -14,6 +14,11 @@
  * returned in THREE coordinates via `toThree`. Player anchors resolve at the clock's document time, not at
  * the key's script time; without a clock, script time is document time. A `cut` splits the
  * script into runs the Catmull-Rom spline never crosses.
+ *
+ * The LENS: a key's optional `aperture` (f-number) and `focus` point give the pose a focus
+ * distance and an f-number for the depth of field pass (`dof3d.ts`); no aperture on any key, no
+ * depth of field. The optional top-level `shakes` add a deterministic jolt (`shakeAt`) on top of
+ * the pose's orientation. Both are pure functions of script time, like the rest of the pose.
  */
 import { toThree, type Vec3 } from './tracks3d'
 import { verticalFovOf } from '../model/fovLogic'
@@ -49,6 +54,21 @@ export interface CameraKey {
   fov?: number
   roll?: number
   ease?: Ease
+  /** The point the lens focuses on (default: this key's `look`). */
+  focus?: ScriptPoint
+  /** The lens's f-number; absent on every key, the script has no depth of field. */
+  aperture?: number
+}
+/**
+ * One camera jolt: from script ms `at`, a smooth deterministic wobble of yaw, pitch and roll whose
+ * size starts at `amp` degrees and falls by e every `decay` ms; `freq` (Hz, default 12) is its
+ * main frequency.
+ */
+export interface CameraShake {
+  at: number
+  amp: number
+  decay: number
+  freq?: number
 }
 export interface CameraScript {
   version: 1
@@ -57,6 +77,7 @@ export interface CameraScript {
   keys: CameraKey[]
   clock?: ScriptClock
   holds?: Hold[]
+  shakes?: CameraShake[]
 }
 
 export const CAMERA_SCRIPT_MAX_KEYS = 512
@@ -71,6 +92,19 @@ export const CLOCK_RATE_MAX = 4
  * sample's error as jitter. A cut starts a new run, so it may follow at any gap.
  */
 export const CAMERA_SCRIPT_MIN_KEY_GAP_MS = 250
+/** The f-numbers a key's `aperture` accepts: from a very fast cine lens to a pinhole-like stop. */
+export const CAMERA_SCRIPT_APERTURE_MIN = 0.7
+export const CAMERA_SCRIPT_APERTURE_MAX = 32
+/** The nearest the lens focuses (world units, about 15 cm): a focus point at or behind the camera reads as this. */
+export const CAMERA_SCRIPT_MIN_FOCUS_U = 0.05
+export const CAMERA_SHAKES_MAX = 64
+/** A shake's starting size (degrees) is in (0, CAMERA_SHAKE_AMP_MAX]. */
+export const CAMERA_SHAKE_AMP_MAX = 10
+/** A shake's e-folding time (ms) is in (0, CAMERA_SHAKE_DECAY_MAX]. */
+export const CAMERA_SHAKE_DECAY_MAX = 10000
+/** A shake's main frequency (Hz) is in (0, CAMERA_SHAKE_FREQ_MAX]; absent, CAMERA_SHAKE_FREQ_DEFAULT. */
+export const CAMERA_SHAKE_FREQ_MAX = 60
+export const CAMERA_SHAKE_FREQ_DEFAULT = 12
 
 export type ParseResult = { ok: true; script: CameraScript } | { ok: false; error: string }
 
@@ -213,6 +247,20 @@ export function parseCameraScript(raw: unknown, expectedMatchId?: string): Parse
       }
       out.ease = k.ease as Ease
     }
+    if (k.focus !== undefined) {
+      const focus = parsePoint(k.focus)
+      if ('error' in focus) return { ok: false, error: `key ${i}: focus ${focus.error}` }
+      out.focus = focus.point
+    }
+    if (k.aperture !== undefined) {
+      if (!isFiniteNumber(k.aperture) || k.aperture < CAMERA_SCRIPT_APERTURE_MIN || k.aperture > CAMERA_SCRIPT_APERTURE_MAX) {
+        return {
+          ok: false,
+          error: `key ${i}: aperture must be an f-number in [${CAMERA_SCRIPT_APERTURE_MIN}, ${CAMERA_SCRIPT_APERTURE_MAX}]`,
+        }
+      }
+      out.aperture = k.aperture
+    }
     keys.push(out)
   }
 
@@ -230,10 +278,54 @@ export function parseCameraScript(raw: unknown, expectedMatchId?: string): Parse
     holds = parsed.holds
   }
 
+  let shakes: CameraShake[] | undefined
+  if (r.shakes !== undefined) {
+    const parsed = parseShakes(r.shakes)
+    if ('error' in parsed) return { ok: false, error: parsed.error }
+    shakes = parsed.shakes
+  }
+
   const script: CameraScript = { version: 1, matchId: r.matchId, name: r.name, keys }
   if (clock !== undefined) script.clock = clock
   if (holds !== undefined) script.holds = holds
+  if (shakes !== undefined) script.shakes = shakes
   return { ok: true, script }
+}
+
+/** Validates a raw `shakes` array; returns a clean copy with only the known fields, or a short reason. */
+function parseShakes(raw: unknown): { shakes: CameraShake[] } | { error: string } {
+  if (!Array.isArray(raw)) return { error: 'shakes must be an array' }
+  if (raw.length > CAMERA_SHAKES_MAX) return { error: `shakes has ${raw.length} entries; at most ${CAMERA_SHAKES_MAX}` }
+  const shakes: CameraShake[] = []
+  for (let i = 0; i < raw.length; i++) {
+    const e = raw[i]
+    if (typeof e !== 'object' || e === null) return { error: `shakes[${i}] is not an object` }
+    const s = e as Record<string, unknown>
+    if (!isFiniteNumber(s.at) || s.at < 0) return { error: `shakes[${i}].at must be a finite number >= 0` }
+    if (i > 0 && s.at < shakes[i - 1].at) return { error: `shakes[${i}].at: shakes are not sorted by at` }
+    if (!isFiniteNumber(s.amp) || s.amp <= 0 || s.amp > CAMERA_SHAKE_AMP_MAX) {
+      return { error: `shakes[${i}].amp must be degrees in (0, ${CAMERA_SHAKE_AMP_MAX}]` }
+    }
+    if (!isFiniteNumber(s.decay) || s.decay <= 0 || s.decay > CAMERA_SHAKE_DECAY_MAX) {
+      return { error: `shakes[${i}].decay must be milliseconds in (0, ${CAMERA_SHAKE_DECAY_MAX}]` }
+    }
+    const out: CameraShake = { at: s.at, amp: s.amp, decay: s.decay }
+    if (s.freq !== undefined) {
+      if (!isFiniteNumber(s.freq) || s.freq <= 0 || s.freq > CAMERA_SHAKE_FREQ_MAX) {
+        return { error: `shakes[${i}].freq must be Hz in (0, ${CAMERA_SHAKE_FREQ_MAX}]` }
+      }
+      out.freq = s.freq
+    }
+    shakes.push(out)
+  }
+  return { shakes }
+}
+
+/** A shake's rotations at one time, in degrees about the camera's own axes (zero: no shake). */
+export interface ShakeAngles {
+  yawDeg: number
+  pitchDeg: number
+  rollDeg: number
 }
 
 /** The camera pose in THREE coordinates. */
@@ -242,6 +334,15 @@ export interface ScriptPose {
   target: ScriptVec3
   verticalFov: number
   rollDeg: number
+  /**
+   * The lens's focus distance (world units, along the view axis), or null when the script has
+   * no depth of field (no key carries an `aperture`).
+   */
+  focusDistance: number | null
+  /** The lens's f-number, or null when the script has no depth of field. */
+  aperture: number | null
+  /** The camera shake at this time (`shakeAt`), applied on top of the pose's orientation. */
+  shake: ShakeAngles
 }
 
 /** A player's feet in GAME coordinates (already floor-adjusted by the caller) and heading (deg) at document ms `tMs`; null when unknown. */
@@ -514,15 +615,26 @@ export function evaluateCameraScript(
   let b = k
   while (b + 1 < keys.length && !isCut(b + 1)) b++
 
+  const shake = shakeAt(script.shakes, sMs)
+  const apertures = apertureTrack(keys)
+  // A key's focus point: its own `focus`, else (or unresolved) its look point.
+  const focusPoint = (i: number, look: Vec3): Vec3 => {
+    const focus = keys[i].focus
+    return (focus && resolvePoint(focus, tMs, subjects, true)) ?? look
+  }
+
   if (sMs < keys[0].t || k === b) {
     // Hold key k: its points, resolved at the document time.
-    const position = toThree(...resolve(k, 'pos'))
-    const target = toThree(...resolve(k, 'look'))
+    const pos = resolve(k, 'pos')
+    const look = resolve(k, 'look')
     return {
-      position,
-      target,
+      position: toThree(...pos),
+      target: toThree(...look),
       verticalFov: verticalFovOf(keys[k].fov ?? baseGameFov),
       rollDeg: keys[k].roll ?? 0,
+      focusDistance: apertures ? axialDistance(pos, look, focusPoint(k, look)) : null,
+      aperture: apertures ? apertures[k] : null,
+      shake,
     }
   }
 
@@ -549,12 +661,135 @@ export function evaluateCameraScript(
   const fovOf = (i: number): number => keys[i].fov ?? baseGameFov
   const rollOf = (i: number): number => keys[i].roll ?? 0
 
+  const position = toThree(...pathAt(at('pos'), run, k, sMs))
+  const target = toThree(...pathAt(at('look'), run, k, sMs))
+  let focusDistance: number | null = null
+  let aperture: number | null = null
+  if (apertures) {
+    // The aperture moves in stops (log2 of the f-number), the way a lens's iris ring turns.
+    aperture = 2 ** curveAt((i) => Math.log2(apertures[i]), run, k, sMs)
+    let runFocuses = false
+    for (let i = a; i <= b; i++) if (keys[i].focus) runFocuses = true
+    if (runFocuses) {
+      // A pulled focus: the key's focus distances, on the same C1 curve as fov.
+      const focusCache = new Map<number, number>()
+      const focusOf = (i: number): number => {
+        let d = focusCache.get(i)
+        if (d === undefined) {
+          const look = at('look')(i)
+          d = axialDistance(at('pos')(i), look, focusPoint(i, look))
+          focusCache.set(i, d)
+        }
+        return d
+      }
+      focusDistance = Math.max(CAMERA_SCRIPT_MIN_FOCUS_U, curveAt(focusOf, run, k, sMs))
+    } else {
+      // Focus on the look point: exactly the distance to the target being looked at, at every frame.
+      focusDistance = Math.max(
+        CAMERA_SCRIPT_MIN_FOCUS_U,
+        Math.hypot(target[0] - position[0], target[1] - position[1], target[2] - position[2]),
+      )
+    }
+  }
+
   return {
-    position: toThree(...pathAt(at('pos'), run, k, sMs)),
-    target: toThree(...pathAt(at('look'), run, k, sMs)),
+    position,
+    target,
     verticalFov: verticalFovOf(curveAt(fovOf, run, k, sMs)),
     rollDeg: curveAt(rollOf, run, k, sMs),
+    focusDistance,
+    aperture,
+    shake,
   }
+}
+
+/**
+ * Every key's f-number, or null when no key carries one (the script has no depth of field). A
+ * key without one takes the nearest earlier key's, else the nearest later key's, across cuts: a
+ * lens set once on the first key holds for the whole script.
+ */
+function apertureTrack(keys: readonly CameraKey[]): number[] | null {
+  const first = keys.find((key) => key.aperture !== undefined)?.aperture
+  if (first === undefined) return null
+  const out: number[] = []
+  let last = first
+  for (const key of keys) {
+    if (key.aperture !== undefined) last = key.aperture
+    out.push(last)
+  }
+  return out
+}
+
+/**
+ * The distance from `pos` to the plane of focus through `focus`, measured along the view axis
+ * (`pos` toward `look`): a lens focuses on a plane, so a subject off the axis is sharp at its
+ * depth, not at its slant distance. At least `CAMERA_SCRIPT_MIN_FOCUS_U`.
+ */
+function axialDistance(pos: Vec3, look: Vec3, focus: Vec3): number {
+  const ax = look[0] - pos[0]
+  const ay = look[1] - pos[1]
+  const az = look[2] - pos[2]
+  const dx = focus[0] - pos[0]
+  const dy = focus[1] - pos[1]
+  const dz = focus[2] - pos[2]
+  const len = Math.hypot(ax, ay, az)
+  const d = len < CR_EPS ? Math.hypot(dx, dy, dz) : (dx * ax + dy * ay + dz * az) / len
+  return Math.max(CAMERA_SCRIPT_MIN_FOCUS_U, d)
+}
+
+/** The shake's per-axis gain (yaw, pitch, roll): the roll is half, as a hand-held or hit camera turns. */
+const SHAKE_AXIS_GAIN = [1, 1, 0.5] as const
+/** Each axis's wobble: three sines at about 1, 2.1 and 3.3 times the main frequency (each jittered per shake), weighted 1, 0.55, 0.3. */
+const SHAKE_RATIOS = [1, 2.1, 3.3] as const
+const SHAKE_WEIGHTS = [1, 0.55, 0.3] as const
+const SHAKE_WEIGHT_SUM = SHAKE_WEIGHTS[0] + SHAKE_WEIGHTS[1] + SHAKE_WEIGHTS[2]
+/** A shake is dropped after this many e-folding times (its size is then under 1e-5 of its start). */
+const SHAKE_TAIL_EFOLDS = 12
+
+/** mulberry32: a small seeded generator in [0, 1); the same seed gives the same sequence. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0
+    let t = a
+    t = Math.imul(t ^ (t >>> 15), t | 1)
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
+}
+
+/**
+ * The summed camera shake at script ms `sMs`, in degrees about the camera's own axes: a pure,
+ * deterministic function of `sMs` (preview and export agree). Each entry is zero until its `at`
+ * and then wobbles smoothly from zero (every sine starts at phase 0, so the jolt has no jump),
+ * inside an envelope `amp * exp(-(s - at) / decay)`. Its sines' frequency ratios and signs are
+ * seeded from the entry's index and `at`, so two shakes never move in lockstep.
+ */
+export function shakeAt(shakes: readonly CameraShake[] | undefined, sMs: number): ShakeAngles {
+  const out: ShakeAngles = { yawDeg: 0, pitchDeg: 0, rollDeg: 0 }
+  if (!shakes) return out
+  for (let i = 0; i < shakes.length; i++) {
+    const s = shakes[i]
+    const dt = sMs - s.at
+    if (dt <= 0) break // sorted by at: every later entry starts later still
+    if (dt > s.decay * SHAKE_TAIL_EFOLDS) continue
+    const envelope = s.amp * Math.exp(-dt / s.decay)
+    const cycles = (dt / 1000) * (s.freq ?? CAMERA_SHAKE_FREQ_DEFAULT)
+    const rand = mulberry32(Math.imul(i + 1, 0x9e3779b1) ^ Math.round(s.at * 16))
+    const axis = (): number => {
+      let sum = 0
+      for (let j = 0; j < 3; j++) {
+        const ratio = SHAKE_RATIOS[j] * (0.85 + 0.3 * rand())
+        const sign = rand() < 0.5 ? -1 : 1
+        sum += sign * SHAKE_WEIGHTS[j] * Math.sin(2 * Math.PI * ratio * cycles)
+      }
+      return sum / SHAKE_WEIGHT_SUM
+    }
+    out.yawDeg += envelope * SHAKE_AXIS_GAIN[0] * axis()
+    out.pitchDeg += envelope * SHAKE_AXIS_GAIN[1] * axis()
+    out.rollDeg += envelope * SHAKE_AXIS_GAIN[2] * axis()
+  }
+  return out
 }
 
 /** One run's timing: its key range [a, b], key times, and whether each end eases from/to rest. */
