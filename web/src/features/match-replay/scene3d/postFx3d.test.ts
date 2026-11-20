@@ -9,7 +9,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { BLOOM_EXCESS_MAX, BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, GlowBloomPass } from './bloom3d'
 import { DofPass } from './dof3d'
 import { FILM_LOOK_DEFAULTS, filmSeed, seedOffset, warmthGain } from './filmLook3d'
-import { buildPostFx, FILM_AGX_TONE_MAPPING, GRADE_GAIN, PASS_NAMES, type PostFx3d } from './postFx3d'
+import { HighlightMeter3d } from './highlightMeter3d'
+import { buildPostFx, FILM_AGX_TONE_MAPPING, GRADE_GAIN, graftHighlightCeiling, PASS_NAMES, type CeilingUniforms, type PostFx3d } from './postFx3d'
 import type { Outline3d } from './outline3d'
 
 /** Fake renderer: the compositor only reads its pixel ratio from it (the target is supplied). */
@@ -380,5 +381,77 @@ describe('buildPostFx — the compositor chain', () => {
     } finally {
       fx.dispose()
     }
+  })
+})
+
+describe('buildPostFx — the highlight ceiling', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  /** The output pass's grafted ceiling uniforms. */
+  const ceilingOf = (fx: PostFx3d) => fx.output.uniforms as unknown as CeilingUniforms
+
+  function ceilingRig() {
+    vi.spyOn(OutputPass.prototype, 'render').mockImplementation(() => {})
+    const update = vi.spyOn(HighlightMeter3d.prototype, 'update').mockImplementation(() => {})
+    const setChain = vi.spyOn(HighlightMeter3d.prototype, 'setChain')
+    const renderer = {
+      getPixelRatio: () => 1,
+      info: { render: { calls: 0, triangles: 0 } },
+      toneMapping: THREE.ACESFilmicToneMapping as THREE.ToneMapping,
+      toneMappingExposure: 1.15,
+    } as unknown as THREE.WebGLRenderer
+    const fx = buildPostFx(renderer, new THREE.Scene(), new THREE.PerspectiveCamera(), false)
+    const hdr = new THREE.WebGLRenderTarget(4, 4)
+    const drawOutput = () => (fx.output.render as (...a: unknown[]) => void)(renderer, null, hdr, 0, false)
+    return { fx, renderer, hdr, update, setChain, drawOutput }
+  }
+
+  it("grafts the gain into the output shader before tone mapping, off (exactly the old shader's math) until turned on", () => {
+    const { fx, drawOutput, update } = ceilingRig()
+    try {
+      const source = (fx.output.material as THREE.ShaderMaterial).fragmentShader
+      const read = source.indexOf('gl_FragColor = texture2D( tDiffuse, vUv );')
+      const gain = source.indexOf('if (uCeilingOn > 0.5) gl_FragColor.rgb *= texture2D( tCeiling, vec2( 0.5 ) ).g;')
+      expect(read).toBeGreaterThan(0)
+      expect(gain).toBeGreaterThan(read)
+      expect(gain).toBeLessThan(source.indexOf('// tone mapping'))
+      drawOutput()
+      expect(ceilingOf(fx).uCeilingOn.value).toBe(0)
+      expect(update).not.toHaveBeenCalled()
+    } finally {
+      fx.dispose()
+    }
+  })
+
+  it('meters the HDR image the output pass reads, on the given clock, with the chain it is drawn through', () => {
+    const { fx, hdr, drawOutput, update, setChain } = ceilingRig()
+    try {
+      fx.setHighlightCeiling(true)
+      fx.setExposureClock(4200)
+      fx.setFilmLook({ preset: 'film', exposure: 0.5 }, 4200)
+      drawOutput()
+      expect(ceilingOf(fx).uCeilingOn.value).toBe(1)
+      expect(update).toHaveBeenCalledTimes(1)
+      expect(update.mock.calls[0][1]).toBe(hdr.texture)
+      expect(update.mock.calls[0][2]).toBe(4200)
+      // The view's own exposure (the look's stops ride in the chain's film settings).
+      expect(setChain.mock.calls[0][0]).toEqual({ exposure: 1.15, grade: GRADE_GAIN, film: fx.film })
+      expect(ceilingOf(fx).tCeiling.value).toBe(fx.meter.texture)
+      fx.setHighlightCeiling(false)
+      drawOutput()
+      expect(ceilingOf(fx).uCeilingOn.value).toBe(0)
+      expect(update).toHaveBeenCalledTimes(1)
+      expect(fx.readCeilingStops()).toBeNull()
+    } finally {
+      hdr.dispose()
+      fx.dispose()
+    }
+  })
+
+  it('refuses to graft onto an output shader without the line it follows', () => {
+    const output = new OutputPass()
+    ;(output.material as THREE.ShaderMaterial).fragmentShader = 'void main() { gl_FragColor = vec4(1.0); }'
+    expect(() => graftHighlightCeiling(output, null)).toThrow(/OutputShader changed/)
+    output.dispose()
   })
 })

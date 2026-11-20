@@ -49,6 +49,11 @@ export class ExportReadback3d {
     return ctx.canvas
   }
 
+  /** pixels: the last frame read, upright (the canvas's own pixels), null before any read. */
+  pixels(): ImageData | null {
+    return this.image
+  }
+
   /** dispose releases the buffers (about 16 MB at 1080p); the next read allocates again. */
   dispose(): void {
     this.canvas = null

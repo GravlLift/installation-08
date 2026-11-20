@@ -3,7 +3,8 @@
 import * as THREE from 'three'
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import type { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
-import type { Export3dSetup, ExportCamera3d, ExportSubframe3d, ExportTag3d } from '../export/replay3dExportStore'
+import { clippedPct } from '../export/clipMetric'
+import type { Export3dSetup, ExportCamera3d, ExportExposure3d, ExportSubframe3d, ExportTag3d } from '../export/replay3dExportStore'
 import type { CameraMode3d } from './replayScene3d'
 import type { SceneView3d } from './topDownLogic'
 import type { Avatar } from './avatar3d'
@@ -48,6 +49,15 @@ interface ExportScene {
   readCamera?(): ExportCamera3d
   /** Runs the composer's render with the map cut at the playing script's `near` (`mapCut3d`), as the screen does. */
   cutMap?(draw: () => void): void
+  /**
+   * Sets the highlight ceiling's clock for file frame `frame` (`PostFx3d.setExposureClock`): the
+   * playing script's time, else the frame's match time. Never the wall clock.
+   */
+  exposureClock?(frame: number): void
+  /** The next frame takes its own highlight ceiling at once (`PostFx3d.resetExposure`). */
+  resetExposure?(): void
+  /** The last drawn frame's highlight ceiling in stops, null while it is off (`PostFx3d.readCeilingStops`). */
+  readCeilingStops?(): number | null
 }
 
 /** What the center subframe of a blurred frame saw from: the file frame's tags and camera. */
@@ -139,6 +149,8 @@ export class ReplayExportScene3d {
   private readonly makeAccumulator: (renderer: THREE.WebGLRenderer) => ExportAccumulator
   /** The last blurred or supersampled frame's center pose, null after a plain frame. */
   private center: CenterPose | null = null
+  /** The last exported frame's exposure record (clipping check, highlight ceiling). */
+  private exposure: ExportExposure3d | null = null
 
   constructor(scene: ExportScene, makeAccumulator?: (renderer: THREE.WebGLRenderer) => ExportAccumulator) {
     this.scene = scene
@@ -163,6 +175,9 @@ export class ReplayExportScene3d {
     }
     this.clock = { previous: setup.frame, frameMs: setup.frameMs }
     this.center = null
+    this.exposure = null
+    // The clip's first frame takes its own highlight ceiling: nothing eases in from the screen.
+    this.scene.resetExposure?.()
     // The file has its own size: the screen's pixel density does not enter the render. A
     // supersampled export renders at `scale` x the file's size through the pixel ratio.
     this.scale = setup.supersample === 2 ? 2 : 1
@@ -189,12 +204,34 @@ export class ReplayExportScene3d {
    */
   exportFrame(frame: number, subframes?: readonly ExportSubframe3d[]): HTMLCanvasElement {
     this.center = null
+    // One clock time per FILE frame, taken before any subframe moves the script's time: the
+    // subframes, and a frame drawn again after a load wait, redo the same easing step
+    // (`highlightCeiling3d.MeterClock`) instead of stepping it once per draw.
+    this.scene.exposureClock?.(frame)
+    let image: HTMLCanvasElement
     if (!subframes && this.scale === 1) {
       this.pose(frame)
       this.draw(frame)
-      return this.readback.read(this.scene.renderer.getContext())
+      image = this.readback.read(this.scene.renderer.getContext())
+    } else {
+      image = this.accumulate(subframes ?? [{ frame, render: true, center: true }])
     }
-    return this.accumulate(subframes ?? [{ frame, render: true, center: true }])
+    this.measure()
+    return image
+  }
+
+  /** measure records the frame just read back: its clipped share and the highlight ceiling it was drawn with. */
+  private measure(): void {
+    const pixels = this.readback.pixels()
+    this.exposure = {
+      clippedPct: pixels ? clippedPct(pixels.data, pixels.width, pixels.height) : 0,
+      ceilingStops: this.scene.readCeilingStops?.() ?? null,
+    }
+  }
+
+  /** The last exported frame's exposure record, null before any frame. */
+  exportExposure(): ExportExposure3d | null {
+    return this.exposure
   }
 
   /**
@@ -320,7 +357,10 @@ export class ReplayExportScene3d {
     this.accumulator?.dispose()
     this.accumulator = null
     this.center = null
+    this.exposure = null
     this.scale = 1
+    // The screen's ceiling starts from its own frame, not the export's last.
+    this.scene.resetExposure?.()
     this.scene.setSkyClock?.(null)
     this.scene.renderer.setPixelRatio(held.pixelRatio)
     this.scene.post.composer.setPixelRatio(held.pixelRatio)

@@ -257,7 +257,8 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
   - `tone` (`aces` or `agx`, default `aces`): the tone curve under the film response. `aces` is
     the view's own game-matched curve; `agx` swaps in AgX (flatter, greyer) for the output pass
     alone.
-  - `exposure` (-3 to 3): stops on top of the view's exposure, for the output pass alone.
+  - `exposure` (-3 to 3): stops on top of the view's exposure, for the output pass alone. The
+    view's highlight ceiling may take some of it back on a bright frame (below).
   - `bloom` (0 to 2): the bloom pass is in the chain whatever the drawer's Bloom setting, at this
     gain (the view's own is 0.3). It glows only what the view already renders above its
     threshold; no light is added.
@@ -272,6 +273,17 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
     and a paused frame does not swim.
   - When the script stops, or plays without a look, the chain is the default one again (ACES at
     the view's exposure, the drawer's bloom setting, no film pass).
+  - The highlight ceiling (`scene3d/highlightCeiling3d.ts`, `highlightMeter3d.ts`), on every
+    perspective frame, scripted or not: the output pass meters the frame's HDR image (the 97th
+    percentile of luminance on a 64 x 36 grid, glowing pixels left out) and darkens the whole
+    frame, never brightens it, until those highlights keep at least the detail (screen code
+    values per stop) the default view gives them, and at least the default view's detail on a
+    white surface in full sun. A look's exposure and contrast therefore cannot flatten pale
+    surfaces into white: demo-3-recharge-pregame's `exposure: 0.5` comes back by about half a
+    stop in the spawn room, and stays in full on darker frames. Without a look only the full-sun
+    floor can act, which no measured room reached. The ceiling eases with a 250 ms time constant
+    on the wall clock on screen and on the file frame's script time (else match time) in an
+    export, so an export is reproducible.
 - `name`: 1 to 64 characters, `[a-z0-9_-]`. The server writes the name that is in the URL.
 - `lights` (optional): hero light rigs, cinematography rather than a game effect, at most 8, one
   per player: `[{ "xuid": "2533...", "key": 2.5, "fill": 0.8, "rim": 3, "azimuth": 40,
@@ -386,7 +398,7 @@ view selector at the top left.
 - **Camera track**: an export run by URL (`#/matches/<id>?autoexport=<script>...`) also uploads
   the camera of every encoded frame to `PUT /api/matches/{id}/exports/{name}/camera`, stored as
   `exports\<name>.camera.json` beside the clip (`GET` the same path to read it):
-  `{version:1, matchId, script, fps, units, samples:[{i, frame, scriptMs, pos, dir, fov, target, sightBlockedAt, nearCover}]}`
+  `{version:1, matchId, script, fps, units, clipping, samples:[{i, frame, scriptMs, pos, dir, fov, target, sightBlockedAt, nearCover, clippedPct, ceilingStops}]}`
   in world coordinates (world units, z up); `fov` is the camera's VERTICAL degrees, `target` the
   script's look point. A camera path is measured from it (speed, turn rate, distance to the
   subject) instead of judged by eye. `sightBlockedAt` is the distance from the camera to the first
@@ -395,7 +407,12 @@ view selector at the top left.
   not flagged. `nearCover` (0 to 1) is the share of the frame covered by map geometry nearer than
   35% of the camera-to-target distance and beyond that same cut, from a 12 x 7 grid of first-hit rays through the frame against the same
   surfaces (`scene3d/cameraSight3d.ts`): it catches a wall slab filling a third of the shot. Both
-  are null without a target.
+  are null without a target. `clippedPct` is the percent of the frame (a 160 x 90 sample grid of
+  the 3D image as encoded, before the HUD) whose three channels are all at or above 220 of 255,
+  and `ceilingStops` the highlight ceiling it was drawn with (0 or less, null while off).
+  `clipping` sums them up: `{level, warnAbovePct, grid, frames, meanPct, maxPct, maxAt:{i, frame,
+  scriptMs}, warn}` (null when no frame was measured); the export warns in the console when a
+  frame passes 2 % (`export/clipMetric.ts` says why 220 and 2).
 - **Motion blur** (`&blur=<subframes 1..32>`, default 1 = off; `&shutter=<degrees 1..360>`,
   default 180): each file frame is the GPU average, in linear light, of N subframes centered on
   the frame's time and spread over `shutter / 360` of the frame interval
