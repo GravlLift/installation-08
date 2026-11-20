@@ -10,12 +10,14 @@
  * `primary_ammunition_ones` (StringIDs below): each quad shows the digit of the rounds the HUD shows
  * for the weapon in hand (`hud3d_logic.magazineInHand`), its texture moved to that image.
  *
- * The Shock Rifle's diamonds (7 images, 6..0) and the Commando's bar (11 images, 10..0) read one more
- * input, `INPUT_MAGAZINE` (name not resolved), read as the magazine's fraction: the rounds over the
- * weapon's magazine size (the library index's `magazine`, the engine's primary_ammunition
- * denominator). That reading is inferred: a full magazine picks the full image, and in the game the
- * Shock Rifle's diamonds shrink with each shot. The Stalker Rifle's heat bar reads an input the
- * film does not carry (weapon heat): it keeps its first image.
+ * The Shock Rifle's diamonds (7 images, 6..0) read one more input, `INPUT_MAGAZINE` (name not
+ * resolved), read here as the magazine's fraction: the rounds over the weapon's magazine size (the
+ * library index's `magazine`, the engine's primary_ammunition denominator). That reading matches
+ * the game (12 rounds, 3 a shot: the diamonds shrink with each of the 4 shots) but is not decoded:
+ * the Commando's digit window backdrop (11 images, 10..0) reads the same input and stays the same in
+ * the game at 20, 10 and 1 rounds, so the reading is limited to the weapons it was seen to hold for
+ * (`MAGAZINE_GAUGE_WEAPONS`); the others keep their first image. The Stalker Rifle's heat bar reads
+ * an input our replay data does not carry (weapon heat): it keeps its first image.
  */
 import * as THREE from 'three'
 
@@ -25,6 +27,8 @@ export const INPUT_TENS = 0x96e4a1a4
 export const INPUT_ONES = 0x688cb12a
 /** The Shock Rifle's and the Commando's gauge input (StringID, name not resolved): the magazine's fraction. */
 export const INPUT_MAGAZINE = 0x90c78538
+/** The weapons whose `INPUT_MAGAZINE` gauge was seen in the game to follow the magazine: the Shock Rifle. */
+export const MAGAZINE_GAUGE_WEAPONS: ReadonlySet<string> = new Set(['1a22fee6'])
 
 /** A material's images, as the library writes them (`extras.emissionImages`). */
 export interface CounterImages {

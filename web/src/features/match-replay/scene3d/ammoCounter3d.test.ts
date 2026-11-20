@@ -2,7 +2,7 @@
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 
-import { INPUT_MAGAZINE, INPUT_ONES, INPUT_TENS, counterImage, counterInput, findCounterQuads, readCounterImages, showRounds } from './ammoCounter3d'
+import { INPUT_MAGAZINE, INPUT_ONES, INPUT_TENS, MAGAZINE_GAUGE_WEAPONS, counterImage, counterInput, findCounterQuads, readCounterImages, showRounds } from './ammoCounter3d'
 
 /** A digit quad as the library writes the BR75's: ten images in a strip, scaled to the first. */
 function digit(entree: number): THREE.Mesh {
@@ -42,16 +42,16 @@ describe('ammo counter', () => {
     expect(counterInput(INPUT_MAGAZINE, 5, null)).toBeNull() // no magazine size: left as it is
   })
 
-  it("moves the Commando's bar with its magazine", () => {
+  it('moves a magazine gauge only with a magazine size, and keeps it otherwise', () => {
     const m = digit(INPUT_MAGAZINE)
-    ;(m.material as THREE.MeshStandardMaterial).userData.emissionImages = { entree: INPUT_MAGAZINE, min: 10, max: 0, nombre: 11 }
+    ;(m.material as THREE.MeshStandardMaterial).userData.emissionImages = { entree: INPUT_MAGAZINE, min: 6, max: 0, nombre: 7 }
     const quads = findCounterQuads(new THREE.Group().add(m))
-    showRounds(quads, 20, 20)
-    expect(offset(m)).toBeCloseTo(0)
-    showRounds(quads, 10, 20)
-    expect(offset(m)).toBeCloseTo(5 / 11)
-    showRounds(quads, 0, 20)
-    expect(offset(m)).toBeCloseTo(10 / 11)
+    showRounds(quads, 6, 12)
+    expect(offset(m)).toBeCloseTo(3 / 7)
+    showRounds(quads, 3, null) // the Commando's backdrop: no size passed, it stays where it was
+    expect(offset(m)).toBeCloseTo(3 / 7)
+    expect(MAGAZINE_GAUGE_WEAPONS.has('1a22fee6')).toBe(true)
+    expect(MAGAZINE_GAUGE_WEAPONS.has('fd98554c')).toBe(false)
   })
 
   it('shows a full BR75 magazine as 36, then 35 after a shot', () => {

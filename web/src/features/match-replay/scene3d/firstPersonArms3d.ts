@@ -7,7 +7,7 @@ import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 import { api, API_BASE_URL } from '@/lib/api/client'
 import { viewmodelScale } from '../model/fovLogic'
 import { darkMetalFallback } from './fallbackMetal3d'
-import { findCounterQuads, showRounds, type CounterQuad } from './ammoCounter3d'
+import { findCounterQuads, MAGAZINE_GAUGE_WEAPONS, showRounds, type CounterQuad } from './ammoCounter3d'
 import { fetchMesh } from './meshFetch'
 import { rawMaps } from './armorLibrary3d'
 import { ARMURE_NEUTRE, RUGOSITE_ARMURE_NEUTRE } from './armorMaterial3d'
@@ -204,7 +204,7 @@ export class FirstPersonArms3d {
           this.weapons.set(weapon.weapon.toLowerCase(), rig)
           this.weaponFiles.set(rig.file, weapon.weapon.toLowerCase())
           if (weapon.effectMarkers?.length) this.effectMarkers.set(weapon.weapon.toLowerCase(), weapon.effectMarkers)
-          if (weapon.magazine && weapon.magazine > 0) this.magazines.set(weapon.weapon.toLowerCase(), weapon.magazine)
+          if (weapon.magazine && weapon.magazine > 0 && MAGAZINE_GAUGE_WEAPONS.has(weapon.weapon.toLowerCase())) this.magazines.set(weapon.weapon.toLowerCase(), weapon.magazine)
         }
       }
     } catch (error) {
