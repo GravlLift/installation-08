@@ -324,8 +324,14 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
   code as the barrel's idle electricity: the barrel's firing effect at the weapon's markers (in place
   of the muzzle spray; the flash light stays), the projectile's flight effect (an electric plume
   sprite along the flight) riding it at its tag speed of 5000 u/s, and its default-material impact
-  effect where it hits the scenery, within its 500 u range. The file's header lists what is filled
-  and what is not drawn. While the library has no shot for the weapon, the beams draw.
+  effect where it hits the scenery, within its 500 u range. A trigger pull is the barrel's burst:
+  three rounds 1/60 s apart (its tag's shots per fire and rate of fire), each with its own firing,
+  flight and impact, at its own instant in match time (so a 0.1x playback shows the three apart).
+  The film writes one shot record per round but leaves some out; a missing round is placed at its
+  rank's instant (`scene3d/shockBurst3d.ts`). A round paired with a damage from the shooter (its frame
+  or the next) lands on its victim: the head when the pull is the victim's headshot kill, the body
+  otherwise (`scene3d/shockBurstTargets3d.ts`). The files' headers list what is filled and what is not
+  drawn. While the library has no shot for the weapon, the beams draw.
   When the script stops, the default look returns. Validation rejects any other value.
 - Validation rejects an unknown `version`, a `matchId` that differs from the route's, a key with
   no `pos` or `look`, a non-finite number, an out-of-range `fov`, and more than 512 keys. A

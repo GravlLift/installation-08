@@ -28,6 +28,9 @@
  * `shockLook: 'game'` with the game's own firing, flight and impact effects read from the weapon
  * library (`gameShotEffects3d`), in place of the spray, beams and spark (the flash light stays: the
  * firing effect's own light is not read); while the library has no shot for the weapon, the beams.
+ * The game look draws a burst weapon's trigger pull as its tag's rounds (the Shock Rifle: three, 1/60 s
+ * apart), each from its own fire instant, landing on the player its damage names (`shockBurst3d`,
+ * `shockBurstTargets3d`), the film's records of the pull's later rounds giving their aim.
  *
  * The muzzle flash is placed at the end of the weapon the scene DRAWS at the displayed frame
  * (`drawnWeapon`): in 1st person, the drawn weapon is the arms + weapon rig, which has no
@@ -54,7 +57,9 @@ import { petalGeometry } from './flash3d'
 import { heldWeaponAt } from './heldWeapon3d'
 import { Motion3d } from './motion3d'
 import { MuzzleProbe, muzzleOfModel, viewMuzzle } from './muzzle3d'
-import { GameShotEffects } from './gameShotEffects3d'
+import { burstSpec, GameShotEffects } from './gameShotEffects3d'
+import { aimAt } from './shockBurst3d'
+import { buildBursts, type BurstShots } from './shockBurstTargets3d'
 import { flashPetals, muzzleFlashSite, muzzleFlashStrength, rigFlashSite, type FlashPetal } from './muzzleFlash3d'
 import { newRecoil, type Recoil } from './recoil3d'
 import { recoilPoint } from './recoilPose3d'
@@ -247,6 +252,9 @@ export class Shots3dLayer implements ActionLayer3d {
   private readonly motion: Motion3d
   private readonly mix = newClipMix()
   private slotXuid: Map<number, string | null> | null = null
+  /** The game look's pulls by shot record (`burstOf`), built once per shot list. */
+  private bursts: Map<ShotFxEntry, BurstShots> | null = null
+  private fps = 1
   private readonly a = new THREE.Vector3()
   private readonly b = new THREE.Vector3()
   private readonly c = new THREE.Color()
@@ -290,6 +298,7 @@ export class Shots3dLayer implements ActionLayer3d {
     if (inputs.show.shots) {
       if (inputs.shotFx !== this.source) this.reindex(inputs.shotFx)
       const fps = Math.max(1, inputs.framesPerSecond)
+      this.fps = fps
       const fx = inputs.inks.fx
       const core = this.ctx.ink.of(fx.core)
       const firstPerson = this.ctx.firstPersonSlot(frame)
@@ -331,6 +340,7 @@ export class Shots3dLayer implements ActionLayer3d {
     this.fromMuzzle.clear()
     this.fromView.clear()
     this.held.clear()
+    this.bursts = null
   }
 
   /**
@@ -346,6 +356,13 @@ export class Shots3dLayer implements ActionLayer3d {
     if (!path.to) return
     if (game) {
       if (shotLineShown(age, shot.hold)) this.lines.add(path.from, path.to, LINE_RADIUS, this.lineInk.copy(tint).multiplyScalar(LINE_DIM))
+      const burst = this.burstOf(shot.e)
+      // A pull's rounds are drawn with its first record (`shockBurst3d`); a later round's record
+      // draws its flash light only.
+      if (burst) {
+        if (burst.burst.leader === shot.e) this.drawBurstGame(path, burst, age, shot)
+        return
+      }
       this.drawShockGame(path, path.to, age, shot)
       return
     }
@@ -461,6 +478,65 @@ export class Shots3dLayer implements ActionLayer3d {
     const dir = this.b.subVectors(to, path.from).divideScalar(path.length)
     const xuid = shot.e.vehicleShot ? null : this.xuidOf(shot.e.slot)
     this.gameEffects().draw({ e: shot.e, key, xuid, firstPerson: shot.view, from: path.from, dir, age })
+  }
+
+  /**
+   * burstOf: the pull shot `e` is a round of (`shockBurst3d`), its hits paired with the shooter's
+   * damages; null when its weapon fires no burst (or the library is not read yet). Built once per
+   * shot list, every record of a pull answering the same pull.
+   */
+  private burstOf(e: ShotFxEntry): BurstShots | null {
+    if (!this.bursts) {
+      const game = this.gameEffects()
+      if (!game.lifeSeconds()) return null
+      this.bursts = buildBursts(this.ctx, this.sorted, (x) => {
+        const held = this.heldOf(x)
+        const w = game.shotOf(held ? weaponModelKey(held) : null)
+        return flightForm(x.fam) === 'beam' && w ? burstSpec(w) : null
+      })
+    }
+    return this.bursts.get(e) ?? null
+  }
+
+  /**
+   * drawBurstGame : a pull's rounds as the game draws them, each from its own fire instant (match
+   * time: `age` less its delay after the pull's first round): its firing, flight and impact effects.
+   * A round that hit a player (a damage paired with it) lands on the victim's head or body; one that
+   * did not flies along its aim to the scenery. A round without a record leaves from the pull's
+   * muzzle along the aim between its neighbours (FILL, `shockBurst3d`).
+   */
+  private drawBurstGame(path: ShotPath, b: BurstShots, age: number, shot: ShotLook): void {
+    const held = this.heldOf(shot.e)
+    const key = held ? weaponModelKey(held) : null
+    if (!key || !path.to) return
+    const game = this.gameEffects()
+    const xuid = shot.e.vehicleShot ? null : this.xuidOf(shot.e.slot)
+    for (const r of b.burst.rounds) {
+      const roundAge = age - (r.time - b.burst.leader.time) / this.fps
+      if (roundAge < 0) continue
+      const own = r.e ? this.pathOf(r.e, shot.view) : null
+      // A recorded round leaves from its own muzzle; a missing one from a copy of the pull's (its
+      // flight's hit is traced once per start).
+      const fromKey = `${shot.view ? 'fp' : 'tp'}:${r.k}`
+      const from = own ? own.from : b.froms.get(fromKey) ?? b.froms.set(fromKey, path.from.clone()).get(fromKey)!
+      const dir = this.roundDir(b, r.k, own, path, from)
+      if (!dir) continue
+      const target = b.targets[r.k]
+      if (target) dir.subVectors(target.point, from).normalize()
+      game.draw({ e: shot.e, key, xuid, firstPerson: shot.view, from, dir, age: roundAge, seed: shot.e.seed + 101 * r.k, target })
+    }
+  }
+
+  /** roundDir: round `k`'s aim (scratch): its record's flight, else the aim between its neighbours. */
+  private roundDir(b: BurstShots, k: number, own: ShotPath | null, lead: ShotPath, from: THREE.Vector3): THREE.Vector3 | null {
+    const d = this.b
+    if (own?.to) return d.subVectors(own.to, own.from).normalize()
+    const aim = aimAt(b.burst, k, (e) => {
+      const s = this.ctx.slotState(e.slot, e.frame)
+      return e.h !== null && s ? { h: e.h, p: s.p } : null
+    })
+    if (aim) return d.set(...aimDirThree(aim.h, aim.p))
+    return lead.to ? d.subVectors(lead.to, from).normalize() : null
   }
 
   /** gameEffects: the game look's effects, made on first use (the default look's scene has none). */

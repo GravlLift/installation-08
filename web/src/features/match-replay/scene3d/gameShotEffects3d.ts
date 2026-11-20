@@ -14,6 +14,9 @@
  * - the projectile flies at its initial velocity (5000 u/s, its final velocity the same) up to its
  *   maximum range (500 u); the flight effect 9f69be2d rides it, at its `root`: an electric plume
  *   sprite parallel to the flight (billboard 2), sparks and a glow, all local to the projectile;
+ * - the barrel fires a pull of three shots at 60 a second, one projectile each, no error angle
+ *   (`shotsPerFire`, `roundsPerSecond`): the shots layer draws each round (`shockBurst3d`), and a
+ *   round that hit a player lands on them (`GameShot.target`, `shockBurstTargets3d`);
  * - the impact effect 3b3d55b3 (the projectile's material effects' `default_material`) where it hits,
  *   at the surface: its `core` (1.3 s) and `surface` (1.75 s) events, at the locations `normal`,
  *   `forward` and `reflection`.
@@ -65,6 +68,12 @@ export interface WeaponShot {
   initialVelocity: number
   finalVelocity: number
   maxRange: number
+  /** The barrel's burst: shots a pull (bounds), rounds a second (bounds); absent in an older library. */
+  shotsPerFire?: [number, number]
+  roundsPerSecond?: [number, number]
+  projectilesPerShot?: number
+  errorAngle?: [number, number]
+  fireRecovery?: number
   firing?: string
   markers: Record<string, [number, number, number][]>
   markerRotations: Record<string, [number, number, number, number][]>
@@ -112,11 +121,24 @@ export function effectSeconds(e: ShotEffect | undefined): number {
   return e.systems.reduce((m, s) => Math.max(m, oneShotSeconds(s)), 0)
 }
 
+/** burstSpec: the pull `w`'s barrel fires (its shots' upper bound, its rate), null without one. */
+export function burstSpec(w: WeaponShot): { shots: number; roundsPerSecond: number } | null {
+  const shots = w.shotsPerFire?.[1] ?? 0
+  const rate = w.roundsPerSecond?.[1] ?? 0
+  return shots > 1 && rate > 0 ? { shots, roundsPerSecond: rate } : null
+}
+
+/** burstSeconds: from a pull's first round to its last. */
+export function burstSeconds(w: WeaponShot): number {
+  const b = burstSpec(w)
+  return b ? (b.shots - 1) / b.roundsPerSecond : 0
+}
+
 /** shotSeconds: the longest a shot of `w` shows anything: a flight to range, then its effects. */
 export function shotSeconds(t: ShotTable, w: WeaponShot): number {
   const fx = (id: string | undefined) => (id ? t.effects[id] : undefined)
   const flight = w.flight.reduce((m, id) => Math.max(m, fx(id)?.deathDelay ?? 0), 0)
-  return Math.max(effectSeconds(fx(w.firing)), flightSeconds(w, w.maxRange) + Math.max(flight, effectSeconds(fx(w.impact))))
+  return burstSeconds(w) + Math.max(effectSeconds(fx(w.firing)), flightSeconds(w, w.maxRange) + Math.max(flight, effectSeconds(fx(w.impact))))
 }
 
 /**
@@ -167,8 +189,15 @@ export interface GameShot {
   /** The flight's start and unit direction (the action root's space). */
   from: THREE.Vector3
   dir: THREE.Vector3
-  /** Seconds since the shot. */
+  /** Seconds since the shot (match time: a slowed playback slows it). */
   age: number
+  /** The round's seed (default the shot record's). */
+  seed?: number
+  /**
+   * Where the round lands when it hit a player (`shockBurst3d`): the point and the surface normal
+   * there; absent, the flight is traced against the scenery.
+   */
+  target?: { point: THREE.Vector3; normal: THREE.Vector3 } | null
 }
 
 /** One drawn system, as the debug hook `window.__it3dGameShots` lists it. */
@@ -253,6 +282,11 @@ export class GameShotEffects {
     return !!key && !!this.shotTable()?.weapons[key]
   }
 
+  /** shotOf: weapon `key`'s shot, null without one (or before the library is read). */
+  shotOf(key: string | null): WeaponShot | null {
+    return (key && this.shotTable()?.weapons[key]) || null
+  }
+
   /** lifeSeconds: the longest any shot of the table shows (0 before it is read). */
   lifeSeconds(): number {
     const t = this.shotTable()
@@ -271,12 +305,13 @@ export class GameShotEffects {
     ROOT_INV.copy(root.matrixWorld).invert()
     const camera = this.ctx.cameraPosition?.(CAM) ?? null
     const scoped = this.ctx.scopeMounted?.() ?? false
-    const seed = g.e.seed | 0
+    if (g.age < 0) return true
+    const seed = (g.seed ?? g.e.seed) | 0
     // The firing effect, at the weapon's markers, from the shot.
     const firing = w.firing ? t.effects[w.firing] : undefined
     if (firing) this.firing(g, w, firing, seed, camera, scoped)
     // The projectile's flight, to its hit or its range.
-    const hit = this.hitOf(g, w)
+    const hit = g.target ? { point: g.target.point, normal: g.target.normal, length: g.from.distanceTo(g.target.point) } : this.hitOf(g, w)
     const length = hit ? hit.length : w.maxRange
     const arrive = flightSeconds(w, length)
     const travel = Math.min(length, g.age * w.initialVelocity)

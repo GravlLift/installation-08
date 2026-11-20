@@ -11,6 +11,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ShotFxEntry } from '../model/shotFx'
 import type { ActionContext } from './actionScene3d'
 import {
+  burstSpec,
   cameraInput,
   frameAlong,
   GameShotEffects,
@@ -136,6 +137,28 @@ describe('GameShotEffects', () => {
     s.fx.dispose()
   })
 
+  it('lands a round on its player target instead of the scenery, and draws nothing before its fire instant', async () => {
+    const s = await setup()
+    const e = { seed: 9 } as unknown as ShotFxEntry
+    const target = { point: new THREE.Vector3(5, 1, 0), normal: new THREE.Vector3(-1, 0, 0) }
+    const dir = new THREE.Vector3(5, 1, 0).normalize()
+    const round = (age: number) => {
+      s.fx.begin()
+      s.fx.draw({ e, key: '1a22fee6', xuid: 'A', firstPerson: false, from: new THREE.Vector3(), dir, age, target })
+      s.fx.end()
+    }
+    // 5.1 u at 50 u/s: arrived at 0.102 s.
+    round(0.15)
+    expect(s.count('core')).toBe(1)
+    expect(s.position('core').x).toBeCloseTo(5)
+    expect(s.position('core').y).toBeCloseTo(1)
+    expect(s.position('plume').x).toBeCloseTo(5)
+    expect(s.hitFace).not.toHaveBeenCalled()
+    round(-0.01)
+    expect(s.count('core') + s.count('plume') + s.count('muzzle')).toBe(0)
+    s.fx.dispose()
+  })
+
   it('draws no firing effect without a drawn weapon (no shape outside a drawn barrel)', async () => {
     const s = await setup()
     s.at(0.1, '1a22fee6', null)
@@ -157,6 +180,11 @@ describe('shot effect frames and timing', () => {
     const t = parseShotEffects(INDEX)!
     // 100 u at 50 u/s, then the impact's 1.3 s event and 0.5 s life.
     expect(shotSeconds(t, SHOCK)).toBeCloseTo(2 + 1.8)
+    // A pull of three at 60 a second adds its last round's 2/60 s.
+    const burst = { ...SHOCK, shotsPerFire: [3, 3] as [number, number], roundsPerSecond: [60, 60] as [number, number] }
+    expect(burstSpec(burst)).toEqual({ shots: 3, roundsPerSecond: 60 })
+    expect(burstSpec(SHOCK)).toBeNull()
+    expect(shotSeconds(t, burst)).toBeCloseTo(2 / 60 + 2 + 1.8)
   })
 
   it('builds a frame along its X, Y the world up made perpendicular', () => {
