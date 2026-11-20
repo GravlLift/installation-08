@@ -68,6 +68,10 @@ type MaillageMonde struct {
 	TexturesCouches map[uint32]Texture
 	// TexturesCouchesIllisibles compte les textures de couche que la lecture n'a pas rendues.
 	TexturesCouchesIllisibles int
+	// ImagesEmissives (LOCAL-CHANGE (infinite-theater-3d)): the light bitmaps of TexturesCouches
+	// read as a strip of all their images (LitBitmapImages, for an Emissif.Images), by GlobalID: their
+	// image count.
+	ImagesEmissives map[uint32]int
 	// SurfacesBrutes : les surfaces dures s'ecrivent en images brutes (glb_surfaces_brutes.go), que
 	// le lecteur peint du revetement d'un joueur, et non cuites en gris (glb_surface.go).
 	SurfacesBrutes bool

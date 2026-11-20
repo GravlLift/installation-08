@@ -64,6 +64,7 @@ func (m *MaillageMonde) resoutTextures(ctx context.Context, idx *ModuleIndex) {
 	caps := m.capsFor()
 	m.Masques = map[uint32]Texture{}
 	m.TexturesCouches = map[uint32]Texture{}
+	m.ImagesEmissives = map[uint32]int{} // LOCAL-CHANGE (infinite-theater-3d)
 	charge := func(table map[uint32]Texture, illisibles *int, id uint32, cote int, role string) {
 		if _, deja := table[id]; deja || id == 0 {
 			return
@@ -90,6 +91,14 @@ func (m *MaillageMonde) resoutTextures(ctx context.Context, idx *ModuleIndex) {
 		if mat.Surface != nil {
 			for _, id := range mat.Surface.bitmaps() {
 				charge(m.TexturesCouches, &m.TexturesCouchesIllisibles, id, m.coteSurfaceDure(), "surface dure")
+			}
+		}
+		if mat.Emissif != nil && mat.Emissif.Images != nil && mat.Emissif.Bitmap != 0 && m.ImagesEmissives[mat.Emissif.Bitmap] == 0 {
+			// LOCAL-CHANGE (infinite-theater-3d): a light picking one image of its bitmap (an ammo
+			// counter's digit) carries all of them, in a strip; it replaces a single image read before.
+			if t, n, err := LitBitmapImages(idx, mat.Emissif.Bitmap, coteImagesEmissives); err == nil {
+				m.TexturesCouches[mat.Emissif.Bitmap] = t
+				m.ImagesEmissives[mat.Emissif.Bitmap] = n
 			}
 		}
 		if mat.Emissif != nil {

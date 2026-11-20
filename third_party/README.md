@@ -307,6 +307,13 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     the light's other textures (scanlines, noise) are left out. Covered by
     `himap/emissif_fonctions_test.go` and `himap/emissif_fonctions_gamefiles_test.go` (new, six
     Streets materials); the probe gains a block dump and a survey of the animated parameters.
+  - `himap/bitmap_images.go` (new), `himap/emissif.go`, `himap/emissif_fonctions.go`,
+    `himap/materiaux.go`, `himap/maillage_monde.go`, `himap/textures_monde.go`, `himap/glb.go`
+    (LOCAL-CHANGE): a light whose frame index an object input picks (`ImagesEmissives`: the BR75's,
+    Bandit's and Commando's ammo counter digits read `primary_ammunition_tens` and
+    `primary_ammunition_ones`) has every image of its multi-image bitmap read into one strip
+    (`LitBitmapImages`, 128 px per image), written scaled to the first image, with the input,
+    range and image count as `extras.emissionImages`. Covered by `himap/bitmap_images_test.go` (new).
   - `himap/refs_typees.go` (new, LOCAL-CHANGE) and `cuisson_forge.go` (modified): a Forge object
     type's model is looked up through typed tag references only (a GlobalID followed at +0xC by
     its group's fourCC). The untyped byte scan read the integer 121 in spawner properties as the

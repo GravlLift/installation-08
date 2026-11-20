@@ -25,8 +25,9 @@ import (
 // is outdated. 3: the energy shader's self-light (the Sentinel Beam's energy parts) is read from
 // its declared emissive_intensity and its tint map. 4: each weapon's idle-effect markers on the
 // rig (effectMarkers, the Shock Rifle's electricity in first person). 5: their rotation (the
-// Heatwave's fin markers turn a quarter about up: its vent points out of the fins).
-const SchemaFirstPerson = 5
+// Heatwave's fin markers turn a quarter about up: its vent points out of the fins). 6: an ammo
+// counter's digits carry all their images (himap.ImagesEmissives: the BR75, Bandit and Commando).
+const SchemaFirstPerson = 6
 
 // EffectMarker is a marker an idle effect emits at, on the rig: its name (StringID, hex), the bone
 // that carries it (its glTF node name), and its position and rotation (quaternion x, y, z, w) in the

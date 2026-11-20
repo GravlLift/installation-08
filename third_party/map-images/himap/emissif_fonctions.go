@@ -118,6 +118,31 @@ type AnimationEmissive struct {
 	Couleurs [][3]float32 `json:"couleurs,omitempty"`
 }
 
+// ImagesEmissives is a light whose picture is one image of its multi-image bitmap: image
+// floor(Min + (Max - Min) x input) of the object input `Entree` (a string id), through the
+// identity function. Measured on the BR75's, the Bandit's and the Commando's ammo counters (shader
+// illum, fb43df97): each digit quad's frame index (its constant at +4) reads
+// primary_ammunition_tens (0x96e4a1a4) or primary_ammunition_ones (0x688cb12a), names resolved by
+// their hash (mapvar.LabelHash), mapped to 0..10, over the ten images 0..9 of its bitmap. The
+// Stalker Rifle's and the Shock Rifle's gauges read inputs not resolved (0x2ac69451, 0x90c78538).
+// The frame count is the bitmap's (MaillageMonde.ImagesEmissives).
+type ImagesEmissives struct {
+	Entree uint32  `json:"entree"`
+	Min    float32 `json:"min"`
+	Max    float32 `json:"max"`
+}
+
+// imagesEmissives: the frame index a light's object input picks (the first frame-index parameter
+// on an object input, identity function); nil without one (a flipbook over time is not read).
+func imagesEmissives(pp postprocessLu) *ImagesEmissives {
+	for _, p := range pp.animes {
+		if p.Sorte == AnimeImage && !p.SurTemps() && p.Fonction.Type == 0 && !p.Fonction.Plage {
+			return &ImagesEmissives{Entree: p.Entree, Min: p.Fonction.Min, Max: p.Fonction.Max}
+		}
+	}
+	return nil
+}
+
 // roleAnimation names what an animated parameter of a light drives, for the survey of what is
 // drawn: "force", "uv", "couleur" (the light's color along a gradient), or why it is not drawn
 // ("objet": an object input, not time; "teinte": a color function on another constant or

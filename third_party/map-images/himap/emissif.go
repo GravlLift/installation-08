@@ -44,6 +44,10 @@ type Emissif struct {
 	// Animations (LOCAL-CHANGE (infinite-theater-3d)): how the game moves this light over time
 	// (emissif_fonctions.go); nil when it is still.
 	Animations []AnimationEmissive
+	// Images (LOCAL-CHANGE (infinite-theater-3d)): the light's picture is one image of its
+	// multi-image bitmap, picked by an object input (a weapon's ammo counter digits,
+	// emissif_fonctions.go); nil otherwise.
+	Images *ImagesEmissives
 	// octets (LOCAL-CHANGE (infinite-theater-3d)): the constants the light was read from, for its
 	// animated parameters.
 	octets cibleEmissive

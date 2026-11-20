@@ -332,6 +332,21 @@ func (e *ecrivainMateriaux) appliqueImages(g *gltfMaterial, mat Materiau, brute 
 					extTextureTransform: map[string]any{"offset": t.Decalage, "scale": t.Echelle},
 				}
 			}
+			// LOCAL-CHANGE (infinite-theater-3d): a strip of n images (ImagesEmissives) shows its first
+			// one; `emissionImages` says which input picks the image, for a viewer that moves the
+			// offset by k/n to image k.
+			if n := e.m.ImagesEmissives[mat.Emissif.Bitmap]; n > 1 {
+				echelle, decalage := [2]float32{1, 1}, [2]float32{0, 0}
+				if t := mat.Emissif.Transfo; t != nil {
+					echelle, decalage = t.Echelle, t.Decalage
+				}
+				g.EmissiveTexture.Extensions = map[string]any{
+					extTextureTransform: map[string]any{"offset": [2]float32{decalage[0] / float32(n), decalage[1]}, "scale": [2]float32{echelle[0] / float32(n), echelle[1]}},
+				}
+				if im := mat.Emissif.Images; im != nil {
+					g.Extras["emissionImages"] = map[string]any{"entree": im.Entree, "min": im.Min, "max": im.Max, "nombre": n}
+				}
+			}
 		}
 		if mat.Emissif.Image && g.EmissiveFactor != nil {
 			g.Extras["emissionImage"] = true
