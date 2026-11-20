@@ -271,7 +271,11 @@ func (m *MaillageMonde) posePlacements(ctx context.Context, idx *ModuleIndex, op
 func (m *MaillageMonde) poseModele(mp *modelePose, in Instance) {
 	in.Materiaux = mp.materiaux
 	for _, k := range mp.maillages {
-		mesh := mp.asset.Mesh(k)
+		lis := mp.asset.Mesh
+		if m.avecNormales { // LOCAL-CHANGE (infinite-theater-3d): geometry_normales.go
+			lis = mp.asset.MeshAvecNormales
+		}
+		mesh := lis(k)
 		if mesh == nil {
 			continue
 		}

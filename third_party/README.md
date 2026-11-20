@@ -545,6 +545,21 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     produce a world mesh with no structure or terrain triangle (only its sky and sun) instead of
     failing. A Forge map on the blank canvas (`fo11_blank`, Empyrean) has its whole world in the
     variant layer; the app sets it for Forge canvases only.
+  - `himap/geometry_normales.go` (new, LOCAL-CHANGE), `geometry.go` (`Mesh.Normales`),
+    `maillage_monde.go` (`GroupeMaillage.ajoute` places them, `MaillageMonde.avecNormales`),
+    `placements_scenario.go` (`poseModele`), `armes.go`, `accessoires_armure.go`, `spartan.go`
+    and `premiere_personne_rig.go` (modified): the game's own vertex normals, the LOD's buffer
+    slot 5 (format 15: three unsigned 10-bit fields, each v / 1023 * 2 - 1, a direction that is
+    normalized; the 2-bit field is not read), are read for the Spartan, its pieces and
+    attachments, the first-person rig and the objects `Arsenal.objet` reads (weapons, grenades,
+    equipment, vehicles), placed by the inverse transpose of the instance, and written as the GLB
+    `NORMAL` (`ajouteNormalesGLB`). Before this those GLBs carried no normal and the view shaded
+    them per face: visible triangle facets on lit close-ups. A group keeps normals only while
+    every mesh it holds has them. Map geometry is unchanged (it reads none). Measured on the
+    Spartan's `mode` (2.46 M vertices) against the triangles' own normals: mean dot 0.86, 73%
+    within 30 degrees, the rest authored bends. Covered by `himap/geometry_normales_test.go`
+    (new) and `himap/geometry_normales_gamefiles_test.go` (new: the Spartan's default armor and
+    the BR75).
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.

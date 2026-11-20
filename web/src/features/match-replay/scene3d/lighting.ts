@@ -144,17 +144,32 @@ export const FINITE_NORMAL: readonly number[] = [0, 1, 0]
 
 /**
  * giveFiniteNormal gives `material` a constant vertex normal (`FINITE_NORMAL`) for geometries
- * that carry no `normal` attribute (the tool's GLBs: map, Spartan, armor pieces, weapons). Without
- * it the attribute reads WebGL's generic vertex value, (0, 0, 0) unless another program left
- * something at that location: three's shadow pass normalizes it (`shadowmap_vertex`,
- * `shadowWorldNormal`), the sun's shadow coordinate becomes NaN, and the sun's shadow test on
- * that surface is undefined (the GPU's compiler decides: never shadowed, or always shadowed).
- * Shading never reads it: faceted rendering takes its normal from screen-space derivatives, and
- * the shadow's normal bias is zero, so any finite normal gives the true shadow lookup.
+ * that carry no `normal` attribute (the map's GLB, and Spartan, armor and weapon GLBs built before
+ * they carried the game's normals). Without it the attribute reads WebGL's generic vertex value,
+ * (0, 0, 0) unless another program left something at that location: three's shadow pass
+ * normalizes it (`shadowmap_vertex`, `shadowWorldNormal`), the sun's shadow coordinate becomes
+ * NaN, and the sun's shadow test on that surface is undefined (the GPU's compiler decides: never
+ * shadowed, or always shadowed). Shading never reads it: faceted rendering takes its normal from
+ * screen-space derivatives, and the shadow's normal bias is zero, so any finite normal gives the
+ * true shadow lookup.
+ *
+ * It never overrides a geometry's own normals: three binds a material's default attribute value
+ * only for an attribute the geometry lacks (`WebGLBindingStates.setupVertexAttributes`), so a
+ * material shared by geometries with and without normals is safe.
  */
 export function giveFiniteNormal(material: THREE.Material): void {
   const withDefaults = material as THREE.Material & { defaultAttributeValues?: Record<string, readonly number[]> }
   withDefaults.defaultAttributeValues = { ...withDefaults.defaultAttributeValues, normal: FINITE_NORMAL }
+}
+
+/**
+ * shadesFaceted: whether a model's surface is shaded per face (screen-space derivative normals)
+ * rather than from its vertex normals. The tool writes the game's own vertex normals into the
+ * Spartan, armor, attachment, first-person and weapon GLBs (himap `geometry_normales.go`); a GLB
+ * built before that carries none and keeps the faceted look.
+ */
+export function shadesFaceted(geometry: THREE.BufferGeometry): boolean {
+  return !geometry.hasAttribute('normal')
 }
 
 /**

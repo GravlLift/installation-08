@@ -161,7 +161,7 @@ func (m *ModeleAPeau) collecte(ctx context.Context, asset *RuntimeGeoAsset, sel 
 			m.SectionsOmbre++
 			continue
 		}
-		mesh := asset.Mesh(k)
+		mesh := asset.MeshAvecNormales(k) // LOCAL-CHANGE (infinite-theater-3d): geometry_normales.go
 		inf, err := asset.PeauDeSection(k, len(m.Noeuds))
 		if err == nil && (mesh == nil || len(inf) != len(mesh.Vertices)) {
 			err = fmt.Errorf("%w: section %d, unreadable mesh or different size", ErrPeauIllisible, k)

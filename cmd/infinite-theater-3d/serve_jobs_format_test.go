@@ -19,6 +19,7 @@ import (
 	"github.com/llampwall/infinite-theater-3d/internal/firstperson"
 	"github.com/llampwall/infinite-theater-3d/internal/mapmesh"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
+	"github.com/llampwall/infinite-theater-3d/internal/spartanpieces"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
 )
@@ -205,7 +206,7 @@ func TestJobModuleFormatLibraries(t *testing.T) {
 	}{
 		{meshjobs.JobWeapons, weapons.SchemaCurrent, weapons.SchemaCurrent - 1},
 		{meshjobs.JobFirstPerson, firstperson.SchemaFirstPerson, firstperson.SchemaFirstPerson - 1},
-		{meshjobs.JobSpartanPieces, 2, 1},
+		{meshjobs.JobSpartanPieces, spartanpieces.SchemaPieces, spartanpieces.SchemaPieces - 1},
 	}
 	for _, c := range cases {
 		root := libraryRoot(t)

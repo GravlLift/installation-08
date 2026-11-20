@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LoadGate } from './loadGate3d'
 import { fetchMesh } from './meshFetch'
 import { armorMaterial } from './armorMaterial3d'
-import { FINITE_NORMAL } from './lighting'
+import { FINITE_NORMAL, shadesFaceted } from './lighting'
 import { prepareModel, WeaponModels } from './weaponModels3d'
 
 vi.mock('./meshFetch', () => ({ fetchMesh: vi.fn() }))
@@ -113,8 +113,8 @@ afterEach(() => {
 
 describe('prepareModel', () => {
   it('gives a normal-less model (Spartan, armor piece, weapon) a finite normal its painted copies keep', () => {
-    // The tool's GLBs carry no `normal`: without a default, three's shadow pass normalizes WebGL's
-    // generic (0, 0, 0) and the sun's shadow coordinate on the model is NaN.
+    // A GLB built before the game's normals carries no `normal`: without a default, three's shadow
+    // pass normalizes WebGL's generic (0, 0, 0) and the sun's shadow coordinate on the model is NaN.
     const geometry = new THREE.BufferGeometry()
     geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3))
     const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ map: new THREE.Texture() }))
@@ -129,6 +129,29 @@ describe('prepareModel', () => {
       gradients: { value: new THREE.Texture() },
     }) as THREE.MeshStandardMaterial & { defaultAttributeValues?: Record<string, readonly number[]> }
     expect(painted.defaultAttributeValues?.normal).toEqual(FINITE_NORMAL)
+  })
+
+  it('shades a model with the game\'s vertex normals smooth, its normals untouched', () => {
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3))
+    const normals = [0, 0, 1, 0.6, 0, 0.8, 0, 0.6, 0.8]
+    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3))
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial())
+    prepareModel(new THREE.Group().add(mesh))
+    const m = mesh.material as THREE.MeshStandardMaterial
+    expect(m.flatShading).toBe(false)
+    expect(Array.from(geometry.getAttribute('normal').array)).toEqual(normals.map(Math.fround))
+  })
+})
+
+describe('shadesFaceted', () => {
+  it('is faceted only for a geometry without a normal attribute', () => {
+    const bare = new THREE.BufferGeometry()
+    bare.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3))
+    expect(shadesFaceted(bare)).toBe(true)
+    const withNormals = bare.clone()
+    withNormals.setAttribute('normal', new THREE.Float32BufferAttribute([0, 0, 1, 0, 0, 1, 0, 0, 1], 3))
+    expect(shadesFaceted(withNormals)).toBe(false)
   })
 })
 
