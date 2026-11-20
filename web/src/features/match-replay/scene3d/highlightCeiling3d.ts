@@ -141,6 +141,25 @@ export function chainLuma(v: number, chain: ToneChain): number {
   return 255 * (LUMA[0] * c[0] + LUMA[1] * c[1] + LUMA[2] * c[2])
 }
 
+/**
+ * clipLuminance: the least linear luminance (before exposure) the chain draws as a grey with every
+ * channel at or above `level` (0..255, the clip metric's), Infinity when no luminance up to 2^10
+ * does (searched on a log scale; the chain rises with luminance).
+ */
+export function clipLuminance(chain: ToneChain, level: number): number {
+  const clips = (v: number) => chainScreen(v, chain).every((c) => 255 * c >= level)
+  let lo = Math.pow(2, -12)
+  let hi = Math.pow(2, 10)
+  if (!clips(hi)) return Number.POSITIVE_INFINITY
+  if (clips(lo)) return lo
+  for (let k = 0; k < 40; k++) {
+    const mid = Math.sqrt(lo * hi)
+    if (clips(mid)) hi = mid
+    else lo = mid
+  }
+  return hi
+}
+
 /** The half-width of `chainSlope`'s central difference, in stops. */
 const SLOPE_HALF_STOP = 0.125
 

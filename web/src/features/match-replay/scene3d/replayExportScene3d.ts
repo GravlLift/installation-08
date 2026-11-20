@@ -3,7 +3,7 @@
 import * as THREE from 'three'
 import type { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import type { CSS2DRenderer } from 'three/addons/renderers/CSS2DRenderer.js'
-import { clippedPct } from '../export/clipMetric'
+import { clippedPct, clippedSplit, type ClipCells } from '../export/clipMetric'
 import type { Export3dSetup, ExportCamera3d, ExportExposure3d, ExportSubframe3d, ExportTag3d } from '../export/replay3dExportStore'
 import type { CameraMode3d } from './replayScene3d'
 import type { SceneView3d } from './topDownLogic'
@@ -58,6 +58,8 @@ interface ExportScene {
   resetExposure?(): void
   /** The last drawn frame's highlight ceiling in stops, null while it is off (`PostFx3d.readCeilingStops`). */
   readCeilingStops?(): number | null
+  /** The last drawn frame's meter cells for the clip split, null while the ceiling is off (`PostFx3d.readClipCells`). */
+  readClipCells?(): ClipCells | null
 }
 
 /** What the center subframe of a blurred frame saw from: the file frame's tags and camera. */
@@ -223,9 +225,13 @@ export class ReplayExportScene3d {
   /** measure records the frame just read back: its clipped share and the highlight ceiling it was drawn with. */
   private measure(): void {
     const pixels = this.readback.pixels()
+    // The split needs the meter's cells; a frame drawn without the ceiling has none and keeps the total only.
+    const cells = pixels ? this.scene.readClipCells?.() ?? null : null
+    const split = pixels && cells ? clippedSplit(pixels.data, pixels.width, pixels.height, cells) : null
     this.exposure = {
       clippedPct: pixels ? clippedPct(pixels.data, pixels.width, pixels.height) : 0,
       ceilingStops: this.scene.readCeilingStops?.() ?? null,
+      ...(split ? { surfaceClippedPct: split.surfacePct, emissionClippedPct: split.emissionPct } : {}),
     }
   }
 

@@ -296,6 +296,10 @@ export interface CameraTrackSample extends ExportCamera3d {
   clippedPct?: number
   /** The highlight ceiling the frame was drawn with, in stops (0 or less; `highlightCeiling3d`); null while off. */
   ceilingStops?: number | null
+  /** `clippedPct`'s lit-surface share (`clipMetric.clippedSplit`); absent while the ceiling was off. */
+  surfaceClippedPct?: number
+  /** `clippedPct`'s emission share; absent likewise. */
+  emissionClippedPct?: number
 }
 
 export interface ReplayExportState {
@@ -650,6 +654,7 @@ async function framePainter(
         scriptMs: scriptMs && index !== undefined ? scriptMs[index] ?? null : null,
         ...cam,
         ...(exposure ? { clippedPct: exposure.clippedPct, ceilingStops: exposure.ceilingStops } : {}),
+        ...(exposure?.surfaceClippedPct !== undefined ? { surfaceClippedPct: exposure.surfaceClippedPct, emissionClippedPct: exposure.emissionClippedPct } : {}),
       }
     }
     return image

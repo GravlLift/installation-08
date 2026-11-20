@@ -252,6 +252,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       exposureClock: (frame) => this.post.setExposureClock(this.cameraPlacement.activeScript() ? this.cameraPlacement.scriptTime() : frame * this.msPerFrame),
       resetExposure: () => this.post.resetExposure(),
       readCeilingStops: () => this.post.readCeilingStops(),
+      readClipCells: () => this.post.readClipCells(),
     })
   }
   /** attach poses the map and the players, lights the play area, and captures the environment. */

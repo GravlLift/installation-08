@@ -111,6 +111,10 @@ export interface ExportExposure3d {
   clippedPct: number
   /** The highlight ceiling the frame was drawn with, in stops (0 or less); null while it was off. */
   ceilingStops: number | null
+  /** `clippedPct`'s lit-surface share (`clipMetric.clippedSplit`); absent while the ceiling was off. */
+  surfaceClippedPct?: number
+  /** `clippedPct`'s emission share (light given off, transparent effects); absent likewise. */
+  emissionClippedPct?: number
 }
 
 /**

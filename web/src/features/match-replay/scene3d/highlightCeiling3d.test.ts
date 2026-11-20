@@ -12,6 +12,7 @@ import {
   ceilingTable,
   chainScreen,
   chainSlope,
+  clipLuminance,
   DETAIL_FLOOR_LUMINANCE,
   MeterClock,
   smoothingAlpha,
@@ -218,5 +219,21 @@ describe('MeterClock — easing on a given clock', () => {
     expect(smoothingAlpha(0)).toBe(0)
     expect(smoothingAlpha(-5)).toBe(0)
     expect(smoothingAlpha(CEILING_TAU_MS)).toBeCloseTo(1 - Math.exp(-1), 12)
+  })
+})
+
+describe('clipLuminance — where the chain starts drawing a clipped grey', () => {
+  it('is the least luminance with every channel at the level, for the default view and a film look', () => {
+    for (const chain of [BASE, DEMO3]) {
+      const v = clipLuminance(chain, 220)
+      expect(Number.isFinite(v)).toBe(true)
+      const raw = (x: number) => chainScreen(x, chain).map((c) => c * 255)
+      expect(raw(v * 1.001).every((c) => c >= 220)).toBe(true)
+      expect(raw(v * 0.98).some((c) => c < 220)).toBe(true)
+    }
+  })
+
+  it('is Infinity for a level the chain never reaches', () => {
+    expect(clipLuminance(BASE, 256)).toBe(Number.POSITIVE_INFINITY)
   })
 })

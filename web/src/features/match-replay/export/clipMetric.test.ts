@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 import { describe, expect, it } from 'vitest'
 
-import { CLIP_GRID, CLIP_LEVEL, CLIP_WARN_PCT, clippedPct, clipWarning, summarizeClipping, type ClipSample } from './clipMetric'
+import { CLIP_GRID, CLIP_LEVEL, CLIP_WARN_PCT, clippedPct, clippedSplit, clipWarning, summarizeClipping, type ClipCells, type ClipSample } from './clipMetric'
 
 /** An RGBA frame filled by `color(x, y)`. */
 function frame(width: number, height: number, color: (x: number, y: number) => [number, number, number]): Uint8ClampedArray {
@@ -71,5 +71,40 @@ describe('summarizeClipping — the clip summary in the camera track', () => {
 
   it('names the film frame when the export is not a camera script', () => {
     expect(clipWarning(summarizeClipping([sample(0, 9, null)]))).toContain('film frame 100.0')
+  })
+})
+
+describe('clippedSplit — clipped samples split into lit surface and emission', () => {
+  /** 2 x 2 cells over a 320 x 180 frame, bottom row first: `lum` and `share` per cell. */
+  const cells = (lum: number[], share: number[], clipAt = 1): ClipCells => ({ x: 2, y: 2, lum, share, clipAt })
+  // The left half of the frame white, the right half black.
+  const half = frame(320, 180, (x) => (x < 160 ? [255, 255, 255] : [0, 0, 0]))
+
+  it('counts a clipped sample as surface when its cell is lit surface that reaches the clip level', () => {
+    expect(clippedSplit(half, 320, 180, cells([2, 0, 2, 0], [1, 1, 1, 1]))).toEqual({ surfacePct: 50, emissionPct: 0 })
+  })
+
+  it('counts it as emission when the cell is mostly light given off, or its surface alone does not clip', () => {
+    expect(clippedSplit(half, 320, 180, cells([2, 0, 2, 0], [0.2, 1, 0.2, 1]))).toEqual({ surfacePct: 0, emissionPct: 50 })
+    // A dim wall under a white explosion: the opaque scene there is far under the clip level.
+    expect(clippedSplit(half, 320, 180, cells([0.1, 0, 0.1, 0], [1, 1, 1, 1]))).toEqual({ surfacePct: 0, emissionPct: 50 })
+  })
+
+  it('reads the cells bottom row first against the image top row first', () => {
+    // The top half of the image white; only the TOP cells (indices 2, 3) are clipping surface.
+    const top = frame(320, 180, (_x, y) => (y < 90 ? [255, 255, 255] : [0, 0, 0]))
+    expect(clippedSplit(top, 320, 180, cells([0, 0, 2, 2], [1, 1, 1, 1]))).toEqual({ surfacePct: 50, emissionPct: 0 })
+    expect(clippedSplit(top, 320, 180, cells([2, 2, 0, 0], [1, 1, 1, 1]))).toEqual({ surfacePct: 0, emissionPct: 50 })
+  })
+})
+
+describe('summarizeClipping — the split parts', () => {
+  it('sums each part on its own, and leaves them out when no sample carries them', () => {
+    const s = (i: number, clippedPct: number, surfaceClippedPct?: number, emissionClippedPct?: number): ClipSample => ({ i, frame: i, scriptMs: null, clippedPct, surfaceClippedPct, emissionClippedPct })
+    const sum = summarizeClipping([s(0, 1, 0.5, 0.5), s(1, 14, 0.4, 13.6)])
+    expect(sum?.maxPct).toBe(14)
+    expect(sum?.surface).toMatchObject({ frames: 2, maxPct: 0.5, maxAt: { i: 0 }, warn: false })
+    expect(sum?.emission).toMatchObject({ frames: 2, maxPct: 13.6, maxAt: { i: 1 }, warn: true })
+    expect(summarizeClipping([s(0, 3)])).not.toHaveProperty('surface')
   })
 })

@@ -39,11 +39,14 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js'
 
+import { CLIP_LEVEL, type ClipCells } from '../export/clipMetric'
+
 import { BLOOM_STRENGTH, GlowBloomPass } from './bloom3d'
 import { DofPass, type Lens3d } from './dof3d'
 import { FILM_FRAGMENT, filmSeed, resolveFilmLook, seedOffset, warmthGain, type FilmLook, type FilmLookSettings } from './filmLook3d'
 import { GpuTimer } from './gpuTimer3d'
 import { installEmissionMarks } from './emissionMark3d'
+import { clipLuminance } from './highlightCeiling3d'
 import { HighlightMeter3d, makeMeterProbe } from './highlightMeter3d'
 import { Outline3d } from './outline3d'
 
@@ -99,6 +102,12 @@ export interface PostFx3d {
   resetExposure(): void
   /** The last drawn frame's ceiling in stops (0 or less; a GPU read), null while the ceiling is off. */
   readCeilingStops(): number | null
+  /**
+   * The last drawn frame's meter cells for the export's clip split (`clipMetric.clippedSplit`; GPU
+   * reads), with the luminance from which that frame's chain and ceiling draw a clipped grey; null
+   * while the ceiling is off.
+   */
+  readClipCells(): ClipCells | null
   resetCosts(): void
   dispose(): void
 }
@@ -326,6 +335,15 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
     },
     readCeilingStops() {
       return ceilingOn ? meter.readStops(renderer) : null
+    },
+    readClipCells() {
+      if (!ceilingOn) return null
+      const cells = meter.readCells(renderer)
+      if (!cells) return null
+      // The output pass multiplies the HDR color by the ceiling's gain before tone mapping: a
+      // surface clips from the chain's clip luminance divided by that gain.
+      const gain = Math.pow(2, meter.readStops(renderer))
+      return { x: cells.x, y: cells.y, lum: cells.lum, share: cells.share, clipAt: clipLuminance(cells.chain, CLIP_LEVEL) / gain }
     },
     setBloom(on) {
       drawerBloom = on

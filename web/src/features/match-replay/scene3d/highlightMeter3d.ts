@@ -159,6 +159,10 @@ export class HighlightMeter3d {
   private readonly clock = new MeterClock()
   private key = ''
   private readonly pixel = new Float32Array(4)
+  /** The chain the last frame was metered for (`setChain`), null before any. */
+  private chain: ToneChain | null = null
+  /** The cells as read back (half floats, RGBA). */
+  private readonly cellHalf = new Uint16Array(CELLS_X * CELLS_Y * 4)
 
   constructor() {
     const state = () => new THREE.WebGLRenderTarget(1, 1, { type: THREE.FloatType, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: false })
@@ -196,6 +200,7 @@ export class HighlightMeter3d {
 
   /** setChain sets the chain the frame is drawn through; the ceiling table is rebuilt when it changes. */
   setChain(chain: ToneChain): void {
+    this.chain = chain
     const key = tableKey(chain)
     if (key === this.key) return
     this.key = key
@@ -226,6 +231,24 @@ export class HighlightMeter3d {
   readStops(renderer: THREE.WebGLRenderer): number {
     renderer.readRenderTargetPixels(this.states[this.clock.current], 0, 0, 1, 1, this.pixel)
     return this.pixel[0]
+  }
+
+  /**
+   * readCells reads the last metered frame's cells back (a GPU sync, for the export's clip split
+   * only): per cell its lit-surface mean luminance and lit share, bottom row first, with the chain
+   * they were metered for. Null before any frame was metered.
+   */
+  readCells(renderer: THREE.WebGLRenderer): { x: number; y: number; lum: Float32Array; share: Float32Array; chain: ToneChain } | null {
+    if (!this.chain) return null
+    renderer.readRenderTargetPixels(this.cells, 0, 0, CELLS_X, CELLS_Y, this.cellHalf)
+    const n = CELLS_X * CELLS_Y
+    const lum = new Float32Array(n)
+    const share = new Float32Array(n)
+    for (let i = 0; i < n; i++) {
+      lum[i] = THREE.DataUtils.fromHalfFloat(this.cellHalf[i * 4])
+      share[i] = THREE.DataUtils.fromHalfFloat(this.cellHalf[i * 4 + 1])
+    }
+    return { x: CELLS_X, y: CELLS_Y, lum, share, chain: this.chain }
   }
 
   dispose(): void {

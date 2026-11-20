@@ -428,6 +428,16 @@ view selector at the top left.
   `clipping` sums them up: `{level, warnAbovePct, grid, frames, meanPct, maxPct, maxAt:{i, frame,
   scriptMs}, warn}` (null when no frame was measured); the export warns in the console when a
   frame passes 2 % (`export/clipMetric.ts` says why 220 and 2).
+  While the highlight ceiling is on, each sample also splits `clippedPct` in two
+  (`clipMetric.clippedSplit`, added 2026-11-20; `clippedPct` is unchanged): `surfaceClippedPct`,
+  clipped samples whose meter cell (64 x 36, the opaque scene before transparent effects) is lit
+  surface that, drawn alone, reaches the clip level (a wall or armor lit past white, what the
+  ceiling answers for), and `emissionClippedPct`, every other clipped sample (light given off, or a
+  transparent effect such as an explosion or muzzle flash drawn over the surface). `clipping` then
+  carries `surface` and `emission`, each `{frames, meanPct, maxPct, maxAt, warn}` against the same
+  2 %. A QC gate fails on `surface.warn` and only flags `emission.warn`. In stills mode the ceiling
+  is not eased from the frames before (a still has none), so a still's `ceilingStops` can differ
+  slightly from the full clip's at the same time.
 - **Render coverage**: the same sidecar carries `coverage`, whether the render drew every event
   of the clip's window. The window is the plan's film frames, first to last, and their document
   instants (`frame x frameIntervalMs`). The events are the match ledger's in that window
