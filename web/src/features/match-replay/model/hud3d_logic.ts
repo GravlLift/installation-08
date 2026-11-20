@@ -132,18 +132,17 @@ function lastMark(times: readonly number[], now: number, duration: number): numb
   return start ? impactMark(now - times[start - 1], duration) : 0
 }
 
-export function readHud(source: ReturnType<typeof prepareHud>, frame: number, locale: ReplayLocale) {
-  const { doc, player, presence } = source
-  if (!player) return null
-  const state = playerStateAt(player, frame, presence)
-  if (!state.alive || !state.life) return null
-  const slot = state.life.slot
+/**
+ * heldAmmo: the weapon in hand of life `life` at `frame`, and its ammo as the HUD shows it (the
+ * magazine `mag`, the reserve `res`), with the inventory keyframe and instant it was read from.
+ */
+function heldAmmo(source: ReturnType<typeof prepareHud>, life: ReplayTrackReady, frame: number) {
+  const { doc } = source
+  const slot = life.slot
   const inventory = inventoryAt(doc, slot, frame)
   const now = frameToMs(frame, doc)
   const held = weaponInHand(doc, slot, frame)
   const inHand = held?.weaponSlot
-  const weapon = held
-  const label = weapon ? doc.weaponLabels?.[weapon.id] : undefined
   // A read of the emplacement dated before the latest weapon change into it (a pickup included), or
   // an upcoming keyframe dated after the next one, counts another weapon's ammo: never shown. Blank
   // is better than the replaced weapon's count (1a521d10 slot 518: a VK78 picked into emplacement 0
@@ -161,10 +160,35 @@ export function readHud(source: ReturnType<typeof prepareHud>, frame: number, lo
   // until a keyframe of its own reads it.
   const spawn = !held || (inventory && inventory.age >= 0 && keyframeValid) ? null
     : into && into.last > -Infinity ? pickupAmmoAt(source.pickupAmmo, slot, into.last, frame, held)
-    : !(inventory && inventory.age >= 0) ? spawnAmmoAt(source.spawnAmmo, state.life, frame, held) : null
+    : !(inventory && inventory.age >= 0) ? spawnAmmoAt(source.spawnAmmo, life, frame, held) : null
   const ammo = fine
     ? { ...keyframe, mag: fine.mag ?? spawn?.mag ?? keyframe?.mag, res: fine.res ?? spawn?.res ?? keyframe?.res }
     : spawn ? { ...keyframe, mag: spawn.mag ?? keyframe?.mag, res: spawn.res ?? keyframe?.res } : keyframe
+  return { inventory, now, held, ammo }
+}
+
+/**
+ * magazineInHand: the rounds in the magazine of the followed player's weapon in hand at `frame`, the
+ * number the HUD shows (`readHud`'s `ammo.mag`); null while they are dead or the film does not say.
+ * The first-person rig's ammo counter shows it (`ammoCounter3d`).
+ */
+export function magazineInHand(source: ReturnType<typeof prepareHud>, frame: number): number | null {
+  const { player, presence } = source
+  if (!player) return null
+  const state = playerStateAt(player, frame, presence)
+  if (!state.alive || !state.life) return null
+  return heldAmmo(source, state.life, frame).ammo?.mag ?? null
+}
+
+export function readHud(source: ReturnType<typeof prepareHud>, frame: number, locale: ReplayLocale) {
+  const { doc, player, presence } = source
+  if (!player) return null
+  const state = playerStateAt(player, frame, presence)
+  if (!state.alive || !state.life) return null
+  const slot = state.life.slot
+  const { inventory, now, held, ammo } = heldAmmo(source, state.life, frame)
+  const weapon = held
+  const label = weapon ? doc.weaponLabels?.[weapon.id] : undefined
   const box = grenadeBoxAt(doc, slot, frame, inventory)
   const grenade = grenadeHudFrom(box, doc.grenadeLabels, locale)
   // The other emplacement of the in-hand weapon: the small dimmed icon of the upper row.

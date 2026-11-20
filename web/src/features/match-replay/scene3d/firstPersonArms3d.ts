@@ -7,6 +7,7 @@ import type { KTX2Loader } from 'three/addons/loaders/KTX2Loader.js'
 import { api, API_BASE_URL } from '@/lib/api/client'
 import { viewmodelScale } from '../model/fovLogic'
 import { darkMetalFallback } from './fallbackMetal3d'
+import { findCounterQuads, showRounds, type CounterQuad } from './ammoCounter3d'
 import { fetchMesh } from './meshFetch'
 import { rawMaps } from './armorLibrary3d'
 import { ARMURE_NEUTRE, RUGOSITE_ARMURE_NEUTRE } from './armorMaterial3d'
@@ -36,7 +37,7 @@ type StMuzzle = {
   point?: THREE.Vector3
   localAxis?: THREE.Vector3
 }
-type Entry = { materials: THREE.Material[]; root: THREE.Object3D; mixer: THREE.AnimationMixer; rig: FirstPersonRig; actions: Map<string, THREE.AnimationAction>; actionList: THREE.AnimationAction[]; clip: FirstPersonClip; muzzle?: StMuzzle; pivot: THREE.Vector3 | null; leftHand: THREE.Object3D | null } | null
+type Entry = { materials: THREE.Material[]; root: THREE.Object3D; mixer: THREE.AnimationMixer; rig: FirstPersonRig; actions: Map<string, THREE.AnimationAction>; actionList: THREE.AnimationAction[]; clip: FirstPersonClip; muzzle?: StMuzzle; pivot: THREE.Vector3 | null; leftHand: THREE.Object3D | null; counters: CounterQuad[] } | null
 
 // The vertical field (degrees) the grips and the rig's muzzle were tuned at: the holder
 // counter-scales to this field (viewmodelScale) to keep its projection.
@@ -259,9 +260,10 @@ export class FirstPersonArms3d {
    * delayed coating never erases the previous one), so the rig shows exactly as it is at this
    * instant — never falling back to the static model while the file is loading. `camo`: the
    * strength of the player's active camouflage (0 visible, 1 full), which also hides their arms
-   * and weapon.
+   * and weapon. `rounds`: the magazine the HUD shows, which the weapon's ammo counter shows too
+   * (`ammoCounter3d`); null leaves the counter as it was.
    */
-  show(camera: THREE.PerspectiveCamera, weaponKey: string | null, events: FirstPersonFrameEvents, recoil: Recoil | null, camo = 0): boolean {
+  show(camera: THREE.PerspectiveCamera, weaponKey: string | null, events: FirstPersonFrameEvents, recoil: Recoil | null, camo = 0, rounds: number | null = null): boolean {
     this.hide()
     const rig = weaponKey && this.weapons.get(weaponKey)
     if (!rig) return false
@@ -275,6 +277,7 @@ export class FirstPersonArms3d {
     this.visible = entry.root
     this.visibleKey = weaponKey
     this.camouflage.apply(entry.root, camo)
+    showRounds(entry.counters, rounds)
     const pose = firstPersonPose(entry.rig, events, this.pose)
     for (let i = 0; i < entry.actionList.length; i++) entry.actionList[i].weight = 0
     const idle = entry.actions.get(entry.clip.name)!
@@ -580,7 +583,7 @@ export class FirstPersonArms3d {
         const actionList = [...actions.values()]
         gltf.scene.visible = false
         this.support.add(gltf.scene)
-        const entry: NonNullable<Entry> = { root: gltf.scene, mixer, clip, rig, actions, actionList, materials: [], pivot: recoilPivot(rig.idleWeapon), leftHand: gltf.scene.getObjectByName('b_l_hand') ?? null }
+        const entry: NonNullable<Entry> = { root: gltf.scene, mixer, clip, rig, actions, actionList, materials: [], pivot: recoilPivot(rig.idleWeapon), leftHand: gltf.scene.getObjectByName('b_l_hand') ?? null, counters: findCounterQuads(gltf.scene) }
         this.entries.set(rig.file, entry)
         // The weapon muzzle, once, at the idle pose: the rig is at rest, its resting position.
         this.measureMuzzle(entry)

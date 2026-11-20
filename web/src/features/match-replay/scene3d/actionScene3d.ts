@@ -35,6 +35,7 @@ import { prepareFirstPersonEvents } from './firstPersonEvents3d'
 import type { WeaponSwitch, FirstPersonFrameEvents } from './firstPersonActions3d'
 import type { ReloadEpisode } from './firstPersonReload3d'
 import type { ShotFxEntry } from '../model/shotFx'
+import { magazineInHand, prepareHud } from '../model/hud3d_logic'
 import { newRecoil, type Recoil } from './recoil3d'
 import { ShooterRecoil } from './recoilShots3d'
 import type { PlayerState3d, Tracks3d } from './tracks3d'
@@ -190,6 +191,8 @@ export class ActionScene3d {
     reloadValid: (t, f) => this.moves.isReloadValid(this.firstPersonXuid, t, f),
   }
   private readonly kicks = new Map<number, Recoil>()
+  /** The HUD's readings of the followed player (`magazineInHand`), built for the last one asked. */
+  private hud: ReturnType<typeof prepareHud> | null = null
 
   constructor(
     ctx: ActionContext,
@@ -205,6 +208,16 @@ export class ActionScene3d {
     this.body = new BodyFx3d(ctx)
     this.moves = new Motion3d(ctx, (slot, frame) => held.at(slot, frame))
     this.recoil = new ShooterRecoil(ctx.doc, () => ctx.inputs())
+  }
+
+  /**
+   * magazineInHand: the rounds in the magazine of player `xuid`'s weapon in hand at `frame`, as the
+   * HUD shows them (`hud3d_logic.magazineInHand`); null when the film does not say. The first-person
+   * rig's ammo counter shows it.
+   */
+  magazineInHand(xuid: string, frame: number): number | null {
+    if (this.hud?.xuid !== xuid) this.hud = prepareHud(this.ctx.doc, xuid, [])
+    return magazineInHand(this.hud, frame)
   }
 
   firstPersonFrameEvents(xuid: string, slot: number, frame: number, fps: number): FirstPersonFrameEvents {

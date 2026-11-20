@@ -961,7 +961,7 @@ export class ReplayScene3d implements Replay3DExportSource {
         this.armsPlayerReady = p.xuid
         this.arms?.preparePlayer(p.xuid)
       }
-      const rigVisible = firstPerson && !rider && !!s && !!this.action && !!this.arms?.show(this.camera, held?.key ?? null, this.action.firstPersonFrameEvents(p.xuid, s.slot, f, this.fps), held?.recoil ?? null, fx?.equip.camo ?? 0)
+      const rigVisible = firstPerson && !rider && !!s && !!this.action && !!this.arms?.show(this.camera, held?.key ?? null, this.action.firstPersonFrameEvents(p.xuid, s.slot, f, this.fps), held?.recoil ?? null, fx?.equip.camo ?? 0, this.action.magazineInHand(p.xuid, f))
       const weaponModel = rigVisible ? null : held?.model ?? null
       const weaponKey = held?.key ? weaponModelKey(held.key) : null
       if (weaponModel && weaponKey && this.armory) void this.armory.paintWeapon(p.xuid, weaponKey, weaponModel)
