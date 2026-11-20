@@ -5,6 +5,7 @@
  * Another tool writes camera scripts to the server and needs the rendered clip on disk without
  * a human clicking the export dialog. It opens the match at
  * `#/matches/<id>?autoexport=<scriptName>[&format=1080p|720p][&clean=0|1][&sound=0|1][&out=<name>]`
+ * `[&blur=<subframes 1..32>][&shutter=<degrees 1..360>][&ss=1|2]`
  * and the page renders it, uploads it, and reports each step (`useAutoExport.ts`). This module
  * only READS that question: a pure function of the hash string, testable without a page.
  *
@@ -14,9 +15,14 @@
  * on, and a hash that is not a match's is a page that is not one.
  */
 import { DEFAULT_EXPORT_FORMAT_ID, EXPORT_FORMAT_IDS, type ExportFormatId } from './exportFormats'
+import { MOTION_BLUR_MAX_SUBFRAMES, SHUTTER_DEFAULT_DEG, type MotionBlur } from './exportShutter'
 
 /** An export's stored name, the server's rule (a camera script's name obeys the same one). */
 const EXPORT_NAME_RE = /^[a-z0-9_-]{1,64}$/
+/** A whole number written plainly (no sign, no exponent, no fraction). */
+const WHOLE_RE = /^\d{1,3}$/
+/** An angle written plainly: digits, optionally a decimal fraction (`172.8`). */
+const DEGREES_RE = /^\d{1,3}(\.\d{1,6})?$/
 
 /** One auto-export request, defaults filled in. */
 export interface AutoExportRequest {
@@ -30,6 +36,13 @@ export interface AutoExportRequest {
   sound: boolean
   /** The name the clip is uploaded under; the script's name when the URL does not choose. */
   out: string
+  /**
+   * Motion blur: `blur` subframes per file frame (1 = off, the default) over a `shutter` of
+   * degrees (180 when the URL does not choose).
+   */
+  motionBlur: MotionBlur
+  /** Supersampling: the 3D frame renders at 1x or 2x the file's size; 1 when the URL does not choose. */
+  supersample: 1 | 2
 }
 
 /** A request the page refuses AT ONCE, with the stated reason (see `useAutoExport`). */
@@ -42,8 +55,9 @@ export interface AutoExportRefusal {
  *
  * - `null`: no `autoexport` parameter — no request, the page runs normally.
  * - an `AutoExportRequest`: every parameter present is VALIDATED; an unknown format, a name
- *   outside `[a-z0-9_-]{1,64}`, or a `clean`/`sound` that is not `0` or `1` is refused with a
- *   stated reason, never silently fallen back to a default.
+ *   outside `[a-z0-9_-]{1,64}`, a `clean`/`sound` that is not `0` or `1`, a `blur` that is not
+ *   a whole 1 to 32, a `shutter` outside 1 to 360 degrees, or an `ss` that is not `1` or `2` is
+ *   refused with a stated reason, never silently fallen back to a default.
  */
 export function parseAutoExport(hash: string): AutoExportRequest | AutoExportRefusal | null {
   const qIndex = hash.indexOf('?')
@@ -66,11 +80,26 @@ export function parseAutoExport(hash: string): AutoExportRequest | AutoExportRef
   if (out !== null && !EXPORT_NAME_RE.test(out)) {
     return { error: `out '${out}' is not a valid export name ([a-z0-9_-], 1 to 64 characters)` }
   }
+  const blur = params.get('blur')
+  if (blur !== null && (!WHOLE_RE.test(blur) || Number(blur) < 1 || Number(blur) > MOTION_BLUR_MAX_SUBFRAMES)) {
+    return { error: `blur '${blur}' must be a whole number of subframes from 1 to ${MOTION_BLUR_MAX_SUBFRAMES}` }
+  }
+  const shutter = params.get('shutter')
+  if (shutter !== null && (!DEGREES_RE.test(shutter) || Number(shutter) < 1 || Number(shutter) > 360)) {
+    return { error: `shutter '${shutter}' must be an angle in degrees from 1 to 360` }
+  }
+  const ss = params.get('ss')
+  if (ss !== null && ss !== '1' && ss !== '2') return { error: `ss '${ss}' must be 1 or 2` }
   return {
     name,
     format: format === null ? DEFAULT_EXPORT_FORMAT_ID : (format as ExportFormatId),
     clean: clean === null ? true : clean === '1',
     sound: sound === null ? true : sound === '1',
     out: out ?? name,
+    motionBlur: {
+      subframes: blur === null ? 1 : Number(blur),
+      shutterDeg: shutter === null ? SHUTTER_DEFAULT_DEG : Number(shutter),
+    },
+    supersample: ss === '2' ? 2 : 1,
   }
 }
