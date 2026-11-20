@@ -23,6 +23,12 @@
  * them); bloom is in the chain at the look's strength whatever the drawer says; and a film pass
  * (film curve, saturation, warmth, vignette, grain) runs after SMAA, before the outline's line.
  * Cleared, the chain is the default one again, with the drawer's bloom setting.
+ *
+ * Highlight ceiling (`highlightCeiling3d`, `highlightMeter3d`): while on (`setHighlightCeiling`,
+ * the perspective view), the output pass first meters the HDR image it receives and multiplies it
+ * by the eased ceiling's gain (1 or less) before tone mapping, so a frame's pale surfaces keep
+ * detail. Its easing runs on the clock `setExposureClock` gives (wall clock on screen, the file
+ * frame's time in an export); `resetExposure` makes the next frame take its own ceiling at once.
  */
 import * as THREE from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
@@ -36,6 +42,7 @@ import { BLOOM_STRENGTH, GlowBloomPass } from './bloom3d'
 import { DofPass, type Lens3d } from './dof3d'
 import { FILM_FRAGMENT, filmSeed, resolveFilmLook, seedOffset, warmthGain, type FilmLook, type FilmLookSettings } from './filmLook3d'
 import { GpuTimer } from './gpuTimer3d'
+import { HighlightMeter3d } from './highlightMeter3d'
 import { Outline3d } from './outline3d'
 
 export interface PostFx3d {
@@ -80,6 +87,16 @@ export interface PostFx3d {
    * already set only has its seed (and its values, when the object changes) updated.
    */
   setFilmLook(look: FilmLook | null, scriptMs?: number): void
+  /** The highlight ceiling's meter (`highlightMeter3d`). */
+  readonly meter: HighlightMeter3d
+  /** setHighlightCeiling turns the highlight ceiling on (the perspective view) or off (top-down). */
+  setHighlightCeiling(on: boolean): void
+  /** setExposureClock: the time (ms) of the frame about to be drawn, the ceiling's easing clock. */
+  setExposureClock(ms: number): void
+  /** resetExposure: the next frame drawn takes its own ceiling at once. */
+  resetExposure(): void
+  /** The last drawn frame's ceiling in stops (0 or less; a GPU read), null while the ceiling is off. */
+  readCeilingStops(): number | null
   resetCosts(): void
   dispose(): void
 }
@@ -105,6 +122,36 @@ const shaderGrade = {
   },
   vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: 'uniform sampler2D tDiffuse; uniform vec3 uGain; varying vec2 vUv; void main() { vec4 c = texture2D(tDiffuse, vUv); gl_FragColor = vec4(c.rgb * uGain, c.a); }',
+}
+
+/** The output shader's first line, after which the highlight ceiling's gain is applied. */
+const OUTPUT_READ = 'gl_FragColor = texture2D( tDiffuse, vUv );'
+
+/**
+ * graftHighlightCeiling makes the output pass multiply its HDR input by the highlight ceiling's
+ * gain (`tCeiling`'s G, 1 or less) before tone mapping, while `uCeilingOn` is 1; at 0 the shader
+ * computes exactly what it did before. Throws if three's output shader no longer has the line it
+ * grafts after (an upgrade must not drop the ceiling silently).
+ */
+export function graftHighlightCeiling(output: OutputPass, ceiling: THREE.Texture | null): CeilingUniforms {
+  const material = output.material as THREE.ShaderMaterial
+  const source = material.fragmentShader
+  if (!source.includes(OUTPUT_READ)) throw new Error('three OutputShader changed: the highlight ceiling cannot be grafted')
+  material.fragmentShader = source
+    .replace('uniform sampler2D tDiffuse;', 'uniform sampler2D tDiffuse;\nuniform sampler2D tCeiling;\nuniform float uCeilingOn;')
+    .replace(OUTPUT_READ, `${OUTPUT_READ}\nif (uCeilingOn > 0.5) gl_FragColor.rgb *= texture2D( tCeiling, vec2( 0.5 ) ).g;`)
+  // The pass's uniforms are its material's (the same object): the new ones reach the shader.
+  const uniforms = output.uniforms as Record<string, THREE.IUniform>
+  const grafted: CeilingUniforms = { tCeiling: { value: ceiling }, uCeilingOn: { value: 0 } }
+  Object.assign(uniforms, grafted)
+  material.needsUpdate = true
+  return grafted
+}
+
+/** The output pass's highlight-ceiling uniforms (`graftHighlightCeiling`). */
+export interface CeilingUniforms {
+  tCeiling: THREE.IUniform<THREE.Texture | null>
+  uCeilingOn: THREE.IUniform<number>
 }
 
 /** The tone curve of a film look with `tone: 'agx'`; with 'aces' (the default) the view's own curve stays (ACES, set by `lighting`). */
@@ -146,12 +193,28 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
   // ambient occlusion intact (the target it writes to may be the scene's).
   output.material.depthTest = false
   output.material.depthWrite = false
+  // The highlight ceiling's gain, read by the output pass before tone mapping (1 while off).
+  const meter = new HighlightMeter3d()
+  const ceilingUniforms = graftHighlightCeiling(output, meter.texture)
+  // Off until the scene turns it on (`setHighlightCeiling`, every drawn frame of the perspective view).
+  let ceilingOn = false
+  let exposureClock = Number.NaN
   // A film look tone maps this pass alone at its exposure (and with AgX when it asks): the
   // renderer's settings are swapped in for the pass and given back after it (the minimap, drawn
   // straight to the screen after the composer, keeps the view's own).
   const outputRender = output.render.bind(output) as (renderer: THREE.WebGLRenderer, ...rest: unknown[]) => void
   output.render = ((renderer: THREE.WebGLRenderer, ...rest: unknown[]) => {
     const film = fx.film
+    // The ceiling meters the HDR image this pass is about to tone map (its read buffer), with the
+    // view's own exposure (the film's stops are swapped in below, and enter through the chain).
+    const readBuffer = rest[1] as THREE.WebGLRenderTarget | null
+    const metered = ceilingOn && readBuffer !== null
+    ceilingUniforms.uCeilingOn.value = metered ? 1 : 0
+    if (metered) {
+      meter.setChain({ exposure: renderer.toneMappingExposure, grade: GRADE_GAIN as [number, number, number], film })
+      meter.update(renderer, readBuffer.texture, exposureClock)
+      ceilingUniforms.tCeiling.value = meter.texture
+    }
     if (!film) return outputRender(renderer, ...rest)
     const toneMapping = renderer.toneMapping
     const exposure = renderer.toneMappingExposure
@@ -224,6 +287,20 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
     dof: null,
     film: null,
     filmPass: null,
+    meter,
+    setHighlightCeiling(on) {
+      if (on && !ceilingOn) meter.reset()
+      ceilingOn = on
+    },
+    setExposureClock(ms) {
+      exposureClock = ms
+    },
+    resetExposure() {
+      meter.reset()
+    },
+    readCeilingStops() {
+      return ceilingOn ? meter.readStops(renderer) : null
+    },
     setBloom(on) {
       drawerBloom = on
       syncBloom()
@@ -291,6 +368,7 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
       fx.setFilmLook(null)
       fx.setBloom(false)
       bloomGpu.dispose()
+      meter.dispose()
       outline.dispose()
       gtao.dispose()
       grade.dispose()
