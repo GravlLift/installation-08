@@ -55,7 +55,7 @@ import { vehicleShotStyleOf } from '../model/vehicleWeaponRegistry'
 import { InstancePool, SegmentPool, firstFrom } from './actionKit'
 import { grenadeLookOf, plasmaPulse, PLASMA_CORE_MIX, PLASMA_CORE_RADIUS, PLASMA_HALO_DIM, PLASMA_HALO_MULT, PLASMA_PULSE_DEPTH, SHOT_ORB_RADIUS, type GrenadeFlightLook } from './grenadeLook3d'
 import { blastLight, blastStyleOf } from './explosionFx3d'
-import { Explosions3d } from './explosions3d'
+import { BLAST_LIFT, blastLiftOver, Explosions3d } from './explosions3d'
 import { stuckGrenadesOf, stuckPointAt, type StuckGrenade } from './stuckGrenades3d'
 import { WeaponModelPool } from './weaponModels3d'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
@@ -115,6 +115,8 @@ interface Blast {
   hold: number
   kind: 'explosion' | 'nappe' | 'halo'
   tint: FxTint
+  /** How far the explosion's center rises over `at` (`blastLiftOver`): none for a detonation already in the air. */
+  lift: number
 }
 
 export class Flights3dLayer implements ActionLayer3d {
@@ -219,7 +221,7 @@ export class Flights3dLayer implements ActionLayer3d {
   /** drawDetonation: the explosion (`explosions3d`) and its light, `age` seconds after it. */
   private drawDetonation(b: Blast, age: number, tint: THREE.Color, core: THREE.Color): void {
     const style = blastStyleOf(b.tint)
-    this.explosions.add(b.at, style, age, b.rest.seed, { core, tint })
+    this.explosions.add(b.at, style, age, b.rest.seed, { core, tint }, b.lift)
     const light = blastLight(style, age)
     if (light > 0) this.ctx.flashes.add(b.at, this.flashInk.copy(tint).lerp(core, DETONATION_CORE_MIX), light, DETONATION_LIGHT_RANGE)
   }
@@ -481,8 +483,11 @@ function buildBlasts(ctx: ActionContext, flights: readonly Flight[]): Blast[] {
     const near = (endsByFrame.get(rest.frame) ?? []).find((e) => Math.hypot(e.x - x, e.z - z) < 1.5)
     // The published height first (a throw's own detonation, schema 129: on the body it stuck to).
     const y = rest.z !== undefined ? publishedY : near?.y ?? (ctx.ground.floorY(rest.x, rest.y, null) ?? 0) + REST_LIFT
+    // A detonation published with its height (on the body it stuck to) is in the air: it keeps its point.
+    const lift = rest.z !== undefined ? blastLiftOver(y, ctx.ground.floorY(rest.x, rest.y, y)) : BLAST_LIFT
     return {
       rest,
+      lift,
       at: new THREE.Vector3(x, y, z),
       hold: kind === 'nappe' ? holdNappe : holdBlast,
       kind,

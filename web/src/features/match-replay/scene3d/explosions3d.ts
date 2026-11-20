@@ -23,8 +23,17 @@ const SPRITE_CAPACITY = 1024
 const STREAK_CAPACITY = 1024
 /** A spark's thickness (u): ~1.5 cm, a thin white line. */
 const STREAK_RADIUS = 0.005
-/** The explosion's center above the detonation point (u, ~1 m): the blast lifts into the air. */
-const BLAST_LIFT = 0.35
+/**
+ * The explosion's center at least this far above the FLOOR (u, ~1 m), so the camera-facing flash
+ * discs are not cut by the ground. A detonation already that high (a grenade stuck to a body,
+ * published with its height) keeps its own point (`blastLiftOver`).
+ */
+export const BLAST_LIFT = 0.35
+
+/** blastLiftOver: how far to lift a detonation at height `y` over a floor at `floor` (null: unknown floor, the full lift). */
+export function blastLiftOver(y: number, floor: number | null): number {
+  return floor === null ? BLAST_LIFT : Math.max(0, BLAST_LIFT - (y - floor))
+}
 
 const VERTEX = /* glsl */ `
 attribute vec3 aColor;
@@ -117,10 +126,10 @@ export class Explosions3d {
     this.streaks.begin()
   }
 
-  /** add places the explosion of style `style` at point `at` (three.js axes), `age` seconds after it. */
-  add(at: THREE.Vector3, style: BlastStyle, age: number, seed: number, ink: BlastInk): void {
+  /** add places the explosion of style `style` at point `at` (three.js axes), `age` seconds after it, its center `lift` above. */
+  add(at: THREE.Vector3, style: BlastStyle, age: number, seed: number, ink: BlastInk, lift = BLAST_LIFT): void {
     // Flashes are camera-facing discs: placed at ground level, the ground would clip their bottom half.
-    this.center.copy(at).setY(at.y + BLAST_LIFT)
+    this.center.copy(at).setY(at.y + lift)
     blastAt(style, age, seed, ink, this.sink)
   }
 
