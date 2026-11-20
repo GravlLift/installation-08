@@ -19,6 +19,8 @@
  * distance and an f-number for the depth of field pass (`dof3d.ts`); no aperture on any key, no
  * depth of field. The optional top-level `shakes` add a deterministic jolt (`shakeAt`) on top of
  * the pose's orientation. Both are pure functions of script time, like the rest of the pose.
+ * A key's optional `near` moves the camera's near clipping plane (a cutaway through a wall), and
+ * the top-level `outlines: false` takes the team outline out of the shot (`scriptOutlines`).
  */
 import { toThree, type Vec3 } from './tracks3d'
 import { verticalFovOf } from '../model/fovLogic'
@@ -62,6 +64,12 @@ export interface CameraKey {
   focus?: ScriptPoint
   /** The lens's f-number; absent on every key, the script has no depth of field. */
   aperture?: number
+  /**
+   * The camera's near clipping plane (world units, CAMERA_SCRIPT_NEAR_MIN to CAMERA_SCRIPT_NEAR_MAX):
+   * map geometry nearer than this is clipped away, so the camera can sit behind a wall and see
+   * through it (a cutaway). Absent on every key of a run, the view's own near plane.
+   */
+  near?: number
 }
 /**
  * One camera jolt: from script ms `at`, a smooth deterministic wobble of yaw, pitch and roll whose
@@ -91,6 +99,11 @@ export interface CameraScript {
    * CAMERA_SCRIPT_DEATH_HOLD_MAX_MS); absent, the view's default hold (`deaths3d`).
    */
   deathHoldMs?: number
+  /**
+   * Whether the team outline (`outline3d`) is drawn while the script plays (default true); false
+   * takes its mask and line passes out of the frame, X-ray silhouettes included.
+   */
+  outlines?: boolean
 }
 
 export const CAMERA_SCRIPT_MAX_KEYS = 512
@@ -120,6 +133,9 @@ export const CAMERA_SHAKE_FREQ_MAX = 60
 export const CAMERA_SHAKE_FREQ_DEFAULT = 12
 /** A script's `deathHoldMs` (document ms) is in [0, CAMERA_SCRIPT_DEATH_HOLD_MAX_MS]. */
 export const CAMERA_SCRIPT_DEATH_HOLD_MAX_MS = 30000
+/** A key's `near` (world units): from 0.01 u (3 cm) to 10 u (30 m). */
+export const CAMERA_SCRIPT_NEAR_MIN = 0.01
+export const CAMERA_SCRIPT_NEAR_MAX = 10
 
 export type ParseResult = { ok: true; script: CameraScript } | { ok: false; error: string }
 
@@ -282,6 +298,15 @@ export function parseCameraScript(raw: unknown, expectedMatchId?: string): Parse
       }
       out.aperture = k.aperture
     }
+    if (k.near !== undefined) {
+      if (!isFiniteNumber(k.near) || k.near < CAMERA_SCRIPT_NEAR_MIN || k.near > CAMERA_SCRIPT_NEAR_MAX) {
+        return {
+          ok: false,
+          error: `key ${i}: near must be world units in [${CAMERA_SCRIPT_NEAR_MIN}, ${CAMERA_SCRIPT_NEAR_MAX}]`,
+        }
+      }
+      out.near = k.near
+    }
     keys.push(out)
   }
 
@@ -331,6 +356,10 @@ export function parseCameraScript(raw: unknown, expectedMatchId?: string): Parse
       return { ok: false, error: `deathHoldMs must be document milliseconds in [0, ${CAMERA_SCRIPT_DEATH_HOLD_MAX_MS}]` }
     }
     script.deathHoldMs = v
+  }
+  if (r.outlines !== undefined) {
+    if (typeof r.outlines !== 'boolean') return { ok: false, error: 'outlines must be true or false' }
+    script.outlines = r.outlines
   }
   return { ok: true, script }
 }
@@ -386,6 +415,16 @@ export interface ScriptPose {
   aperture: number | null
   /** The camera shake at this time (`shakeAt`), applied on top of the pose's orientation. */
   shake: ShakeAngles
+  /**
+   * The camera's near clipping plane (world units), or null when no key of the current run
+   * carries a `near` (the view keeps its own near plane).
+   */
+  near: number | null
+}
+
+/** scriptOutlines: whether a script lets the team outline draw (`outlines`, default true); no script, true. */
+export function scriptOutlines(script: CameraScript | null): boolean {
+  return script?.outlines !== false
 }
 
 /** A player's feet in GAME coordinates (already floor-adjusted by the caller) and heading (deg) at document ms `tMs`; null when unknown. */
@@ -719,6 +758,7 @@ export function evaluateCameraScript(
 
   const shake = shakeAt(script.shakes, sMs)
   const apertures = apertureTrack(keys)
+  const nears = nearTrack(keys, a, b)
   // A key's focus point: its own `focus`, else (or unresolved) its look point.
   const focusPoint = (i: number, look: Vec3): Vec3 => {
     const focus = keys[i].focus
@@ -737,6 +777,7 @@ export function evaluateCameraScript(
       focusDistance: apertures ? axialDistance(pos, look, focusPoint(k, look)) : null,
       aperture: apertures ? apertures[k] : null,
       shake,
+      near: nears ? nears[k] : null,
     }
   }
 
@@ -802,7 +843,30 @@ export function evaluateCameraScript(
     focusDistance,
     aperture,
     shake,
+    // The monotone curve never leaves the keys' range; the clamp only guards float noise.
+    near: nears
+      ? Math.min(CAMERA_SCRIPT_NEAR_MAX, Math.max(CAMERA_SCRIPT_NEAR_MIN, curveAt((i) => nears[i], run, k, sMs)))
+      : null,
   }
+}
+
+/**
+ * The near plane of every key of the run [a, b] (indexed by key, entries outside the run left
+ * empty), or null when no key of the run carries one (the view's own near plane). A key without
+ * one takes the nearest earlier key's in the run, else the nearest later key's: a cutaway set on
+ * one shot never leaks across a cut into the next.
+ */
+function nearTrack(keys: readonly CameraKey[], a: number, b: number): number[] | null {
+  let last: number | undefined
+  for (let i = a; i <= b && last === undefined; i++) last = keys[i].near
+  if (last === undefined) return null
+  const out: number[] = []
+  for (let i = a; i <= b; i++) {
+    const near = keys[i].near
+    if (near !== undefined) last = near
+    out[i] = last
+  }
+  return out
 }
 
 /**
