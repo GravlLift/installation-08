@@ -167,7 +167,7 @@ describe('ArmorLibrary', () => {
   })
 
   it('an index of another schema: null', async () => {
-    const lib = new ArmorLibrary('/base', { ...fakeIO().io, fetchJson: async () => ({ ...index(), schema: 3 }) })
+    const lib = new ArmorLibrary('/base', { ...fakeIO().io, fetchJson: async () => ({ ...index(), schema: 99 }) })
     expect(await lib.index()).toBeNull()
   })
 
