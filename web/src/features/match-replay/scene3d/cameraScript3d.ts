@@ -19,6 +19,7 @@ import { toThree, type Vec3 } from './tracks3d'
 import { verticalFovOf } from '../model/fovLogic'
 import { BODY_CENTER } from './body3d'
 import { parseHolds, type Hold } from './hold3d'
+import { parseFilmLook, type FilmLook } from './filmLook3d'
 
 export type Ease = 'smooth' | 'linear' | 'in' | 'out' | 'cut'
 export type ScriptVec3 = [number, number, number]
@@ -57,6 +58,8 @@ export interface CameraScript {
   keys: CameraKey[]
   clock?: ScriptClock
   holds?: Hold[]
+  /** An opt-in film look for the shot (`filmLook3d`); absent, the view's default look. */
+  look?: FilmLook
 }
 
 export const CAMERA_SCRIPT_MAX_KEYS = 512
@@ -230,9 +233,17 @@ export function parseCameraScript(raw: unknown, expectedMatchId?: string): Parse
     holds = parsed.holds
   }
 
+  let look: FilmLook | undefined
+  if (r.look !== undefined) {
+    const parsed = parseFilmLook(r.look)
+    if ('error' in parsed) return { ok: false, error: parsed.error }
+    look = parsed.look
+  }
+
   const script: CameraScript = { version: 1, matchId: r.matchId, name: r.name, keys }
   if (clock !== undefined) script.clock = clock
   if (holds !== undefined) script.holds = holds
+  if (look !== undefined) script.look = look
   return { ok: true, script }
 }
 

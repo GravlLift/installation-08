@@ -41,6 +41,8 @@ interface ExportScene {
   setGlowClock?(seconds: number): void
   /** Takes the top-down view's markers out of the scene (what the screen does when the 3D view draws). */
   hideTopDown?(): void
+  /** Sets the compositor's look for the frame about to be drawn: a playing script's film look, else the default (`PostFx3d.setFilmLook`). */
+  applyFilmLook?(): void
 }
 
 /** The on-screen view during an export: what it had, and what it has requested since. */
@@ -139,6 +141,8 @@ export class ReplayExportScene3d {
       this.scene.action?.update(frame)
     }
     this.scene.lighting.updateShadows(frame)
+    // After the camera: the script time this frame is drawn at seeds the film look's grain.
+    this.scene.applyFilmLook?.()
     this.scene.post.composer.render()
     // The frame is read out of the drawing buffer HERE, never through the WebGL canvas: a hidden
     // tab serves the canvas's last composited image (cf. `exportReadback3d`).

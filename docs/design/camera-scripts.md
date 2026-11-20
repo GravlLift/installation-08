@@ -142,6 +142,26 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
   `window` to 400.
 - `fov` (optional, 10 to 150), `roll` (optional, degrees, positive turns the frame clockwise),
   `ease` (optional, default `smooth`; the first key's `ease` is ignored).
+- `look` (optional): `{ "preset": "film", "exposure": 0, "contrast": 1.2, "saturation": 1.1,
+  "vignette": 0.3, "grain": 0.25, "bloom": 0.5, "warmth": 0.15 }`, an opt-in film look for the
+  shot, on screen and in the export alike (`scene3d/filmLook3d.ts`, `postFx3d.ts`). `preset` is
+  required and is `film`; every other field is optional, and the values above are its defaults.
+  Without `look` the view draws its game-matched default, untouched. While a script with a look
+  plays (free camera, 3D view):
+  - `exposure` (-3 to 3): stops on top of the view's exposure; the tone curve is AgX instead of
+    the view's ACES, swapped in for the output pass alone.
+  - `bloom` (0 to 2): the bloom pass is in the chain whatever the drawer's Bloom setting, at this
+    gain (the view's own is 0.3). It glows only what the view already renders above its
+    threshold; no light is added.
+  - `contrast` (0.5 to 2, slope of an S-curve at mid grey, 1 = none), `saturation` (0 to 2,
+    1 = none), `warmth` (-1 cool to 1 warm, red and blue gain of at most 8 %), `vignette` (0 to 1,
+    the corners' darkening; a soft ellipse following the frame), and `grain` (0 to 1, fine
+    monochrome grain, strongest in the mid tones). They run in a film pass after anti-aliasing
+    and before the team outline's line, which keeps its exact color. The grain is seeded by the
+    frame's script time: the same frame always has the same grain, so an export is reproducible
+    and a paused frame does not swim.
+  - When the script stops, or plays without a look, the chain is the default one again (ACES at
+    the view's exposure, the drawer's bloom setting, no film pass).
 - `name`: 1 to 64 characters, `[a-z0-9_-]`. The server writes the name that is in the URL.
 - Validation rejects an unknown `version`, a `matchId` that differs from the route's, a key with
   no `pos` or `look`, a non-finite number, an out-of-range `fov`, and more than 512 keys. A

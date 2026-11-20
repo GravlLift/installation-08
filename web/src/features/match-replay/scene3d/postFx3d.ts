@@ -12,6 +12,13 @@
  * Bloom (`bloom3d`): the glow of self-lit surfaces, on the HDR image between the ambient
  * occlusion and the output pass. Present only while the drawer's "Bloom" setting is on
  * (`setBloom`): off, the pass leaves the chain and its render targets are released.
+ *
+ * Film look (`filmLook3d`, a camera script's `look`): while set (`setFilmLook`), the output pass
+ * tone maps with AgX at the look's exposure instead of the view's ACES (the renderer's own
+ * settings are swapped in only around that pass, so nothing else drawn sees them), bloom is in
+ * the chain at the look's strength whatever the drawer says, and a film pass (contrast,
+ * saturation, warmth, vignette, grain) runs after SMAA, before the outline's line. Cleared, the
+ * chain is the default one again, with the drawer's bloom setting.
  */
 import * as THREE from 'three'
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
@@ -21,7 +28,8 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js'
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js'
 
-import { GlowBloomPass } from './bloom3d'
+import { BLOOM_STRENGTH, GlowBloomPass } from './bloom3d'
+import { FILM_FRAGMENT, filmSeed, resolveFilmLook, warmthGain, type FilmLook, type FilmLookSettings } from './filmLook3d'
 import { GpuTimer } from './gpuTimer3d'
 import { Outline3d } from './outline3d'
 
@@ -44,8 +52,21 @@ export interface PostFx3d {
   readonly bloomGpu: GpuTimer
   /** True for a frame whose bloom pass is to be timed by `bloomGpu` (the frame's own timer then stays off). */
   timeBloom: boolean
-  /** setBloom puts the bloom pass in the chain (before the output pass) or takes it out and releases it. */
+  /**
+   * setBloom puts the bloom pass in the chain (before the output pass) or takes it out and
+   * releases it: the drawer's setting. A film look keeps the pass in while it is set.
+   */
   setBloom(on: boolean): void
+  /** The film look being drawn, resolved, or null for the default look. */
+  readonly film: FilmLookSettings | null
+  /** The film pass while a film look is set (after SMAA, before the outline's line), else null. */
+  readonly filmPass: ShaderPass | null
+  /**
+   * setFilmLook draws `look` (a camera script's), or the default look for null; `scriptMs`, the
+   * script time of the frame about to be drawn, seeds its grain. Called every frame: a look
+   * already set only has its seed (and its values, when the object changes) updated.
+   */
+  setFilmLook(look: FilmLook | null, scriptMs?: number): void
   resetCosts(): void
   dispose(): void
 }
@@ -73,6 +94,27 @@ const shaderGrade = {
   fragmentShader: 'uniform sampler2D tDiffuse; uniform vec3 uGain; varying vec2 vUv; void main() { vec4 c = texture2D(tDiffuse, vUv); gl_FragColor = vec4(c.rgb * uGain, c.a); }',
 }
 
+/** The film look's tone curve (the default view's is the renderer's, ACES, set by `lighting`). */
+export const FILM_TONE_MAPPING = THREE.AgXToneMapping
+
+/** The film pass's shader (`filmLook3d`): its uniforms are set from the look each frame. */
+function shaderFilm() {
+  return {
+    name: 'FilmLook',
+    uniforms: {
+      tDiffuse: { value: null },
+      uWarmth: { value: new THREE.Vector3(1, 1, 1) },
+      uContrast: { value: 1 },
+      uSaturation: { value: 1 },
+      uVignette: { value: 0 },
+      uGrain: { value: 0 },
+      uSeed: { value: 0 },
+    },
+    vertexShader: shaderGrade.vertexShader,
+    fragmentShader: FILM_FRAGMENT,
+  }
+}
+
 /** buildPostFx builds the passes for scene `scene` as seen by `camera`; `bloom`: the bloom pass starts in the chain. */
 export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera, bloom = true): PostFx3d {
   // The scene's depth stays readable after its render: ambient occlusion compares against it.
@@ -91,6 +133,24 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
   // ambient occlusion intact (the target it writes to may be the scene's).
   output.material.depthTest = false
   output.material.depthWrite = false
+  // A film look tone maps this pass alone with its own curve and exposure: the renderer's
+  // settings are swapped in for the pass and given back after it (the minimap, drawn straight to
+  // the screen after the composer, keeps the view's own).
+  const outputRender = output.render.bind(output) as (renderer: THREE.WebGLRenderer, ...rest: unknown[]) => void
+  output.render = ((renderer: THREE.WebGLRenderer, ...rest: unknown[]) => {
+    const film = fx.film
+    if (!film) return outputRender(renderer, ...rest)
+    const toneMapping = renderer.toneMapping
+    const exposure = renderer.toneMappingExposure
+    renderer.toneMapping = FILM_TONE_MAPPING
+    renderer.toneMappingExposure = exposure * Math.pow(2, film.exposure)
+    try {
+      outputRender(renderer, ...rest)
+    } finally {
+      renderer.toneMapping = toneMapping
+      renderer.toneMappingExposure = exposure
+    }
+  }) as never
   composer.addPass(output)
   // Image grading, between output and anti-aliasing: the outline, after, keeps its color.
   const grade = new ShaderPass(shaderGrade)
@@ -112,6 +172,30 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
   const metered: [PassName, Meterable][] = [['scene', scenePass], ['outlineMask', outline.maskPass], ['ao', gtao], ['output', output], ['grade', grade], ['smaa', smaa], ['outlineLine', outline.linePass]]
   for (const [name, pass] of metered) meterPass(renderer, pass, costs[name])
   const bloomGpu = new GpuTimer(renderer)
+  /** The drawer's bloom setting (`setBloom`), which a film look overrides while it is set. */
+  let drawerBloom = bloom
+  /** The look object last set, to resolve it once rather than every frame. */
+  let filmSource: FilmLook | null = null
+  type Mutable = { bloom: GlowBloomPass | null; film: FilmLookSettings | null; filmPass: ShaderPass | null }
+  const self = (): Mutable => fx as unknown as Mutable
+  /** syncBloom puts the bloom pass in or out for the drawer's setting and the film look, at the strength the look asks. */
+  const syncBloom = () => {
+    const s = self()
+    const on = drawerBloom || s.film !== null
+    if (!on && s.bloom) {
+      composer.removePass(s.bloom)
+      s.bloom.dispose()
+      s.bloom = null
+      bloomGpu.ms = null
+      costs.bloom.calls = costs.bloom.triangles = 0
+    } else if (on && !s.bloom) {
+      const pass = new GlowBloomPass()
+      meterPass(renderer, pass, costs.bloom, () => (fx.timeBloom ? bloomGpu : null))
+      composer.insertPass(pass, composer.passes.indexOf(output))
+      s.bloom = pass
+    }
+    if (s.bloom) s.bloom.strength = s.film ? s.film.bloom : BLOOM_STRENGTH
+  }
   const fx: PostFx3d = {
     composer,
     gtao,
@@ -123,26 +207,54 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
     costs,
     bloomGpu,
     timeBloom: false,
+    film: null,
+    filmPass: null,
     setBloom(on) {
-      const self = fx as { bloom: GlowBloomPass | null }
-      if (on === (self.bloom !== null)) return
-      if (self.bloom) {
-        composer.removePass(self.bloom)
-        self.bloom.dispose()
-        self.bloom = null
-        bloomGpu.ms = null
-        costs.bloom.calls = costs.bloom.triangles = 0
+      drawerBloom = on
+      syncBloom()
+    },
+    setFilmLook(look, scriptMs = 0) {
+      const s = self()
+      if (!look) {
+        if (!s.film) return
+        filmSource = null
+        s.film = null
+        if (s.filmPass) {
+          composer.removePass(s.filmPass)
+          s.filmPass.dispose()
+          s.filmPass = null
+        }
+        syncBloom()
         return
       }
-      const pass = new GlowBloomPass()
-      meterPass(renderer, pass, costs.bloom, () => (fx.timeBloom ? bloomGpu : null))
-      composer.insertPass(pass, composer.passes.indexOf(output))
-      self.bloom = pass
+      if (look !== filmSource || !s.film) {
+        filmSource = look
+        s.film = resolveFilmLook(look)
+        if (!s.filmPass) {
+          const pass = new ShaderPass(shaderFilm())
+          // Same rule as grading: a full-screen quad has nothing to depth-test or depth-write.
+          pass.material.depthTest = false
+          pass.material.depthWrite = false
+          // After anti-aliasing (SMAA would read grain as edges), before the outline's line,
+          // which keeps its exact color: neither vignette nor grain touches it.
+          composer.insertPass(pass, composer.passes.indexOf(outline.linePass))
+          s.filmPass = pass
+        }
+        const u = s.filmPass.uniforms
+        ;(u.uWarmth.value as THREE.Vector3).set(...warmthGain(s.film.warmth))
+        u.uContrast.value = s.film.contrast
+        u.uSaturation.value = s.film.saturation
+        u.uVignette.value = s.film.vignette
+        u.uGrain.value = s.film.grain
+        syncBloom()
+      }
+      s.filmPass!.uniforms.uSeed.value = filmSeed(scriptMs)
     },
     resetCosts() {
       for (const name of PASS_NAMES) costs[name].calls = costs[name].triangles = 0
     },
     dispose() {
+      fx.setFilmLook(null)
       fx.setBloom(false)
       bloomGpu.dispose()
       outline.dispose()

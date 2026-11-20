@@ -226,6 +226,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       setSkyClock: (seconds) => { if (this.ciel) setCloudClock(this.ciel, seconds) },
       setGlowClock: (seconds) => this.animateGlow(seconds),
       hideTopDown: () => this.top?.idle(),
+      applyFilmLook: () => this.applyFilmLook(false),
     })
   }
   /** attach poses the map and the players, lights the play area, and captures the environment. */
@@ -479,6 +480,16 @@ export class ReplayScene3d implements Replay3DExportSource {
   setCameraScriptTime(sMs: number): void { this.cameraPlacement.setScriptTime(sMs) }
 
   /**
+   * applyFilmLook draws the playing camera script's film look (`look`), seeded by its script
+   * time, or the default look when no script plays, it has no look, or the view is top-down
+   * (`topView`). Run before every drawn frame, on screen and in the export alike.
+   */
+  private applyFilmLook(topView: boolean): void {
+    const script = topView ? null : this.cameraPlacement.activeScript()
+    this.post.setFilmLook(script?.look ?? null, this.cameraPlacement.scriptTime())
+  }
+
+  /**
    * captureCamera: the camera's eye and look target in GAME coordinates (z up) and its vertical
    * field of view in degrees, for a camera script's key.
    */
@@ -676,6 +687,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     let status: PovStatus = 'none'
     const p = this.profile
     let t = performance.now(); this.renderer.info.reset()
+    this.applyFilmLook(this.view === 'top' && this.top !== null)
     const knobs = this.applyKnobs()
     this.post.resetCosts()
     const shadowCost = this.lighting.split.cost
@@ -753,6 +765,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (this.post.bloom) this.post.bloom.enabled = fx && k.bloom
     this.post.output.enabled = fx
     this.post.grade.enabled = fx
+    if (this.post.filmPass) this.post.filmPass.enabled = fx
     this.post.smaa.enabled = fx && k.smaa
     this.lighting.shadowUpdates = k.shadows
     this.lighting.split.split = k.shadowSplit
