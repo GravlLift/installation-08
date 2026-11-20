@@ -162,6 +162,23 @@ after upstream schema 115; see [the rebase inventory](REBASE-v1.3.6.md). Kept ca
   v128, `structure_test.go` reason, regenerated `document_shape.golden`; covered by
   `replay/projectiles_attache_test.go` (new) and `projectiles_attaches_research_test.go`
   (`research` tag, also exports the cases the viewer harness reads).
+- The detonation of a throw without a published flight (schema 129, facts schema 25): a
+  point-blank stick replicates fewer than three positions, so no `Projectile` is published, the
+  throw has no `proj`, and its explosion was lost although the film writes it.
+  `internal/grammar/grenade_events.go` (LOCAL-CHANGE): `GrenadeThrow.Life`/`HasLife`, the handle
+  of the projectile the throw creates, read from the header of its NEW record (where
+  `scanGrenadeThrowsJusqua` already reads the slot); one more import (`types`), frozen in
+  `revision/ordre_imports_test.go`, and the grammar fingerprint re-pinned at constant revision
+  `grammar-2026-11-13.2` (`internal/grammar/testdata/grammar_rev.golden`). Covered by
+  `internal/grammar/grenade_life_test.go` (new). `replay/grenades_detonation.go` (new) sets
+  `Grenade.Deto` (`grenades[].deto`: `t`, `x`, `y`, `z`) on a throw without `proj` from the
+  detonation message naming that handle (reference + 0x400 = the projectile's slot, same
+  generation; measured 3,791 of 3,793 linked throws and 153 of 153 flights on 20 stored matches);
+  `buildGrenades` became a wrapper of `buildGrenadesEtDetonations`. The lives enter the facts
+  file in the section-1 complement (`filmfacts_lancers.go`). Chronicle v129, `structure_test.go`
+  reason, regenerated `document_shape.golden`, and the two size caps of
+  `internal/depottest/taille_test.go` (stale since schema 127); covered by
+  `replay/grenades_detonation_test.go` (new, the 9220185c game-winning stick).
 - Log and error message text and slog attribute keys translated from French to English (files marked LOCAL-CHANGE); identifiers, comments and research/ unchanged. Second pass: remaining French slog attribute keys and values (coverage logging call sites the first pass missed), plus `diag.Signaler` diagnostic `Message`/`Attrs` text in `internal/grammar`, `internal/facts/fallback` and `internal/facts/objectives`. Left untranslated and documented in the pass's report: the `repli_*` fallback names (`internal/facts/fallback` registries) — they are published into `coverage.fallbacks[]`, referenced by golden test data and `FORMAT.md`, and renaming them is a wire-format change out of this pass's scope; and `Diagnostic.Code` constants (e.g. `grammar.grenade_couverture`) — structured codes compared in code, not prose. Third pass: the `repli_*` registry names still reached server.log as-is through `replay/fallbacks_publication.go`'s "fallback" attribute; `internal/facts/fallback/english_names.go` adds an English snake_case name per registry entry (checked exhaustively by `TestEveryRegistryEntryHasAnEnglishName`) and the log line, plus the "fallback triggered outside the registry" diagnostic, now use it, falling back to the raw name. `coverage.fallbacks[]` and the registry names themselves are unchanged.
 ## Omitted upstream files
 

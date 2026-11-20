@@ -1,9 +1,9 @@
 # EMPREINTE DE FORME DU DOCUMENT DE REJEU — fige par document_shape_test.go.
 # Ne s'edite JAMAIS a la main : regeneration decrite en tete de ce test.
-schema 128
-empreinte-stockee bbedef306f9af80f
-empreinte-servie bbedef306f9af80f
-empreinte-cuite f2788c9f4645e747
+schema 129
+empreinte-stockee 35fce9931941165c
+empreinte-servie 35fce9931941165c
+empreinte-cuite 88896900f4f1388a
 empreinte-cuite-regle 4
 
 AbilityCharge
@@ -608,6 +608,7 @@ GrappleLine
   T0 json:"t0" int
   T1 json:"t1" int
 Grenade
+  Deto json:"deto,omitempty" *GrenadeDetonation
   Idx json:"i" int
   Proj json:"proj,omitempty" *int
   Rank json:"rank" int
@@ -616,6 +617,11 @@ Grenade
   T json:"t" int
   X json:"x" float32
   Y json:"y" float32
+GrenadeDetonation
+  T json:"t" int
+  X json:"x" float32
+  Y json:"y" float32
+  Z json:"z" float32
 GrenadeRead
   G json:"g" []uint32
   Gs json:"gs,omitempty" *int

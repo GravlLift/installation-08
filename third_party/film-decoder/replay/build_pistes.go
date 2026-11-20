@@ -229,7 +229,8 @@ func (a *assemblage) poserTirsProjectilesEtGrenades() {
 	}
 
 	var gren []Grenade
-	gren, a.grenCov = buildGrenades(a.sorted, a.opt.Grenades, a.origin, a.step, a.reg.Occupants(), a.opt.Projectiles, pubProjByRaw)
+	gren, a.grenCov = buildGrenadesEtDetonations(a.sorted, a.opt.Grenades, a.origin, a.step, a.reg.Occupants(),
+		a.opt.Projectiles, pubProjByRaw, a.opt.Detonations) // LOCAL-CHANGE (infinite-theater-3d): Grenade.Deto
 	a.doc.Grenades = keepGrenadesOfPublishedTracks(gren, a.doc.Tracks)
 	a.grenCov.Unpublished = countUnpublished(len(gren), len(a.doc.Grenades))
 	a.grenCov.Attached = len(a.doc.Grenades)

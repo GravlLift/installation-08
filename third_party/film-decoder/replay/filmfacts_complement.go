@@ -17,6 +17,7 @@ package replay
 //	actions           le jeu d armes desire et les messages d action de la vue A (schema des faits 19)
 //	boutons           les boutons de controle et le couple analogique (schema des faits 20)
 //	attaches          les attaches des projectiles qui collent (schema des faits 24, filmfacts_attaches.go)
+//	vies des lancers  le projectile que chaque lancer cree (schema des faits 25, filmfacts_lancers.go)
 //	verdict           le verdict du fil des morts (lot M8), EN DERNIER
 func encodeComplementDesEntrees(w *gwriter, g *FilmFacts) {
 	encodeGardesDeMode(w, g.FilmInputs)
@@ -27,6 +28,7 @@ func encodeComplementDesEntrees(w *gwriter, g *FilmFacts) {
 	encodeActionsDuJoueur(w, g.DrawnWeapons, g.DrawnWeaponStats, g.Actions)
 	encodeBoutonsDeControle(w, g.ControlInputs, g.ControlInputStats)
 	encodeAttachesDeProjectile(w, g.ProjectileAttaches) // LOCAL-CHANGE (infinite-theater-3d), schema 24
+	encodeViesDesLancers(w, g)                          // LOCAL-CHANGE (infinite-theater-3d), schema 25
 	encodeVerdictDuFilDesMorts(w, g.DeathsFeed)
 }
 
@@ -41,5 +43,6 @@ func decodeComplementDesEntrees(r *greader, g *FilmFacts) {
 	g.DrawnWeapons, g.DrawnWeaponStats, g.Actions = decodeActionsDuJoueur(r)
 	g.ControlInputs, g.ControlInputStats = decodeBoutonsDeControle(r)
 	g.ProjectileAttaches = decodeAttachesDeProjectile(r) // LOCAL-CHANGE (infinite-theater-3d), schema 24
+	decodeViesDesLancers(r, g)                           // LOCAL-CHANGE (infinite-theater-3d), schema 25
 	g.DeathsFeed = decodeVerdictDuFilDesMorts(r)
 }

@@ -4275,3 +4275,21 @@ package replay
 //	                `grammar.Rev` ne bouge pas.
 //
 //	LE PARC         un artefact 127 : verdict `a republier` ; ses faits du schema 23 sont refuses sur l en-tete.
+
+// v129 (2026-11-19, LOCAL-CHANGE infinite-theater-3d) : le lancer sans vol publie publie SON explosion.
+//
+//	`grenades[].deto`  {t, x, y, z} : la detonation que le film ecrit (`projectile_detonate`, vue A) pour le
+//	                 projectile que le lancer cree, sur un lancer SANS `proj` — un collage a bout portant
+//	                 replique moins de trois positions, aucun vol n est publie et l explosion etait perdue
+//	                 (match 9220185c, le collage gagnant de KamUz 7w7 sur BC0R, image 13193 -> 13222).
+//	                 Le lien est le HANDLE du projectile : le lancer est son record NEW
+//	                 (`grammar.GrenadeThrow.Life`), la detonation le nomme sans la base 0x400 de la bande
+//	                 (grenades_detonation.go). `t` absolu comme `projectiles[].detoT`, `z` la hauteur.
+//	                 Absent sur un lancer qui a son `proj`, sur un lancer dont le film n ecrit pas la
+//	                 detonation, et sur un artefact ancien.
+//
+//	CE QUI MONTE    `SchemaVersion` 128 -> 129 et `SchemaDesFaits` 24 -> 25 (la vie du projectile de chaque
+//	AVEC ELLE       lancer entre au complement de la section 1, filmfacts_lancers.go). `grammar.Rev` ne
+//	                bouge pas (l empreinte est refigee a revision constante, comme au v128).
+//
+//	LE PARC         un artefact 128 : verdict `a republier` ; ses faits du schema 24 sont refuses sur l en-tete.

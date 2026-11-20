@@ -422,3 +422,74 @@ describe('Flights3dLayer — a grenade stuck to a player (schema 128)', () => {
     layer.dispose()
   })
 })
+
+/**
+ * A plasma thrown POINT-BLANK (schema 129): it sticks before replicating a flight, so the document has
+ * no projectile for it and the throw has no `proj`; its explosion is the throw's own `deto`, the film's
+ * detonation of the projectile the throw created (match 9220185c, the game-winning stick on BC0R).
+ */
+function documentCollageABoutPortant(withDeto: boolean): ReplayDocumentReady {
+  return normalizeReplayDocument({
+    frameIntervalMs: 1000 / 60,
+    projectiles: [],
+    grenades: [{ t: 90, slot: 1, i: 0, x: 0, y: 0, rank: 1, s: 'biped', ...(withDeto ? { deto: { t: 160, x: 4, y: 1, z: 1.5 } } : {}) }],
+    shots: [],
+    weaponLabels: undefined,
+  } as unknown as ReplayDocument)
+}
+
+/** The explosion's point cloud (pool 7): how many points, and their mean position. */
+function blastPoints(root: THREE.Group): { n: number; mean: THREE.Vector3; snapshot: number[] } {
+  const points = root.children[7] as THREE.Points
+  const n = points.geometry.drawRange.count
+  const pos = points.geometry.getAttribute('position') as THREE.BufferAttribute
+  const mean = new THREE.Vector3()
+  const snapshot: number[] = []
+  for (let i = 0; i < n; i++) {
+    mean.x += pos.getX(i) / n
+    mean.y += pos.getY(i) / n
+    mean.z += pos.getZ(i) / n
+    snapshot.push(pos.getX(i), pos.getY(i), pos.getZ(i))
+  }
+  return { n, mean, snapshot }
+}
+
+describe('Flights3dLayer — a stick without a flight explodes at its published detonation (schema 129)', () => {
+  it('detonates at the deto frame, at the published position and height, not on the floor', () => {
+    const { layer, root } = makeLayer(1, documentCollageABoutPortant(true))
+    layer.update(159)
+    expect(blastPoints(root).n).toBe(0)
+    layer.update(165)
+    const { n, mean } = blastPoints(root)
+    expect(n).toBeGreaterThan(0)
+    // Halo (4, 1, 1.5) is three (4, 1.5, -1): the blast is on the body, well above the floor (0).
+    expect(Math.abs(mean.x - 4)).toBeLessThan(1)
+    expect(Math.abs(mean.z + 1)).toBeLessThan(1)
+    expect(mean.y).toBeGreaterThan(1)
+    layer.dispose()
+  })
+
+  it('a throw without a flight and without deto (an older artifact) draws nothing, as before', () => {
+    const { layer, root } = makeLayer(1, documentCollageABoutPortant(false))
+    layer.update(165)
+    expect(blastPoints(root).n).toBe(0)
+    layer.dispose()
+  })
+
+  it('plays out over DOCUMENT time: slowed frames advance it, a frozen frame holds it', () => {
+    const { layer, root } = makeLayer(1, documentCollageABoutPortant(true))
+    // A slowed script clock samples fractional frames between two film frames.
+    layer.update(162.25)
+    const a = blastPoints(root).snapshot
+    layer.update(162.5)
+    const b = blastPoints(root).snapshot
+    expect(b).not.toEqual(a)
+    // A freeze (rate 0) renders the same instant again and again: the same state each time.
+    layer.update(162.5)
+    expect(blastPoints(root).snapshot).toEqual(b)
+    // And a seek back lands where playing forward did.
+    layer.update(162.25)
+    expect(blastPoints(root).snapshot).toEqual(a)
+    layer.dispose()
+  })
+})
