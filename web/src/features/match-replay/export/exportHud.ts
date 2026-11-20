@@ -28,6 +28,7 @@ import { tintedChase } from '../ui/shieldChaseArt'
 import { HEALTH_BAR_URL, SHIELD_ALERT_RGB, SHIELD_BURST_URL, SHIELD_GLOW_URL, shieldFrameFlash } from '../model/shieldAlert'
 import { alertArtOf, paintShieldGlow, paintShieldOver, recolor, type ShieldAlertArt } from '../ui/shieldAlertPaint'
 import { ensureHudFonts, HUD_FONT_FAMILY, HUD_SCORE_FONT_FAMILY } from '../ui/hudFonts'
+import { drawRecorder, killIdsOf, ledgerId } from '../scene3d/drawRecorder3d'
 import { adsOverlaysOfDoc, createAdsOverlayAtlas, paintAdsAmmo, type SvgImageLoader } from './adsOverlayRaster'
 
 /** `color-mix(in srgb, color, #000 65%)` in hex: darken `hex` toward black by `amount` (0..1). */
@@ -58,6 +59,8 @@ export interface ExportHudOptions {
 
 export async function createExportHud(doc: ReplayDocumentReady, xuid: string, kills: readonly ReplayKill[], playWindow: ReplayWindowBounds | null, timeLimitMs: number | null, locale: ReplayLocale, options: ExportHudOptions = {}) {
   const source = prepareHud(doc, xuid, kills)
+  // The kills' ledger ids, for an export's draw records (drawRecorder3d).
+  const killIds = killIdsOf(kills)
   const names = new Map(doc.roster.map((p) => [p.xuid, p.name || p.xuid]))
   const lives = buildLivesByXuid(doc.tracks)
   const white = '#eaf2f5'
@@ -220,6 +223,7 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
           ctx.fillRect(index === 0 ? x + bar - fill : x, y - size * 0.4, fill, size * 0.8)
         }
         ctx.globalAlpha = 1; ctx.fillStyle = white; ctx.textAlign = index === 0 ? 'right' : 'left'; ctx.fillText(String(side.score), index === 0 ? x + bar - 5 : x + 5, y)
+        if (drawRecorder.on && side.teamId != null) drawRecorder.mark(ledgerId.score(side.teamId, side.score), 'exportHud/score')
         // The game's team emblem at the bar's OUTER end (cusc 21a7dab4): 1.55 x the bar's
         // height (`size * 0.8` here), a gap of 0.27 x the bar's height beyond the end,
         // centered on the bar, at opacity 0.7, in the team's color (as the live TeamEmblem). A
@@ -559,6 +563,8 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
         }
         ctx.fillStyle = victimSide === true ? ally : victimSide === false ? enemy : white
         ctx.fillText(kill.victimGamertag ?? names.get(kill.victimXuid) ?? '', x, y)
+        const id = drawRecorder.on && opacity > 0 ? killIds.get(kill) : undefined
+        if (id) drawRecorder.mark(id, 'exportHud/killFeed')
       })
       ctx.globalAlpha = 1
     }

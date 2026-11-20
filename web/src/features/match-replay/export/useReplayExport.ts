@@ -130,6 +130,8 @@ import { make3dPainter, type Export3dOptions } from './export3dFrame'
 import { replay3DExportEntry, type ExportCamera3d, type ExportSubframe3d, type Replay3DExportSource } from './replay3dExportStore'
 import { createExportHud } from './exportHud'
 import { clipWarning, summarizeClipping, type ClipSummary } from './clipMetric'
+import { drawRecorder } from '../scene3d/drawRecorder3d'
+import { renderDrawsOf, type RenderDraws } from './renderCoverage'
 import type { ReplayKill } from '../model/killFeedLogic'
 
 declare global {
@@ -308,6 +310,8 @@ export interface ReplayExportState {
   cameraTrack?: readonly CameraTrackSample[]
   /** `done`, 3D export: the clip's clipped-to-white summary (`clipMetric.summarizeClipping`). */
   clipping?: ClipSummary
+  /** `done`, 3D export: what the layers drew for each ledger event (`renderCoverage.RenderDraws`). */
+  draws?: RenderDraws
   /**
    * `true` = sound was requested but the browser REFUSED the track: the clip is silent, and
    * that must be said. A silent clip believed to have sound is discovered only at editing time.
@@ -623,6 +627,8 @@ async function framePainter(
     if (scriptMs && index !== undefined) setScriptPlaybackTime(scriptMs[index])
     // The current frame advances in 3D too: the transport bar and the 2D map follow it.
     o.frameRef.current = frame
+    // The draw records of this frame are dated by it (`drawRecorder3d`).
+    drawRecorder.frame = frame
     const image = await renderComplete(painter, scene3d.scene, frame, index)
     // THE CAMERA TRACK is read once the image is final (a frame re-rendered after a load wait
     // is posed again the same way): what is recorded is what the encoded frame saw from.
@@ -835,6 +841,9 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         // time can be estimated.
         const total = plan.frames.length
         const start = performance.now()
+        // THE DRAW RECORDS (3D only): every layer marks the ledger events it draws while the frames
+        // render (`drawRecorder3d`); the render coverage joins them to the ledger afterwards.
+        if (scene3d) drawRecorder.start()
         setState({ phase: 'encode', done: 0, total, pct: 0, fps, fpsFallback })
         const ok = await encodeAll(painter, plan.frames, {
           cancelled: () => cancelRef.current,
@@ -850,6 +859,9 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
             }),
           sink,
         })
+        const marks = drawRecorder.on ? drawRecorder.stop() : null
+        // The HUD (kill feed, score) is painted only with a followed player and without a clean frame.
+        const draws = marks ? renderDrawsOf(marks, plan.frames, o.doc, view3d !== null && options?.clean !== true && !!view3d.pov) : null
         const clip = ok ? await sink.finish() : null
         // `sink` is only released ONCE `finish()` has closed it. On cancellation it stays here,
         // and it is the `finally` that abandons it — otherwise the encoder and its muxer would
@@ -875,7 +887,7 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         if (clipWarn) console.warn(clipWarn)
         // PHASE 3: the file is READY, and it is SAID, with its name. A cancellation, instead,
         // returns to the form — there is nothing to announce about a gesture just undone.
-        setState(clip ? { phase: 'done', done: total, total, pct: 100, filename, save: pendingRef.current ?? undefined, cameraTrack: track.length > 0 ? track : undefined, clipping: clipping ?? undefined, mutedFallback: muted, fps, fpsFallback } : IDLE)
+        setState(clip ? { phase: 'done', done: total, total, pct: 100, filename, save: pendingRef.current ?? undefined, cameraTrack: track.length > 0 ? track : undefined, clipping: clipping ?? undefined, draws: draws ?? undefined, mutedFallback: muted, fps, fpsFallback } : IDLE)
       } catch (err) {
         // NEVER A SILENT FAILURE (repo rule 3: log BEFORE any degradation). Without this
         // block, an encoder failure made the progress bar disappear without a word, without a
@@ -887,6 +899,8 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         // drawn at the format's frame until the next remount. The draw below restores the
         // previous frame; the React render that follows repaints it at screen size.
         requestExportLayout(null)
+        // A failed or cancelled run stops recording too: live playback marks nothing.
+        if (drawRecorder.on) drawRecorder.stop()
         scene3d?.endExport()
         if (script) stopScript()
         // THE ENCODER CLOSES ON EVERY PATH: `sink` is only set back to `null` once the file is

@@ -16,6 +16,7 @@ import type { Dress } from './armory3d'
 import type { BakedLight } from './bakedLightShader'
 import { spartanClipsOf } from './clips3d'
 import { newClipMix } from './clipSample3d'
+import { drawRecorder } from './drawRecorder3d'
 import { deathMix, fallHeading, fallPlacement, fallPose, fallsBackward, type FallKind, type FallPose } from './fall3d'
 import { assignPlayerProbes } from './playerProbe3d'
 import { poseSpartan } from './pose3d'
@@ -103,6 +104,7 @@ export class Corpses3d {
     const body = this.take(key, tint, dress)
     if (!body) return
     this.count++
+    drawRecorder.adds++
     body.holder.visible = true
     if (bake) {
       if (body.names !== bake.names) {

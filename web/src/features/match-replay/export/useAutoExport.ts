@@ -24,6 +24,7 @@ import { createElement, useEffect, useRef, useState, type ReactNode } from 'reac
 import { fetchCameraScript, uploadExport, uploadExportCamera } from '../camera-script/cameraScriptApi'
 import { parseAutoExport, type AutoExportRequest, type AutoExportRefusal } from './autoExport'
 import type { Replay3DExportEntry } from './replay3dExportStore'
+import { buildCoverage, coverageWarning, fetchLedger, type RenderCoverage, type RenderCoverageFailed, type RenderDraws } from './renderCoverage'
 import type { ReplayExport, ReplayExportState } from './useReplayExport'
 
 /** The steps a driven run goes through, and the only ones. */
@@ -53,6 +54,18 @@ export interface AutoExportInputs {
 /** The one stated reason of an error: its message, or its shape. */
 function reasonOf(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
+}
+
+/**
+ * coverageOf: the clip's render coverage, its window's ledger joined to the export's draw records;
+ * a ledger that cannot be read gives the window and the reason instead.
+ */
+async function coverageOf(matchId: string, draws: RenderDraws): Promise<RenderCoverage | RenderCoverageFailed> {
+  try {
+    return buildCoverage(await fetchLedger(matchId, draws.window.fromMs, draws.window.toMs), draws)
+  } catch (err) {
+    return { window: draws.window, error: reasonOf(err) }
+  }
 }
 
 /** The text the three surfaces say, for one state. */
@@ -148,6 +161,11 @@ export function useAutoExport(o: AutoExportInputs): { state: AutoExportState | n
       // THE CAMERA TRACK goes up beside the clip (`<out>.camera.json`): the camera of every
       // encoded frame, so a path is measured rather than judged by eye. A failure fails the run.
       if (st.cameraTrack) {
+        // THE RENDER COVERAGE: every ledger event of the clip's window, drawn or named as not drawn.
+        const coverage = st.draws ? await coverageOf(o.matchId, st.draws) : null
+        const coverageWarn = coverageWarning(coverage)
+        if (coverageWarn) console.warn(coverageWarn)
+        if (!liveRef.current) return
         await uploadExportCamera(o.matchId, request.out, {
           version: 1,
           matchId: o.matchId,
@@ -157,6 +175,9 @@ export function useAutoExport(o: AutoExportInputs): { state: AutoExportState | n
           // The clip's clipped-to-white check (`clipMetric.ClipSummary`); each sample carries its
           // own `clippedPct` and the highlight ceiling it was drawn with (`ceilingStops`).
           clipping: st.clipping ?? null,
+          // What the render drew of each ledger event in the window (`renderCoverage`); an
+          // unreadable ledger leaves the window and the reason, never a silent absence.
+          coverage,
           samples: st.cameraTrack,
         })
         if (!liveRef.current) return

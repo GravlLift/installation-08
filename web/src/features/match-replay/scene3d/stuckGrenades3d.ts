@@ -34,6 +34,8 @@ export interface StuckGrenade {
   rank: number
   /** The offset in the body's frame: forward, left (Halo axes turned by the heading), up. */
   local: { fwd: number; left: number; up: number }
+  /** The throw's index in `grenades` (the ledger's `grenade/<i>` when `grenades` is `doc.grenades`). */
+  grenade: number
 }
 
 /** A stick farther than this from every body (u, horizontally) is not placed on one (~1.2 m). */
@@ -50,7 +52,7 @@ export function stuckGrenadesOf(
   sample: (slot: number, frame: number) => BodyAt | null,
 ): StuckGrenade[] {
   const out: StuckGrenade[] = []
-  for (const g of grenades) {
+  for (const [gi, g] of grenades.entries()) {
     const d = g.deto
     if (!d || g.proj !== undefined || g.s !== 'biped' || d.t <= g.t) continue
     let best: { slot: number; body: BodyAt; dist: number } | null = null
@@ -71,6 +73,7 @@ export function stuckGrenadesOf(
       slot: best.slot,
       rank: g.rank ?? -1,
       local: { fwd: dx * Math.cos(a) + dy * Math.sin(a), left: -dx * Math.sin(a) + dy * Math.cos(a), up: d.z - best.body.z },
+      grenade: gi,
     })
   }
   return out

@@ -212,6 +212,18 @@ describe('selectClips : over actions', () => {
     expect(r[0]).toMatchObject({ name: 'combat:rifle:reload_1', time: expect.closeTo(ACTION_FADE_IN, 9), weight: expect.closeTo(1, 9) })
   })
 
+  it('names the action clips it plays to `played` (the export draw records), only while their weight is above 0', () => {
+    const seen: [string, number][] = []
+    const played = (kind: string, t: number) => seen.push([kind, t])
+    const swaps = [{ t: 400, from: 'rifle' as const, to: 'pistol' as const }]
+    select(input({ frame: 200, played, events: { melee: [], meleeStart: [199], grenade: [190], reload: [], swaps } }))
+    select(input({ frame: 300, played, events: { melee: [], grenade: [300], reload: [], swaps } }))
+    select(input({ frame: 401, weapon: 'pistol', played, events: { melee: [], grenade: [], reload: [], swaps } }))
+    // Long after the grenade's clip ended, it is not named.
+    select(input({ frame: 900, played, events: { melee: [], grenade: [300], reload: [], swaps: [] } }))
+    expect(seen).toEqual([['meleeStart', 199], ['grenade', 190], ['grenade', 300], ['swap', 400]])
+  })
+
   it('weapon change: the old class put-away finished at the frame, the new class ready afterward', () => {
     const swaps = [{ t: 400, from: 'rifle' as const, to: 'pistol' as const }]
     const before = over(select(input({ frame: 399.9, events: { melee: [], grenade: [], reload: [], swaps } })))

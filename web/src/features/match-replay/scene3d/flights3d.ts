@@ -54,6 +54,7 @@ import { buildRestFx } from '../model/shotImpactFx'
 import { vehicleShotStyleOf } from '../model/vehicleWeaponRegistry'
 import { InstancePool, SegmentPool, firstFrom } from './actionKit'
 import { grenadeLookOf, plasmaPulse, PLASMA_CORE_MIX, PLASMA_CORE_RADIUS, PLASMA_HALO_DIM, PLASMA_HALO_MULT, PLASMA_PULSE_DEPTH, SHOT_ORB_RADIUS, type GrenadeFlightLook } from './grenadeLook3d'
+import { drawRecorder, ledgerId } from './drawRecorder3d'
 import { blastLight, blastStyleOf } from './explosionFx3d'
 import { Explosions3d } from './explosions3d'
 import { stuckGrenadesOf, stuckPointAt, type StuckGrenade } from './stuckGrenades3d'
@@ -85,6 +86,10 @@ const GRENADE_SPIN_PER_UNIT = (4 * Math.PI) / 12
 const SPIN_AXIS = new THREE.Vector3(1, 0, 0.4).normalize()
 
 interface Flight {
+  /** The flight's index in `doc.projectiles` (the ledger's `projectile/<i>`). */
+  index: number
+  /** The throw's index in `doc.grenades` when the flight is a grenade's (`grenade/<i>`). */
+  grenadeIndex: number | null
   t0: number
   /** Absolute frame of each point. */
   at: number[]
@@ -190,16 +195,29 @@ export class Flights3dLayer implements ActionLayer3d {
       const f = this.flights[i]
       if (f.t0 > frame) break
       if (frame > lastFrame(f)) continue
+      const before = drawRecorder.adds
       this.drawFlight(f, frame, f.grenade !== null ? grenadeInk : ink(f.tint), { fps, paths: inputs.aids.projectilePaths })
+      if (drawRecorder.on && drawRecorder.adds > before) {
+        const what = frame > f.end ? 'flights3d/at_rest' : 'flights3d/flight'
+        drawRecorder.mark(ledgerId.projectile(f.index), what)
+        if (f.grenadeIndex !== null) drawRecorder.mark(ledgerId.grenade(f.grenadeIndex), what)
+      }
     }
-    for (const s of this.sticks) if (frame >= s.from && frame < s.detoT) this.drawStuck(s, frame, fps)
+    for (const s of this.sticks) {
+      if (frame < s.from || frame >= s.detoT) continue
+      const before = drawRecorder.adds
+      this.drawStuck(s, frame, fps)
+      if (drawRecorder.on && drawRecorder.adds > before) drawRecorder.mark(ledgerId.grenade(s.grenade), 'flights3d/stuck')
+    }
     const core = this.ctx.ink.of(inputs.inks.fx.core)
     for (let i = firstFrom(this.blastList, (b) => b.rest.frame, frame - this.maxHold); i < this.blastList.length; i++) {
       const b = this.blastList[i]
       if (b.rest.frame > frame) break
       const age = (frame - b.rest.frame) / fps
+      const before = drawRecorder.adds
       if (b.kind === 'explosion') {
         this.drawDetonation(b, age, ink(b.tint), core)
+        if (drawRecorder.on && b.rest.id && drawRecorder.adds > before) drawRecorder.mark(b.rest.id, 'flights3d/explosion')
         if (inputs.aids.blastRadius && age < BLAST_RADIUS_SECONDS) {
           this.radii.add(b.at, null, BLAST_RADIUS, this.flashInk.copy(ink(b.tint)).multiplyScalar(0.2 * (1 - age / BLAST_RADIUS_SECONDS)))
         }
@@ -207,6 +225,7 @@ export class Flights3dLayer implements ActionLayer3d {
       }
       const u = (frame - b.rest.frame) / b.hold
       if (u <= 1) this.drawBlast(b, u, ink(b.tint))
+      if (drawRecorder.on && b.rest.id && drawRecorder.adds > before) drawRecorder.mark(b.rest.id, `flights3d/${b.kind}`)
     }
     for (const pool of this.pools) pool.end()
   }
@@ -323,6 +342,8 @@ interface FlightOwner {
   tint: FxTint
   /** The weapon key of the shot (`WeaponLabel.key`), undefined for a grenade. */
   key?: string
+  /** The throw's index in `doc.grenades`, for a grenade. */
+  grenadeIndex?: number
 }
 
 /** lastFrame: the last frame where a flight is drawn (its trail, or its grenade at rest). */
@@ -340,8 +361,8 @@ function ownersOf(ctx: ActionContext): Map<number, FlightOwner> {
     const tint = fxTintOf(label?.tint ?? vehicleShotStyleOf(doc, shot.w)?.tint)
     owners.set(i, { slot: shot.slot, grenade: null, tint, key: label?.key })
   })
-  for (const g of doc.grenades) {
-    if (g.proj !== undefined) owners.set(g.proj, { slot: g.slot, grenade: g.rank, tint: grenadeLookOf(g.rank).tint })
+  for (const [gi, g] of doc.grenades.entries()) {
+    if (g.proj !== undefined) owners.set(g.proj, { slot: g.slot, grenade: g.rank, tint: grenadeLookOf(g.rank).tint, grenadeIndex: gi })
   }
   return owners
 }
@@ -369,6 +390,8 @@ function buildFlights(ctx: ActionContext): Flight[] {
       ? fr.t.map((_, k) => new THREE.Vector3(...toThree(fr.x[k], fr.y[k], fr.z[k])))
       : pr.z ? publishedPoints(pr.p, pr.z) : guessedPoints(ctx, pr, owner)
     out.push({
+      index: i,
+      grenadeIndex: owner?.grenadeIndex ?? null,
       t0: pr.t0,
       at,
       pts,

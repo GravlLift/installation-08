@@ -82,7 +82,15 @@ export interface MotionInput {
   gait: MotionGait | null
   stances: MotionStances
   events: MotionEvents
+  /**
+   * Told of every action clip the mix plays at this frame (weight above 0): which event list
+   * and the event's frame. Set only while an export records its draws (`drawRecorder3d`).
+   */
+  played?: (kind: MotionActionKind, t: number) => void
 }
+
+/** The action lists `MotionInput.played` names. */
+export type MotionActionKind = 'melee' | 'meleeStart' | 'grenade' | 'swap'
 
 export interface ClipCatalog {
   get(name: string): SpartanClip | undefined
@@ -426,12 +434,14 @@ function lastBefore(frames: readonly number[], f: number): number {
 }
 
 /** oneAction: the most recent action in `frames` whose point `at` (s within the clip) lands on its frame. */
-function oneAction(out: ClipMix, clip: SpartanClip | null, frames: readonly number[], q: MotionInput, at: number): void {
+function oneAction(out: ClipMix, clip: SpartanClip | null, frames: readonly number[], q: MotionInput, at: number, kind: MotionActionKind | null = null): void {
   if (!clip) return
   const i = lastBefore(frames, q.frame + at * q.fps)
   if (i < 0) return
   const time = (q.frame - frames[i]) / q.fps + at
-  pushOver(out, clip, time, actionWeight(time, clip.once))
+  const weight = actionWeight(time, clip.once)
+  pushOver(out, clip, time, weight)
+  if (kind && q.played && weight > 0) q.played(kind, frames[i])
 }
 
 /** actions places the over actions (see the header). */
@@ -444,9 +454,9 @@ function actions(q: MotionInput, cat: ClipCatalog, c: ClassClips, out: ClipMix):
     const time = (q.frame - shot.t) / q.fps
     if (clip) pushOver(out, clip, time, actionWeight(time, clip.once))
   }
-  oneAction(out, c.melee, ev.melee, q, MELEE_IMPACT)
-  oneAction(out, c.melee, ev.meleeStart ?? [], q, 0)
-  oneAction(out, c.grenade, ev.grenade, q, THROW_RELEASE)
+  oneAction(out, c.melee, ev.melee, q, MELEE_IMPACT, 'melee')
+  oneAction(out, c.melee, ev.meleeStart ?? [], q, 0, 'meleeStart')
+  oneAction(out, c.grenade, ev.grenade, q, THROW_RELEASE, 'grenade')
   oneAction(out, q.reloadClip === undefined ? c.reload : q.reloadClip, ev.reload, q, 0)
   const swaps = ev.swaps
   let lo = 0
@@ -463,6 +473,7 @@ function actions(q: MotionInput, cat: ClipCatalog, c: ClassClips, out: ClipMix):
     if (away) pushOver(out, away, since + away.once, actionWeight(since + away.once, away.once))
     const ready = classClips(cat, s.to).ready
     if (ready) pushOver(out, ready, since, actionWeight(since, ready.once))
+    if (q.played && ((away && actionWeight(since + away.once, away.once) > 0) || (ready && actionWeight(since, ready.once) > 0))) q.played('swap', s.t)
   }
 }
 

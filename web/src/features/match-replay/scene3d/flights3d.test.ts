@@ -9,7 +9,7 @@
  *  - the plasma's detonation is blue, the frag's orange.
  */
 import * as THREE from 'three'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { normalizeReplayDocument } from '@/lib/replay/replayNormalize'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
@@ -22,6 +22,7 @@ import { FlashLights } from './flash3d'
 import type { ActionContext } from './actionScene3d'
 import type { AttachBone } from './avatar3d'
 import type { Tracks3d } from './tracks3d'
+import { drawRecorder } from './drawRecorder3d'
 
 const INK: Record<string, THREE.Color> = {
   blue: new THREE.Color(0, 0, 1),
@@ -490,6 +491,57 @@ describe('Flights3dLayer — a stick without a flight explodes at its published 
     // And a seek back lands where playing forward did.
     layer.update(162.25)
     expect(blastPoints(root).snapshot).toEqual(a)
+    layer.dispose()
+  })
+})
+/**
+ * THE EXPORT'S DRAW RECORDS (`drawRecorder3d`): while an export records, the layer marks the ledger
+ * ids of what it actually placed; outside an export it marks nothing.
+ */
+describe('Flights3dLayer — draw records', () => {
+  const stickDoc = (): ReplayDocumentReady =>
+    normalizeReplayDocument({
+      frameIntervalMs: 1000 / 60,
+      tracks: [{ slot: 1, team: 0, xuid: 'X', points: [{ t: 0, x: 4, y: 1, z: 1 }] }],
+      projectiles: [],
+      grenades: [{ t: 90, slot: 1, i: 0, x: 0, y: 0, rank: 1, s: 'biped', deto: { t: 160, x: 4, y: 1, z: 1.5 } }],
+      shots: [],
+      weaponLabels: undefined,
+    } as unknown as ReplayDocument)
+  const body = () => ({ x: 4, y: 1, z: 1, h: 0 }) as unknown as ReturnType<ActionContext['slotState']>
+
+  it('marks a point-blank stick on its body, then its detonation', () => {
+    const { layer } = makeLayer(1, stickDoc(), { slotState: body })
+    drawRecorder.start()
+    drawRecorder.frame = 120
+    layer.update(120)
+    drawRecorder.frame = 165
+    layer.update(165)
+    const marks = drawRecorder.stop()
+    expect(marks.get('grenade/0')).toEqual({ by: ['flights3d/stuck'], first: 120, last: 120 })
+    expect(marks.get('detonation/grenade/0')).toEqual({ by: ['flights3d/explosion'], first: 165, last: 165 })
+    layer.dispose()
+  })
+
+  it('marks a thrown grenade by its flight and its detonation by its projectile', () => {
+    const { layer } = makeLayer(1, normalizeReplayDocument(documentGrenade(1) as ReplayDocument))
+    drawRecorder.start()
+    layer.update(120)
+    layer.update(165)
+    const marks = drawRecorder.stop()
+    expect(marks.get('projectile/0')?.by).toEqual(['flights3d/flight'])
+    expect(marks.get('grenade/0')?.by).toEqual(['flights3d/flight'])
+    expect(marks.get('detonation/projectile/0')?.by).toEqual(['flights3d/explosion'])
+    layer.dispose()
+  })
+
+  it('does not even build a record outside an export', () => {
+    const { layer } = makeLayer(1, stickDoc(), { slotState: body })
+    const mark = vi.spyOn(drawRecorder, 'mark')
+    layer.update(120)
+    layer.update(165)
+    expect(mark).not.toHaveBeenCalled()
+    mark.mockRestore()
     layer.dispose()
   })
 })

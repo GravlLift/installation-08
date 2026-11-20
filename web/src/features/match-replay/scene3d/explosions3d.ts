@@ -16,6 +16,7 @@
 import * as THREE from 'three'
 
 import { SegmentPool } from './actionKit'
+import { drawRecorder } from './drawRecorder3d'
 import { blastAt, type BlastInk, type BlastSink, type BlastStyle } from './explosionFx3d'
 
 /** At most this many round flashes and sparks per frame (a dozen simultaneous explosions). */
@@ -146,6 +147,7 @@ export class Explosions3d {
   private sprite(x: number, y: number, z: number, radius: number, r: number, g: number, b: number, a: number): void {
     if (this.n >= SPRITE_CAPACITY) return
     const i = this.n++
+    drawRecorder.adds++
     this.position[i * 3] = this.center.x + x
     this.position[i * 3 + 1] = this.center.y + y
     this.position[i * 3 + 2] = this.center.z + z

@@ -118,6 +118,8 @@ export interface GrenadeRestFx {
   /** Stem of the sound of the detonation of a shot projectile (register of the weapon). Absent on a
    *  shot projectile = silent explosion; a grenade (without `tint`) sounds by its rank. */
   impactStem?: string
+  /** The detonation's ledger id: `detonation/projectile/<i>` (a flight's end) or `detonation/grenade/<i>` (a point-blank stick). */
+  id?: string
 }
 
 /** Seed of the geometry of an explosion, function of its frame alone: the same explosion
@@ -176,13 +178,13 @@ export function grenadeThrowActive(
  */
 export function buildGrenadeRestFx(doc: ReplayDocumentReady): GrenadeRestFx[] {
   const out: GrenadeRestFx[] = []
-  for (const g of doc.grenades) {
+  for (const [gi, g] of doc.grenades.entries()) {
     if (g.proj === undefined || g.proj === null) {
       // A THROW WITHOUT A PUBLISHED FLIGHT (schema 129): a point-blank stick replicates no flight,
       // and its explosion is the film's detonation of the projectile the throw created (`deto`,
       // linked by the projectile's handle on the server side). Same staging as a flight's end.
       if (g.deto) {
-        out.push({ frame: g.deto.t, x: g.deto.x, y: g.deto.y, z: g.deto.z, rank: g.rank ?? -1, rest: false, seed: explosionSeedOf(g.deto.t) })
+        out.push({ frame: g.deto.t, x: g.deto.x, y: g.deto.y, z: g.deto.z, rank: g.rank ?? -1, rest: false, seed: explosionSeedOf(g.deto.t), id: `detonation/grenade/${gi}` })
       }
       continue
     }
@@ -196,6 +198,7 @@ export function buildGrenadeRestFx(doc: ReplayDocumentReady): GrenadeRestFx[] {
       rank: g.rank ?? -1,
       rest: !!pr.rest,
       seed: explosionSeedOf(frame),
+      id: `detonation/projectile/${g.proj}`,
     })
   }
   return out
