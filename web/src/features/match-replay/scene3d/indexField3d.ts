@@ -7,6 +7,8 @@
  * `RETRY_MS`. The red-reticle ranges (`reticleRanges3d`) and the team banners (`flagBanner3d`)
  * are fields of it.
  */
+import * as THREE from 'three'
+
 import { api } from '@/lib/api/client'
 import { isNotFound } from '@/lib/replay/queries'
 
@@ -22,6 +24,20 @@ const RETRY_MS = 15_000
  * pull without its rounds, `shots3d.burstOf`).
  */
 export const indexReads = new LoadGate()
+
+/**
+ * libraryTexture: a texture of the weapon library (shield noise, particle sprites, banners), its
+ * load counted with the index reads so an export frame that asked for it waits for its texels
+ * instead of drawing the effect blank. `onError` is told of a failed load.
+ */
+export function libraryTexture(url: string, onError: (err: unknown) => void): THREE.Texture {
+  let done!: () => void
+  indexReads.track(new Promise<void>((resolve) => { done = resolve }))
+  return new THREE.TextureLoader().load(url, () => done(), undefined, (err) => {
+    onError(err)
+    done()
+  })
+}
 
 export type FetchJson = (url: string, signal: AbortSignal) => Promise<unknown>
 

@@ -26,6 +26,7 @@ import * as THREE from 'three'
 
 import { api } from '@/lib/api/client'
 
+import { indexReads, libraryTexture } from './indexField3d'
 import type { IdleSystem, LiveParticle } from './weaponIdleEffects3dModel'
 
 /** Blend mode 9 of a particle (`himap` melangeAddSrcAlpha): dst + src x src alpha. */
@@ -57,7 +58,7 @@ export class EffectFiles {
   texture(file: string, srgb: boolean): THREE.Texture {
     let t = this.textures.get(file)
     if (!t) {
-      t = new THREE.TextureLoader().load(`${this.base}/${file}`, undefined, undefined, (err) => {
+      t = libraryTexture(`${this.base}/${file}`, (err) => {
         console.warn('replay 3D: weapon effect texture unavailable', file, err)
       })
       // D3D's convention: v = 0 is the image's first row (the layers of an array stack downward).
@@ -75,12 +76,13 @@ export class EffectFiles {
   mesh(file: string): THREE.BufferGeometry | null {
     if (!this.meshes.has(file)) {
       this.meshes.set(file, null)
-      api.getResponse(`${this.base}/${file}`, { signal: this.abort.signal })
+      // Counted with the index reads: an export frame waits for the mesh (`indexReads`).
+      indexReads.track(api.getResponse(`${this.base}/${file}`, { signal: this.abort.signal })
         .then((r) => r.arrayBuffer())
         .then((b) => this.meshes.set(file, particleMesh(new Float32Array(b))))
         .catch((err: unknown) => {
           if (!this.abort.signal.aborted) console.warn('replay 3D: weapon effect mesh unavailable', file, err)
-        })
+        }))
     }
     return this.meshes.get(file) ?? null
   }

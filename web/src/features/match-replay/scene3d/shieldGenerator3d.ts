@@ -34,7 +34,7 @@
  */
 import * as THREE from 'three'
 
-import { IndexField, type FetchJson } from './indexField3d'
+import { IndexField, libraryTexture, type FetchJson } from './indexField3d'
 
 /** A GPU property: a constant, or a function of an engine input, with its curve when it was read. */
 export interface GeneratorProperty {
@@ -263,7 +263,7 @@ export class ShieldHitAssets {
   }
 
   private texture(t: GeneratorTexture): THREE.Texture {
-    const tex = new THREE.TextureLoader().load(`${this.base}/${t.file}`, undefined, undefined, (err) => {
+    const tex = libraryTexture(`${this.base}/${t.file}`, (err) => {
       console.warn('replay 3D: shield impact texture unavailable', t.file, err)
     })
     // D3D's convention, as the mesh's glTF texture coordinates: v = 0 is the image's first row.

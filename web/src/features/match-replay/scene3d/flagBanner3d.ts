@@ -27,7 +27,7 @@ import {
   type BannerTable,
   type FlagBanner,
 } from './flagBanner3dModel'
-import { IndexField, type FetchJson } from './indexField3d'
+import { IndexField, libraryTexture, type FetchJson } from './indexField3d'
 import { sideInkOf } from './objectives3dModel'
 import type { Action3dInputs } from './action3dInputs'
 import type { InkCache } from './actionKit'
@@ -130,7 +130,7 @@ export class FlagBanners {
   private texture(file: string): THREE.Texture {
     let t = this.textures.get(file)
     if (!t) {
-      t = new THREE.TextureLoader().load(`${this.base}/${file}`, undefined, undefined, (err) => {
+      t = libraryTexture(`${this.base}/${file}`, (err) => {
         console.warn('replay 3D: banner image unavailable', file, err)
       })
       t.colorSpace = THREE.SRGBColorSpace
