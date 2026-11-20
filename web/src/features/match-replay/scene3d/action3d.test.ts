@@ -8,7 +8,7 @@ import type { Action3dInputs } from './action3dInputs'
 import { firstFrom, type Ground, type InkCache } from './actionKit'
 import type { ActionContext } from './actionScene3d'
 import { FlashLights } from './flash3d'
-import { buildDeaths3d, deathText } from './deaths3d'
+import { buildDeaths3d, deathHoldFramesOf, deathText, lingeringRange } from './deaths3d'
 import { heightsAlong } from './flights3d'
 import { heldWeaponAt } from './heldWeapon3d'
 import { buildTracks3d } from './tracks3d'
@@ -126,5 +126,34 @@ describe('buildDeaths3d', () => {
   it('without a located victim, no cross', () => {
     expect(buildDeaths3d(ctxWith(() => true), [kill({ victimXuid: 'X' })])).toEqual([])
     expect(buildDeaths3d(ctxWith(() => true), [kill({ victimXuid: undefined })])).toEqual([])
+  })
+
+  describe('how long a death lingers (deathHoldMs)', () => {
+    // 10 frames per second: the page's default hold is 1.4 s, 14 frames (MatchViewScreen).
+    const defaultFrames = Math.round(1.4 * 10)
+    const deaths = () => buildDeaths3d(ctxWith(() => true), [kill()])
+    const present = (frame: number, scriptHoldMs: number | null) => {
+      const ds = deaths()
+      const [from, to] = lingeringRange(ds, frame, deathHoldFramesOf(defaultFrames, scriptHoldMs, doc))
+      return ds.slice(from, to).some((d) => d.body && d.body.start <= frame)
+    }
+
+    it('a script hold of 2500 ms keeps the body at death + 2000 ms; the default does not', () => {
+      const at = deaths()[0].frame + 20 // + 2000 ms
+      expect(present(at, 2500)).toBe(true)
+      expect(present(at, null)).toBe(false)
+    })
+
+    it('without a script hold, the page default exactly; never under one frame', () => {
+      expect(deathHoldFramesOf(defaultFrames, null, doc)).toBe(14)
+      expect(deathHoldFramesOf(defaultFrames, 2500, doc)).toBe(25)
+      expect(deathHoldFramesOf(defaultFrames, 0, doc)).toBe(1)
+    })
+
+    it('a death lingers from its frame, never before it', () => {
+      const d = deaths()[0]
+      expect(present(d.frame - 1, 30000)).toBe(false)
+      expect(present(d.frame, null)).toBe(true)
+    })
   })
 })
