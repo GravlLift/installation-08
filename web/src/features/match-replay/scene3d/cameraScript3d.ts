@@ -22,7 +22,8 @@
  * A key's optional `near` cuts the map nearer than it away (a cutaway through a wall, `mapCut3d`;
  * players and effects are never cut), and
  * the top-level `outlines: false` takes the team outline out of the shot (`scriptOutlines`), and
- * the top-level `shockLook: 'arc'` draws the Shock Rifle's shot as forking electricity (`scriptShockLook`).
+ * the top-level `shockLook: 'arc'` draws the Shock Rifle's shot as forking electricity (`scriptShockLook`),
+ * and `shockLook: 'game'` draws it with the game's own firing, flight and impact effects (`gameShotEffects3d`).
  * A key's optional `weight` (and `lookWeight`) puts a spring between the scripted path and the
  * camera (`cameraWeight3d`): a heavy rig's lag and settle, still a pure function of script time.
  */
@@ -129,14 +130,16 @@ export interface CameraScript {
   outlines?: boolean
   /**
    * How the Shock Rifle's shot draws while the script plays (`shots3d`): 'beam' (default) the three
-   * jagged beams, 'arc' a thin forking electric bolt (`shockArcShot3d`).
+   * jagged beams, 'arc' a thin forking electric bolt (`shockArcShot3d`), 'game' the game's own
+   * firing, flight and impact effects from the weapon library (`gameShotEffects3d`; the beams while
+   * the library has none).
    */
   shockLook?: ShockLook
 }
 
 /** The Shock Rifle shot's looks (`CameraScript.shockLook`). */
-export type ShockLook = 'beam' | 'arc'
-export const SHOCK_LOOKS: readonly ShockLook[] = ['beam', 'arc']
+export type ShockLook = 'beam' | 'arc' | 'game'
+export const SHOCK_LOOKS: readonly ShockLook[] = ['beam', 'arc', 'game']
 
 export const CAMERA_SCRIPT_MAX_KEYS = 512
 export const CAMERA_SCRIPT_FOV_MIN = 10

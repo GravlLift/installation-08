@@ -141,6 +141,8 @@ export interface ActionContext {
    * absent or no script, 'beam' (the default look).
    */
   scriptShockLook?: () => ShockLook
+  /** The rendering camera's world position, written in `out` (the game effects' camera distance input). */
+  cameraPosition?: (out: THREE.Vector3) => THREE.Vector3 | null
   /** The brief flash lights: the set opens and closes them around the layers. */
   readonly flashes: FlashLights
   /** The map's baked light (`lighting.takeGameLight`), grafted onto players' armor. */

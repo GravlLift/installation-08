@@ -908,9 +908,11 @@ describe('parseCameraScript (outlines)', () => {
 describe('parseCameraScript (shockLook)', () => {
   const raw = (shockLook: unknown): Record<string, unknown> => ({ ...script([key(0, w([0, 0, 0]), w([1, 0, 0]))]), shockLook })
 
-  it('keeps beam and arc', () => {
+  it('keeps beam, arc and game', () => {
     expect(accepts(raw('beam')).shockLook).toBe('beam')
     expect(accepts(raw('arc')).shockLook).toBe('arc')
+    expect(accepts(raw('game')).shockLook).toBe('game')
+    expect(scriptShockLook(accepts(raw('game')))).toBe('game')
   })
 
   it('leaves it out when absent, which draws the beams', () => {
@@ -923,7 +925,7 @@ describe('parseCameraScript (shockLook)', () => {
   })
 
   it('rejects anything but a known look', () => {
-    for (const v of ['Arc', 'beams', '', 0, true, null, {}]) expect(rejects(raw(v))).toContain('shockLook')
+    for (const v of ['Arc', 'beams', 'Game', '', 0, true, null, {}]) expect(rejects(raw(v))).toContain('shockLook')
   })
 })
 

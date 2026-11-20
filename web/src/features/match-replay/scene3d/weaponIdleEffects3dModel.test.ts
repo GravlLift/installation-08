@@ -7,6 +7,8 @@ import {
   FN_CONSTANT,
   FN_IDENTITY,
   FN_MULTI_SPLINE,
+  FN_PERIODIC,
+  EVENT_PARTICLES_DIE,
   SYSTEM_KILLED_WITH_EVENT,
   SYSTEM_NO_ADS,
   curveAt,
@@ -15,7 +17,9 @@ import {
   parseIdleEffects,
   propertyAt,
   magazineFraction,
+  oneShotSeconds,
   reloadingAt,
+  simulateOnce,
   simulateSystem,
   systemShown,
   type IdleEffect,
@@ -304,5 +308,76 @@ describe('the magazine feed', () => {
     expect(at(1250)).toBe(0) // empty, not yet reloading
     expect(at(2000)).toBe(0) // reloading
     expect(at(3600)).toBe(1) // the reload filled it
+  })
+})
+describe('periodic properties', () => {
+  // The Shock Rifle projectile sprite's frame index (0f7addc5): a slide wave of frequency 8, phase 0.5.
+  const slide = { type: FN_PERIODIC, input: 0, rangeInput: 0, min: 0, max: 4, periodic: [{ onde: 6, frequence: 8, phase: 0.5, min: 0, max: 1 }] }
+
+  it('brings the wave of frequency x input + phase into its range, then the function range', () => {
+    expect(propertyAt(slide, () => 0)).toBeCloseTo(2)
+    expect(propertyAt(slide, () => 0.25)).toBeCloseTo(2)
+    expect(propertyAt(slide, () => 0.3)).toBeCloseTo(4 * 0.9)
+    const one = { ...slide, periodic: [{ onde: 0, frequence: 1, phase: 0, min: 0.25, max: 0.75 }] }
+    expect(propertyAt(one, () => 0.4)).toBeCloseTo(3)
+  })
+
+  it('mixes a ranged function\'s two sub-functions by its range input', () => {
+    const ranged = {
+      type: FN_PERIODIC, input: 0, rangeInput: 2, ranged: true, min: 0, max: 1,
+      periodic: [{ onde: 0, frequence: 1, phase: 0, min: 0.2, max: 0.2 }, { onde: 0, frequence: 1, phase: 0, min: 0.6, max: 0.6 }],
+    }
+    expect(propertyAt(ranged, (k) => (k === 2 ? 0 : 0.5))).toBeCloseTo(0.2)
+    expect(propertyAt(ranged, (k) => (k === 2 ? 0.5 : 0.5))).toBeCloseTo(0.4)
+  })
+
+  it('draws a jitter from its seed: the same seed, the same value', () => {
+    const jitter = { ...slide, periodic: [{ onde: 9, frequence: 1, phase: 0, min: 0, max: 1 }] }
+    expect(propertyAt(jitter, () => 0.3, 7)).toBe(propertyAt(jitter, () => 0.3, 7))
+  })
+
+  it('answers 0 for a periodic function without its sub-functions', () => {
+    expect(propertyAt({ ...slide, periodic: [] }, () => 0.3)).toBe(0)
+  })
+})
+
+describe('simulateOnce, a one-shot effect', () => {
+  const on = { scaleA: 1, scaleB: 1, cameraDistance: 0 }
+  const k = (v: number) => ({ type: FN_CONSTANT, input: 1, rangeInput: 3, min: v, max: v })
+  /** One particle at the start, living `life` s, in an event of `d` s. */
+  const single = (d: number, life: number, flags = 0, eventFlags = 0): IdleSystem => ({
+    ...arcs(), eventDuration: [d, d], flags, eventFlags,
+    emitter: { ...arcs().emitter, properties: { startingCount: k(1), lifespan: k(life), size: k(0.03) } },
+  })
+  const out: LiveParticle[] = []
+
+  it('emits its starting count at the start, which lives its lifespan past the event', () => {
+    expect(simulateOnce(single(0.2, 0.5), 0, 1, 0, on, out)).toHaveLength(1)
+    expect(simulateOnce(single(0.2, 0.5), 0.4, 1, 0, on, out)).toHaveLength(1)
+    expect(simulateOnce(single(0.2, 0.5), 0.5, 1, 0, on, out)).toHaveLength(0)
+    expect(simulateOnce(single(0.2, 0.5), -0.01, 1, 0, on, out)).toHaveLength(0)
+    expect(oneShotSeconds(single(0.2, 0.5))).toBeCloseTo(0.7)
+  })
+
+  it('cuts its particles at the event end when they die with it, and all of them at the kill time', () => {
+    expect(simulateOnce(single(0.2, 0.5, SYSTEM_KILLED_WITH_EVENT), 0.25, 1, 0, on, out)).toHaveLength(0)
+    expect(simulateOnce(single(0.2, 0.5, 0, EVENT_PARTICLES_DIE), 0.25, 1, 0, on, out)).toHaveLength(0)
+    expect(oneShotSeconds(single(0.2, 0.5, SYSTEM_KILLED_WITH_EVENT))).toBeCloseTo(0.2)
+    expect(simulateOnce(single(1, 1), 0.3, 1, 0, on, out, 0.3)).toHaveLength(0)
+    expect(simulateOnce(single(1, 1), 0.29, 1, 0, on, out, 0.3)).toHaveLength(1)
+  })
+
+  it('emits at its rate over the event only, never re-playing it', () => {
+    // The projectile's sparks (aee88cad): 8 a second over 0.115 s, lives of 0.1 s.
+    const sparks: IdleSystem = { ...single(0.115, 0.1), emitter: { ...arcs().emitter, properties: { emissionRate: k(8), lifespan: k(0.1), size: k(0.02) } } }
+    expect(simulateOnce(sparks, 0.05, 1, 0, on, out)).toHaveLength(0)
+    expect(simulateOnce(sparks, 0.1, 1, 0, on, out)).toHaveLength(1)
+    expect(simulateOnce(sparks, 0.17, 1, 0, on, out)).toHaveLength(0)
+    expect(simulateOnce(sparks, 1.1, 1, 0, on, out)).toHaveLength(0)
+  })
+
+  it('is deterministic in age and seed', () => {
+    const a = simulateOnce(single(1, 1), 0.3, 5, 2, on, []).map((p) => [p.x, p.size, p.angle])
+    expect(simulateOnce(single(1, 1), 0.3, 5, 2, on, []).map((p) => [p.x, p.size, p.angle])).toEqual(a)
   })
 })
