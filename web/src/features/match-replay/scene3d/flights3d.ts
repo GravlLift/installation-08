@@ -39,8 +39,9 @@
  * Forge object, a dead player) leaves the projectile at the end of its flight, as before.
  *
  * A THROW WITHOUT A FLIGHT (schema 129, `Grenade.deto`): a grenade stuck point-blank replicates no
- * flight, so nothing flies or rides a bone; its explosion is the film's own detonation of the
- * projectile the throw created, placed at its published position AND height (`GrenadeRestFx.z`).
+ * flight, so nothing flies; its explosion is the film's own detonation of the projectile the throw
+ * created, placed at its published position AND height (`GrenadeRestFx.z`). From the throw until
+ * that explosion it rides the body it stuck to (`stuckGrenades3d`).
  */
 import * as THREE from 'three'
 
@@ -55,6 +56,7 @@ import { InstancePool, SegmentPool, firstFrom } from './actionKit'
 import { grenadeLookOf, plasmaPulse, PLASMA_CORE_MIX, PLASMA_CORE_RADIUS, PLASMA_HALO_DIM, PLASMA_HALO_MULT, PLASMA_PULSE_DEPTH, SHOT_ORB_RADIUS, type GrenadeFlightLook } from './grenadeLook3d'
 import { blastLight, blastStyleOf } from './explosionFx3d'
 import { Explosions3d } from './explosions3d'
+import { stuckGrenadesOf, stuckPointAt, type StuckGrenade } from './stuckGrenades3d'
 import { WeaponModelPool } from './weaponModels3d'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { MUZZLE_HEIGHT } from './body3d'
@@ -131,6 +133,8 @@ export class Flights3dLayer implements ActionLayer3d {
   private readonly flashInk = new THREE.Color()
   private readonly models: WeaponModelPool
   private readonly flights: Flight[]
+  /** Grenades stuck point-blank, with no flight (`stuckGrenades3d`). */
+  private readonly sticks: StuckGrenade[]
   private readonly blastList: Blast[]
   private readonly maxHold: number
   private readonly maxSpan: number
@@ -152,6 +156,9 @@ export class Flights3dLayer implements ActionLayer3d {
     const additive = () => new THREE.MeshBasicMaterial({ toneMapped: false, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })
     const veil = () => new THREE.MeshBasicMaterial({ toneMapped: false, transparent: true, opacity: 0.4, depthWrite: false })
     this.flights = buildFlights(ctx).sort((a, b) => a.t0 - b.t0)
+    this.sticks = ctx.doc.grenades.some((g) => g.deto && g.proj === undefined)
+      ? stuckGrenadesOf(ctx.doc.grenades, [...new Set(ctx.doc.tracks.map((t) => t.slot))], (slot, f) => ctx.slotState(slot, f))
+      : []
     this.blastList = buildBlasts(ctx, this.flights).sort((a, b) => a.rest.frame - b.rest.frame)
     this.maxHold = this.blastList.reduce((m, b) => Math.max(m, b.hold), 0)
     this.maxSpan = this.flights.reduce((m, f) => Math.max(m, lastFrame(f) - f.t0), 0)
@@ -185,6 +192,7 @@ export class Flights3dLayer implements ActionLayer3d {
       if (frame > lastFrame(f)) continue
       this.drawFlight(f, frame, f.grenade !== null ? grenadeInk : ink(f.tint), { fps, paths: inputs.aids.projectilePaths })
     }
+    for (const s of this.sticks) if (frame >= s.from && frame < s.detoT) this.drawStuck(s, frame, fps)
     const core = this.ctx.ink.of(inputs.inks.fx.core)
     for (let i = firstFrom(this.blastList, (b) => b.rest.frame, frame - this.maxHold); i < this.blastList.length; i++) {
       const b = this.blastList[i]
@@ -262,7 +270,7 @@ export class Flights3dLayer implements ActionLayer3d {
    * blue halo, additive, pulsed over time (`grenadeLook3d.plasmaPulse`). A shot projectile drawn
    * as an orb (`SHOT_ORB_RADIUS`, the fuel rod) takes its own tint and radius, in flight only.
    */
-  private drawPlasmaOrb(f: Flight, at: THREE.Vector3, frame: number, fps: number): void {
+  private drawPlasmaOrb(f: Pick<Flight, 'tint' | 'orbRadius'>, at: THREE.Vector3, frame: number, fps: number): void {
     const fx = this.ctx.inputs().inks.fx
     const gain = 1 - PLASMA_PULSE_DEPTH / 2 + PLASMA_PULSE_DEPTH * plasmaPulse(frame / fps)
     this.orbTint.copy(this.ctx.ink.of(fx.tint[f.tint] || fx.tint.plasma_cool))
@@ -270,6 +278,24 @@ export class Flights3dLayer implements ActionLayer3d {
     this.orbHalo.copy(this.orbTint).multiplyScalar(PLASMA_HALO_DIM * gain)
     this.plasmaCore.add(at, null, f.orbRadius * gain, this.orbCore)
     this.plasmaHalo.add(at, null, f.orbRadius * PLASMA_HALO_MULT, this.orbHalo)
+  }
+
+  /**
+   * drawStuck: a grenade stuck point-blank (`stuckGrenades3d`), on the body it stuck to from the
+   * stick until the explosion: the plasma orb, or the grenade's game model.
+   */
+  private drawStuck(s: StuckGrenade, frame: number, fps: number): void {
+    const body = this.ctx.slotState(s.slot, frame)
+    if (!body) return
+    const w = stuckPointAt(s, body)
+    const at = this.p.set(...toThree(w.x, w.y, w.z))
+    const look = grenadeLookOf(s.rank)
+    if (look.flight === 'orb') {
+      this.drawPlasmaOrb({ tint: look.tint, orbRadius: PLASMA_CORE_RADIUS }, at, frame, fps)
+      return
+    }
+    const model = this.ctx.grenadeModel(s.rank)
+    if (model) this.models.add(model, at, this.q.identity())
   }
 
   /** spin : the grenade's orientation once it has travelled `dist` units. */

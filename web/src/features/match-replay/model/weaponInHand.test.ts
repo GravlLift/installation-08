@@ -10,7 +10,7 @@ import type { ReplayDocument } from '@/lib/api/types'
 import { heldWeaponAt } from '../scene3d/heldWeapon3d'
 import { CARRIED_OBJECT_CLASS } from '../scene3d/weaponClass3d'
 import { testReplayDoc } from '../test/testDoc'
-import { weaponInHand, carriedObjectAt, flagObjectIdOf, flagTeamInHand, handObject } from './weaponInHand'
+import { weaponInHand, carriedObjectAt, flagObjectIdOf, flagTeamInHand, handObject, settledDrawnWeapons, CANCELLED_SWAP_MAX_FRAMES } from './weaponInHand'
 
 const FLAG = '2a392328'
 
@@ -120,6 +120,57 @@ describe('the spawn hand', () => {
   it('keeps the old rule for a keyframe row: two weapons and no read leave the hand empty', () => {
     const doc = spawnDoc({ loadouts: [{ t: 0, slot: 512, w: ['0xAAAA', '0xBBBB'] }] })
     expect(weaponInHand(doc, 512, 20)).toBeNull()
+  })
+})
+
+describe('a cancelled swap', () => {
+  /** A life over frames 0-300 read from its birth loadout, holding emplacement 1 from frame 20. */
+  function swapDoc(over: Partial<ReplayDocument> = {}) {
+    return testReplayDoc({
+      tracks: [track(512, 'A', 0, 300)],
+      loadouts: [{ t: 0, slot: 512, w: ['0xAAAA', '0xBBBB'], src: 'birth', k: [0, 1] }],
+      ...over,
+    })
+  }
+
+  it('never shows the other weapon for the frames between a flip and its quick flip back', () => {
+    // demo-9: the Shock Rifle (emplacement 1) became the Bandit for frames 7690-7692.
+    const doc = swapDoc({ drawnWeapons: [{ t: 20, slot: 512, d: 1 }, { t: 100, slot: 512, d: 0 }, { t: 103, slot: 512, d: 1 }] })
+    for (let f = 20; f < 200; f++) expect(weaponInHand(doc, 512, f)?.id).toBe('0xBBBB')
+    expect(settledDrawnWeapons(doc)).toEqual([{ t: 20, slot: 512, d: 1 }])
+  })
+
+  it('keeps a flip and back that lasts longer than the window: a real swap', () => {
+    const back = 100 + CANCELLED_SWAP_MAX_FRAMES + 1
+    const doc = swapDoc({ drawnWeapons: [{ t: 20, slot: 512, d: 1 }, { t: 100, slot: 512, d: 0 }, { t: back, slot: 512, d: 1 }] })
+    expect(weaponInHand(doc, 512, 101)?.id).toBe('0xAAAA')
+    expect(weaponInHand(doc, 512, back)?.id).toBe('0xBBBB')
+  })
+
+  it('keeps a short flip when the player fires the other weapon inside it', () => {
+    const doc = swapDoc({
+      drawnWeapons: [{ t: 20, slot: 512, d: 1 }, { t: 100, slot: 512, d: 0 }, { t: 104, slot: 512, d: 1 }],
+      ammoReads: [{ t: 102, ms: 102 * 33, slot: 512, w: 0, mag: 4, src: 'delta' }],
+    })
+    expect(weaponInHand(doc, 512, 103)?.id).toBe('0xAAAA')
+  })
+
+  it('never lets the hand change and revert within the window, whatever the flip pattern', () => {
+    // Every pattern of flips over a short stretch: no run of a different weapon inside the
+    // window survives unless a shot of that weapon dates it.
+    for (let mask = 0; mask < 1 << 8; mask++) {
+      const drawn = [{ t: 20, slot: 512, d: 1 }]
+      for (let i = 0; i < 8; i++) drawn.push({ t: 100 + i * 2, slot: 512, d: (mask >> i) & 1 })
+      const doc = swapDoc({ drawnWeapons: drawn })
+      const ids: (string | undefined)[] = []
+      for (let f = 20; f < 160; f++) ids.push(weaponInHand(doc, 512, f)?.id)
+      for (let i = 1; i < ids.length; i++) {
+        if (ids[i] === ids[i - 1]) continue
+        let j = i
+        while (j < ids.length && ids[j] === ids[i]) j++
+        if (j < ids.length && ids[j] === ids[i - 1]) expect(j - i, `mask ${mask}: run at ${20 + i}`).toBeGreaterThan(CANCELLED_SWAP_MAX_FRAMES)
+      }
+    }
   })
 })
 

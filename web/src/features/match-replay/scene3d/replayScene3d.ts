@@ -27,7 +27,7 @@ import { framesPerSecond, frameToMs } from '@/lib/replay/replayLogic'
 import { FirstPersonArms3d } from './firstPersonArms3d'
 import { firstPersonFolder } from './firstPersonRig3d'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
-import type { Export3dSetup, ExportCamera3d, ExportSubframe3d, ExportTag3d, Replay3DExportSource } from '../export/replay3dExportStore'
+import type { Export3dSetup, ExportCamera3d, ExportExposure3d, ExportSubframe3d, ExportTag3d, Replay3DExportSource } from '../export/replay3dExportStore'
 import type { Action3dInputs } from './action3dInputs'
 import { Ground, InkCache } from './actionKit'
 import { buildActionScene } from './actionLayers3d'
@@ -245,6 +245,11 @@ export class ReplayScene3d implements Replay3DExportSource {
       applyFilmLook: () => this.applyFilmLook(false),
       readCamera: () => this.readCamera(),
       cutMap: (draw) => this.cutMap(draw),
+      // The highlight ceiling eases on the file frame's own time: the script's while one plays
+      // (its clock may freeze the film, never script time), else the match's. Never the wall clock.
+      exposureClock: (frame) => this.post.setExposureClock(this.cameraPlacement.activeScript() ? this.cameraPlacement.scriptTime() : frame * this.msPerFrame),
+      resetExposure: () => this.post.resetExposure(),
+      readCeilingStops: () => this.post.readCeilingStops(),
     })
   }
   /** attach poses the map and the players, lights the play area, and captures the environment. */
@@ -511,6 +516,8 @@ export class ReplayScene3d implements Replay3DExportSource {
   private applyFilmLook(topView: boolean): void {
     const script = topView ? null : this.cameraPlacement.activeScript()
     this.post.setFilmLook(script?.look ?? null, this.cameraPlacement.scriptTime())
+    // The highlight ceiling meters the perspective view only: the top-down map is a diagram.
+    this.post.setHighlightCeiling(!topView)
     this.applyOutline()
   }
 
@@ -726,6 +733,8 @@ export class ReplayScene3d implements Replay3DExportSource {
     const p = this.profile
     let t = performance.now(); this.renderer.info.reset()
     this.applyFilmLook(this.view === 'top' && this.top !== null)
+    // On screen the highlight ceiling eases on the wall clock (a paused frame orbited still adapts).
+    this.post.setExposureClock(t)
     const knobs = this.applyKnobs()
     this.post.resetCosts()
     const shadowCost = this.lighting.split.cost
@@ -859,6 +868,8 @@ export class ReplayScene3d implements Replay3DExportSource {
   exportTags(): readonly ExportTag3d[] { return this.exportScene.exportTags() }
   /** The camera the last exported frame was taken from (a motion-blurred frame's: its center subframe's). */
   exportCamera(): ExportCamera3d { return this.exportScene.exportCamera() ?? this.readCamera() }
+  /** The last exported frame's exposure record: clipped share and highlight ceiling. */
+  exportExposure(): ExportExposure3d | null { return this.exportScene.exportExposure() }
   /** readCamera: the camera as posed now, in world coordinates. */
   private readCamera(): ExportCamera3d {
     // three.js is y up with world y on -z (`toThree`): back to world [x, y, z] = [a, -c, b].

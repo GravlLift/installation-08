@@ -79,6 +79,37 @@ describe('ReplayExportScene3d', () => {
     expect(calls).toEqual(['settle', 'avatars', 'camera', 'arms', 'retag', 'effects', 'shadows', 'render', 'screen', 'read'])
   })
 
+  it("records each frame's exposure (clipped share of the image read back, highlight ceiling) on ONE clock time per file frame", () => {
+    vi.stubGlobal('ImageData', class {
+      readonly data: Uint8ClampedArray
+      readonly width: number
+      readonly height: number
+      constructor(width: number, height: number) {
+        this.width = width
+        this.height = height
+        this.data = new Uint8ClampedArray(width * height * 4)
+      }
+    })
+    const { exported, calls, scene } = sceneDouble()
+    const gl = scene.renderer.getContext() as { readPixels: (...a: unknown[]) => void }
+    gl.readPixels = (...a: unknown[]) => { calls.push('read'); (a[6] as Uint8Array).fill(255) }
+    const hooks = scene as unknown as Record<string, unknown>
+    hooks.exposureClock = (frame: number) => calls.push(`clock ${frame}`)
+    hooks.resetExposure = () => calls.push('reset')
+    hooks.readCeilingStops = () => -0.5
+    expect(exported.exportExposure()).toBeNull()
+    exported.beginExport({ width: 4, height: 2, camera: 'tp', pov: null, frame: 40, frameMs: 100 / 3 })
+    expect(calls).toEqual(['reset'])
+    calls.length = 0
+    exported.exportFrame(42)
+    expect(calls[0]).toBe('clock 42') // before anything is posed
+    expect(calls.filter((c) => c.startsWith('clock'))).toEqual(['clock 42'])
+    expect(exported.exportExposure()).toEqual({ clippedPct: 100, ceilingStops: -0.5 })
+    exported.endExport()
+    expect(calls[calls.length - 1]).toBe('reset')
+    expect(exported.exportExposure()).toBeNull()
+  })
+
   it("sets the script's film look after the camera (its script time seeds the grain) and before the render", () => {
     const { exported, calls, scene } = sceneDouble()
     ;(scene as { applyFilmLook?: () => void }).applyFilmLook = () => calls.push('look')

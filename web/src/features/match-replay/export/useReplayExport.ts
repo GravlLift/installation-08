@@ -129,6 +129,7 @@ import { readVictory } from '../model/victoryLogic'
 import { make3dPainter, type Export3dOptions } from './export3dFrame'
 import { replay3DExportEntry, type ExportCamera3d, type ExportSubframe3d, type Replay3DExportSource } from './replay3dExportStore'
 import { createExportHud } from './exportHud'
+import { clipWarning, summarizeClipping, type ClipSummary } from './clipMetric'
 import type { ReplayKill } from '../model/killFeedLogic'
 
 declare global {
@@ -282,6 +283,10 @@ export interface CameraTrackSample extends ExportCamera3d {
   i: number
   frame: number
   scriptMs: number | null
+  /** Percent of the frame clipped to white (`clipMetric.clippedPct`); absent when not measured. */
+  clippedPct?: number
+  /** The highlight ceiling the frame was drawn with, in stops (0 or less; `highlightCeiling3d`); null while off. */
+  ceilingStops?: number | null
 }
 
 export interface ReplayExportState {
@@ -301,6 +306,8 @@ export interface ReplayExportState {
   save?: PendingDownload
   /** `done`, 3D export: the camera of every file frame, in file order (`CameraTrackSample`). */
   cameraTrack?: readonly CameraTrackSample[]
+  /** `done`, 3D export: the clip's clipped-to-white summary (`clipMetric.summarizeClipping`). */
+  clipping?: ClipSummary
   /**
    * `true` = sound was requested but the browser REFUSED the track: the clip is silent, and
    * that must be said. A silent clip believed to have sound is discovered only at editing time.
@@ -622,7 +629,15 @@ async function framePainter(
     const cam = scene.exportCamera?.()
     if (cam) {
       const i = index ?? scene3d.track.length
-      scene3d.track[i] = { i, frame, scriptMs: scriptMs && index !== undefined ? scriptMs[index] ?? null : null, ...cam }
+      // The frame's exposure record (clipped share, highlight ceiling) rides on its camera sample.
+      const exposure = scene.exportExposure?.() ?? null
+      scene3d.track[i] = {
+        i,
+        frame,
+        scriptMs: scriptMs && index !== undefined ? scriptMs[index] ?? null : null,
+        ...cam,
+        ...(exposure ? { clippedPct: exposure.clippedPct, ceilingStops: exposure.ceilingStops } : {}),
+      }
     }
     return image
   }
@@ -853,9 +868,14 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         if (clip) pendingRef.current = liveRef.current ? holdDownload(clip, filename) : null
         if (!clip) pendingRef.current?.release()
         if (!clip) pendingRef.current = null
+        // THE CLIPPING CHECK: how much of each 3D frame was blown to white (`clipMetric`), said in
+        // the console when a frame passes the threshold, and handed on with the camera track.
+        const clipping = clip ? summarizeClipping(track) : null
+        const clipWarn = clipWarning(clipping)
+        if (clipWarn) console.warn(clipWarn)
         // PHASE 3: the file is READY, and it is SAID, with its name. A cancellation, instead,
         // returns to the form — there is nothing to announce about a gesture just undone.
-        setState(clip ? { phase: 'done', done: total, total, pct: 100, filename, save: pendingRef.current ?? undefined, cameraTrack: track.length > 0 ? track : undefined, mutedFallback: muted, fps, fpsFallback } : IDLE)
+        setState(clip ? { phase: 'done', done: total, total, pct: 100, filename, save: pendingRef.current ?? undefined, cameraTrack: track.length > 0 ? track : undefined, clipping: clipping ?? undefined, mutedFallback: muted, fps, fpsFallback } : IDLE)
       } catch (err) {
         // NEVER A SILENT FAILURE (repo rule 3: log BEFORE any degradation). Without this
         // block, an encoder failure made the progress bar disappear without a word, without a

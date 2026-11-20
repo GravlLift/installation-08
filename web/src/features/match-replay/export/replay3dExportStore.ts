@@ -101,6 +101,16 @@ export interface Replay3DExportSource {
   redReticle?(frame: number, allegiance: Pick<FilmAllegiance, 'ofXuid'>, held: HeldWeapon | null): boolean
   /** The camera as it drew the frame just rendered (the export's camera track). */
   exportCamera?(): ExportCamera3d
+  /** The exposure of the frame just rendered (the export's clipping check), null before any. */
+  exportExposure?(): ExportExposure3d | null
+}
+
+/** One exported frame's exposure record (`export/clipMetric.ts`, `scene3d/highlightCeiling3d.ts`). */
+export interface ExportExposure3d {
+  /** Percent (0..100) of the frame's sampled pixels clipped to white (`clippedPct`). */
+  clippedPct: number
+  /** The highlight ceiling the frame was drawn with, in stops (0 or less); null while it was off. */
+  ceilingStops: number | null
 }
 
 /**
