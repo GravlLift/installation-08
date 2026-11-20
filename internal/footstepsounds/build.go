@@ -66,6 +66,24 @@ type builder struct {
 	firstPerson map[uint32]Footstep
 	written     map[uint32]Take // by media id: a media two sounds share is written once
 	res         *Result
+	// loops marks the looping sound tags (`lsnd`) read as shots: their events are the loop's
+	// play events (soundtags.LoopEvent), not a sound tag's.
+	loops map[uint32]bool
+}
+
+// events returns the reader of a tag's third-person or first-person event: a looping sound's
+// play events for the tags in b.loops, a sound tag's otherwise.
+func (b *builder) events(id uint32, firstPerson bool) func(*announcer.Tag) (uint32, uint32, bool) {
+	switch {
+	case b.loops[id] && firstPerson:
+		return soundtags.LoopFirstPersonEvent
+	case b.loops[id]:
+		return soundtags.LoopEvent
+	case firstPerson:
+		return soundtags.FirstPersonEvent
+	default:
+		return soundtags.Event
+	}
 }
 
 // Build extracts every foot and movement sound in tags.go into opts.OutDir and writes the
@@ -85,7 +103,8 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	defer closeLogged(ctx, "module index", ix.Close)
 	res := &Result{Manifest: &Manifest{Version: ManifestVersion, Feet: map[string]map[string]Footstep{}, Movement: map[string]Footstep{}}, Silent: map[string][]string{}}
 	b := &builder{tags: ix, media: soundtags.NewMedia(ix, opts.GameRoot), out: opts.OutDir,
-		parsed: map[uint32]*announcer.Tag{}, takes: map[uint32]Footstep{}, firstPerson: map[uint32]Footstep{}, written: map[uint32]Take{}, res: res}
+		parsed: map[uint32]*announcer.Tag{}, takes: map[uint32]Footstep{}, firstPerson: map[uint32]Footstep{}, written: map[uint32]Take{}, res: res,
+		loops: map[uint32]bool{}}
 	surfaces := make([]string, 0, len(feetIDs))
 	for surface := range feetIDs {
 		surfaces = append(surfaces, surface)
@@ -175,12 +194,9 @@ func (b *builder) eventTakes(id uint32, firstPerson bool) (Footstep, error) {
 		return Footstep{}, nil
 	}
 	cache[id] = Footstep{}
-	event, bankTag, ok := soundtags.Event(tag)
-	if firstPerson {
-		event, bankTag, ok = soundtags.FirstPersonEvent(tag)
-		if !ok {
-			return Footstep{}, nil
-		}
+	event, bankTag, ok := b.events(id, firstPerson)(tag)
+	if firstPerson && !ok {
+		return Footstep{}, nil
 	}
 	if !ok {
 		b.res.Silent[SilentNoEvent] = append(b.res.Silent[SilentNoEvent], fmt.Sprintf("%08x", id))

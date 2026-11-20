@@ -38,7 +38,7 @@ func TestBuildFromTheInstalledGame(t *testing.T) {
 		t.Errorf("tags the module index has not: %v", res.Silent[SkippedTagMissing])
 	}
 	for reason, names := range res.Silent {
-		if reason != SkippedTagMissing && reason != ShotNone && reason != ShotAmbiguous && len(names) > 0 {
+		if reason != SkippedTagMissing && reason != ShotNone && reason != ShotAmbiguous && reason != ShotLoopUnreadable && len(names) > 0 {
 			t.Errorf("silent for %s: %v", reason, names)
 		}
 	}

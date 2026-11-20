@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The Shock Rifle fires with the game's own shot instead of the old single file. Other players' shots play its near, mid and far layers, each fading with distance. Your own shots play the version the shooter hears. The first start after updating extracts the sounds once more.
+
 ## 0.1.2-test.2
 
 - The Shock Rifle's diamonds shrink with each shot in first person, as in the game (12 rounds, 3 a shot). The Stalker Rifle's heat bar and the window behind the Commando's digits stay as before. The first start after updating rebuilds the first-person weapons once more.

@@ -32,6 +32,15 @@ const (
 	// FirstPersonEventOff, FirstPersonBankOff: the first-person event and its bank tag.
 	FirstPersonEventOff = 0x18
 	FirstPersonBankOff  = 0x48
+	// LoopEventOff, LoopBankOff: a looping sound tag's (`lsnd`) third-person play event and its
+	// bank tag (the stop event sits at +0x14). LoopFirstPersonEventOff, LoopFirstPersonBankOff:
+	// its first-person play event and bank (the stop at +0x1c). Measured on the Shock Rifle's
+	// fire loop (7da2a96a, 2026-11-20): +0x10 plays its two near/mid/far shot layers, +0x14 stops
+	// them, +0x18 plays the shooter's layers, +0x1c stops those and plays the tail.
+	LoopEventOff            = 0x10
+	LoopBankOff             = 0x28
+	LoopFirstPersonEventOff = 0x18
+	LoopFirstPersonBankOff  = 0x44
 )
 
 // TagSource is the module index the build reads tags from (himap.ModuleIndex).
@@ -56,6 +65,18 @@ func Event(t *announcer.Tag) (event, bank uint32, ok bool) {
 // hears) and the tag of its bank; false when the sound has none.
 func FirstPersonEvent(t *announcer.Tag) (event, bank uint32, ok bool) {
 	return eventAt(t, FirstPersonEventOff, FirstPersonBankOff)
+}
+
+// LoopEvent returns the third-person play event of a looping sound tag (`lsnd`) and the tag of
+// its bank; false when it has none.
+func LoopEvent(t *announcer.Tag) (event, bank uint32, ok bool) {
+	return eventAt(t, LoopEventOff, LoopBankOff)
+}
+
+// LoopFirstPersonEvent returns the first-person play event of a looping sound tag and the tag
+// of its bank; false when it has none.
+func LoopFirstPersonEvent(t *announcer.Tag) (event, bank uint32, ok bool) {
+	return eventAt(t, LoopFirstPersonEventOff, LoopFirstPersonBankOff)
 }
 
 // eventAt reads the event at evOff of the tag data and its bank tag at bankOff, the bank one of

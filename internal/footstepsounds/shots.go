@@ -26,7 +26,6 @@ import (
 	"sort"
 
 	"github.com/llampwall/infinite-theater-3d/internal/refdata"
-	"github.com/llampwall/infinite-theater-3d/internal/soundtags"
 	"github.com/llampwall/infinite-theater-3d/internal/wwise"
 )
 
@@ -41,6 +40,9 @@ const (
 const (
 	ShotNone      = "shot_none"      // no dependency plays a layered, far-reaching shot
 	ShotAmbiguous = "shot_ambiguous" // several do
+	// ShotLoopUnreadable: the weapon's shot is a looping sound one of whose media this install
+	// does not have; the weapon keeps its shipped sound.
+	ShotLoopUnreadable = "shot_loop_unreadable"
 )
 
 // shots extracts the shot of every weapon key that has exactly one, into the manifest.
@@ -59,7 +61,7 @@ func (b *builder) shots() error {
 		sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
 		found := map[uint32]bool{}
 		for _, id := range ids {
-			cands, err := b.shotCandidates(id)
+			cands, err := b.shotCandidates(id, key)
 			if err != nil {
 				return err
 			}
@@ -81,20 +83,28 @@ func (b *builder) shots() error {
 			snd = s
 		}
 		f, err := b.soundTakes(snd)
+		if err != nil && b.loops[snd] {
+			b.res.Silent[ShotLoopUnreadable] = append(b.res.Silent[ShotLoopUnreadable], fmt.Sprintf("%s:%v", key, err))
+			continue
+		}
 		if err != nil {
 			return err
 		}
 		if len(f.Takes) == 0 {
 			continue
 		}
+		fp, err := b.firstPersonTakes(snd)
+		if err != nil && b.loops[snd] {
+			b.res.Silent[ShotLoopUnreadable] = append(b.res.Silent[ShotLoopUnreadable], fmt.Sprintf("%s:%v", key, err))
+			continue
+		}
+		if err != nil {
+			return err
+		}
 		if b.res.Manifest.Shots == nil {
 			b.res.Manifest.Shots = map[string]Footstep{}
 		}
 		b.res.Manifest.Shots[key] = f
-		fp, err := b.firstPersonTakes(snd)
-		if err != nil {
-			return err
-		}
 		if len(fp.Takes) > 0 {
 			if b.res.Manifest.ShotsFirstPerson == nil {
 				b.res.Manifest.ShotsFirstPerson = map[string]Footstep{}
@@ -105,26 +115,50 @@ func (b *builder) shots() error {
 	return nil
 }
 
-// shotCandidates lists the sound tags a weapon tag depends on whose event reads as a shot.
-func (b *builder) shotCandidates(weapon uint32) ([]uint32, error) {
+// loopShots are the weapon keys whose shot may be a looping sound (`lsnd`). The Shock Rifle fires
+// through one (7da2a96a, measured 2026-11-20): its play event starts two near/mid/far layers of
+// three 0.5 to 0.7 s takes each, its first-person play event the shooter's takes, and no sound
+// tag of the weapon holds a shot. The Needler's and the Sentinel Beam's loops pass the same layer
+// test but start held sounds (83 ms grains, 3 s beam loops) that would be wrong played once a
+// shot, and the game's loop flag is not decoded to tell them apart, so they are not listed.
+var loopShots = map[string]bool{"hinf_shock_rifle": true}
+
+// shotCandidates lists the sound tags a weapon tag depends on whose event reads as a shot. A
+// weapon of loopShots none of whose sound tags does is read through its looping sounds the same
+// way, and only then.
+func (b *builder) shotCandidates(weapon uint32, key string) ([]uint32, error) {
 	tag, err := b.tag(weapon)
 	if err != nil {
 		return nil, nil //nolint:nilerr // a weapon key whose tag this install lacks has no shot
 	}
-	var out []uint32
-	for _, d := range tag.Deps {
-		if d.Group != "snd!" {
-			continue
+	groups := []string{"snd!"}
+	if loopShots[key] {
+		groups = append(groups, "lsnd")
+	}
+	for _, group := range groups {
+		var out []uint32
+		for _, d := range tag.Deps {
+			if d.Group != group {
+				continue
+			}
+			if group == "lsnd" {
+				b.loops[d.GlobalID] = true
+			}
+			ok, err := b.isShot(d.GlobalID)
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				out = append(out, d.GlobalID)
+			} else if group == "lsnd" {
+				delete(b.loops, d.GlobalID)
+			}
 		}
-		ok, err := b.isShot(d.GlobalID)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			out = append(out, d.GlobalID)
+		if len(out) > 0 {
+			return out, nil
 		}
 	}
-	return out, nil
+	return nil, nil
 }
 
 // isShot reports whether a sound tag's third-person event plays a layer container whose layers
@@ -135,7 +169,7 @@ func (b *builder) isShot(snd uint32) (bool, error) {
 	if err != nil {
 		return false, nil //nolint:nilerr // a dependency the index lacks is not a shot
 	}
-	event, bankTag, ok := soundtags.Event(tag)
+	event, bankTag, ok := b.events(snd, false)(tag)
 	if !ok {
 		return false, nil
 	}
