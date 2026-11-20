@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2-test.1
+
+- The ammo counter on the BR75, Bandit and Commando shows your magazine in first person, the same number as the HUD, counting down as you fire and refilling on reload. It used to read 00. The digits are the game's own. Weapons held by other players and weapons on the ground still read 00, and the Stalker Rifle's and Shock Rifle's gauges stay as before. The first start after updating rebuilds the first-person weapons once.
+- Camera scripts: a Camera script button beside Export opens a panel to build a camera move from keys captured with the free camera (button or C), then play, preview, save and delete scripts per match. A script can ramp the film into slow motion or freeze it while the camera keeps moving; sound goes silent wherever the speed is not normal.
+- Holds: a camera script can take a player out of the film and pose them, with a gameplay idle or one of the game's emotes, stances and idles, turned to face the camera if you like, then blend them back into the film.
+- The video export can render the open camera script, and can export a clean frame with no HUD, name tags, minimap or panels, for footage you composite graphics onto later. A script export that changes the film's speed is silent, and the export dialog says so.
+- Player outlines are thinner (1 px).
+
 ## 0.1.1
 
 Everything in 0.1.1-test.4 through 0.1.1-test.12 below, plus:
