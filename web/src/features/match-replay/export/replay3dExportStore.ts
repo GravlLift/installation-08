@@ -118,13 +118,13 @@ export interface ExportCamera3d {
   /**
    * The distance (world units) from the camera to the first map surface between it and `target`:
    * the subject is hidden by a wall, or the camera sits inside one (0 or near 0). Surfaces nearer
-   * than the camera's near plane are clipped away and ignored (a script's cutaway `near`). Null
+   * than a script's cutaway `near` (else the camera's near plane) are cut away and ignored. Null
    * when the line of sight is clear or there is no target.
    */
   sightBlockedAt?: number | null
   /**
    * The fraction (0 to 1) of the frame covered by map geometry nearer to the camera than 35% of
-   * the camera-to-`target` distance and beyond the near plane (a 12 x 7 grid of rays,
+   * the camera-to-`target` distance and beyond that same cut (a 12 x 7 grid of rays,
    * `scene3d/cameraSight3d.nearCoverOf`): a wall slab filling part of the shot. Null without a
    * target.
    */

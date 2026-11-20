@@ -70,6 +70,7 @@ import { type SpartanClip } from './clips3d'
 import { ScopeView3d } from './scopeView3d'
 import { ReplayExportScene3d } from './replayExportScene3d'
 import { measureOriginAboveFloor, ReplayCamera3d } from './replayCamera3d'
+import { MapCut3d } from './mapCut3d'
 import type { SceneView3d } from './topDownLogic'
 import { TopDownView3d } from './topDownView3d'
 import type { DeadPose, MarkerPose } from './playerMarkers3d'
@@ -106,6 +107,11 @@ export class ReplayScene3d implements Replay3DExportSource {
   private readonly post: PostFx3d
   private readonly lighting: Lighting
   private readonly raycaster = new THREE.Raycaster()
+  /**
+   * A camera script's cutaway `near`, on the map's materials only (`mapCut3d`): aimed around the
+   * 3D view's composer render, at rest for every other draw.
+   */
+  private readonly mapCut = new MapCut3d()
   private readonly avatars = new Map<string, Avatar>()
   /**
    * warmUp compiles the scene and warms the first frame's draw (shaders, textures, outline passes).
@@ -197,6 +203,8 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.renderer = attachRenderer(host)
     // During an export, the canvas renders at the file's format without changing box (full image on screen).
     this.renderer.domElement.style.objectFit = 'contain'
+    // The map's cutaway plane is a material's own (`mapCut3d`): nothing else carries one.
+    this.renderer.localClippingEnabled = true
     Object.assign(this.labels.domElement.style, { position: 'absolute', inset: '0', pointerEvents: 'none' })
     host.appendChild(this.labels.domElement)
     this.scene.background = new THREE.Color(SKY_TINT)
@@ -236,6 +244,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       hideTopDown: () => this.top?.idle(),
       applyFilmLook: () => this.applyFilmLook(false),
       readCamera: () => this.readCamera(),
+      cutMap: (draw) => this.cutMap(draw),
     })
   }
   /** attach poses the map and the players, lights the play area, and captures the environment. */
@@ -289,6 +298,8 @@ export class ReplayScene3d implements Replay3DExportSource {
       model.batchDraws()
       freezeStatic(model.root)
       this.findBackFaces()
+      // Last: the probe copies and batches above are the materials drawn.
+      this.mapCut.install(this.mapRoots())
     })
     seg('avatars', () => {
       for (const p of tracks.players) {
@@ -429,6 +440,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.layerBatches = batchLayer(layer.root)
     freezeStatic(layer.root)
     this.findBackFaces()
+    this.mapCut.install([layer.root]) // after its probe copies and batches, like the map's
     this.ground?.setPickables(this.groundSurfaces())
     this.remeasureFloorDrop()
     this.top?.sync(this.ciel, this.mapRoots())
@@ -747,7 +759,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (top) top.draw({ composer: this.post.composer, players: this.topPlayers, dead: this.topDead, followed: this.topFollowed })
     else {
       this.top?.idle()
-      this.post.composer.render()
+      this.cutMap(() => this.post.composer.render())
       const calls = this.renderer.info.render.calls
       const triangles = this.renderer.info.render.triangles
       if (knobs.minimap) this.top?.drawMinimap({ players: this.topPlayers, followed: this.mode === 'free' ? null : this.povXuid })
@@ -888,22 +900,41 @@ export class ReplayScene3d implements Replay3DExportSource {
   }
 
   /**
+   * cutMap runs `draw` (the 3D view's composer render, screen or export) with the map cut at the
+   * playing script pose's `near` (`mapCut3d`), from the camera as placed; the cut rests after it,
+   * so no other draw (top-down view, minimap, probes) sees it.
+   */
+  private cutMap(draw: () => void): void {
+    this.mapCut.during(this.camera, this.cameraPlacement.mapCutNear(), draw)
+  }
+
+  /**
+   * sightNear: the depth (u, along the view axis) under which the map is not drawn: the playing
+   * script pose's `near` (the map's cutaway), else the camera's own near plane.
+   */
+  private sightNear(): number {
+    return this.cameraPlacement.mapCutNear() ?? this.camera.near
+  }
+
+  /**
    * The distance from the camera to the first MAP surface between it and `target` (world units),
    * or null when the line of sight is clear (`sightBlockOf`: cast both ways, hits nearer than the
-   * camera's near plane ignored, so a cutaway through a wall is not flagged). `forward`: the
+   * map's cut (`sightNear`) ignored, so a cutaway through a wall is not flagged). `forward`: the
    * camera's unit view direction (three axes).
    */
   private sightBlockedAt(target: THREE.Vector3, forward: THREE.Vector3): number | null {
     const cam = this.camera.position
+    const near = this.sightNear()
     return this.withSightCast((cast) =>
-      sightBlockOf([cam.x, cam.y, cam.z], [target.x, target.y, target.z], this.camera.near, [forward.x, forward.y, forward.z], cast),
+      sightBlockOf([cam.x, cam.y, cam.z], [target.x, target.y, target.z], near, [forward.x, forward.y, forward.z], cast),
     )
   }
 
   /**
    * The fraction of the frame covered by map geometry nearer than 35% of the camera-to-target
-   * distance and beyond the near plane (`nearCoverOf`, a 12 x 7 grid of first-hit rays through
-   * the frame); 0 without surfaces. `forward`: the camera's unit view direction (three axes).
+   * distance and beyond the map's cut (`sightNear`; `nearCoverOf`, a 12 x 7 grid of first-hit
+   * rays through the frame); 0 without surfaces. `forward`: the camera's unit view direction
+   * (three axes).
    */
   private nearCover(target: THREE.Vector3, forward: THREE.Vector3): number {
     const camera = this.camera
@@ -911,8 +942,9 @@ export class ReplayScene3d implements Replay3DExportSource {
     const lookDistance = camera.position.distanceTo(target)
     const ndc = new THREE.Vector2()
     const ray = new THREE.Raycaster()
+    const near = this.sightNear()
     return this.withSightCast((cast) =>
-      nearCoverOf(camera.near, lookDistance, (x, y, minDepth, maxDepth) => {
+      nearCoverOf(near, lookDistance, (x, y, minDepth, maxDepth) => {
         // The ray through the NDC point (a scratch raycaster: the shared one is the cast's), and
         // its cosine to the view axis to turn depths into distances along it.
         ray.setFromCamera(ndc.set(x, y), camera)

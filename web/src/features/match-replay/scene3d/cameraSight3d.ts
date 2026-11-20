@@ -5,10 +5,10 @@
  * without a map. The scene (`replayScene3d.readCamera`) supplies the cast against its ground
  * surfaces (three-mesh-bvh, first hit only).
  *
- * Both honor the camera's NEAR PLANE: map geometry nearer than it is clipped away and never drawn
- * (a camera script's cutaway `near`), so a wall the camera sits behind does not block the sight
- * and does not cover the frame. The near plane is a depth along the view axis: a ray that leaves
- * the axis by an angle with cosine c reaches it at `near / c`.
+ * Both honor the map's NEAR CUT (`near`): map geometry nearer than it is never drawn (a camera
+ * script's cutaway `near`, `mapCut3d`; without one, the camera's near plane), so a wall the camera
+ * sits behind does not block the sight and does not cover the frame. The cut is a depth along the
+ * view axis: a ray that leaves the axis by an angle with cosine c reaches it at `near / c`.
  */
 
 export type SightVec3 = readonly [number, number, number]

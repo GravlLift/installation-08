@@ -46,6 +46,8 @@ interface ExportScene {
   applyFilmLook?(): void
   /** The camera as posed now, in world coordinates (the export's camera track). */
   readCamera?(): ExportCamera3d
+  /** Runs the composer's render with the map cut at the playing script's `near` (`mapCut3d`), as the screen does. */
+  cutMap?(draw: () => void): void
 }
 
 /** What the center subframe of a blurred frame saw from: the file frame's tags and camera. */
@@ -248,7 +250,9 @@ export class ReplayExportScene3d {
     this.scene.lighting.updateShadows(frame)
     // After the camera: the script time this frame is drawn at seeds the film look's grain.
     this.scene.applyFilmLook?.()
-    this.scene.post.composer.render()
+    const render = () => this.scene.post.composer.render()
+    if (this.scene.cutMap) this.scene.cutMap(render)
+    else render()
     // The frame is read out of the drawing buffer, never through the WebGL canvas: a hidden tab
     // serves the canvas's last composited image (cf. `exportReadback3d`).
     this.scene.renderer.setRenderTarget(null)

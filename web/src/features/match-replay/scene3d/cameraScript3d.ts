@@ -19,7 +19,8 @@
  * distance and an f-number for the depth of field pass (`dof3d.ts`); no aperture on any key, no
  * depth of field. The optional top-level `shakes` add a deterministic jolt (`shakeAt`) on top of
  * the pose's orientation. Both are pure functions of script time, like the rest of the pose.
- * A key's optional `near` moves the camera's near clipping plane (a cutaway through a wall), and
+ * A key's optional `near` cuts the map nearer than it away (a cutaway through a wall, `mapCut3d`;
+ * players and effects are never cut), and
  * the top-level `outlines: false` takes the team outline out of the shot (`scriptOutlines`).
  */
 import { toThree, type Vec3 } from './tracks3d'
@@ -65,9 +66,10 @@ export interface CameraKey {
   /** The lens's f-number; absent on every key, the script has no depth of field. */
   aperture?: number
   /**
-   * The camera's near clipping plane (world units, CAMERA_SCRIPT_NEAR_MIN to CAMERA_SCRIPT_NEAR_MAX):
-   * map geometry nearer than this is clipped away, so the camera can sit behind a wall and see
-   * through it (a cutaway). Absent on every key of a run, the view's own near plane.
+   * The map's cutaway depth (world units, CAMERA_SCRIPT_NEAR_MIN to CAMERA_SCRIPT_NEAR_MAX, along
+   * the view axis): map geometry nearer than this is cut away, so the camera can sit behind a wall
+   * and see through it (a cutaway, `mapCut3d`); players and effects are never cut. Absent on every
+   * key of a run, nothing is cut.
    */
   near?: number
 }
@@ -416,8 +418,8 @@ export interface ScriptPose {
   /** The camera shake at this time (`shakeAt`), applied on top of the pose's orientation. */
   shake: ShakeAngles
   /**
-   * The camera's near clipping plane (world units), or null when no key of the current run
-   * carries a `near` (the view keeps its own near plane).
+   * The map's cutaway depth (world units, `mapCut3d`), or null when no key of the current run
+   * carries a `near` (nothing is cut).
    */
   near: number | null
 }

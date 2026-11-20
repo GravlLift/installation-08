@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest'
 import * as THREE from 'three'
 import { measureOriginAboveFloor, ReplayCamera3d } from './replayCamera3d'
+import { MAP_CUT_REST, MapCut3d } from './mapCut3d'
 import type { CameraScript } from './cameraScript3d'
 import type { Tracks3d } from './tracks3d'
 import type { CameraMode3d } from './replayScene3d'
@@ -193,52 +194,69 @@ describe('ReplayCamera3d', () => {
     expect(pose(shakes, 1040).quaternion.toArray()).toEqual(shaken.quaternion.toArray()) // deterministic
   })
 
-  it("a script's near replaces the camera's near plane, and the camera's own returns when it stops", () => {
+  it("a script's near cuts the map only: the camera's near plane never moves", () => {
     const camera = new THREE.PerspectiveCamera(50, 1, 0.02, 700)
     const placement = new ReplayCamera3d({ tracks: null, povXuid: 'A', mode: 'free', action: null, originAboveFloor: 0, camera, subjects: { feetAt: () => null }, gameFov: 100, pickables: () => [], raycaster: new THREE.Raycaster() })
     const base = { version: 1 as const, matchId: 'm', name: 's' }
     const k = (t: number, near?: number, ease?: 'cut') => ({ t, pos: { at: 'world' as const, point: [0, 0, 5] as [number, number, number] }, look: { at: 'world' as const, point: [10, 0, 5] as [number, number, number] }, ...(near === undefined ? {} : { near }), ...(ease ? { ease } : {}) })
     const ownProjection = camera.projectionMatrix.clone()
+    const cut = new MapCut3d()
+    const unchanged = () => {
+      expect(camera.near).toBe(0.02)
+      expect(camera.far).toBe(700)
+      expect(camera.projectionMatrix.equals(ownProjection)).toBe(true)
+    }
 
-    // No near on any key: the camera's near plane is left exactly as it is.
+    // No near on any key: nothing is cut, the plane rests.
     placement.setScript({ ...base, keys: [k(0)] })
     placement.placeCamera(0)
-    expect(camera.near).toBe(0.02)
-    expect(camera.projectionMatrix.equals(ownProjection)).toBe(true)
+    unchanged()
+    expect(placement.mapCutNear()).toBeNull()
+    cut.aim(camera, placement.mapCutNear())
+    expect(cut.active).toBe(false)
+    expect(cut.plane.constant).toBe(MAP_CUT_REST)
 
-    // A cutaway: the near plane moves, and the projection follows it.
+    // A cutaway: the map's cut is the pose's near, the camera's plane stays its own.
     placement.setScript({ ...base, keys: [k(0, 2), k(1000, 2), k(2000, undefined, 'cut')] })
     placement.setScriptTime(500)
     placement.placeCamera(0)
-    expect(camera.near).toBeCloseTo(2, 9)
-    expect(camera.far).toBe(700) // the far plane never moves
-    const clip = new THREE.Vector3(0, 0, -2).applyMatrix4(camera.projectionMatrix)
-    expect(clip.z).toBeCloseTo(-1, 6) // a point at depth 2 now sits on the near plane
+    unchanged()
+    expect(placement.mapCutNear()).toBeCloseTo(2, 9)
+    // The camera at three [0, 5, 0] looks along three +x (world [10, 0, 5] is three [10, 5, 0]):
+    // the plane faces +x through [2, 5, 0], so x < 2 is cut and x > 2 kept.
+    cut.aim(camera, placement.mapCutNear())
+    expect(cut.active).toBe(true)
+    expect(cut.plane.normal.x).toBeCloseTo(1, 9)
+    expect(cut.plane.distanceToPoint(new THREE.Vector3(2, 5, 0))).toBeCloseTo(0, 9)
+    expect(cut.plane.distanceToPoint(new THREE.Vector3(1.5, 5, 0))).toBeLessThan(0)
+    expect(cut.plane.distanceToPoint(new THREE.Vector3(3, 5, 0))).toBeGreaterThan(0)
 
-    // A cut into a run without a near: the camera's own plane is back.
+    // A cut into a run without a near: nothing is cut.
     placement.setScriptTime(2500)
     placement.placeCamera(0)
-    expect(camera.near).toBe(0.02)
-    expect(camera.projectionMatrix.equals(ownProjection)).toBe(true)
+    unchanged()
+    expect(placement.mapCutNear()).toBeNull()
 
-    // Back in the cutaway, then the script stops: the camera's own plane again.
+    // Back in the cutaway, then the script stops: nothing is cut.
     placement.setScriptTime(500)
     placement.placeCamera(0)
-    expect(camera.near).toBeCloseTo(2, 9)
+    expect(placement.mapCutNear()).toBeCloseTo(2, 9)
     placement.setScript(null)
-    expect(camera.near).toBe(0.02)
-    expect(camera.projectionMatrix.equals(ownProjection)).toBe(true)
+    unchanged()
+    expect(placement.mapCutNear()).toBeNull()
   })
 
-  it('a tracked camera never keeps a script near plane', () => {
+  it('a tracked camera never keeps a script cut', () => {
     const camera = new THREE.PerspectiveCamera(50, 1, 0.02, 700)
     const state = { tracks: null, povXuid: 'A', mode: 'free' as CameraMode3d, action: null, originAboveFloor: 0, camera, subjects: { feetAt: () => null }, gameFov: 100, pickables: () => [], raycaster: new THREE.Raycaster() }
     const placement = new ReplayCamera3d(state)
     placement.setScript({ version: 1, matchId: 'm', name: 's', keys: [{ t: 0, pos: { at: 'world', point: [0, 0, 5] }, look: { at: 'world', point: [10, 0, 5] }, near: 3 }] })
     placement.placeCamera(0)
-    expect(camera.near).toBeCloseTo(3, 9)
+    expect(placement.mapCutNear()).toBeCloseTo(3, 9)
+    expect(camera.near).toBe(0.02)
     state.mode = 'tp' // leaving the free camera: the script no longer drives it
     placement.placeCamera(0)
+    expect(placement.mapCutNear()).toBeNull()
     expect(camera.near).toBe(0.02)
   })
 
