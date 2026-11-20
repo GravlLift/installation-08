@@ -34,6 +34,10 @@ func (a *Arsenal) Grenade(ctx context.Context, rang int) (*MaillageMonde, error)
 	return a.objet(ctx, projs[rang], GroupeProjectile)
 }
 
+// ProjectilesDeGrenade rend le projectile de chaque type de grenade, par rang.
+// LOCAL-CHANGE: exported for the effects the projectile carries (infinite-theater-3d, weapons library).
+func (a *Arsenal) ProjectilesDeGrenade() ([]uint32, error) { return a.projectilesDeGrenade() }
+
 // projectilesDeGrenade rend le projectile de chaque type de grenade, par rang.
 func (a *Arsenal) projectilesDeGrenade() ([]uint32, error) {
 	ids := a.geo.EntreesDuGroupe(GroupeReglagesGrenades)

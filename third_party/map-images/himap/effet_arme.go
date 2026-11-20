@@ -154,6 +154,28 @@ var dispositionsParticules = map[uint32]dispositionShader{
 			{"DepthFadeRange", 192, constFlottant}, {"DepthFadeInvert", 196, constEntier}, {"DepthFadeExponent", 200, constFlottant},
 		},
 	},
+	// LOCAL-CHANGE: the flow-mapped billboard shader (the plasma grenade's flight effect 5740a83d,
+	// particle 1fefd7e3). Offsets from the DXIL reflection of its pixel bytecode (shbc 1f861081 and
+	// its five sibling permutations, one $Globals of 204 o): no alpha map, a palette, and an
+	// optical-flow map (`oflowmap`) the view does not read.
+	0x0461c4a7: {
+		textures: []string{"baseTexture", "paletteTexture", "oflowmap"},
+		constantes: []constanteShader{
+			{"ConstantScreenSize", 0, constEntier}, {"SphereWarpStrength", 4, constFlottant},
+			{"premultiplied_alpha_scale", 8, constFlottant}, {"do_unpremultiply_alpha", 12, constEntier},
+			{"DepthFadeAsVCoord", 16, constEntier}, {"texcoordRotation", 32, constEntier},
+			{"baseTexture_texture_textureIndex", 36, constEntier}, {"baseTexture_texture_frameCount", 44, constEntier},
+			{"baseTexture_texture_transform", 48, constVecteur},
+			{"baseTextureInvert", 64, constEntier}, {"baseTextureDesaturation", 68, constFlottant},
+			{"ALBEDO_BLACK_WHITE_POINT", 72, constEntier}, {"baseTextureBlackPoint", 76, constFlottant},
+			{"baseTextureWhitePoint", 80, constFlottant}, {"baseTextureMidPoint", 84, constFlottant},
+			{"applyBWPToBaseAlpha", 88, constEntier}, {"SYNC_TEXTURE_ANIM", 92, constEntier},
+			{"paletteTexture_texture_textureIndex", 96, constEntier}, {"paletteTexture_texture_frameCount", 104, constEntier},
+			{"oflowmap_texture_textureIndex", 108, constEntier}, {"oflowmap_texture_frameCount", 116, constEntier},
+			{"oflowmap_texture_transform", 128, constVecteur}, {"flowStrength", 164, constFlottant},
+			{"DepthFadeRange", 192, constFlottant}, {"DepthFadeInvert", 196, constEntier}, {"DepthFadeExponent", 200, constFlottant},
+		},
+	},
 	// The model particle shader (meshes: the electric shell and its bolts), with a UV distortion map
 	// and a fresnel term.
 	0x96db07b6: {

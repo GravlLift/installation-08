@@ -99,6 +99,16 @@ var defaultMaterial = uint32(mapvar.LabelHash("default_material"))
 type ShotTable struct {
 	Weapons map[string]WeaponShot `json:"weapons"`
 	Effects map[string]ShotEffect `json:"effects"`
+	// Grenades: per grenade rank (the film's and `GrenadeKey`'s, "1" the plasma grenade), the
+	// effects its thrown projectile carries (its attachments), drawn on it in flight and stuck.
+	Grenades map[string]GrenadeShot `json:"grenades"`
+}
+
+// GrenadeShot is what a thrown grenade's projectile carries: its `proj` tag and its attached
+// effects (the plasma grenade, proj 6071a622: effe 5740a83d, a looping flow-mapped glow sprite).
+type GrenadeShot struct {
+	Projectile string   `json:"projectile"`
+	Flight     []string `json:"flight"`
 }
 
 // WeaponShot is what a weapon's shot plays.
@@ -312,7 +322,7 @@ func readShotEffects(ctx context.Context, a *himap.Arsenal, gameRoot, module, di
 		}
 	}()
 	r := shotReader{w: effectWriter{a: a, dir: dir, written: map[string]bool{}}, ix: ix}
-	out := &ShotTable{Weapons: map[string]WeaponShot{}, Effects: map[string]ShotEffect{}}
+	out := &ShotTable{Weapons: map[string]WeaponShot{}, Effects: map[string]ShotEffect{}, Grenades: map[string]GrenadeShot{}}
 	for _, key := range keys {
 		id, err := parseKey(key)
 		if err != nil {
@@ -333,7 +343,10 @@ func readShotEffects(ctx context.Context, a *himap.Arsenal, gameRoot, module, di
 		}
 		out.Weapons[key] = ws
 	}
-	slog.InfoContext(ctx, "weapon shot effects read", "weapons", len(out.Weapons), "effects", len(out.Effects))
+	if err := r.grenades(ctx, out); err != nil {
+		slog.WarnContext(ctx, "grenade flight effects unreadable", "err", err)
+	}
+	slog.InfoContext(ctx, "weapon shot effects read", "weapons", len(out.Weapons), "grenades", len(out.Grenades), "effects", len(out.Effects))
 	return out, nil
 }
 
@@ -397,6 +410,42 @@ func (r shotReader) weapon(ctx context.Context, weap uint32, shot weaponicons.Ba
 		}
 	}
 	return ws, nil
+}
+
+// grenades reads the effects each grenade type's projectile carries, by rank (himap's
+// `ProjectilesDeGrenade`, the `gggl` order the film uses). A rank whose projectile or effects cannot
+// be read is left out (logged); its look stays the view's own.
+func (r shotReader) grenades(ctx context.Context, out *ShotTable) error {
+	projs, err := r.w.a.ProjectilesDeGrenade()
+	if err != nil {
+		return err
+	}
+	for rank, id := range projs {
+		raw, err := r.ix.Extract(id)
+		if err != nil {
+			slog.WarnContext(ctx, "grenade projectile unreadable", "rank", rank, "err", err)
+			continue
+		}
+		p, err := readProjectile(raw)
+		if err != nil {
+			slog.WarnContext(ctx, "grenade projectile layout", "rank", rank, "projectile", fmt.Sprintf("%08x", id), "err", err)
+			continue
+		}
+		g := GrenadeShot{Projectile: fmt.Sprintf("%08x", id), Flight: []string{}}
+		for _, fid := range p.flight {
+			fx, err := r.effect(ctx, fid, out.Effects)
+			if err != nil {
+				return err
+			}
+			if fx != nil {
+				g.Flight = append(g.Flight, fmt.Sprintf("%08x", fid))
+			}
+		}
+		if len(g.Flight) > 0 {
+			out.Grenades[fmt.Sprint(rank)] = g
+		}
+	}
+	return nil
 }
 
 // effect reads the effect `id` into `effects` once (its files written), and returns its particle

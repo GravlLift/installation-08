@@ -195,6 +195,8 @@ All module testdata totals are below 50 MiB. The decoder includes pseudonymized 
 
 ## Changes from upstream (map-images v1.0.1, files-reader v1.0.1)
 
+- `map-images/himap/grenades.go`: export the grenade projectiles by rank (`ProjectilesDeGrenade`) so the weapons library reads the effects a thrown grenade carries (LOCAL-CHANGE).
+- `map-images/himap/effet_arme.go`: add the flow-mapped billboard particle shader 0461c4a7 (the plasma grenade's flight effect) to the read layouts, from its DXIL reflection (LOCAL-CHANGE).
 - `map-images/himap/armes.go`: expose the existing object-model extraction for vehicle tags to the replay model library (LOCAL-CHANGE).
 - `map-images/himap/couches.go`: read the inferred base gradient of Breaker's frigate shader; its additional atlas masks remain undecoded (LOCAL-CHANGE).
 

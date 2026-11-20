@@ -135,8 +135,9 @@ const EquipmentRuleCurrent = 2
 // and impact effects, its projectile's speed and range) and their fx-* files; a particle property
 // may be a periodic function (himap effet_arme.go), so idle effects gain the systems it had left out.
 // 11: a weapon shot carries its barrel's burst (shots per fire, rate of fire, projectiles per shot,
-// error angle, fire recovery): the Shock Rifle's three projectiles per trigger pull.
-const SchemaCurrent = 11
+// error angle, fire recovery): the Shock Rifle's three projectiles per trigger pull. 12: the shot
+// table carries the grenades' flight effects (the plasma grenade's glow, shader 0461c4a7).
+const SchemaCurrent = 12
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).
