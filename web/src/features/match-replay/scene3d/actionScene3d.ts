@@ -25,6 +25,7 @@ import type { AttachBone, DrawnWeapon } from './avatar3d'
 import { BodyFx3d } from './bodyFx3d'
 import type { BodyFxState } from './bodyShell3d'
 import type { BakedLight } from './bakedLightShader'
+import type { ShockLook } from './cameraScript3d'
 import type { ClipMix } from './clipSample3d'
 import type { FlashLights } from './flash3d'
 import type { HeldWeapon3d } from './heldWeapon3d'
@@ -135,6 +136,11 @@ export interface ActionContext {
    * or it sets none: the deaths then linger for the page's `deathHoldFrames` (`deaths3d`).
    */
   scriptDeathHoldMs?: () => number | null
+  /**
+   * The playing camera script's `shockLook` (`scriptShockLook`): how the Shock Rifle's shot draws;
+   * absent or no script, 'beam' (the default look).
+   */
+  scriptShockLook?: () => ShockLook
   /** The brief flash lights: the set opens and closes them around the layers. */
   readonly flashes: FlashLights
   /** The map's baked light (`lighting.takeGameLight`), grafted onto players' armor. */

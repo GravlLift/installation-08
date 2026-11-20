@@ -12,6 +12,7 @@ import {
   parseCameraScript,
   scriptClockOf,
   scriptOutlines,
+  scriptShockLook,
   shakeAt,
   type CameraKey,
   type CameraShake,
@@ -901,6 +902,28 @@ describe('parseCameraScript (outlines)', () => {
 
   it('rejects anything but a boolean', () => {
     for (const v of [0, 1, 'false', null, {}]) expect(rejects(raw(v))).toContain('outlines')
+  })
+})
+
+describe('parseCameraScript (shockLook)', () => {
+  const raw = (shockLook: unknown): Record<string, unknown> => ({ ...script([key(0, w([0, 0, 0]), w([1, 0, 0]))]), shockLook })
+
+  it('keeps beam and arc', () => {
+    expect(accepts(raw('beam')).shockLook).toBe('beam')
+    expect(accepts(raw('arc')).shockLook).toBe('arc')
+  })
+
+  it('leaves it out when absent, which draws the beams', () => {
+    const s = accepts(script([key(0, w([0, 0, 0]), w([1, 0, 0]))]))
+    expect('shockLook' in s).toBe(false)
+    expect(scriptShockLook(s)).toBe('beam')
+    expect(scriptShockLook(null)).toBe('beam')
+    expect(scriptShockLook(accepts(raw('beam')))).toBe('beam')
+    expect(scriptShockLook(accepts(raw('arc')))).toBe('arc')
+  })
+
+  it('rejects anything but a known look', () => {
+    for (const v of ['Arc', 'beams', '', 0, true, null, {}]) expect(rejects(raw(v))).toContain('shockLook')
   })
 })
 
