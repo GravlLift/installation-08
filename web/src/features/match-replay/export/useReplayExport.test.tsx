@@ -20,7 +20,7 @@ import { readInk } from '../layers/canvasInk'
 import { canvasPixelRatio, isExportActive, isExportLayoutApplied, useExportLayout } from './exportLayoutStore'
 import { testReplayDoc } from '../test/testDoc'
 import { NO_ALLEGIANCE } from '@/lib/replay/filmAllegiance'
-import { registerReplay3DExport } from './replay3dExportStore'
+import { registerReplay3DExport, type ExportSubframe3d } from './replay3dExportStore'
 
 // The SIGNATURE is carried by the mock's TYPE, not by named parameters: without it,
 // `mock.calls` is an empty tuple and the assertion on the frame index does not compile; with
@@ -335,6 +335,86 @@ describe('useReplayExport — the camera script export', () => {
     // The clip's time and the match's time no longer run together: the sound would lie.
     expect(mixReplayAudio).not.toHaveBeenCalled()
     expect(hook.result.current.state).toMatchObject({ phase: 'done' })
+  })
+
+  const VIEW3D_TP = { camera: 'tp' as const, pov: null, minimap: false }
+
+  /** A 3D view double that runs each subframe's `before`, as the scene does, and records the calls. */
+  function loadBlurred() {
+    const calls: { frame: number; subframes?: readonly ExportSubframe3d[] }[] = []
+    const begun: { supersample?: number }[] = []
+    const source = {
+      players: [],
+      beginExport: vi.fn((s: { supersample?: number }) => { begun.push(s) }),
+      exportFrame: vi.fn((frame: number, subframes?: readonly ExportSubframe3d[]) => {
+        for (const s of subframes ?? []) s.before?.()
+        calls.push(subframes ? { frame, subframes } : { frame })
+        return document.createElement('canvas')
+      }),
+      exportTags: () => [],
+      exportPendingLoads: () => null,
+      exportCamera: () => ({ pos: [1, 2, 3] as [number, number, number], dir: [1, 0, 0] as [number, number, number], fov: 50, target: null }),
+      endExport: vi.fn(),
+    }
+    const release = registerReplay3DExport({ source, live: true, camera: 'tp', pov: null })
+    return { calls, begun, release, source }
+  }
+
+  it('MOTION BLUR: each frame gets its subframes, each setting its own script time, centered on the frame\'s', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fakeContext() as never)
+    const { calls, release } = loadBlurred()
+    const { hook } = setup()
+    await act(() =>
+      hook.result.current.run(
+        { startFrame: 0, endFrame: 10 },
+        { view3d: { camera: 'free', pov: null, minimap: false }, script: SCRIPT, motionBlur: { subframes: 4, shutterDeg: 180 } },
+      ),
+    )
+    release()
+    expect(calls).toHaveLength(31)
+    // Frame 15 (script 250 ms): four drawn subframes and the pose-only center, in time order.
+    const subs = calls[15].subframes!
+    expect(subs.map((s) => s.render)).toEqual([true, true, false, true, true])
+    expect(subs.map((s) => s.center)).toEqual([false, false, true, false, false])
+    // The script times the subframes set, around 250 ms over half of a 1/60 s interval.
+    const times = vi.mocked(setScriptPlaybackTime).mock.calls.map((c) => c[0])
+    const step = 1000 / 60
+    const around = times.filter((t) => Math.abs(t - 250) < step / 2)
+    for (const want of [250 - (3 / 16) * step, 250 - step / 16, 250, 250 + step / 16, 250 + (3 / 16) * step]) {
+      expect(around.some((t) => Math.abs(t - want) < 1e-9)).toBe(true)
+    }
+    // The camera track is the scene's center camera, at the file frame's own script time.
+    const track = hook.result.current.state.cameraTrack!
+    expect(track).toHaveLength(31)
+    expect(track[15]).toMatchObject({ i: 15, scriptMs: expect.closeTo(250, 9), pos: [1, 2, 3] })
+  })
+
+  it('MOTION BLUR on a plain plan: subframes interpolate the film frame, with no script time', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fakeContext() as never)
+    const { calls, release } = loadBlurred()
+    const { hook } = setup()
+    await act(() =>
+      hook.result.current.run({ startFrame: 0, endFrame: 10 }, { view3d: VIEW3D_TP, motionBlur: { subframes: 3, shutterDeg: 360 } }),
+    )
+    release()
+    const subs = calls[1].subframes!
+    const next = calls[2].frame - calls[1].frame
+    expect(subs.map((s) => s.frame)).toEqual([calls[1].frame - next / 3, calls[1].frame, calls[1].frame + next / 3].map((f) => expect.closeTo(f, 9)))
+    expect(subs.every((s) => s.before === undefined)).toBe(true)
+    expect(setScriptPlaybackTime).not.toHaveBeenCalled()
+  })
+
+  it('no blur (one subframe) is the single-pose call, and supersampling reaches the scene', async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fakeContext() as never)
+    const { calls, begun, release, source } = loadBlurred()
+    const { hook } = setup()
+    await act(() =>
+      hook.result.current.run({ startFrame: 0, endFrame: 10 }, { view3d: VIEW3D_TP, motionBlur: { subframes: 1, shutterDeg: 180 }, supersample: 2 }),
+    )
+    release()
+    expect(calls.every((c) => c.subframes === undefined)).toBe(true)
+    expect(source.exportFrame.mock.calls.every((c) => c.length === 1)).toBe(true)
+    expect(begun[0].supersample).toBe(2)
   })
 
   it('without a 3D export, the script is IGNORED', async () => {

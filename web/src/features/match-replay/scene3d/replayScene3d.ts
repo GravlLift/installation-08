@@ -27,7 +27,7 @@ import { framesPerSecond, frameToMs } from '@/lib/replay/replayLogic'
 import { FirstPersonArms3d } from './firstPersonArms3d'
 import { firstPersonFolder } from './firstPersonRig3d'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
-import type { Export3dSetup, ExportCamera3d, ExportTag3d, Replay3DExportSource } from '../export/replay3dExportStore'
+import type { Export3dSetup, ExportCamera3d, ExportSubframe3d, ExportTag3d, Replay3DExportSource } from '../export/replay3dExportStore'
 import type { Action3dInputs } from './action3dInputs'
 import { Ground, InkCache } from './actionKit'
 import { buildActionScene } from './actionLayers3d'
@@ -226,6 +226,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       setSkyClock: (seconds) => { if (this.ciel) setCloudClock(this.ciel, seconds) },
       setGlowClock: (seconds) => this.animateGlow(seconds),
       hideTopDown: () => this.top?.idle(),
+      readCamera: () => this.readCamera(),
     })
   }
   /** attach poses the map and the players, lights the play area, and captures the environment. */
@@ -800,9 +801,14 @@ export class ReplayScene3d implements Replay3DExportSource {
   redReticle(frame: number, allegiance: Pick<FilmAllegiance, 'ofXuid'>, held: HeldWeapon | null): boolean {
     return this.mode === 'fp' && readRedReticle({ tracks: this.tracks, frame, xuid: this.povXuid, camera: this.camera, drop: this.originAboveFloor, allegiance, surfaces: this.groundSurfaces(), raycaster: this.raycaster, riderAt: (xuid, f) => this.action?.riderAt(xuid, f) ?? null, range: held ? this.weaponModels?.reticleRange(held.weaponId, held.zoomLevel) ?? null : null })
   }
-  exportFrame(frame: number): HTMLCanvasElement { return this.exportScene.exportFrame(frame) }
+  exportFrame(frame: number, subframes?: readonly ExportSubframe3d[]): HTMLCanvasElement {
+    return subframes ? this.exportScene.exportFrame(frame, subframes) : this.exportScene.exportFrame(frame)
+  }
   exportTags(): readonly ExportTag3d[] { return this.exportScene.exportTags() }
-  exportCamera(): ExportCamera3d {
+  /** The camera the last exported frame was taken from (a motion-blurred frame's: its center subframe's). */
+  exportCamera(): ExportCamera3d { return this.exportScene.exportCamera() ?? this.readCamera() }
+  /** readCamera: the camera as posed now, in world coordinates. */
+  private readCamera(): ExportCamera3d {
     // three.js is y up with world y on -z (`toThree`): back to world [x, y, z] = [a, -c, b].
     const w = (v: { x: number; y: number; z: number }): [number, number, number] => [v.x, -v.z, v.y]
     const d = this.camera.getWorldDirection(new THREE.Vector3())

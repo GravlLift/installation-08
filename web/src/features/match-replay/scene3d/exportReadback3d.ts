@@ -30,11 +30,13 @@ export class ExportReadback3d {
    * read copies what the default framebuffer holds NOW (call it right after the render, with
    * the default framebuffer bound) into the returned canvas, upright. A lost context throws:
    * its framebuffer reads as black, and a black clip encoded silently is worse than a failure.
+   * `size`: read the BOUND framebuffer at that size instead (the motion-blur average's target,
+   * `exportAccumulator3d`); absent, the drawing buffer's size.
    */
-  read(gl: ReadbackGl): HTMLCanvasElement {
+  read(gl: ReadbackGl, size?: { width: number; height: number }): HTMLCanvasElement {
     if (gl.isContextLost()) throw new Error('3D view lost its WebGL context during the export')
-    const width = gl.drawingBufferWidth
-    const height = gl.drawingBufferHeight
+    const width = size?.width ?? gl.drawingBufferWidth
+    const height = size?.height ?? gl.drawingBufferHeight
     const { ctx, image } = this.surface(width, height)
     gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, this.raw)
     const row = width * 4
