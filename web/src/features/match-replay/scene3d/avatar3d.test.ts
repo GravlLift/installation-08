@@ -77,6 +77,7 @@ function bodyFx(camo = 0): BodyFxState {
     teamColor: new THREE.Color(0, 1, 0.3),
     overshieldColor: new THREE.Color(0.6, 1, 0.6),
     camoColor: new THREE.Color(1, 1, 1),
+    shieldHit: null,
   }
 }
 
@@ -130,15 +131,15 @@ describe('wearSpartan', () => {
     const fx = bodyFx()
     showBodyFx(a, fx)
     expect(shell?.meshes.some((m) => m.visible)).toBe(false)
+    // A hit is drawn by the game's impact generator (shieldGenerator3d.test): none without it.
     showBodyFx(a, { ...fx, shield: { ...fx.shield, hit: 0.5 } })
-    expect(shell?.meshes.every((m) => m.visible)).toBe(true)
-    expect(shell?.material.uniforms.uHit.value).toBe(0.5)
-    // The shield's glow takes the team color, not a fixed shield color.
-    expect((shell?.material.uniforms.uTeam.value as THREE.Color).toArray()).toEqual([0, 1, 0.3])
+    expect(shell?.meshes.some((m) => m.visible)).toBe(false)
     expect(shell?.meshes.every((m) => m.userData.noOutline)).toBe(true)
     // Recharge: a band at the start of the climb back up, off afterward.
     showBodyFx(a, { ...fx, shield: { ...fx.shield, recharge: 1, rechargeAge: 0.2 } })
     expect(shell?.meshes.every((m) => m.visible)).toBe(true)
+    // The shield's glow takes the team color, not a fixed shield color.
+    expect((shell?.material.uniforms.uTeam.value as THREE.Color).toArray()).toEqual([0, 1, 0.3])
     showBodyFx(a, { ...fx, shield: { ...fx.shield, recharge: 1, rechargeAge: 2 } })
     expect(shell?.meshes.some((m) => m.visible)).toBe(false)
     showBodyFx(a, { ...fx, equip: { camo: 0, overshield: 1 } })

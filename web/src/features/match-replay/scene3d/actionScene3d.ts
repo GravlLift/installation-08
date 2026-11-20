@@ -336,5 +336,6 @@ export class ActionScene3d {
 
   dispose(): void {
     for (const l of this.layers) l.dispose()
+    this.body.dispose()
   }
 }
