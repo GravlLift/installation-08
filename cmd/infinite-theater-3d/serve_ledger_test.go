@@ -76,7 +76,10 @@ func ledgerGameWinner() (*replay.ReplayDocument, []contextJSON, int64) {
 		{"event_type": "death", "event_time_ms": int64(412869), "actor_xuid": ledgerKamUz},
 		{"event_type": "kill", "event_time_ms": int64(413751), "actor_xuid": ledgerKamUz, "actor_gamertag": "KamUz 7w7", "actor_team_id": 0, "victim_xuid": ledgerBC0R, "victim_gamertag": "BC0R", "victim_team_id": 1, "weapon_key": "hinf_plasma_grenade", "headshot": false},
 		{"event_type": "death", "event_time_ms": int64(413751), "actor_xuid": ledgerBC0R},
-		{"event_type": "medal", "event_time_ms": int64(413751), "actor_xuid": ledgerKamUz},
+		{"event_type": "medal", "event_time_ms": int64(413752), "actor_xuid": ledgerKamUz, "actor_gamertag": "KamUz 7w7", "actor_team_id": 0, "medal_name": "Stick", "medal_label": "Stick", "medal_image_url": "/static/medals/halo_infinite/3655682764.png", "medal_name_id": 3655682764},
+		// A medal with no kill of its actor within 500 ms stands alone; one without a name is not a medal.
+		{"event_type": "medal", "event_time_ms": int64(415000), "actor_xuid": ledgerKamUz, "medal_name": "Killjoy"},
+		{"event_type": "medal", "event_time_ms": int64(413752), "actor_xuid": ledgerKamUz},
 	}
 	return doc, events, t0
 }
@@ -115,6 +118,7 @@ func TestLedgerGameWinnerOrder(t *testing.T) {
 		"13222 death BC0R",
 		"13222 score",
 		"13223 kill KamUz 7w7",
+		"13223 medal KamUz 7w7",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("ledger order:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
@@ -199,7 +203,15 @@ func TestLedgerFacts(t *testing.T) {
 	if dm := ledgerByID(t, out, "damage/0"); dm.Actor.Gamertag != "KamUz 7w7" || dm.Target.Gamertag != "BC0R" {
 		t.Fatalf("damage = %+v", dm)
 	}
-	if out.Counts["kill"] != 2 || out.Counts["death"] != 3 || out.Counts["medal"] != 0 {
+	// Medals: placed on the document clock, attached to the actor's kill within 500 ms.
+	md := ledgerByID(t, out, "medal/"+ledgerKamUz+"/413752/Stick")
+	if md.Ms != 436357 || md.Facts["kill"] != "kill/"+ledgerKamUz+"/"+ledgerBC0R+"/0" || md.Facts["image_url"] != "/static/medals/halo_infinite/3655682764.png" || md.Actor.Gamertag != "KamUz 7w7" {
+		t.Fatalf("medal = %+v", md)
+	}
+	if alone := ledgerByID(t, out, "medal/"+ledgerKamUz+"/415000/Killjoy"); alone.Facts["kill"] != nil {
+		t.Fatalf("orphan medal = %+v", alone)
+	}
+	if out.Counts["kill"] != 2 || out.Counts["death"] != 3 || out.Counts["medal"] != 2 {
 		t.Fatalf("counts = %v", out.Counts)
 	}
 }
@@ -209,7 +221,7 @@ func TestLedgerWithoutOriginNamesTheGap(t *testing.T) {
 	doc.OriginMs = nil
 	out := buildLedger(doc, events, t0)
 	out.window(nil, nil)
-	if out.Counts["kill"] != 0 || len(out.Notes) != 1 || !strings.Contains(out.Notes[0], "originMs") {
+	if out.Counts["kill"] != 0 || out.Counts["medal"] != 0 || len(out.Notes) != 1 || !strings.Contains(out.Notes[0], "originMs") {
 		t.Fatalf("counts %v notes %v", out.Counts, out.Notes)
 	}
 }

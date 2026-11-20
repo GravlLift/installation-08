@@ -189,10 +189,10 @@ Routes (all under `/api` unless noted; state-changing routes accept loopback ori
   and `GET /api/matches/{id}/context` (header, scoreboard, regulation, kill and medal events,
   media; `?xuid=` for one player's perspective).
 - `GET /api/matches/{id}/ledger?fromMs=&toMs=` (every event of the match in order, read from the
-  served replay document and the context's kills and deaths: kill, death, shot, damage, melee,
-  throwStart, grenade, projectile, detonation, weaponChange, pickup, score; each with an `id`,
-  frame, doc ms, actor, target, weapon key and facts; the window is inclusive doc ms). Kills sit
-  at `event_time_ms + t0_ms - originMs`. The export's render coverage joins its draw records to
+  served replay document and the context's kills, deaths and medals: kill, death, medal, shot,
+  damage, melee, throwStart, grenade, projectile, detonation, weaponChange, pickup, score; each with an `id`,
+  frame, doc ms, actor, target, weapon key and facts; the window is inclusive doc ms). Kills and medals
+  sit at `event_time_ms + t0_ms - originMs`; a medal names the kill it attaches to (500 ms). The export's render coverage joins its draw records to
   these ids (`docs/design/camera-scripts.md`).
 - `GET /api/matches/{id}/mesh.glb` / `mesh/state`; `POST .../mesh/build`; `POST .../mesh/cancel`.
 - `GET /api/matches/{id}/variant.glb` / `variant/state`; `POST .../variant/build`.

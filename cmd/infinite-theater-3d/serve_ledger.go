@@ -9,13 +9,13 @@ package main
 // with its kind, frame, instant, actor, target, weapon and the facts the document gives. It is a
 // READ of what the server already serves: the replay document as `/replay` serves it (stored
 // document plus the request-time enrichments, so weapon keys resolve the same way) and the kills
-// and deaths of `/context` (`highlight_events`). Nothing is decoded again.
+// deaths and medals of `/context` (`highlight_events`). Nothing is decoded again.
 //
 // Every event carries an `id` built from where it lives in the document (`shot/12` is
 // `doc.shots[12]`). The render coverage of an export (web `export/renderCoverage.ts`) joins the
 // renderer's own draw records to these ids, so an event the render does not draw is named.
 //
-// THE KILL CLOCK. Context kills are dated on the match clock (`event_time_ms`, origin the match's
+// THE KILL CLOCK. Context kills, deaths and medals are dated on the match clock (`event_time_ms`, origin the match's
 // T0); the document's frame 0 sits `originMs` after the film's zero, on the clock the context
 // rebuilds as `event_time_ms + t0_ms`. So a kill's doc ms is `event_time_ms + t0_ms - originMs`
 // (`replay.ReplayDocument.OriginMs`, and the web's `matchClock`), and its frame is that instant
@@ -46,11 +46,14 @@ const (
 	ledgerDeathAfterMs = 1000
 )
 
+// ledgerMedalAttachMs is the web's MEDAL_ATTACH_MS: a medal belongs to its actor's kill within it.
+const ledgerMedalAttachMs = 500
+
 // ledgerKindRank orders the events of one frame: cause before effect (a throw before its
 // grenade, a detonation before the death it causes, a death before its kill line and the score).
 var ledgerKindRank = map[string]int{
 	"throwStart": 0, "melee": 1, "shot": 2, "grenade": 3, "projectile": 4, "damage": 5,
-	"detonation": 6, "death": 7, "kill": 8, "score": 9, "weaponChange": 10, "pickup": 11,
+	"detonation": 6, "death": 7, "kill": 8, "medal": 9, "score": 10, "weaponChange": 11, "pickup": 12,
 }
 
 // ledgerPlayer names who did or took an event.
@@ -221,13 +224,13 @@ func buildLedger(doc *replay.ReplayDocument, highlights []contextJSON, t0 int64)
 		}
 	}
 	clock := ledgerClock{FrameIntervalMs: doc.FrameIntervalMS, OriginMs: doc.OriginMs, T0Ms: t0}
-	var kills, deaths []ledgerContextEvent
+	var kills, deaths, medals []ledgerContextEvent
 	if doc.OriginMs != nil {
 		offset := t0 - *doc.OriginMs
 		clock.ContextToDocMs = &offset
-		kills, deaths = b.contextEvents(highlights, offset)
+		kills, deaths, medals = b.contextEvents(highlights, offset)
 	} else if len(highlights) > 0 {
-		b.notes = append(b.notes, "kills not placed: the document has no originMs, so the context clock cannot be put on its frames")
+		b.notes = append(b.notes, "kills, deaths and medals not placed: the document has no originMs, so the context clock cannot be put on its frames")
 	}
 	b.shots()
 	b.damages()
@@ -237,6 +240,7 @@ func buildLedger(doc *replay.ReplayDocument, highlights []contextJSON, t0 int64)
 	b.pickups()
 	b.deaths(kills, deaths)
 	b.kills(kills)
+	b.medals(medals, kills)
 	b.scores()
 	sort.SliceStable(b.events, func(i, j int) bool {
 		p, q := b.events[i], b.events[j]
@@ -448,7 +452,7 @@ type ledgerContextEvent struct {
 // contextEvents places the context's kills and deaths on the document clock and names each
 // kill by its killer, victim and rank among that pair's kills (`kill/<killer>/<victim>/<n>`,
 // stable whatever the window).
-func (b *ledgerBuilder) contextEvents(highlights []contextJSON, offset int64) (kills, deaths []ledgerContextEvent) {
+func (b *ledgerBuilder) contextEvents(highlights []contextJSON, offset int64) (kills, deaths, medals []ledgerContextEvent) {
 	for _, e := range highlights {
 		ms := int64Of(e["event_time_ms"]) + offset
 		switch e["event_type"] {
@@ -456,6 +460,14 @@ func (b *ledgerBuilder) contextEvents(highlights []contextJSON, offset int64) (k
 			kills = append(kills, ledgerContextEvent{ev: e, ms: ms, actor: textValue(e["actor_xuid"]), victim: textValue(e["victim_xuid"])})
 		case "death":
 			deaths = append(deaths, ledgerContextEvent{ev: e, ms: ms, actor: textValue(e["actor_xuid"])})
+		case "medal":
+			// The web's `collectMedalEvents` keeps a medal with an actor and a name only. Its id is
+			// what both sides read as is: actor, context instant, English name.
+			name := textValue(e["medal_name"])
+			if actor := textValue(e["actor_xuid"]); actor != "" && name != "" {
+				id := fmt.Sprintf("medal/%s/%d/%s", actor, int64Of(e["event_time_ms"]), name)
+				medals = append(medals, ledgerContextEvent{ev: e, ms: ms, actor: actor, id: id})
+			}
 		}
 	}
 	sort.SliceStable(kills, func(i, j int) bool { return kills[i].ms < kills[j].ms })
@@ -465,7 +477,7 @@ func (b *ledgerBuilder) contextEvents(highlights []contextJSON, offset int64) (k
 		kills[i].id = fmt.Sprintf("kill/%s/%d", pair, rank[pair])
 		rank[pair]++
 	}
-	return kills, deaths
+	return kills, deaths, medals
 }
 
 // contextPlayer names a player of a context event from its own fields.
@@ -494,6 +506,41 @@ func (b *ledgerBuilder) kills(kills []ledgerContextEvent) {
 		e := ledgerEvent{ID: k.id, Kind: "kill", Frame: b.msFrame(k.ms), Ms: k.ms, Actor: contextPlayer(k.ev, "actor"), Target: contextPlayer(k.ev, "victim"), Weapon: textValue(k.ev["weapon_key"]), Facts: facts}
 		b.events = append(b.events, e)
 	}
+}
+
+// medals reads the medals, each attached to its actor's nearest kill within ledgerMedalAttachMs
+// (the web's `alignFeedByOrigin` rule), or to none.
+func (b *ledgerBuilder) medals(medals, kills []ledgerContextEvent) {
+	for _, m := range medals {
+		facts := map[string]any{"contextMs": int64Of(m.ev["event_time_ms"])}
+		for _, field := range []string{"medal_name", "medal_label", "medal_description", "medal_image_url", "medal_name_id"} {
+			if v, ok := m.ev[field]; ok {
+				facts[strings.TrimPrefix(field, "medal_")] = v
+			}
+		}
+		var kill *ledgerContextEvent
+		for i := range kills {
+			k := &kills[i]
+			dt := k.ms - m.ms
+			if dt < 0 {
+				dt = -dt
+			}
+			if k.actor == m.actor && dt <= ledgerMedalAttachMs && (kill == nil || dt < abs64(kill.ms-m.ms)) {
+				kill = k
+			}
+		}
+		if kill != nil {
+			facts["kill"] = kill.id
+		}
+		b.events = append(b.events, ledgerEvent{ID: m.id, Kind: "medal", Frame: b.msFrame(m.ms), Ms: m.ms, Actor: contextPlayer(m.ev, "actor"), Facts: facts})
+	}
+}
+
+func abs64(n int64) int64 {
+	if n < 0 {
+		return -n
+	}
+	return n
 }
 
 // deaths reads each life's end that is a death: a kill names its player as victim, or a context
