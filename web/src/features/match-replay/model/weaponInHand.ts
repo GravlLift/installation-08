@@ -24,7 +24,7 @@ export function trackHand(doc: ReplayDocumentReady): Map<number, HandTrack> {
     list.push({ ms, w })
     found.set(slot, list)
   }
-  for (const d of doc.drawnWeapons) if (d.d != null) record(d.slot, frameToMs(d.t, doc), d.d)
+  for (const d of settledDrawnWeapons(doc)) if (d.d != null) record(d.slot, frameToMs(d.t, doc), d.d)
   for (const l of doc.ammoReads) if (l.src === 'delta' && l.mag != null && (l.w === 0 || l.w === 1)) record(l.slot, l.ms, l.w)
   const tracked = new Map<number, HandTrack>()
   for (const [slot, list] of found) {
@@ -32,6 +32,60 @@ export function trackHand(doc: ReplayDocumentReady): Map<number, HandTrack> {
     tracked.set(slot, { ms: list.map((f) => f.ms), w: list.map((f) => f.w) })
   }
   return tracked
+}
+
+/**
+ * CANCELLED_SWAP_MAX_FRAMES — a selector flip that flips back within this many frames, with no
+ * shot fired from the weapon it flipped to, is a CANCELLED SWAP: the switch button pressed and
+ * cancelled before the other weapon was ever ready, so it never comes into hand. Measured on
+ * 9220185c (Recharge, 99 kills): 23 flip-and-back pairs last 3 to 6 frames and none fires from
+ * the other emplacement; the next shortest flip-and-back lasts 9 frames; the earliest shot after
+ * a real swap comes 15 frames after its flip. Read literally, each one drew the other weapon for
+ * 3 to 6 frames (demo-9: Rekkles' Shock Rifle became his Bandit for frames 7690-7692).
+ */
+export const CANCELLED_SWAP_MAX_FRAMES = 8
+
+const settledCache = new WeakMap<ReplayDocumentReady, ReplayDocumentReady['drawnWeapons']>()
+
+/**
+ * settledDrawnWeapons: the document's selector flips without its cancelled swaps
+ * (`CANCELLED_SWAP_MAX_FRAMES`): a flip to emplacement B followed, within the window, by the flip
+ * back to the emplacement held before it, with no per-shot magazine read of B in between, drops
+ * both flips. Everything that locates the hand reads the flips through this.
+ */
+export function settledDrawnWeapons(doc: ReplayDocumentReady): ReplayDocumentReady['drawnWeapons'] {
+  let settled = settledCache.get(doc)
+  if (settled) return settled
+  const bySlot = new Map<number, ReplayDocumentReady['drawnWeapons']>()
+  for (const d of doc.drawnWeapons) {
+    if (d.d == null) continue
+    const list = bySlot.get(d.slot) ?? []
+    list.push(d)
+    bySlot.set(d.slot, list)
+  }
+  const dropped = new Set<ReplayDocumentReady['drawnWeapons'][number]>()
+  for (const [slot, list] of bySlot) {
+    list.sort((a, b) => a.t - b.t)
+    // The effective changes: a flip to the emplacement already selected changes nothing and is
+    // dropped with the swap it sits in. They alternate, so dropping a change and its flip back
+    // leaves the next change a change from the same emplacement.
+    const changes: { flip: ReplayDocumentReady['drawnWeapons'][number]; repeats: ReplayDocumentReady['drawnWeapons'][number][] }[] = []
+    for (const d of list) {
+      const last = changes[changes.length - 1]
+      if (last && last.flip.d === d.d) last.repeats.push(d)
+      else changes.push({ flip: d, repeats: [] })
+    }
+    for (let i = 0; i + 1 < changes.length; i++) {
+      const to = changes[i], back = changes[i + 1]
+      if (back.flip.t - to.flip.t > CANCELLED_SWAP_MAX_FRAMES) continue
+      if (doc.ammoReads.some((r) => r.slot === slot && r.src === 'delta' && r.w === to.flip.d && r.t >= to.flip.t && r.t < back.flip.t)) continue
+      for (const d of [to.flip, ...to.repeats, back.flip]) dropped.add(d)
+      i++
+    }
+  }
+  settled = dropped.size ? doc.drawnWeapons.filter((d) => !dropped.has(d)) : doc.drawnWeapons
+  settledCache.set(doc, settled)
+  return settled
 }
 
 const handTracksCache = new WeakMap<ReplayDocumentReady, Map<number, HandTrack>>()
@@ -111,7 +165,7 @@ export function handChangeAt(doc: ReplayDocumentReady, slot: number, frame: numb
 function buildHandChanges(doc: ReplayDocumentReady, slot: number): number[] {
   const placed = withPlacedPickups(doc)
   const frames = new Set<number>()
-  for (const d of doc.drawnWeapons) if (d.slot === slot) frames.add(d.t)
+  for (const d of settledDrawnWeapons(doc)) if (d.slot === slot) frames.add(d.t)
   for (const c of placed.weaponChanges) if (c.slot === slot) frames.add(c.t)
   for (const r of doc.ammoReads) if (r.src === 'delta' && r.slot === slot) frames.add(r.t)
   const out: number[] = []
