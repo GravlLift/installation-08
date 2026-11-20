@@ -14,9 +14,9 @@
  *    faces the camera, solid toward the silhouette, pushed out along the normal by the
  *    generator's extrusion, at the strength of the film's measured shield drop. Without the
  *    library's entry (`BodyFxState.shieldHit` null) no hit is drawn;
- *  - a recharge is a bright band that sweeps up the body once, when the recharge begins (NOT
- *    decoded: the game's recharge generator, `efge` 35694cf3, drives its colors and intensities
- *    by GPU functions this build does not read);
+ *  - a recharge draws nothing: the game's recharge generator (`efge` 35694cf3, the effect `effe`
+ *    a897ba6a) drives its colors and intensities by GPU functions this build does not read, and
+ *    no effect is invented in its place (`ShieldFx.recharge` stays computed for when it is);
  *  - the overshield keeps its own shell (its ink, paled toward white) drawn over the top.
  *
  * All intensities come from `BodyFxState`, a function of the frame: the shell keeps no state of
@@ -55,9 +55,6 @@ export interface BodyShell {
   material: THREE.ShaderMaterial
 }
 
-/** The recharge band's sweep, from feet to head (s). */
-export const RECHARGE_SWEEP_SECONDS = 0.6
-
 const VERTEX = /* glsl */ `
 #include <common>
 #include <skinning_pars_vertex>
@@ -85,11 +82,7 @@ void main() {
 }`
 
 const FRAGMENT = /* glsl */ `
-uniform float uRecharge;
-uniform float uRechargeAge;
-uniform vec2 uSpan;
 uniform float uPhase;
-uniform vec3 uTeam;
 uniform vec3 uOvershieldColor;
 uniform float uOvershield;
 uniform vec3 uCamoColor;
@@ -156,10 +149,6 @@ void main() {
   float line = 1.0 - smoothstep(0.0, 0.07, 0.5 - hexDist(gv));
 
   vec3 col = uGen > 0.5 ? generator() : vec3(0.0);
-  // The recharge: a bright band that sweeps up the body.
-  float h = (vRest.y - uSpan.x) / max(1e-4, uSpan.y - uSpan.x);
-  float d = (h - (uRechargeAge / ${RECHARGE_SWEEP_SECONDS.toFixed(2)}) * 1.2 + 0.1) / 0.08;
-  col += uTeam * uRecharge * exp(-d * d) * (0.5 + 1.2 * rim);
   // The overshield: a continuous shell, brighter at the edge, that the grid barely breathes through.
   float breathe = 0.85 + 0.15 * sin(uPhase * 3.0 + vRest.y * 20.0);
   col += uOvershieldColor * uOvershield * (0.14 + 0.55 * rim) * (0.7 + 0.3 * line) * breathe;
@@ -178,10 +167,6 @@ export function makeShell(root: THREE.Object3D): BodyShell {
     vertexShader: VERTEX,
     fragmentShader: FRAGMENT,
     uniforms: {
-      uTeam: { value: new THREE.Color() },
-      uRecharge: { value: 0 },
-      uRechargeAge: { value: 0 },
-      uSpan: { value: new THREE.Vector2(0, 1) },
       uPhase: { value: 0 },
       uOvershieldColor: { value: new THREE.Color() },
       uOvershield: { value: 0 },
@@ -216,7 +201,6 @@ export function makeShell(root: THREE.Object3D): BodyShell {
   root.traverse((o) => {
     if (o instanceof THREE.SkinnedMesh) sources.push(o)
   })
-  ;(material.uniforms.uSpan.value as THREE.Vector2).copy(restSpan(sources))
   const meshes = sources.map((src) => {
     const shell = new THREE.SkinnedMesh(src.geometry, material)
     shell.position.copy(src.position)
@@ -233,16 +217,6 @@ export function makeShell(root: THREE.Object3D): BodyShell {
   return { meshes, material }
 }
 
-/** restSpan: the rest height from feet to head (bottom, top) of the `sources` meshes. */
-function restSpan(sources: readonly THREE.SkinnedMesh[]): THREE.Vector2 {
-  const box = new THREE.Box3()
-  for (const s of sources) {
-    if (!s.geometry.boundingBox) s.geometry.computeBoundingBox()
-    if (s.geometry.boundingBox) box.union(s.geometry.boundingBox)
-  }
-  return box.isEmpty() ? new THREE.Vector2(0, 1) : new THREE.Vector2(box.min.y, box.max.y)
-}
-
 /** releaseShell removes the shell and disposes its material (the geometry belongs to the source). */
 export function releaseShell(shell: BodyShell): void {
   for (const m of shell.meshes) m.removeFromParent()
@@ -251,10 +225,8 @@ export function releaseShell(shell: BodyShell): void {
 
 /** shellLit: one of the shell's effects is on (otherwise it is not placed in the scene). */
 export function shellLit(fx: BodyFxState): boolean {
-  const s = fx.shield
-  const sweeping = s.recharge > 0 && s.rechargeAge < RECHARGE_SWEEP_SECONDS
-  const hit = fx.shieldHit !== null && hitLevel(s) > 0
-  return hit || sweeping || fx.equip.camo > 0 || fx.equip.overshield > 0
+  const hit = fx.shieldHit !== null && hitLevel(fx.shield) > 0
+  return hit || fx.equip.camo > 0 || fx.equip.overshield > 0
 }
 
 /** showShell sets the frame's intensities `fx` on the shell, or turns it off (null, or nothing lit). */
@@ -263,10 +235,6 @@ export function showShell(shell: BodyShell, fx: BodyFxState | null): void {
   for (const m of shell.meshes) m.visible = on
   if (!on || !fx) return
   const u = shell.material.uniforms
-  ;(u.uTeam.value as THREE.Color).copy(fx.teamColor)
-  const sweeping = fx.shield.recharge > 0 && fx.shield.rechargeAge < RECHARGE_SWEEP_SECONDS
-  u.uRecharge.value = sweeping ? 1 : 0
-  u.uRechargeAge.value = Math.max(0, fx.shield.rechargeAge)
   u.uPhase.value = fx.phase
   ;(u.uOvershieldColor.value as THREE.Color).copy(fx.overshieldColor)
   u.uOvershield.value = fx.equip.overshield
