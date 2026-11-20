@@ -173,6 +173,29 @@ func (r *Root) MatchCameraScriptPath(id, name string) (string, error) {
 	return filepath.Join(d, name+".json"), nil
 }
 
+// MatchExportsDir is the match's exports/ folder (one file per exported clip, created on
+// first save).
+func (r *Root) MatchExportsDir(id string) (string, error) {
+	d, err := r.matchDir(id)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(d, "exports"), nil
+}
+
+// MatchExportPath is one of the match's exported clips: matches\<id>\exports\<name>.mp4.
+// The name is validated so it cannot escape the folder either.
+func (r *Root) MatchExportPath(id, name string) (string, error) {
+	d, err := r.MatchExportsDir(id)
+	if err != nil {
+		return "", err
+	}
+	if !CameraScriptNameValid(name) {
+		return "", fmt.Errorf("invalid export name %q", name)
+	}
+	return filepath.Join(d, name+".mp4"), nil
+}
+
 // MeshPath is a map's geometry file for a texture quality: maps\<moduleKey>.glb for standard,
 // maps\<moduleKey>.high.glb for high (a separate file, so a standard build stays valid beside a
 // high one). The module key is validated so it cannot escape the data directory either.
@@ -248,6 +271,34 @@ func (r *Root) WriteCopy(dst, srcFile string) error {
 		return err
 	}
 	return os.Rename(tmpName, dst)
+}
+
+// WriteStream streams src to path atomically (a temp file in the same directory, then
+// rename), creating parent directories. It copies with io.Copy, so a body of hundreds of
+// megabytes is never held in memory. Any failure leaves no file behind: the temp is
+// removed and the destination is never touched. It returns the number of bytes written.
+func (r *Root) WriteStream(path string, src io.Reader) (int64, error) {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return 0, err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".tmp-"+filepath.Base(path)+"-")
+	if err != nil {
+		return 0, err
+	}
+	tmpName := tmp.Name()
+	defer func() { _ = os.Remove(tmpName) }() // no-op after a successful rename
+	n, err := io.Copy(tmp, src)
+	if err != nil {
+		tmp.Close()
+		return n, err
+	}
+	if err := tmp.Close(); err != nil {
+		return n, err
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		return n, err
+	}
+	return n, nil
 }
 
 // ErrNotFound is a match or map absent from the store.

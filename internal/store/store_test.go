@@ -3,6 +3,8 @@
 package store
 
 import (
+	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -202,6 +204,78 @@ func TestWriteCopy(t *testing.T) {
 	if b, _ := os.ReadFile(dst); !reflect.DeepEqual(b, []byte{1, 2, 3, 4, 5}) {
 		t.Fatalf("copied = %v, want 1..5", b)
 	}
+}
+
+// TestWriteStream — WriteStream streams a reader to its destination atomically, returns
+// the byte count, and a mid-copy failure leaves no file behind (no temp, no partial).
+func TestWriteStream(t *testing.T) {
+	root, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := []byte("streamed-clip-bytes")
+	dst := filepath.Join(root.MatchesDir(), "abc", "exports", "run-one.mp4")
+	n, err := root.WriteStream(dst, bytes.NewReader(payload))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != int64(len(payload)) {
+		t.Fatalf("bytes written = %d, want %d", n, len(payload))
+	}
+	if b, err := os.ReadFile(dst); err != nil || !reflect.DeepEqual(b, payload) {
+		t.Fatalf("content = %q (err=%v), want the streamed bytes", b, err)
+	}
+	// No stray temp files.
+	entries, _ := os.ReadDir(filepath.Dir(dst))
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), ".tmp-") {
+			t.Errorf("stray temp file left behind: %s", e.Name())
+		}
+	}
+}
+
+// TestWriteStreamFailure — a reader that fails mid-copy leaves no file at the destination
+// and no temp file in its directory.
+func TestWriteStreamFailure(t *testing.T) {
+	root, err := New(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(root.MatchesDir(), "abc", "exports", "run-one.mp4")
+	_, err = root.WriteStream(dst, &failingReader{failAt: 4})
+	if err == nil {
+		t.Fatal("WriteStream with a failing reader succeeded, want an error")
+	}
+	if _, err := os.Stat(dst); !os.IsNotExist(err) {
+		t.Fatalf("destination file exists after a failed stream (stat err=%v)", err)
+	}
+	dir := filepath.Dir(dst)
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if e.Name() == "run-one.mp4" || strings.HasPrefix(e.Name(), ".tmp-") {
+			t.Errorf("file left behind after a failed stream: %s", e.Name())
+		}
+	}
+}
+
+// failingReader reads failAt bytes and then fails, to drive WriteStream into a mid-copy
+// error.
+type failingReader struct {
+	read   int
+	failAt int
+}
+
+func (f *failingReader) Read(p []byte) (int, error) {
+	if f.read >= f.failAt {
+		return 0, errors.New("stream failed mid-copy")
+	}
+	n := len(p)
+	if n > f.failAt-f.read {
+		n = f.failAt - f.read
+	}
+	copy(p, []byte("abcdefg"))
+	f.read += n
+	return n, nil
 }
 
 // TestListMatchesOrder — the listing is newest-import first, skips folders without a
