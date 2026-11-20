@@ -8,12 +8,10 @@
  * over the armor (same depth, offset toward the camera), hides nothing, and is only placed in the
  * scene when an effect is on.
  *
- *  - an absorbed hit, and the break (the hit that empties the shield), are drawn as the game's own
- *    shield impact generator draws them (`shieldGenerator3d`: its parameters and hex-grid noise
- *    read from the game at build time): the hit color through the hex pattern where the body
- *    faces the camera, solid toward the silhouette, pushed out along the normal by the
- *    generator's extrusion, at the strength of the film's measured shield drop. Without the
- *    library's entry (`BodyFxState.shieldHit` null) no hit is drawn;
+ *  - an absorbed hit, and the break (the hit that empties the shield), belong to the game's own
+ *    shield impact generator (`shieldGenerator3d`: its parameters and hex-grid noise read from the
+ *    game at build time), which draws a small sphere around the impact point. With no impact point
+ *    the hit is not drawn: over the whole shell its strength floods the body;
  *  - a recharge draws nothing: the game's recharge generator (`efge` 35694cf3, the effect `effe`
  *    a897ba6a) drives its colors and intensities by GPU functions this build does not read, and
  *    no effect is invented in its place (`ShieldFx.recharge` stays computed for when it is);
@@ -225,8 +223,7 @@ export function releaseShell(shell: BodyShell): void {
 
 /** shellLit: one of the shell's effects is on (otherwise it is not placed in the scene). */
 export function shellLit(fx: BodyFxState): boolean {
-  const hit = fx.shieldHit !== null && hitLevel(fx.shield) > 0
-  return hit || fx.equip.camo > 0 || fx.equip.overshield > 0
+  return fx.equip.camo > 0 || fx.equip.overshield > 0
 }
 
 /** showShell sets the frame's intensities `fx` on the shell, or turns it off (null, or nothing lit). */
@@ -243,13 +240,19 @@ export function showShell(shell: BodyShell, fx: BodyFxState | null): void {
   showImpact(u, fx)
 }
 
-/** showImpact sets the impact generator's uniforms (off without the game's generator or a hit). */
+/**
+ * showImpact sets the impact generator's uniforms. The game draws the hit as a small sphere around
+ * the impact point; over the whole shell (no impact point) its strength floods the body, so the
+ * hit is not drawn until impact points are placed.
+ */
+const WHOLE_SHELL_HIT = false
 function showImpact(u: THREE.ShaderMaterial['uniforms'], fx: BodyFxState): void {
   const look = fx.shieldHit
   const level = hitLevel(fx.shield)
-  u.uGen.value = look && level > 0 ? 1 : 0
+  const on = WHOLE_SHELL_HIT && look !== null && level > 0
+  u.uGen.value = on ? 1 : 0
   u.uExtrude.value = 0
-  if (!look || level <= 0) return
+  if (!on || !look) return
   const g = look.gen
   u.uExtrude.value = constantOf(g.extrusionDistance, 0)
   u.uNoise1.value = look.noise1
