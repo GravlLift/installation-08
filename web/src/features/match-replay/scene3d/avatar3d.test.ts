@@ -135,12 +135,8 @@ describe('wearSpartan', () => {
     showBodyFx(a, { ...fx, shield: { ...fx.shield, hit: 0.5 } })
     expect(shell?.meshes.some((m) => m.visible)).toBe(false)
     expect(shell?.meshes.every((m) => m.userData.noOutline)).toBe(true)
-    // Recharge: a band at the start of the climb back up, off afterward.
+    // A recharge draws nothing until the game's recharge generator is decoded (no invented band).
     showBodyFx(a, { ...fx, shield: { ...fx.shield, recharge: 1, rechargeAge: 0.2 } })
-    expect(shell?.meshes.every((m) => m.visible)).toBe(true)
-    // The shield's glow takes the team color, not a fixed shield color.
-    expect((shell?.material.uniforms.uTeam.value as THREE.Color).toArray()).toEqual([0, 1, 0.3])
-    showBodyFx(a, { ...fx, shield: { ...fx.shield, recharge: 1, rechargeAge: 2 } })
     expect(shell?.meshes.some((m) => m.visible)).toBe(false)
     showBodyFx(a, { ...fx, equip: { camo: 0, overshield: 1 } })
     expect(shell?.meshes.every((m) => m.visible)).toBe(true)
