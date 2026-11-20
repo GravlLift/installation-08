@@ -2,6 +2,7 @@
 import * as THREE from 'three'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cloneMaterial } from './cloneMaterial3d'
+import { FINITE_NORMAL, giveFiniteNormal } from './lighting'
 
 describe('cloneMaterial', () => {
   afterEach(() => vi.restoreAllMocks())
@@ -21,6 +22,16 @@ describe('cloneMaterial', () => {
     expect(m.userData.armorMaps.asg).toBe(asg)
     copy.userData.extra = 1
     expect(m.userData.extra).toBeUndefined()
+  })
+
+  it('carries the vertex attribute defaults (the finite normal) that clone drops', () => {
+    const m = new THREE.MeshStandardMaterial()
+    giveFiniteNormal(m)
+    // three's own clone loses it: the copy would read WebGL's generic (0, 0, 0) normal.
+    expect((m.clone() as unknown as { defaultAttributeValues?: unknown }).defaultAttributeValues).toBeUndefined()
+    const copy = cloneMaterial(m) as unknown as { defaultAttributeValues?: Record<string, readonly number[]> }
+    expect(copy.defaultAttributeValues?.normal).toEqual(FINITE_NORMAL)
+    expect(Math.hypot(...(copy.defaultAttributeValues?.normal ?? [0]))).toBeGreaterThan(0)
   })
 
   it('is what three.js would warn about otherwise', () => {

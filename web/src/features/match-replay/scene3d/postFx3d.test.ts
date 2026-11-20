@@ -8,8 +8,8 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
 import { BLOOM_EXCESS_MAX, BLOOM_RADIUS, BLOOM_STRENGTH, BLOOM_THRESHOLD, GlowBloomPass } from './bloom3d'
 import { DofPass } from './dof3d'
-import { FILM_LOOK_DEFAULTS, filmSeed, warmthGain } from './filmLook3d'
-import { buildPostFx, FILM_TONE_MAPPING, GRADE_GAIN, PASS_NAMES, type PostFx3d } from './postFx3d'
+import { FILM_LOOK_DEFAULTS, filmSeed, seedOffset, warmthGain } from './filmLook3d'
+import { buildPostFx, FILM_AGX_TONE_MAPPING, GRADE_GAIN, PASS_NAMES, type PostFx3d } from './postFx3d'
 import type { Outline3d } from './outline3d'
 
 /** Fake renderer: the compositor only reads its pixel ratio from it (the target is supplied). */
@@ -208,12 +208,12 @@ describe('buildPostFx — the film look', () => {
     return { fx, renderer, seen, drawOutput }
   }
 
-  it('tone maps the output pass alone with AgX at the look exposure, and gives the renderer its settings back', () => {
+  it("keeps the view's ACES by default and only changes the exposure, for the output pass alone", () => {
     const { fx, renderer, seen, drawOutput } = filmRig(false)
     try {
       drawOutput()
       fx.setFilmLook({ preset: 'film', exposure: 1 }, 1000)
-      expect(fx.film).not.toBeNull()
+      expect(fx.film?.tone).toBe('aces')
       drawOutput()
       expect(renderer.toneMapping).toBe(THREE.ACESFilmicToneMapping)
       expect(renderer.toneMappingExposure).toBe(1.15)
@@ -221,10 +221,56 @@ describe('buildPostFx — the film look', () => {
       drawOutput()
       expect(seen).toEqual([
         [THREE.ACESFilmicToneMapping, 1.15],
-        [FILM_TONE_MAPPING, 2.3],
+        [THREE.ACESFilmicToneMapping, 2.3],
         [THREE.ACESFilmicToneMapping, 1.15],
       ])
-      expect(FILM_TONE_MAPPING).toBe(THREE.AgXToneMapping)
+    } finally {
+      fx.dispose()
+    }
+  })
+
+  it("tone maps with AgX only when the look asks (tone: 'agx'), and gives the renderer its settings back", () => {
+    const { fx, renderer, seen, drawOutput } = filmRig(false)
+    try {
+      fx.setFilmLook({ preset: 'film', tone: 'agx' }, 0)
+      drawOutput()
+      expect(renderer.toneMapping).toBe(THREE.ACESFilmicToneMapping)
+      expect(renderer.toneMappingExposure).toBe(1.15)
+      expect(seen).toEqual([[FILM_AGX_TONE_MAPPING, 1.15]])
+      expect(FILM_AGX_TONE_MAPPING).toBe(THREE.AgXToneMapping)
+    } finally {
+      fx.dispose()
+    }
+  })
+
+  it('after setFilmLook alone (no knobs applied), composer.render runs the film pass, enabled, between SMAA and the line, with the look uniforms', () => {
+    const { fx } = filmRig(false)
+    try {
+      fx.setFilmLook({ preset: 'film', vignette: 0.6, contrast: 1.6, grain: 0.3 }, 2500)
+      const film = fx.filmPass!
+      expect(fx.composer.passes).toContain(film)
+      expect(film.enabled).toBe(true)
+      expect(film.uniforms.uVignette.value).toBe(0.6)
+      expect(film.uniforms.uContrast.value).toBe(1.6)
+      expect(film.uniforms.uGrain.value).toBe(0.3)
+      // Every pass's draw stubbed: the composer's own loop decides which run, in which order, from which buffer.
+      const ran: { pass: unknown; read: unknown; write: unknown; screen: boolean }[] = []
+      for (const pass of fx.composer.passes) {
+        vi.spyOn(pass, 'render').mockImplementation(function (this: typeof pass, _r: unknown, write: unknown, read: unknown) {
+          ran.push({ pass: this, read, write, screen: this.renderToScreen })
+        } as never)
+      }
+      const composerRenderer = fx.composer.renderer as unknown as Record<string, unknown>
+      composerRenderer.getRenderTarget = () => null
+      composerRenderer.setRenderTarget = () => {}
+      fx.composer.render(0)
+      const order = ran.map((r) => r.pass)
+      const at = order.indexOf(film)
+      expect(at).toBe(order.indexOf(fx.smaa) + 1)
+      expect(order[at + 1]).toBe(fx.outline.linePass)
+      expect(ran[at].screen).toBe(false)
+      expect(ran[at].read).toBe(ran[at - 1].write) // it reads what SMAA wrote
+      expect(ran[at + 1].read).toBe(ran[at].write) // and the line reads what it wrote
     } finally {
       fx.dispose()
     }
@@ -290,12 +336,13 @@ describe('buildPostFx — the film look', () => {
       expect(u.uVignette.value).toBe(0.5)
       expect(u.uGrain.value).toBe(0.6)
       expect((u.uWarmth.value as THREE.Vector3).toArray()).toEqual(warmthGain(1))
-      const seed = u.uSeed.value
-      expect(seed).toBe(filmSeed(1000))
+      const offset = () => (u.uSeedOffset.value as THREE.Vector2).toArray()
+      const seed = offset()
+      expect(seed).toEqual(seedOffset(filmSeed(1000)))
       fx.setFilmLook(look, 1000)
-      expect(u.uSeed.value).toBe(seed) // the same frame, the same grain
+      expect(offset()).toEqual(seed) // the same frame, the same grain
       fx.setFilmLook(look, 1016.7)
-      expect(u.uSeed.value).not.toBe(seed)
+      expect(offset()).not.toEqual(seed)
       const pass = fx.filmPass
       fx.setFilmLook({ ...look, grain: 0 }, 1016.7) // a new look object: values follow, the pass stays
       expect(fx.filmPass).toBe(pass)

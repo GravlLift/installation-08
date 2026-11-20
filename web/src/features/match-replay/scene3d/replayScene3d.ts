@@ -58,6 +58,8 @@ import { probeSurface, type SurfaceProbe } from './surfaceProbe3d'
 import { aimDirThree, toThree, type PlayerState3d, type Tracks3d } from './tracks3d'
 import { scriptClockOf, type CameraScript, type ScriptClockView, type ScriptSubjects } from './cameraScript3d'
 import { activeHolds, holdStateAt, lerpHeading, type Hold, type HoldState } from './hold3d'
+import { heroRigOf, heroRimTint, resolveHeroLight, type Vec3 as HeroVec3 } from './heroLights3d'
+import { clearHeroRigs, setHeroRigs, type HeroRigUniform } from './heroLightShader3d'
 import { holdMix } from './holdPose3d'
 import { NO_SHIELD_FX } from './shields3d'
 import { type ClipMix } from './clipSample3d'
@@ -221,7 +223,8 @@ export class ReplayScene3d implements Replay3DExportSource {
       get povXuid() { return self.povXuid }, set lastFrame(value) { self.lastFrame = value },
       get lastFrame() { return self.lastFrame },
       applyPov: (xuid) => this.applyPov(xuid), applyMode: (mode) => this.applyMode(mode),
-      placeAvatars: (frame) => this.placeAvatars(frame), placeCamera: (frame, dt) => this.cameraPlacement.placeCamera(frame, dt),
+      placeAvatars: (frame) => this.placeAvatars(frame),
+      placeCamera: (frame, dt) => { this.cameraPlacement.placeCamera(frame, dt); this.placeHeroLights() },
       placeFirstPerson: (frame) => { this.placeScope(frame); this.arms?.place(this.camera) },
       retagTags: () => this.retagTags(),
       setSkyClock: (seconds) => { if (this.ciel) setCloudClock(this.ciel, seconds) },
@@ -698,6 +701,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       this.placeAvatars(frame)
       t = markStep(p, 0, t)
       status = this.cameraPlacement.placeCamera(frame)
+      this.placeHeroLights()
       this.placeScope(frame)
       this.arms?.place(this.camera)
       this.retagTags() // tags must measure from the camera now placed, not the previous frame's
@@ -910,6 +914,7 @@ export class ReplayScene3d implements Replay3DExportSource {
   }
 
   dispose(): void {
+    clearHeroRigs()
     this.sizer.cancel()
     this.orbit.dispose()
     this.fly.dispose()
@@ -1070,6 +1075,41 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (rider) return rider.clone()
     const s = this.tracks?.sample(xuid, frame)
     return s ? feetOf(s, this.feetDrop) : null
+  }
+
+  /**
+   * placeHeroLights sets the playing camera script's hero light rigs (`heroLights3d`) for the
+   * camera as just placed: each rig follows its player's body center the way a script's player
+   * anchor resolves it (`scriptSubjects`, held players included, at the clock's document time),
+   * and turns with the camera's view of them. No script, a tracked camera, or no `lights`: every
+   * hero light is off. Called after `placeCamera`, on screen and in the export.
+   */
+  private placeHeroLights(): void {
+    const script = this.cameraPlacement.activeScript()
+    const lights = script?.lights
+    if (!script || !lights || lights.length === 0) {
+      clearHeroRigs()
+      return
+    }
+    const docMs = this.scriptClock(script).docMsAt(this.cameraPlacement.scriptTime())
+    const camera: HeroVec3 = [this.camera.position.x, this.camera.position.y, this.camera.position.z]
+    const rigs: HeroRigUniform[] = []
+    for (const entry of lights) {
+      const feet = this.scriptSubjects.feetAt(entry.xuid, docMs)
+      if (!feet) continue
+      const l = resolveHeroLight(entry)
+      const center = toThree(feet.x, feet.y, feet.z + BODY_CENTER)
+      const rig = heroRigOf(center, camera, l.azimuth, l.elevation)
+      const team = this.avatars.get(entry.xuid)?.tint
+      const rimTint = l.rimColor === 'team' && team ? heroRimTint([team.r, team.g, team.b]) : [1, 1, 1]
+      const scaled = (k: number, c: readonly number[]): HeroVec3 => [c[0] * k, c[1] * k, c[2] * k]
+      rigs.push({
+        center,
+        directions: [rig.key, rig.fill, rig.rim],
+        colors: [scaled(l.key, [1, 1, 1]), scaled(l.fill, [1, 1, 1]), scaled(l.rim, rimTint)],
+      })
+    }
+    setHeroRigs(rigs)
   }
 
   /** scriptedFreeCamera: the free camera is on the script; the free flight and orbit rest, and the orbit keeps the script's target so stopping it leaves the free camera orbiting what it looked at. */

@@ -5,7 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LoadGate } from './loadGate3d'
 import { fetchMesh } from './meshFetch'
-import { WeaponModels } from './weaponModels3d'
+import { armorMaterial } from './armorMaterial3d'
+import { FINITE_NORMAL } from './lighting'
+import { prepareModel, WeaponModels } from './weaponModels3d'
 
 vi.mock('./meshFetch', () => ({ fetchMesh: vi.fn() }))
 
@@ -107,6 +109,27 @@ afterEach(() => {
   URL.createObjectURL = realCreate
   URL.revokeObjectURL = realRevoke
   vi.restoreAllMocks()
+})
+
+describe('prepareModel', () => {
+  it('gives a normal-less model (Spartan, armor piece, weapon) a finite normal its painted copies keep', () => {
+    // The tool's GLBs carry no `normal`: without a default, three's shadow pass normalizes WebGL's
+    // generic (0, 0, 0) and the sun's shadow coordinate on the model is NaN.
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3))
+    const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ map: new THREE.Texture() }))
+    const root = new THREE.Group().add(mesh)
+    prepareModel(root)
+    const m = mesh.material as THREE.MeshStandardMaterial & { defaultAttributeValues?: Record<string, readonly number[]> }
+    expect([m.flatShading, mesh.castShadow, mesh.receiveShadow]).toEqual([true, true, true])
+    expect(m.defaultAttributeValues?.normal).toEqual(FINITE_NORMAL)
+    const painted = armorMaterial(m, {
+      maps: { asg: null, mask0: null, mask1: null },
+      paint: { data: new Float32Array(0), globals: [0, 0, 1, 1], offset: [0, 0] },
+      gradients: { value: new THREE.Texture() },
+    }) as THREE.MeshStandardMaterial & { defaultAttributeValues?: Record<string, readonly number[]> }
+    expect(painted.defaultAttributeValues?.normal).toEqual(FINITE_NORMAL)
+  })
 })
 
 describe('WeaponModels.loadedSources', () => {
