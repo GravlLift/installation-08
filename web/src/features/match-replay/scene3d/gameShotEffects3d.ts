@@ -47,6 +47,7 @@ import { EffectFiles, ParticlePools } from './particleDraw3d'
 import {
   oneShotSeconds,
   simulateOnce,
+  simulateSystem,
   systemShown,
   type IdleSystem,
   type LiveParticle,
@@ -82,9 +83,17 @@ export interface WeaponShot {
   impactFrom?: string
 }
 
+/** What a thrown grenade's projectile carries (`weapons.GrenadeShot`). */
+export interface GrenadeShot {
+  projectile: string
+  flight: string[]
+}
+
 export interface ShotTable {
   weapons: Readonly<Record<string, WeaponShot>>
   effects: Readonly<Record<string, ShotEffect>>
+  /** Per grenade rank (`"1"` the plasma grenade), its projectile's effects; empty in an older library. */
+  grenades: Readonly<Record<string, GrenadeShot>>
 }
 
 /** parseShotEffects reads the table out of an index document; null when the field is absent. */
@@ -99,7 +108,12 @@ export function parseShotEffects(doc: unknown): ShotTable | null {
   for (const [k, w] of Object.entries(raw.weapons)) {
     if (w && typeof w.initialVelocity === 'number' && w.initialVelocity > 0 && typeof w.maxRange === 'number' && Array.isArray(w.flight)) weapons[k] = w
   }
-  return { weapons, effects }
+  const grenades: Record<string, GrenadeShot> = {}
+  const rawGrenades = (raw as { grenades?: Record<string, GrenadeShot> | null }).grenades
+  for (const [k, g] of Object.entries(rawGrenades ?? {})) {
+    if (g && Array.isArray(g.flight)) grenades[k] = g
+  }
+  return { weapons, effects, grenades }
 }
 
 /** The impact effect's locations (StringIDs, hex). */
@@ -248,11 +262,15 @@ export class GameShotEffects {
   private readonly debugRows: GameShotDebugRow[] = []
   private life: { of: ShotTable; seconds: number } | null = null
 
-  constructor(ctx: ActionContext, fetchJson?: FetchJson) {
+  private readonly debug: boolean
+
+  /** `debug`: this instance publishes the debug hook (one per scene: the shots layer's). */
+  constructor(ctx: ActionContext, fetchJson?: FetchJson, debug = true) {
     this.ctx = ctx
     this.fetchJson = fetchJson
-    this.pools = new ParticlePools(ctx.root, 'game-shot-effect')
-    if (typeof window !== 'undefined') {
+    this.debug = debug
+    this.pools = new ParticlePools(ctx.root, debug ? 'game-shot-effect' : 'game-grenade-effect')
+    if (debug && typeof window !== 'undefined') {
       Object.defineProperty(window, DEBUG_HOOK, { configurable: true, enumerable: false, get: () => this.debugRows.slice() })
     }
   }
@@ -383,6 +401,44 @@ export class GameShotEffects {
     this.debugRows.push({ effect: fx.effect, system: si, role, particles: this.particles.length })
   }
 
+  /** hasGrenade: the library has effects for grenade rank `rank` (starts reading it). */
+  hasGrenade(rank: number): boolean {
+    return (this.shotTable()?.grenades[String(rank)]?.flight.length ?? 0) > 0
+  }
+
+  /**
+   * drawGrenade draws the effects grenade rank `rank`'s projectile carries (its attachments, read
+   * from its `proj` tag) at `at` (the action root's space), `age` seconds after the throw: each
+   * system looping for as long as the projectile lives (`simulateSystem`), as the game plays an
+   * attached effect until its owner is gone. FILLS: the effect's frame is the world's axes (the
+   * projectile's own orientation is not in the film); its particles move with the projectile (the
+   * systems are local to it). False when the library has nothing for the rank.
+   */
+  drawGrenade(rank: number, at: THREE.Vector3, age: number, seed: number): boolean {
+    const t = this.shotTable()
+    const g = t?.grenades[String(rank)]
+    if (!t || !g || g.flight.length === 0) return false
+    const root = this.ctx.root
+    root.updateWorldMatrix(true, false)
+    ROOT_INV.copy(root.matrixWorld).invert()
+    const camera = this.ctx.cameraPosition?.(CAM) ?? null
+    MARKER.makeTranslation(at.x, at.y, at.z)
+    ANCHOR.multiplyMatrices(root.matrixWorld, MARKER)
+    const distance = camera ? camera.distanceTo(AT.setFromMatrixPosition(ANCHOR)) : 0
+    g.flight.forEach((id, fi) => {
+      const fx = t.effects[id]
+      if (!fx) return
+      fx.systems.forEach((s, si) => {
+        if (!systemShown(s, false, false)) return
+        const pool = this.pools.poolOf(`${fx.effect}:${si}`, s, this.files)
+        if (!pool) return
+        simulateSystem(s, Math.max(0, age), seed | 0, (300 + fi) * 32 + si, { scaleA: 1, scaleB: 1, cameraDistance: cameraInput(fx, distance) }, this.particles)
+        for (const p of this.particles) this.pools.write(pool, p, ANCHOR, ROOT_INV)
+      })
+    })
+    return true
+  }
+
   /** hitOf: where shot `g` hits the scenery within its projectile's range, traced once. */
   private hitOf(g: GameShot, w: WeaponShot): Hit | null {
     const known = this.hits.get(g.from)
@@ -397,6 +453,6 @@ export class GameShotEffects {
     this.pools.dispose()
     this.files?.dispose()
     this.table?.dispose()
-    if (typeof window !== 'undefined') delete (window as unknown as Record<string, unknown>)[DEBUG_HOOK]
+    if (this.debug && typeof window !== 'undefined') delete (window as unknown as Record<string, unknown>)[DEBUG_HOOK]
   }
 }

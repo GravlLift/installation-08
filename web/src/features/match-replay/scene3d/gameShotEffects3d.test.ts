@@ -174,6 +174,10 @@ describe('shot effect frames and timing', () => {
     const t = parseShotEffects(INDEX)!
     expect(Object.keys(t.weapons)).toEqual(['1a22fee6'])
     expect(Object.keys(t.effects)).toHaveLength(3)
+    // A library before schema 12 has no grenades; a malformed entry is dropped.
+    expect(t.grenades).toEqual({})
+    const g = parseShotEffects({ shot_effects: { ...(INDEX as { shot_effects: object }).shot_effects, grenades: { 1: { projectile: '6071a622', flight: ['5740a83d'] }, 2: { projectile: 'x' } } } })!
+    expect(g.grenades).toEqual({ 1: { projectile: '6071a622', flight: ['5740a83d'] } })
   })
 
   it('lives a flight to range, then the longer of the flight death delay and the impact', () => {

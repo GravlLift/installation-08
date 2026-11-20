@@ -29,7 +29,11 @@
  * glowing head, tumbling; placed before it detonates (flight finished before the published
  * explosion), it stays at the end of its flight until the explosion. The plasma grenade has no
  * model: it shows its GLOWING ORB (blue-white core, saturated blue halo, pulsed over time;
- * `grenadeLook3d`), in flight as much as at rest.
+ * `grenadeLook3d`), in flight as much as at rest. Where the library reads the effects its projectile
+ * carries (schema 12, `GameShotEffects.drawGrenade`: the plasma's looping glow sprite 5740a83d, from
+ * its `proj` tag), they play on it in flight, stuck and at rest, and the orb's core is a STAND-IN for
+ * the model's self-illumination (not decoded), drawn past the bloom threshold with a light around it
+ * (`PLASMA_CORE_HDR`, `PLASMA_GLOW_*`).
  *
  * A PROJECTILE THAT STICKS (schema 128, `Projectile.attach`) stops replicating its position: the film
  * names what it is stuck to instead, a node of the parent and its offset in that node's frame. From
@@ -58,6 +62,7 @@ import { drawRecorder, ledgerId } from './drawRecorder3d'
 import { blastLight, blastStyleOf } from './explosionFx3d'
 import { BLAST_LIFT, blastLiftOver, Explosions3d } from './explosions3d'
 import { stuckGrenadesOf, stuckPointAt, type StuckGrenade } from './stuckGrenades3d'
+import { GameShotEffects } from './gameShotEffects3d'
 import { WeaponModelPool } from './weaponModels3d'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { MUZZLE_HEIGHT } from './body3d'
@@ -156,9 +161,13 @@ export class Flights3dLayer implements ActionLayer3d {
   private readonly orbCore = new THREE.Color()
   private readonly orbHalo = new THREE.Color()
   private readonly ctx: ActionContext
+  /** The game's effects a thrown grenade's projectile carries (`GameShotEffects.drawGrenade`). */
+  private readonly game: GameShotEffects
+  private readonly glowInk = new THREE.Color()
 
   constructor(ctx: ActionContext) {
     this.ctx = ctx
+    this.game = new GameShotEffects(ctx, undefined, false)
     const glow = () => new THREE.MeshBasicMaterial({ toneMapped: false })
     const additive = () => new THREE.MeshBasicMaterial({ toneMapped: false, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })
     const veil = () => new THREE.MeshBasicMaterial({ toneMapped: false, transparent: true, opacity: 0.4, depthWrite: false })
@@ -188,6 +197,7 @@ export class Flights3dLayer implements ActionLayer3d {
   update(frame: number): void {
     for (const pool of this.pools) pool.begin()
     this.models.begin()
+    this.game.begin()
     const inputs = this.ctx.inputs()
     const fps = Math.max(1, inputs.framesPerSecond)
     const ink = (tint: FxTint) => this.ctx.ink.of(inputs.inks.fx.tint[tint] || inputs.inks.fx.core)
@@ -230,11 +240,13 @@ export class Flights3dLayer implements ActionLayer3d {
       if (drawRecorder.on && b.rest.id && drawRecorder.adds > before) drawRecorder.mark(b.rest.id, `flights3d/${b.kind}`)
     }
     for (const pool of this.pools) pool.end()
+    this.game.end()
   }
 
   dispose(): void {
     for (const pool of this.pools) pool.dispose()
     this.models.dispose()
+    this.game.dispose()
   }
 
   /** drawDetonation: the explosion (`explosions3d`) and its light, `age` seconds after it. */
@@ -255,14 +267,14 @@ export class Flights3dLayer implements ActionLayer3d {
     if (f.attach && frame >= f.attach.from && frame <= f.detoT && this.drawAttached(f, frame, model, color, fps)) return
     if (frame > f.end) {
       // Placed before it detonates: the grenade waits for the explosion at the end of its flight.
-      if (f.look === 'orb' && f.grenade !== null) this.drawPlasmaOrb(f, f.pts[f.pts.length - 1], frame, fps)
+      if (f.look === 'orb' && f.grenade !== null) this.drawPlasmaOrb(f, f.pts[f.pts.length - 1], frame, fps, carriedOf(f, frame, fps))
       else if (model && frame <= f.detoT) this.models.add(model, f.pts[f.pts.length - 1], this.spin(f.dist[f.dist.length - 1]))
       return
     }
     // The head: interpolated between the last point passed and the next.
     const head = flightPointAt(f.at, f.pts, frame, this.p)
     if (paths) this.trails.add(f.pts[i - 1], head, TRAIL_RADIUS, color)
-    if (f.look === 'orb') this.drawPlasmaOrb(f, head, frame, fps)
+    if (f.look === 'orb') this.drawPlasmaOrb(f, head, frame, fps, carriedOf(f, frame, fps))
     else if (model) this.models.add(model, head, this.spin(flightValueAt(f.at, f.dist, frame)))
     else this.heads.add(head, null, HEAD_RADIUS, color)
   }
@@ -280,7 +292,7 @@ export class Flights3dLayer implements ActionLayer3d {
     if (where === 'hidden') return true
     this.bone.decompose(this.boneAt, this.boneQ, this.boneScale)
     const at = this.p.copy(a.pose).applyMatrix4(this.bone)
-    if (f.look === 'orb' && f.grenade !== null) this.drawPlasmaOrb(f, at, frame, fps)
+    if (f.look === 'orb' && f.grenade !== null) this.drawPlasmaOrb(f, at, frame, fps, carriedOf(f, frame, fps))
     else if (model) this.models.add(model, at, this.boneQ.multiply(this.spin(f.dist[f.dist.length - 1])))
     else this.heads.add(at, null, HEAD_RADIUS, color)
     return true
@@ -291,11 +303,17 @@ export class Flights3dLayer implements ActionLayer3d {
    * blue halo, additive, pulsed over time (`grenadeLook3d.plasmaPulse`). A shot projectile drawn
    * as an orb (`SHOT_ORB_RADIUS`, the fuel rod) takes its own tint and radius, in flight only.
    */
-  private drawPlasmaOrb(f: Pick<Flight, 'tint' | 'orbRadius'>, at: THREE.Vector3, frame: number, fps: number): void {
+  private drawPlasmaOrb(f: Pick<Flight, 'tint' | 'orbRadius'>, at: THREE.Vector3, frame: number, fps: number, carried?: Carried | null): void {
     const fx = this.ctx.inputs().inks.fx
     const gain = 1 - PLASMA_PULSE_DEPTH / 2 + PLASMA_PULSE_DEPTH * plasmaPulse(frame / fps)
     this.orbTint.copy(this.ctx.ink.of(fx.tint[f.tint] || fx.tint.plasma_cool))
     this.orbCore.copy(this.orbTint).lerp(this.ctx.ink.of(fx.core), PLASMA_CORE_MIX)
+    // A thrown grenade with the game's effects in the library: they play on it, the core glows past
+    // the bloom threshold, and a light falls on what is around it (`PLASMA_GLOW_*`, header).
+    if (carried && this.game.drawGrenade(carried.rank, at, carried.since, carried.seed)) {
+      this.orbCore.multiplyScalar(PLASMA_CORE_HDR)
+      this.ctx.flashes.add(at, this.glowInk.copy(this.orbTint).lerp(this.ctx.ink.of(fx.core), PLASMA_CORE_MIX), PLASMA_GLOW_LIGHT * gain, PLASMA_GLOW_RANGE)
+    }
     this.orbHalo.copy(this.orbTint).multiplyScalar(PLASMA_HALO_DIM * gain)
     this.plasmaCore.add(at, null, f.orbRadius * gain, this.orbCore)
     this.plasmaHalo.add(at, null, f.orbRadius * PLASMA_HALO_MULT, this.orbHalo)
@@ -312,7 +330,7 @@ export class Flights3dLayer implements ActionLayer3d {
     const at = this.p.set(...toThree(w.x, w.y, w.z))
     const look = grenadeLookOf(s.rank)
     if (look.flight === 'orb') {
-      this.drawPlasmaOrb({ tint: look.tint, orbRadius: PLASMA_CORE_RADIUS }, at, frame, fps)
+      this.drawPlasmaOrb({ tint: look.tint, orbRadius: PLASMA_CORE_RADIUS }, at, frame, fps, { rank: s.rank, since: (frame - s.from) / fps, seed: s.grenade })
       return
     }
     const model = this.ctx.grenadeModel(s.rank)
@@ -335,6 +353,28 @@ export class Flights3dLayer implements ActionLayer3d {
     this.blasts.add(b.at, null, r, color)
   }
 }
+
+/** A thrown grenade the game's effects ride: its rank, seconds since the throw, its seed. */
+interface Carried {
+  rank: number
+  since: number
+  seed: number
+}
+
+/** carriedOf: flight `f`'s grenade as its game effects see it at `frame`, null for a shot projectile. */
+function carriedOf(f: Flight, frame: number, fps: number): Carried | null {
+  return f.grenade === null ? null : { rank: f.grenade, since: (frame - f.t0) / fps, seed: f.index }
+}
+
+/**
+ * The plasma grenade's glow where the library reads its game effect (STAND-INS, not read from the
+ * tags: the grenade model's self-illumination and any light it casts are not decoded): the orb's core
+ * drawn this many times brighter, so it passes the bloom threshold as the game's glowing core does,
+ * and a light of this strength and reach (u) on the bodies and walls around it, pulsed with the orb.
+ */
+const PLASMA_CORE_HDR = 4
+const PLASMA_GLOW_LIGHT = 3
+const PLASMA_GLOW_RANGE = 2.5
 
 /** A flight's shooter or thrower, and the nature of what they fired. */
 interface FlightOwner {

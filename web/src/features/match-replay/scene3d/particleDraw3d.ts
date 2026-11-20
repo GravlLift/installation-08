@@ -34,6 +34,13 @@ export const BLEND_ADD_SRC_ALPHA = 9
 /** The two particle shaders the view draws. */
 export const SHADER_SPRITE = '9b1c511e'
 export const SHADER_MODEL = '96db07b6'
+/**
+ * The flow-mapped billboard shader (the plasma grenade's flight glow, effect 5740a83d): a base
+ * flipbook, a palette, an optical-flow map, no alpha map. Drawn as the billboard shader with the
+ * base's own alpha for the opacity (its frames carry one) and the base's frame for both. FILL: the
+ * flow map's in-between-frame warp (`flowStrength`, 0.1 on the plasma) is not drawn.
+ */
+export const SHADER_FLOW = '0461c4a7'
 
 /** Billboards a sprite draws with (plugin enum). */
 const BILLBOARD_SCREEN = 0
@@ -302,7 +309,7 @@ const vec4Of = (c: Record<string, number[]>, name: string) => new THREE.Vector4(
 
 /** The pool's mode for system `s`, null when the view does not draw it (a shader or billboard it lacks). */
 export function modeOf(s: IdleSystem): Pool['mode'] | null {
-  if (s.render.shader !== SHADER_SPRITE && s.render.shader !== SHADER_MODEL) return null
+  if (s.render.shader !== SHADER_SPRITE && s.render.shader !== SHADER_MODEL && s.render.shader !== SHADER_FLOW) return null
   if (s.render.model) return 'mesh'
   if (s.emitter.billboard === BILLBOARD_PERPENDICULAR) return 'perpendicular'
   if (s.emitter.billboard === BILLBOARD_PARALLEL) return 'parallel'
@@ -315,9 +322,12 @@ function materialOf(s: IdleSystem, files: EffectFiles, mode: Pool['mode']): THRE
   const r = s.render
   const tex = (name: string) => r.textures.find((t) => t.name === name)
   const base = tex('baseTexture')
-  const alpha = tex('alphaMap')
+  const flow = r.shader === SHADER_FLOW
+  // The flow shader has no alpha map: its opacity is the base's alpha, on the base's frame.
+  const alpha = flow ? base : tex('alphaMap')
   const palette = tex('paletteTexture')
   if (!base || !alpha || !palette) return null
+  const alphaName = flow ? 'baseTexture' : 'alphaMap'
   const model = r.shader === SHADER_MODEL
   const dist = model ? tex('uvDistortionMap') : undefined
   if (model && !dist) return null
@@ -328,10 +338,10 @@ function materialOf(s: IdleSystem, files: EffectFiles, mode: Pool['mode']): THRE
     uAlpha: { value: files.texture(alpha.file, alpha.srgb) },
     uPalette: { value: files.texture(palette.file, palette.srgb) },
     uLayers: { value: new THREE.Vector2(Math.max(1, base.layers), Math.max(1, alpha.layers)) },
-    uFrames: { value: new THREE.Vector2(Math.max(1, num(c, 'baseTexture_texture_frameCount', 0, 1)), Math.max(1, num(c, 'alphaMap_texture_frameCount', 0, 1))) },
+    uFrames: { value: new THREE.Vector2(Math.max(1, num(c, 'baseTexture_texture_frameCount', 0, 1)), Math.max(1, num(c, `${alphaName}_texture_frameCount`, 0, 1))) },
     uBaseXf: { value: vec4Of(c, 'baseTexture_texture_transform') },
-    uAlphaXf: { value: vec4Of(c, 'alphaMap_texture_transform') },
-    uFlags: { value: new THREE.Vector4(num(c, 'baseTextureInvert'), num(c, 'useAlphaMapRed'), num(c, 'alphaTextureInvert'), num(c, 'SYNC_TEXTURE_ANIM')) },
+    uAlphaXf: { value: vec4Of(c, `${alphaName}_texture_transform`) },
+    uFlags: { value: new THREE.Vector4(num(c, 'baseTextureInvert'), num(c, 'useAlphaMapRed'), num(c, 'alphaTextureInvert'), flow ? 1 : num(c, 'SYNC_TEXTURE_ANIM')) },
     uAlphaAnim: { value: new THREE.Vector4(num(c, 'alphaMapFrameIndex'), num(c, 'alphaMapAnimationRate'), 0, 0) },
     uBaseBW: { value: new THREE.Vector4(num(c, 'ALBEDO_BLACK_WHITE_POINT'), num(c, 'baseTextureBlackPoint'), num(c, 'baseTextureWhitePoint', 0, 1), 0) },
     uAlphaBW: { value: new THREE.Vector4(num(c, 'ALPHA_BLACK_WHITE_POINT'), num(c, 'alphaTextureBlackPoint'), num(c, 'alphaTextureWhitePoint', 0, 1), 0) },
