@@ -109,6 +109,11 @@ export class SegmentPool {
     this.pool = new InstancePool(parent, new THREE.CylinderGeometry(1, 1, 1, 6, 1, true), material, capacity)
   }
 
+  /** The batch's instanced mesh (a render-time hook reads the camera through it). */
+  get mesh(): THREE.InstancedMesh {
+    return this.pool.mesh
+  }
+
   begin(): void {
     this.pool.begin()
   }

@@ -307,6 +307,19 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
   silhouettes through walls, and no cost (the compositor skips both passes). It only turns the
   outline off: with the console's `outline` knob off (`perfToggles3d`), a script never turns it
   on. When the script stops, the knob's state returns (`replayScene3d.applyOutline`).
+- `shockLook` (optional, top level, `beam` or `arc`, default `beam`): how the Shock Rifle's shot
+  draws while the script drives the camera (free camera, on screen and in the export alike).
+  `beam`, or absent, is the default look exactly: three jagged beams (`scene3d/shockShots3d.ts`).
+  `arc` draws it as electricity (`scene3d/shockArcShot3d.ts`): a thin jagged blue-white core bolt
+  from the muzzle to the shot's end point, short forking side arcs off it (one per 0.5 u of bolt,
+  at most 32), and, when the shot hit the scenery, the impact's two arcs, read from the game's own
+  impact effect (count, lifetime, emission radius, growth). Bolt and forks re-seed 20 times a second
+  and fade over 0.25 s, as the beams do; each stroke keeps a minimum on-screen width (1.5 px core,
+  4 px glow), so the shot stays thin at 0.4 u from the camera and still reads at 30 u. Every point
+  is a pure function of the shot and the document time: a freeze holds, an export draws the same
+  frames in any order. The game data gives the shot's arc texture, sizes and lifetimes but no bolt
+  geometry; the bolt's width, roughness and fork layout are named estimates (the file's header).
+  When the script stops, the default look returns. Validation rejects any other value.
 - Validation rejects an unknown `version`, a `matchId` that differs from the route's, a key with
   no `pos` or `look`, a non-finite number, an out-of-range `fov`, and more than 512 keys. A
   player anchor whose xuid is not in the match is not a validation error: it resolves to null, and
