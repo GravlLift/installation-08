@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 )
@@ -181,6 +182,16 @@ func (r *Root) MatchExportsDir(id string) (string, error) {
 		return "", err
 	}
 	return filepath.Join(d, "exports"), nil
+}
+
+// MatchExportCameraPath is the camera track of an exported clip, beside it:
+// matches\<id>\exports\<name>.camera.json (one sample per file frame, written by the viewer).
+func (r *Root) MatchExportCameraPath(id, name string) (string, error) {
+	p, err := r.MatchExportPath(id, name)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSuffix(p, ".mp4") + ".camera.json", nil
 }
 
 // MatchExportPath is one of the match's exported clips: matches\<id>\exports\<name>.mp4.

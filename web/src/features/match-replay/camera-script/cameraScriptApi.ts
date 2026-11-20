@@ -128,6 +128,28 @@ export async function uploadExport(matchId: string, name: string, blob: Blob, si
 }
 
 /**
+ * `PUT /api/matches/{id}/exports/{name}/camera` — store a clip's camera track beside it
+ * (`<name>.camera.json`): the camera of every encoded frame, as JSON.
+ */
+export async function uploadExportCamera(matchId: string, name: string, track: unknown, signal?: AbortSignal): Promise<ExportUploaded> {
+  const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/exports/${encodeURIComponent(name)}/camera`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(track),
+    signal,
+  })
+  if (!res.ok) {
+    const body = await readErrorBody(res)
+    const server =
+      typeof body === 'object' && body !== null && typeof (body as { error?: unknown }).error === 'string'
+        ? (body as { error: string }).error
+        : null
+    throw new ApiError(`PUT .../exports/${name}/camera: HTTP ${res.status}${server ? ` (${server})` : ''}`, res.status, body)
+  }
+  return (await res.json()) as ExportUploaded
+}
+
+/**
  * `GET /api/spartan/poses` — the Spartan's pose catalog: the idle, emote and stance clips of
  * the game's animation graphs. A 503 (the game is not installed) resolves to an empty list;
  * it is not an error.

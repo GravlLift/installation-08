@@ -383,6 +383,8 @@ func (h serverHandlers) buildMux() *http.ServeMux {
 	mux.HandleFunc("DELETE /api/matches/{id}/camera-scripts/{name}", h.handleCameraScriptDelete)
 	mux.HandleFunc("GET /api/matches/{id}/exports/{name}", h.handleExportGet)
 	mux.HandleFunc("PUT /api/matches/{id}/exports/{name}", h.handleExportPut)
+	mux.HandleFunc("GET /api/matches/{id}/exports/{name}/camera", h.handleExportCameraGet)
+	mux.HandleFunc("PUT /api/matches/{id}/exports/{name}/camera", h.handleExportCameraPut)
 	mux.HandleFunc("GET /api/spartan/poses", h.handleSpartanPoses)
 	mux.HandleFunc("GET /api/spartan/poses/{id}", h.handleSpartanPose)
 	mux.HandleFunc("GET /api/weapons", h.handleWeaponIndex)

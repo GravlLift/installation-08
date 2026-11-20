@@ -74,6 +74,22 @@ export interface Replay3DExportSource {
    * same one the live HUD runs: the export HUD paints the reticle hostile red with it.
    */
   redReticle?(frame: number, allegiance: Pick<FilmAllegiance, 'ofXuid'>, held: HeldWeapon | null): boolean
+  /** The camera as it drew the frame just rendered (the export's camera track). */
+  exportCamera?(): ExportCamera3d
+}
+
+/**
+ * The camera of one rendered frame, in WORLD coordinates (the film's and the camera script's:
+ * world units, z up), so a track compares directly with a script's points.
+ */
+export interface ExportCamera3d {
+  pos: [number, number, number]
+  /** Unit view direction. */
+  dir: [number, number, number]
+  /** Vertical field of view, degrees. */
+  fov: number
+  /** The script's look point at this frame, when a camera script posed it; null otherwise. */
+  target: [number, number, number] | null
 }
 
 /** The view's registration: the scene, and the screen's state used as the dialog's default. */

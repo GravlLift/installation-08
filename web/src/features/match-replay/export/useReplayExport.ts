@@ -120,7 +120,7 @@ import type { ReplaySoundEvent } from '../sound/replaySoundVariants'
 import type { EnginePlan } from '../sound/vehicleEngineSound'
 import { readVictory } from '../model/victoryLogic'
 import { make3dPainter, type Export3dOptions } from './export3dFrame'
-import { replay3DExportEntry, type Replay3DExportSource } from './replay3dExportStore'
+import { replay3DExportEntry, type ExportCamera3d, type Replay3DExportSource } from './replay3dExportStore'
 import { createExportHud } from './exportHud'
 import type { ReplayKill } from '../model/killFeedLogic'
 
@@ -256,6 +256,16 @@ export interface PrepareStep {
   pct: number
 }
 
+/**
+ * One file frame's camera, as it drew the encoded image: `i` the file frame, `frame` the film
+ * frame shown, `scriptMs` the script time (camera-script export) or null. World coordinates.
+ */
+export interface CameraTrackSample extends ExportCamera3d {
+  i: number
+  frame: number
+  scriptMs: number | null
+}
+
 export interface ReplayExportState {
   phase: ExportPhase
   done: number
@@ -271,6 +281,8 @@ export interface ReplayExportState {
   filename?: string
   /** The ready download: the clip, its URL, and the one-click `save`. Absent outside `done`. */
   save?: PendingDownload
+  /** `done`, 3D export: the camera of every file frame, in file order (`CameraTrackSample`). */
+  cameraTrack?: readonly CameraTrackSample[]
   /**
    * `true` = sound was requested but the browser REFUSED the track: the clip is silent, and
    * that must be said. A silent clip believed to have sound is discovered only at editing time.
@@ -475,6 +487,8 @@ interface Scene3dRun {
   view3d: Export3dOptions
   /** The script time of each file frame, for a camera-script export; null otherwise. */
   scriptMs: number[] | null
+  /** Filled by the painter: the camera of each file frame, once its image is final. */
+  track: CameraTrackSample[]
 }
 
 /**
@@ -542,12 +556,20 @@ async function framePainter(
     clean,
   })
   const scriptMs = scene3d.scriptMs
-  return (frame, index) => {
+  return async (frame, index) => {
     // A script export poses the camera at the SAME script time the world is sampled at.
     if (scriptMs && index !== undefined) setScriptPlaybackTime(scriptMs[index])
     // The current frame advances in 3D too: the transport bar and the 2D map follow it.
     o.frameRef.current = frame
-    return renderComplete(painter, scene3d.scene, frame, index)
+    const image = await renderComplete(painter, scene3d.scene, frame, index)
+    // THE CAMERA TRACK is read once the image is final (a frame re-rendered after a load wait
+    // is posed again the same way): what is recorded is what the encoded frame saw from.
+    const cam = scene.exportCamera?.()
+    if (cam) {
+      const i = index ?? scene3d.track.length
+      scene3d.track[i] = { i, frame, scriptMs: scriptMs && index !== undefined ? scriptMs[index] ?? null : null, ...cam }
+    }
+    return image
   }
 }
 
@@ -715,12 +737,13 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         // The 3D scene is only taken here, at the last moment: the screen's own view stays
         // alive during preparation.
         if (view3d) scene3d = take3dScene(view3d, format, mixBounds.startFrame, frameToMs(1, o.doc))
+        const track: CameraTrackSample[] = []
         const painter = await framePainter(
           canvas,
           o,
           { source, paint: { ink, fonts, backdrop } },
           scene3d && view3d
-            ? { scene: scene3d, format, view3d, scriptMs: script ? (plan as ExportPlan & { scriptMs: number[] }).scriptMs : null }
+            ? { scene: scene3d, format, view3d, scriptMs: script ? (plan as ExportPlan & { scriptMs: number[] }).scriptMs : null, track }
             : null,
           options?.clean === true,
         )
@@ -766,7 +789,7 @@ export function useReplayExport(o: ReplayExportOptions): ReplayExport {
         if (!clip) pendingRef.current = null
         // PHASE 3: the file is READY, and it is SAID, with its name. A cancellation, instead,
         // returns to the form — there is nothing to announce about a gesture just undone.
-        setState(clip ? { phase: 'done', done: total, total, pct: 100, filename, save: pendingRef.current ?? undefined, mutedFallback: muted, fps, fpsFallback } : IDLE)
+        setState(clip ? { phase: 'done', done: total, total, pct: 100, filename, save: pendingRef.current ?? undefined, cameraTrack: track.length > 0 ? track : undefined, mutedFallback: muted, fps, fpsFallback } : IDLE)
       } catch (err) {
         // NEVER A SILENT FAILURE (repo rule 3: log BEFORE any degradation). Without this
         // block, an encoder failure made the progress bar disappear without a word, without a

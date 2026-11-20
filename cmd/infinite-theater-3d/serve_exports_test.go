@@ -209,3 +209,43 @@ func TestExportGetAbsent(t *testing.T) {
 		t.Fatalf("GET = %d %s, want 404 export_not_found", rec.Code, rec.Body.String())
 	}
 }
+
+// TestExportCameraTrack — the camera track is stored beside the clip as <name>.camera.json,
+// served back as application/json; a non-JSON Content-Type is a 415; the clip is untouched.
+func TestExportCameraTrack(t *testing.T) {
+	root := newFakeStore(t)
+	h := newTestHandlers(root, nil)
+
+	clip := []byte("fake-mp4-bytes")
+	if rec := putExport(t, h, "/api/matches/abc/exports/run-one", clip, map[string]string{"Content-Type": "video/mp4"}); rec.Code != http.StatusOK {
+		t.Fatalf("clip PUT = %d %s", rec.Code, rec.Body.String())
+	}
+	track := []byte(`{"version":1,"samples":[]}`)
+	if rec := putExport(t, h, "/api/matches/abc/exports/run-one/camera", track, map[string]string{"Content-Type": "video/mp4"}); rec.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("camera PUT as video/mp4 = %d, want 415", rec.Code)
+	}
+	rec := putExport(t, h, "/api/matches/abc/exports/run-one/camera", track, map[string]string{"Content-Type": "application/json"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("camera PUT = %d %s", rec.Code, rec.Body.String())
+	}
+	want, err := root.MatchExportCameraPath("abc", "run-one")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(want, "run-one.camera.json") {
+		t.Fatalf("camera path = %s, want ...run-one.camera.json", want)
+	}
+	if b, err := os.ReadFile(want); err != nil || !bytes.Equal(b, track) {
+		t.Fatalf("stored track = %q (err=%v)", b, err)
+	}
+	got := get(t, h, "/api/matches/abc/exports/run-one/camera", nil)
+	if got.Code != http.StatusOK || got.Header().Get("Content-Type") != "application/json" || !bytes.Equal(got.Body.Bytes(), track) {
+		t.Fatalf("camera GET = %d %q %q", got.Code, got.Header().Get("Content-Type"), got.Body.String())
+	}
+	if c := get(t, h, "/api/matches/abc/exports/run-one", nil); !bytes.Equal(c.Body.Bytes(), clip) {
+		t.Fatalf("clip changed after the track PUT: %q", c.Body.String())
+	}
+	if a := get(t, h, "/api/matches/abc/exports/other/camera", nil); a.Code != http.StatusNotFound || !strings.Contains(a.Body.String(), "export_camera_not_found") {
+		t.Fatalf("absent track GET = %d %s", a.Code, a.Body.String())
+	}
+}

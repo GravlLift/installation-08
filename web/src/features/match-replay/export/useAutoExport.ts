@@ -20,7 +20,7 @@
  */
 import { createElement, useEffect, useRef, useState, type ReactNode } from 'react'
 
-import { fetchCameraScript, uploadExport } from '../camera-script/cameraScriptApi'
+import { fetchCameraScript, uploadExport, uploadExportCamera } from '../camera-script/cameraScriptApi'
 import { parseAutoExport, type AutoExportRequest, type AutoExportRefusal } from './autoExport'
 import type { Replay3DExportEntry } from './replay3dExportStore'
 import type { ReplayExport, ReplayExportState } from './useReplayExport'
@@ -141,6 +141,19 @@ export function useAutoExport(o: AutoExportInputs): { state: AutoExportState | n
     try {
       const res = await uploadExport(o.matchId, request.out, save.blob)
       if (!liveRef.current) return
+      // THE CAMERA TRACK goes up beside the clip (`<out>.camera.json`): the camera of every
+      // encoded frame, so a path is measured rather than judged by eye. A failure fails the run.
+      if (st.cameraTrack) {
+        await uploadExportCamera(o.matchId, request.out, {
+          version: 1,
+          matchId: o.matchId,
+          script: request.name,
+          fps: st.fps ?? null,
+          units: 'world units (1 = 3.048 m), z up',
+          samples: st.cameraTrack,
+        })
+        if (!liveRef.current) return
+      }
       // THE CLIP IS RELEASED ONCE IT IS UP: it is not a download to hold for a click.
       o.videoExport?.discardDone()
       setState({ status: 'done', path: res.path })

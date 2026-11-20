@@ -27,7 +27,7 @@ import { framesPerSecond, frameToMs } from '@/lib/replay/replayLogic'
 import { FirstPersonArms3d } from './firstPersonArms3d'
 import { firstPersonFolder } from './firstPersonRig3d'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
-import type { Export3dSetup, ExportTag3d, Replay3DExportSource } from '../export/replay3dExportStore'
+import type { Export3dSetup, ExportCamera3d, ExportTag3d, Replay3DExportSource } from '../export/replay3dExportStore'
 import type { Action3dInputs } from './action3dInputs'
 import { Ground, InkCache } from './actionKit'
 import { buildActionScene } from './actionLayers3d'
@@ -802,6 +802,18 @@ export class ReplayScene3d implements Replay3DExportSource {
   }
   exportFrame(frame: number): HTMLCanvasElement { return this.exportScene.exportFrame(frame) }
   exportTags(): readonly ExportTag3d[] { return this.exportScene.exportTags() }
+  exportCamera(): ExportCamera3d {
+    // three.js is y up with world y on -z (`toThree`): back to world [x, y, z] = [a, -c, b].
+    const w = (v: { x: number; y: number; z: number }): [number, number, number] => [v.x, -v.z, v.y]
+    const d = this.camera.getWorldDirection(new THREE.Vector3())
+    const t = this.cameraPlacement.lastScriptPose?.target
+    return {
+      pos: w(this.camera.position),
+      dir: w(d),
+      fov: this.camera.fov,
+      target: t ? w({ x: t[0], y: t[1], z: t[2] }) : null,
+    }
+  }
   /**
    * Loads still in flight: one gate counts the weapon models, armor and rigs (cf. `loadGate3d`),
    * and a held player's pose clip loads on its own (`poseClips`). Resolves true on a timeout.
