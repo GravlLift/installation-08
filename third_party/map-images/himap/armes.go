@@ -106,7 +106,7 @@ func (a *Arsenal) objet(ctx context.Context, id uint32, groupe string) (*Maillag
 	if mp == nil {
 		return nil, fmt.Errorf("%w : %08x", ErrSansModele, id)
 	}
-	m := &MaillageMonde{}
+	m := &MaillageMonde{avecNormales: true} // LOCAL-CHANGE (infinite-theater-3d): geometry_normales.go
 	m.poseModele(mp, PlacementScenario{Echelle: 1}.Instance())
 	// Les projecteurs d'ombre d'une arme ne servent a aucune vue : la vue projette l'ombre du modele.
 	m.Ombre = GroupeMaillage{}

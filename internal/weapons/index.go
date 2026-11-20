@@ -121,8 +121,9 @@ const EquipmentRuleCurrent = 2
 // parts) is read from its declared emissive_intensity and its tint map. 4: the weapons' idle
 // particle effects (idle_effects, the Shock Rifle's electricity) and their fx-* files. 5: the idle
 // effects' weapon functions carry their mapping (the Heatwave's `fx_camo_off` is 1 - camo).
-// 6: vehicle models and the Spartan's vehicle-seat animations.
-const SchemaCurrent = 6
+// 6: vehicle models and the Spartan's vehicle-seat animations. 7: the models carry the game's
+// vertex normals (himap geometry_normales.go), so the view shades them smooth instead of faceted.
+const SchemaCurrent = 7
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).

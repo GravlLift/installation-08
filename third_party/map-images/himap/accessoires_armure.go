@@ -179,7 +179,7 @@ func (a *Arsenal) ModeleAccessoire(ctx context.Context, e EntreeAccessoire) (*Ma
 		return nil, fmt.Errorf("%w: model %08x of hlmt %08x unreadable", ErrSansModele, id, e.Modele)
 	}
 	mp := lisModelePose(asset, groupe, varianteDuPlacement(ctx, a.geo, e.octets, e.Variante))
-	m := &MaillageMonde{SurfacesBrutes: true}
+	m := &MaillageMonde{SurfacesBrutes: true, avecNormales: true} // LOCAL-CHANGE (infinite-theater-3d): avecNormales
 	m.poseModele(&mp, PlacementScenario{Echelle: 1}.Instance())
 	m.Ombre = GroupeMaillage{}
 	if m.Structure.Triangles() == 0 {

@@ -49,6 +49,10 @@ type MaillageMonde struct {
 	// (armes, rig). Zero = coteSurface (256, comme avant). Pose par Arsenal.SurfaceCote avant
 	// la collecte de l'arme ou du rig.
 	surfaceCote int
+	// avecNormales (LOCAL-CHANGE (infinite-theater-3d)): the models placed by poseModele carry the
+	// game's vertex normals (geometry_normales.go). Set for an object or attachment model, never
+	// for a map, whose geometry is written as before.
+	avecNormales bool
 	teintesForge map[uint32]materiauTeinte
 	// stylesForge (LOCAL-CHANGE (infinite-theater-3d)): the variant's Forge styles by style id.
 	stylesForge map[int32]*StyleForge
@@ -312,6 +316,7 @@ func (g *GroupeMaillage) ajoute(m *Mesh, in Instance, marge float64) int {
 			}
 		}
 	}
+	g.ajouteNormales(m, in, int(base)) // LOCAL-CHANGE (infinite-theater-3d): geometry_normales.go
 	if g.Indices == nil {
 		g.Indices = map[uint32][]uint32{}
 	}

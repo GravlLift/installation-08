@@ -28,8 +28,10 @@ import (
 // the same version LevelUp's index carries (raw piece surfaces in
 // extras.surfaceBrute, material styles in extras.style, coatings and swatches).
 // Bumped when the build output changes the way the view reads it (the view's
-// ARMOR_INDEX_SCHEMA must accept it).
-const SchemaPieces = 2
+// ARMOR_INDEX_SCHEMA must accept it). 3: the pieces and attachments carry the
+// game's vertex normals (himap geometry_normales.go), the index unchanged: the
+// view reads 2 and 3 alike (ARMOR_INDEX_SCHEMAS).
+const SchemaPieces = 3
 
 // FileIndex is the library's index file; its presence says the build is complete.
 const FileIndex = "index.json"

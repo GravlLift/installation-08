@@ -83,6 +83,9 @@ type Mesh struct {
 	// UV : les trois jeux de coordonnees de texture par sommet ; un jeu vaut nil quand le LOD
 	// ne le porte pas lisible.
 	UV [NJeuxUV][][2]float32
+	// Normales (LOCAL-CHANGE (infinite-theater-3d)): the game's unit vertex normals, in the local
+	// frame; nil unless read (MeshAvecNormales, geometry_normales.go).
+	Normales [][3]float32
 }
 
 // PartMaillage : les triangles [Debut, Debut+Compte) de Mesh.Triangles, dessines avec le

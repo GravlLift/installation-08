@@ -20,7 +20,7 @@ func TestFirstPersonArmIndex(t *testing.T) {
 	if err := json.Unmarshal(raw, &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Schema != 2 || got.Skeleton.Bones[0] != "arm" || len(got.Pieces) != 1 || got.Pieces[0] != pieces[0] || got.Default["62059329"] != "13d24f1f" || got.Failures == nil {
+	if got.Schema != SchemaPieces ||got.Skeleton.Bones[0] != "arm" || len(got.Pieces) != 1 || got.Pieces[0] != pieces[0] || got.Default["62059329"] != "13d24f1f" || got.Failures == nil {
 		t.Fatalf("arm catalog: %s", raw)
 	}
 }

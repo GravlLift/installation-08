@@ -28,7 +28,8 @@ import (
 // Heatwave's fin markers turn a quarter about up: its vent points out of the fins). 6: an ammo
 // counter's digits carry all their images (himap.ImagesEmissives: the BR75, Bandit and Commando).
 // 7: each weapon's magazine size (WeaponEntry.Magazine), for the Shock Rifle's and Commando's gauges.
-const SchemaFirstPerson = 7
+// 8: the rigs carry the game's vertex normals (himap geometry_normales.go): smooth shading.
+const SchemaFirstPerson = 8
 
 // EffectMarker is a marker an idle effect emits at, on the rig: its name (StringID, hex), the bone
 // that carries it (its glTF node name), and its position and rotation (quaternion x, y, z, w) in the
