@@ -373,7 +373,7 @@ function carriedOf(f: Flight, frame: number, fps: number): Carried | null {
  * and a light of this strength and reach (u) on the bodies and walls around it, pulsed with the orb.
  */
 const PLASMA_CORE_HDR = 4
-const PLASMA_GLOW_LIGHT = 3
+const PLASMA_GLOW_LIGHT = 1.2
 const PLASMA_GLOW_RANGE = 2.5
 
 /** A flight's shooter or thrower, and the nature of what they fired. */
