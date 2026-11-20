@@ -147,7 +147,7 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 			outcomes[i] = rigOutcome{key: key, failed: true, reason: reason}
 			return nil
 		}
-		outcomes[i] = rigOutcome{key: key, file: file, rig: rig, markers: effectMarkers(ctx, a, s)}
+		outcomes[i] = rigOutcome{key: key, file: file, rig: rig, markers: effectMarkers(ctx, a, s), magazine: magazineSize(a, s)}
 		return nil
 	})
 	if buildErr != nil {
@@ -159,7 +159,7 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 			res.Skipped++
 			continue
 		}
-		idx.Weapons = append(idx.Weapons, WeaponEntry{Weapon: o.key, File: o.file, EffectMarkers: o.markers})
+		idx.Weapons = append(idx.Weapons, WeaponEntry{Weapon: o.key, File: o.file, EffectMarkers: o.markers, Magazine: o.magazine})
 		if !seenFile[o.file] {
 			seenFile[o.file] = true
 			idx.Rigs = append(idx.Rigs, o.rig)
@@ -218,12 +218,27 @@ func ResolveModule(ctx context.Context, opts Options) (string, string, error) {
 // (file, rig, markers) or a failure (reason), keyed by the weapon's key for the merge that
 // follows the pool.
 type rigOutcome struct {
-	key     string
-	file    string
-	rig     Rig
-	markers []EffectMarker
-	failed  bool
-	reason  string
+	key      string
+	file     string
+	rig      Rig
+	markers  []EffectMarker
+	magazine int
+	failed   bool
+	reason   string
+}
+
+// magazineSize reads the rounds the weapon's first magazine holds loaded; 0 without a magazine or
+// when its tag is unreadable.
+func magazineSize(a *himap.Arsenal, s himap.SourcesArme) int {
+	raw, err := a.TagArme(s.Arme)
+	if err != nil {
+		return 0
+	}
+	n, err := weaponicons.ReadMagazineSize(raw)
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
 }
 
 // buildRig writes one weapon's rig (sharing a file by content digest when already written

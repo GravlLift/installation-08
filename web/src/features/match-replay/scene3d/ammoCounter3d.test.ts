@@ -2,7 +2,7 @@
 import * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 
-import { INPUT_ONES, INPUT_TENS, counterImage, counterInput, findCounterQuads, readCounterImages, showRounds } from './ammoCounter3d'
+import { INPUT_MAGAZINE, INPUT_ONES, INPUT_TENS, counterImage, counterInput, findCounterQuads, readCounterImages, showRounds } from './ammoCounter3d'
 
 /** A digit quad as the library writes the BR75's: ten images in a strip, scaled to the first. */
 function digit(entree: number): THREE.Mesh {
@@ -30,6 +30,28 @@ describe('ammo counter', () => {
     expect(counterInput(INPUT_ONES, 36)).toBeCloseTo(0.6)
     expect(counterInput(INPUT_TENS, 5)).toBe(0)
     expect(counterInput(0x1234, 5)).toBeNull()
+  })
+
+  it("reads the Shock Rifle's diamonds as the magazine's fraction, full to empty", () => {
+    const diamonds = { entree: INPUT_MAGAZINE, min: 6, max: 0, nombre: 7 }
+    const image = (rounds: number) => counterImage(diamonds, counterInput(INPUT_MAGAZINE, rounds, 12)!)
+    expect(image(12)).toBe(0) // the largest diamond
+    expect(image(10)).toBe(1)
+    expect(image(2)).toBe(5)
+    expect(image(0)).toBe(6) // empty
+    expect(counterInput(INPUT_MAGAZINE, 5, null)).toBeNull() // no magazine size: left as it is
+  })
+
+  it("moves the Commando's bar with its magazine", () => {
+    const m = digit(INPUT_MAGAZINE)
+    ;(m.material as THREE.MeshStandardMaterial).userData.emissionImages = { entree: INPUT_MAGAZINE, min: 10, max: 0, nombre: 11 }
+    const quads = findCounterQuads(new THREE.Group().add(m))
+    showRounds(quads, 20, 20)
+    expect(offset(m)).toBeCloseTo(0)
+    showRounds(quads, 10, 20)
+    expect(offset(m)).toBeCloseTo(5 / 11)
+    showRounds(quads, 0, 20)
+    expect(offset(m)).toBeCloseTo(10 / 11)
   })
 
   it('shows a full BR75 magazine as 36, then 35 after a shot', () => {

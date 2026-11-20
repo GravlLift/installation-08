@@ -8,8 +8,14 @@
  * The library writes all the images side by side in one strip, scaled to show the first, and names
  * the input in the material's `extras.emissionImages`. The digits read `primary_ammunition_tens` and
  * `primary_ammunition_ones` (StringIDs below): each quad shows the digit of the rounds the HUD shows
- * for the weapon in hand (`hud3d_logic.magazineInHand`), its texture moved to that image. Other
- * inputs (the Stalker Rifle's and the Shock Rifle's gauges, names not resolved) keep their first image.
+ * for the weapon in hand (`hud3d_logic.magazineInHand`), its texture moved to that image.
+ *
+ * The Shock Rifle's diamonds (7 images, 6..0) and the Commando's bar (11 images, 10..0) read one more
+ * input, `INPUT_MAGAZINE` (name not resolved), read as the magazine's fraction: the rounds over the
+ * weapon's magazine size (the library index's `magazine`, the engine's primary_ammunition
+ * denominator). That reading is inferred: a full magazine picks the full image, and in the game the
+ * Shock Rifle's diamonds shrink with each shot. The Stalker Rifle's heat bar reads an input the
+ * film does not carry (weapon heat): it keeps its first image.
  */
 import * as THREE from 'three'
 
@@ -17,6 +23,8 @@ import * as THREE from 'three'
 export const INPUT_TENS = 0x96e4a1a4
 /** `primary_ammunition_ones` (StringID): the ones digit's input. */
 export const INPUT_ONES = 0x688cb12a
+/** The Shock Rifle's and the Commando's gauge input (StringID, name not resolved): the magazine's fraction. */
+export const INPUT_MAGAZINE = 0x90c78538
 
 /** A material's images, as the library writes them (`extras.emissionImages`). */
 export interface CounterImages {
@@ -38,11 +46,16 @@ export function readCounterImages(extras: { emissionImages?: unknown } | undefin
   return { entree: entree >>> 0, min, max, nombre }
 }
 
-/** counterInput is input `entree`'s value for `rounds` loaded: its digit over 10; null for an input not known. */
-export function counterInput(entree: number, rounds: number): number | null {
+/**
+ * counterInput is input `entree`'s value for `rounds` loaded out of a magazine of `magazine` (null:
+ * not known): a digit over 10, or the magazine's fraction; null for an input not known, or the
+ * fraction without a magazine size.
+ */
+export function counterInput(entree: number, rounds: number, magazine: number | null = null): number | null {
   const n = Math.max(0, Math.floor(rounds))
   if (entree >>> 0 === INPUT_TENS) return (Math.floor(n / 10) % 10) / 10
   if (entree >>> 0 === INPUT_ONES) return (n % 10) / 10
+  if (entree >>> 0 === INPUT_MAGAZINE) return magazine && magazine > 0 ? Math.min(1, n / magazine) : null
   return null
 }
 
@@ -74,18 +87,19 @@ export function findCounterQuads(root: THREE.Object3D): CounterQuad[] {
 const BASE = new WeakMap<THREE.Texture, number>()
 
 /**
- * showRounds moves each quad's texture to the digit of `rounds` its input reads; null leaves the
- * quads as they are (the film does not say, or the player is dead). Each quad's material has a
- * texture of its own: GLTFLoader clones a texture for each material that transforms it.
+ * showRounds moves each quad's texture to the image of `rounds` (out of `magazine`) its input reads;
+ * null rounds leave the quads as they are (the film does not say, or the player is dead). Each
+ * quad's material has a texture of its own: GLTFLoader clones a texture for each material that
+ * transforms it.
  */
-export function showRounds(quads: readonly CounterQuad[], rounds: number | null): void {
+export function showRounds(quads: readonly CounterQuad[], rounds: number | null, magazine: number | null = null): void {
   if (rounds == null || !Number.isFinite(rounds)) return
   for (const { mesh, spec } of quads) {
     const m = mesh.material
     if (Array.isArray(m) || !(m instanceof THREE.MeshStandardMaterial) || !m.emissiveMap) continue
     const map = m.emissiveMap
     if (!BASE.has(map)) BASE.set(map, map.offset.x)
-    const input = counterInput(spec.entree, rounds)
+    const input = counterInput(spec.entree, rounds, magazine)
     if (input == null) continue
     map.offset.x = BASE.get(map)! + counterImage(spec, input) / spec.nombre
   }

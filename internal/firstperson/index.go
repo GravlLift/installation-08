@@ -27,7 +27,8 @@ import (
 // rig (effectMarkers, the Shock Rifle's electricity in first person). 5: their rotation (the
 // Heatwave's fin markers turn a quarter about up: its vent points out of the fins). 6: an ammo
 // counter's digits carry all their images (himap.ImagesEmissives: the BR75, Bandit and Commando).
-const SchemaFirstPerson = 6
+// 7: each weapon's magazine size (WeaponEntry.Magazine), for the Shock Rifle's and Commando's gauges.
+const SchemaFirstPerson = 7
 
 // EffectMarker is a marker an idle effect emits at, on the rig: its name (StringID, hex), the bone
 // that carries it (its glTF node name), and its position and rotation (quaternion x, y, z, w) in the
@@ -98,6 +99,10 @@ type WeaponEntry struct {
 	// idle_effects), on the rig: the bone that carries each and its position in that bone's frame,
 	// GLB axes. Empty for a weapon without an idle effect.
 	EffectMarkers []EffectMarker `json:"effectMarkers"`
+	// Magazine: the rounds the weapon's first magazine holds loaded (weaponicons.ReadMagazineSize,
+	// the engine's primary_ammunition denominator); the viewer reads its ammo gauges (the Shock
+	// Rifle's diamonds, the Commando's bar) as the rounds over it. Left out without a magazine.
+	Magazine int `json:"magazine,omitempty"`
 }
 
 // Rig is one rig file.

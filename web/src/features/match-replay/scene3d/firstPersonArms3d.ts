@@ -114,6 +114,8 @@ export class FirstPersonArms3d {
   private readonly weaponFiles = new Map<string, string>()
   /** The idle-effect markers of each weapon's rig (the index's `effectMarkers`), by weapon key. */
   private readonly effectMarkers = new Map<string, readonly RigEffectMarker[]>()
+  /** Each weapon's magazine size (the index's `magazine`), by weapon key: its ammo gauges read the rounds over it. */
+  private readonly magazines = new Map<string, number>()
   /** The bones the markers hang on, found once per loaded rig root. */
   private readonly effectBones = new WeakMap<THREE.Object3D, Map<string, THREE.Object3D | null>>()
   private visible: THREE.Object3D | null = null
@@ -202,6 +204,7 @@ export class FirstPersonArms3d {
           this.weapons.set(weapon.weapon.toLowerCase(), rig)
           this.weaponFiles.set(rig.file, weapon.weapon.toLowerCase())
           if (weapon.effectMarkers?.length) this.effectMarkers.set(weapon.weapon.toLowerCase(), weapon.effectMarkers)
+          if (weapon.magazine && weapon.magazine > 0) this.magazines.set(weapon.weapon.toLowerCase(), weapon.magazine)
         }
       }
     } catch (error) {
@@ -277,7 +280,7 @@ export class FirstPersonArms3d {
     this.visible = entry.root
     this.visibleKey = weaponKey
     this.camouflage.apply(entry.root, camo)
-    showRounds(entry.counters, rounds)
+    showRounds(entry.counters, rounds, this.magazines.get(weaponKey!) ?? null)
     const pose = firstPersonPose(entry.rig, events, this.pose)
     for (let i = 0; i < entry.actionList.length; i++) entry.actionList[i].weight = 0
     const idle = entry.actions.get(entry.clip.name)!

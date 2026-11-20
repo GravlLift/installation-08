@@ -36,7 +36,8 @@ export interface RigEffectMarker {
 
 export interface FirstPersonIndex {
   schema: number
-  weapons: { weapon: string; file: string; effectMarkers?: RigEffectMarker[] }[]
+  /** `magazine`: the rounds the weapon's magazine holds loaded (schema 7; absent without one or in an older library). */
+  weapons: { weapon: string; file: string; effectMarkers?: RigEffectMarker[]; magazine?: number }[]
   rigs: FirstPersonRig[]
   failures: unknown[]
   textures: unknown
