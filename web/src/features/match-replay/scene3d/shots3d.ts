@@ -258,6 +258,8 @@ export class Shots3dLayer implements ActionLayer3d {
   private fps = 1
   private readonly a = new THREE.Vector3()
   private readonly b = new THREE.Vector3()
+  /** A round's end in the arc look's pull (`drawBurstArc`). */
+  private readonly roundTo = new THREE.Vector3()
   private readonly c = new THREE.Color()
   private readonly petalInk = new THREE.Color()
   private readonly muzzle = new THREE.Vector3()
@@ -376,6 +378,14 @@ export class Shots3dLayer implements ActionLayer3d {
       return
     }
     if (flightForm(shot.fam) === 'beam') {
+      // The arc look draws a pull's rounds with its first record (`shockBurst3d`), each at its own
+      // fire instant and landing where its hit lands, as the game look does; a later round's
+      // record draws its flash light only.
+      const burst = this.ctx.scriptShockLook?.() === 'arc' ? this.burstOf(shot.e) : null
+      if (burst) {
+        if (burst.burst.leader === shot.e) this.drawBurstArc(path, burst, age, tint, shot)
+        return
+      }
       // The shock shot: three beams, from muzzle to wall; its impact is at zero range, the
       // spark is born at the shot.
       this.drawShock(path, path.to, age, tint, shot)
@@ -452,16 +462,51 @@ export class Shots3dLayer implements ActionLayer3d {
    * each living its own tag life; the same spark as the beams. Every stroke is a blue-white core
    * and a dim glow in their own batches, which never thin below their minimum on-screen width.
    */
-  private drawShockArc(path: ShotPath, to: THREE.Vector3, age: number, tint: THREE.Color, shot: ShotLook): void {
+  private drawShockArc(path: ShotPath, to: THREE.Vector3, age: number, tint: THREE.Color, shot: ShotLook, seed = shot.e.seed): void {
     const arcs = this.arcPools()
     const fade = beamFade(age, SHOCK_BEAM_SECONDS)
-    if (fade > 0) for (const s of shockArcStrokes(path.from, to, shot.e.seed, shockJitterBucket(age))) this.arcStroke(arcs, s, fade, tint)
+    if (fade > 0) for (const s of shockArcStrokes(path.from, to, seed, shockJitterBucket(age))) this.arcStroke(arcs, s, fade, tint)
     if (path.hit && path.length > 1e-6) {
       const back = this.b.subVectors(path.from, to).divideScalar(path.length)
-      for (const s of shockImpactArcs(to, back, shot.e.seed, age)) this.arcStroke(arcs, s, 1, tint)
+      for (const s of shockImpactArcs(to, back, seed, age)) this.arcStroke(arcs, s, 1, tint)
     }
     const spark = path.hit ? impactAge(0, age) : null
     if (spark !== null) this.dots.add(to, null, IMPACT_RADIUS * (1 - spark / IMPACT_SECONDS), tint)
+  }
+
+  /**
+   * drawBurstArc : a pull's rounds in the arc look, each from its own fire instant (`age` less its
+   * delay after the pull's first round), on the same flights the game look draws (`drawBurstGame`):
+   * a round that hit a player lands on the victim's head or body, one that did not ends where its
+   * own record's flight ends, else along the aim between its neighbours as far as the pull's first
+   * flight reaches (FILL). Each round its own seed, so the three discharges differ.
+   */
+  private drawBurstArc(path: ShotPath, b: BurstShots, age: number, tint: THREE.Color, shot: ShotLook): void {
+    if (!path.to) return
+    for (const r of b.burst.rounds) {
+      const roundAge = age - (r.time - b.burst.leader.time) / this.fps
+      if (roundAge < 0) continue
+      const own = r.e ? this.pathOf(r.e, shot.view) : null
+      const fromKey = `${shot.view ? 'fp' : 'tp'}:${r.k}`
+      const from = own ? own.from : b.froms.get(fromKey) ?? b.froms.set(fromKey, path.from.clone()).get(fromKey)!
+      const target = b.targets[r.k]
+      let to: THREE.Vector3
+      let hit: boolean
+      if (target) {
+        to = this.roundTo.copy(target.point)
+        hit = true
+      } else if (own?.to) {
+        to = this.roundTo.copy(own.to)
+        hit = own.hit
+      } else {
+        const dir = this.roundDir(b, r.k, own, path, from)
+        if (!dir) continue
+        to = this.roundTo.copy(from).addScaledVector(dir, path.length)
+        hit = path.hit
+      }
+      const round: ShotPath = { from, to, hit, length: from.distanceTo(to) }
+      this.drawShockArc(round, to, roundAge, tint, shot, shot.e.seed + 101 * r.k)
+    }
   }
 
   /** gameShot: the shock shot draws the game look (`shockLook: 'game'` and a library shot for its weapon). */
