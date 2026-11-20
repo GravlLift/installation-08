@@ -78,6 +78,7 @@ function bodyFx(camo = 0): BodyFxState {
     overshieldColor: new THREE.Color(0.6, 1, 0.6),
     camoColor: new THREE.Color(1, 1, 1),
     shieldHit: null,
+    impacts: [],
   }
 }
 

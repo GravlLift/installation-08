@@ -152,6 +152,8 @@ export interface ActionLayer3d {
   riderHeadingAt?(xuid: string, frame: number): number | null
   /** The feet of victim `xuid`'s inert body at frame `frame` (three axes), written in `out`; null without a body. */
   corpseFeet?(xuid: string, frame: number, out: THREE.Vector3): THREE.Vector3 | null
+  /** The shots layer: a shot's drawn flight line (`Shots3dLayer.flightLine`). */
+  flightLine?(e: ShotFxEntry, frame: number): { from: THREE.Vector3; to: THREE.Vector3 } | null
   dispose(): void
 }
 
@@ -205,7 +207,8 @@ export class ActionScene3d {
     this.reloadsBySlot = reloadEpisodesBySlot(ctx.doc)
     this.meleesBySlot = actionsBySlot(ctx.doc, 'melee')
     this.firstPerson = prepareFirstPersonEvents(ctx.doc, (slot, frame) => held.at(slot, frame))
-    this.body = new BodyFx3d(ctx)
+    const flights = layers.find((l) => l.flightLine)
+    this.body = new BodyFx3d(ctx, flights ? (e, frame) => flights.flightLine?.(e, frame) ?? null : undefined)
     this.moves = new Motion3d(ctx, (slot, frame) => held.at(slot, frame))
     this.recoil = new ShooterRecoil(ctx.doc, () => ctx.inputs())
   }

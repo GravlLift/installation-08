@@ -34,6 +34,7 @@ import { buildActionScene } from './actionLayers3d'
 import type { ActionScene3d } from './actionScene3d'
 import type { SpartanArmory } from './armory3d'
 import { attachBoneOf, drawnWeapon, makeAvatar, placeBody, releaseWeapon, showBodyFx, showWeapon, wearSpartan, type Avatar } from './avatar3d'
+import { NO_IMPACTS } from './bodyShell3d'
 import { viewGripOf } from './viewGrip3d'
 import { BODY_CENTER, EYE_HEIGHT } from './body3d'
 import { placeTag } from './nameTags3d'
@@ -1005,7 +1006,7 @@ export class ReplayScene3d implements Replay3DExportSource {
         // film's fight and stay there (frozen at `at`, a hit's flood would light the whole hold).
         // Camo and overshield are the player's own state and are kept.
         const filmFx = this.action?.bodyFx(p.xuid, atFrame) ?? null
-        const fx = filmFx ? { ...filmFx, shield: NO_SHIELD_FX } : null
+        const fx = filmFx ? { ...filmFx, shield: NO_SHIELD_FX, impacts: NO_IMPACTS } : null
         const weaponModel = heldWeapon?.model ?? null
         const weaponKey = heldWeapon?.key ? weaponModelKey(heldWeapon.key) : null
         if (weaponModel && weaponKey && this.armory) void this.armory.paintWeapon(p.xuid, weaponKey, weaponModel)

@@ -286,6 +286,16 @@ export class Shots3dLayer implements ActionLayer3d {
     for (const pool of this.pools) pool.dispose()
   }
 
+  /**
+   * flightLine: shot `e`'s flight as this layer draws it at frame `frame` (from the muzzle toward where
+   * it ends), null with no readable heading. The shield impact on the victim reuses it
+   * (`shieldImpacts3d`), so the patch sits where the drawn tracer crosses the body.
+   */
+  flightLine(e: ShotFxEntry, frame: number): { from: THREE.Vector3; to: THREE.Vector3 } | null {
+    const path = this.pathOf(e, e.slot === this.ctx.firstPersonSlot(frame))
+    return path?.to ? (path as { from: THREE.Vector3; to: THREE.Vector3 }) : null
+  }
+
   private reindex(shotFx: readonly ShotFxEntry[]): void {
     this.source = shotFx
     this.sorted = [...shotFx].sort((p, q) => p.time - q.time)
