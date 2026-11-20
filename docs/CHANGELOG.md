@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2-test.2
+
+- The Shock Rifle's diamonds shrink with each shot in first person, as in the game (12 rounds, 3 a shot). The Stalker Rifle's heat bar and the window behind the Commando's digits stay as before. The first start after updating rebuilds the first-person weapons once more.
+- A player held in a camera script no longer floods with their team color when the film shows them taking a hit at the hold's moment.
+- A camera script can be rendered and its clip saved from a link, without clicks, for tools that render on their own.
+
 ## 0.1.2-test.1
 
 - The ammo counter on the BR75, Bandit and Commando shows your magazine in first person, the same number as the HUD, counting down as you fire and refilling on reload. It used to read 00. The digits are the game's own. Weapons held by other players and weapons on the ground still read 00, and the Stalker Rifle's and Shock Rifle's gauges stay as before. The first start after updating rebuilds the first-person weapons once.
