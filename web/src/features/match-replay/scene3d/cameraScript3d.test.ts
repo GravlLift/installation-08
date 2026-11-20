@@ -6,6 +6,7 @@ import {
   CAMERA_SCRIPT_MIN_KEY_GAP_MS,
   CAMERA_SCRIPT_NEAR_MAX,
   CAMERA_SCRIPT_NEAR_MIN,
+  CAMERA_SCRIPT_WEIGHT_MAX,
   circularMeanDeg,
   evaluateCameraScript,
   parseCameraScript,
@@ -24,6 +25,7 @@ import {
 } from './cameraScript3d'
 import { GAME_FOV_DEFAULT, verticalFovOf } from '../model/fovLogic'
 import { BODY_CENTER } from './body3d'
+import { CAMERA_WEIGHT_DAMPING } from './cameraWeight3d'
 
 // Player 'A' runs along +x at 10 u/s from x = 0 at t = 0, heading 0. Player 'B' stands at
 // (20, 5, 0), heading 90. Player 'H' stands at (0, 0, 0), heading 90 (for the heading frame).
@@ -983,3 +985,203 @@ describe('evaluateCameraScript (near)', () => {
     expect(eval_(back, 1000)!.near).toBeCloseTo(0.5, 9)
   })
 })
+
+describe('camera weight', () => {
+  type Extra = Partial<Omit<CameraKey, 't' | 'pos' | 'look'>>
+  const wk = (t: number, pos: ScriptPoint, look: ScriptPoint, extra: Extra = {}): CameraKey => ({ t, pos, look, ...extra })
+  /** The same script with every key's weight and lookWeight taken out (the scripted path). */
+  const unweighted = (s: CameraScript): CameraScript => ({
+    ...s,
+    keys: s.keys.map(({ weight: _w, lookWeight: _l, ...k }) => k),
+  })
+  const dist = (p: ScriptVec3, q: ScriptVec3): number => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2])
+  /** Player A runs +x at 10 u/s (fakeSubjects): the lag of a spring of settle T is 10 * zeta^2 * T / 2. */
+  const lagOf = (T: number): number => (10 * CAMERA_WEIGHT_DAMPING ** 2 * T) / 2
+
+  describe('parse', () => {
+    const raw = (extra: Record<string, unknown>) => ({
+      version: 1,
+      matchId: 'm',
+      name: 's',
+      keys: [{ t: 0, pos: { at: 'world', point: [0, 0, 0] }, look: { at: 'world', point: [1, 0, 0] }, ...extra }],
+    })
+
+    it('accepts weight and lookWeight in seconds, 0 to the max, and leaves them out when absent', () => {
+      expect(accepts(raw({ weight: 0.5, lookWeight: 0.2 })).keys[0]).toMatchObject({ weight: 0.5, lookWeight: 0.2 })
+      expect(accepts(raw({ weight: 0 })).keys[0].weight).toBe(0)
+      expect(accepts(raw({ weight: CAMERA_SCRIPT_WEIGHT_MAX })).keys[0].weight).toBe(3)
+      const k = accepts(raw({})).keys[0]
+      expect('weight' in k).toBe(false)
+      expect('lookWeight' in k).toBe(false)
+    })
+
+    it('rejects a weight that is not seconds in [0, 3], naming the key and the field', () => {
+      for (const bad of [-0.1, 3.01, '0.5', Number.NaN, Infinity, null]) {
+        expect(rejects(raw({ weight: bad }))).toBe('key 0: weight must be seconds in [0, 3]')
+        expect(rejects(raw({ lookWeight: bad }))).toBe('key 0: lookWeight must be seconds in [0, 3]')
+      }
+    })
+  })
+
+  // A few scripts that exercise every branch of the pose: a world move, a player follow with a
+  // heading offset and a look at a second player, a lens with a pulled focus, a clock with a freeze, a cut.
+  const samples = (): CameraScript[] => [
+    script([wk(0, w([0, 0, 2]), w([10, 0, 1])), wk(1500, w([5, 3, 2]), w([10, 2, 1])), wk(3000, w([9, -2, 4]), w([20, 0, 0]))]),
+    script([
+      wk(0, pl('A', { offset: [-4, 0, 2], relative: 'heading' }), pl('B')),
+      wk(2000, pl('A', { offset: [-2, 3, 1.5] }), pl('A'), { fov: 70 }),
+      wk(4000, pl('A', { offset: [3, 3, 1] }), pl('B'), { roll: 5 }),
+    ]),
+    script([
+      wk(0, w([0, -5, 2]), pl('A'), { aperture: 2, focus: pl('B') }),
+      wk(2000, w([4, -5, 2]), pl('A'), { aperture: 5.6 }),
+      wk(3000, w([4, -5, 2]), pl('B'), { ease: 'cut' }),
+      wk(4000, w([8, -3, 2]), pl('B')),
+    ]),
+    {
+      ...script([wk(0, pl('A', { offset: [-3, 0, 2] }), pl('A')), wk(3000, pl('A', { offset: [0, 4, 2] }), pl('A'))]),
+      clock: { startMs: 500, rates: [{ s: 0, rate: 1, ease: 'smooth' }, { s: 1000, rate: 0, ease: 'smooth' }, { s: 2000, rate: 1, ease: 'smooth' }] },
+    },
+  ]
+  const withWeight = (s: CameraScript, weight: number, lookWeight?: number): CameraScript => ({
+    ...s,
+    keys: s.keys.map((k) => ({ ...k, weight, ...(lookWeight !== undefined ? { lookWeight } : {}) })),
+  })
+  const times = [0, 1, 250, 999.5, 1000, 1700, 2000, 2500, 3000, 3333.3, 4000, 4500, 6000]
+
+  it('weight 0 is bit-identical to no weight', () => {
+    for (const s of samples()) {
+      const zero = withWeight(s, 0, 0)
+      for (const t of times) expect(eval_(zero, t)).toEqual(eval_(s, t))
+    }
+  })
+
+  it('a still target gives exactly the target', () => {
+    const still = script([wk(0, w([1, 2, 3]), w([4, 5, 6]), { weight: 1.5, lookWeight: 0.3 }), wk(2000, w([1, 2, 3]), w([4, 5, 6]))])
+    for (const t of [10, 500, 1999, 2000, 2400, 9000]) {
+      const pose = eval_(still, t)!
+      expect(pose.position).toEqual(toThreeOf([1, 2, 3]))
+      expect(pose.target).toEqual(toThreeOf([4, 5, 6]))
+    }
+  })
+
+  it('starts at rest on the run first key and comes to rest exactly on the last', () => {
+    const s = script([wk(0, w([0, 0, 2]), w([10, 0, 0]), { weight: 0.6 }), wk(1000, w([10, 0, 2]), w([20, 0, 0]))])
+    const raw = unweighted(s)
+    expect(eval_(s, 0)).toEqual(eval_(raw, 0))
+    // Lagging during the move, then on the last key exactly once the window is past it.
+    expect(eval_(s, 500)!.position[0]).toBeLessThan(eval_(raw, 500)!.position[0] - 0.5)
+    expect(eval_(s, 1000 + 3 * 600 + 20)).toEqual(eval_(raw, 1000 + 3 * 600 + 20))
+  })
+
+  it('follows a fast move like a heavy rig: monotone, overshoot under 3%, settled by the weight', () => {
+    const T = 0.6
+    const s = script([wk(0, w([0, 0, 2]), w([0, 20, 0]), { weight: T }), wk(250, w([10, 0, 2]), w([10, 20, 0]))])
+    let prev = -Infinity
+    let peak = 0
+    for (let t = 0; t <= 250 + 3000; t += 5) {
+      const x = eval_(s, t)!.position[0]
+      if (prev < 9.99) expect(x).toBeGreaterThanOrEqual(prev) // never backs up on the way
+      peak = Math.max(peak, x)
+      prev = x
+    }
+    expect(peak).toBeGreaterThan(10) // it does overshoot, slightly
+    expect(peak - 10).toBeLessThan(0.3) // 3% of the 10 u move
+    // Within 2% of the move a settle time after the scripted move ends.
+    for (let t = 250 + T * 1000; t <= 250 + 3 * T * 1000; t += 10) expect(Math.abs(eval_(s, t)!.position[0] - 10)).toBeLessThan(0.2)
+  })
+
+  it('is a pure function of script time: random order, shared cache, gives the fresh answer', () => {
+    const shared = fakeSubjects()
+    for (const s of samples().map((x) => withWeight(x, 0.4, 0.15))) {
+      const ts = Array.from({ length: 40 }, (_, i) => ((i * 4517) % 6000) + (i % 7) * 0.37) // a scrambled order
+      for (const t of ts) {
+        const cached = evaluateCameraScript(s, t, shared, BASE_FOV)
+        expect(cached).toEqual(eval_(s, t)) // eval_ uses a new subjects object: no cache
+      }
+      // A second pass in another order: the same bits again.
+      for (const t of [...ts].reverse()) expect(evaluateCameraScript(s, t, shared, BASE_FOV)).toEqual(eval_(s, t))
+    }
+  })
+
+  it('lags a moving player by an amount proportional to the weight', () => {
+    for (const T of [0.25, 0.5, 1]) {
+      const s = script([wk(0, pl('A', { offset: [-5, 0, 2] }), pl('A'), { weight: T }), wk(10000, pl('A', { offset: [-5, 0, 2] }), pl('A'))])
+      const raw = unweighted(s)
+      const t = 6000
+      expect(eval_(raw, t)!.position[0] - eval_(s, t)!.position[0]).toBeCloseTo(lagOf(T), 3)
+      expect(eval_(raw, t)!.target[0] - eval_(s, t)!.target[0]).toBeCloseTo(lagOf(T), 3)
+    }
+  })
+
+  it('lookWeight overrides the look point spring only', () => {
+    const s = script([
+      wk(0, pl('A', { offset: [-5, 0, 2] }), pl('A'), { weight: 1, lookWeight: 0.2 }),
+      wk(10000, pl('A', { offset: [-5, 0, 2] }), pl('A')),
+    ])
+    const raw = eval_(unweighted(s), 6000)!
+    const pose = eval_(s, 6000)!
+    expect(raw.position[0] - pose.position[0]).toBeCloseTo(lagOf(1), 3)
+    expect(raw.target[0] - pose.target[0]).toBeCloseTo(lagOf(0.2), 3)
+    // Only a lookWeight: the position is the scripted path exactly.
+    const lookOnly = script([wk(0, pl('A', { offset: [-5, 0, 2] }), pl('A'), { lookWeight: 0.5 }), wk(10000, pl('A'), pl('A'))])
+    const p = eval_(lookOnly, 6000)!
+    expect(p.position).toEqual(eval_(unweighted(lookOnly), 6000)!.position)
+    expect(eval_(unweighted(lookOnly), 6000)!.target[0] - p.target[0]).toBeGreaterThan(1)
+  })
+
+  it('carries a weight across its run (earlier first, else later) and resets it at a cut', () => {
+    const P = (x: number): ScriptPoint => pl('A', { offset: [x, 0, 2] })
+    const carried = script([wk(0, P(-5), pl('A')), wk(1000, P(-4), pl('A'), { weight: 0.5 }), wk(2000, P(-3), pl('A')), wk(3000, P(0), pl('A'), { ease: 'cut' }), wk(5000, P(2), pl('A'))])
+    const explicit = script([
+      wk(0, P(-5), pl('A'), { weight: 0.5 }),
+      wk(1000, P(-4), pl('A'), { weight: 0.5 }),
+      wk(2000, P(-3), pl('A'), { weight: 0.5 }),
+      wk(3000, P(0), pl('A'), { ease: 'cut' }),
+      wk(5000, P(2), pl('A')),
+    ])
+    const raw = unweighted(carried)
+    for (const t of [500, 1500, 2500, 2999]) expect(eval_(carried, t)).toEqual(eval_(explicit, t))
+    expect(dist(eval_(carried, 2500)!.position, eval_(raw, 2500)!.position)).toBeGreaterThan(1)
+    // The cut: its first key exactly, then the unweighted run (the weight does not cross it).
+    for (const t of [3000, 3001, 4000, 5000, 6000]) expect(eval_(carried, t)).toEqual(eval_(raw, t))
+    // A weighted run after a cut starts at rest on its own first key.
+    const after = script([wk(0, P(-5), pl('A'), { weight: 1 }), wk(3000, P(0), pl('A'), { ease: 'cut', weight: 0.5 }), wk(5000, P(2), pl('A'))])
+    expect(eval_(after, 3000)).toEqual(eval_(unweighted(after), 3000))
+    const rest = toThreeOf([30 + 0, 0, 2]) // the cut key's point at t = 3000
+    expect(dist(eval_(after, 3020)!.position, rest)).toBeLessThan(0.05) // barely moved: at rest on the cut, not the old run's lag
+  })
+
+  it('settles onto a frozen world while the script time runs', () => {
+    const s: CameraScript = {
+      ...script([wk(0, pl('A', { offset: [-5, 0, 2] }), pl('A'), { weight: 0.5 }), wk(6000, pl('A', { offset: [-5, 0, 2] }), pl('A'))]),
+      clock: { startMs: 0, rates: [{ s: 0, rate: 1, ease: 'linear' }, { s: 1000, rate: 0, ease: 'cut' }] },
+    }
+    const raw = unweighted(s)
+    // Frozen from s = 1000 (document ms 1000): lagging just after, exactly on the frozen target once settled.
+    expect(eval_(raw, 1100)!.position[0] - eval_(s, 1100)!.position[0]).toBeGreaterThan(0.5)
+    expect(eval_(s, 1000 + 3 * 500 + 20)).toEqual(eval_(raw, 1000 + 3 * 500 + 20))
+  })
+
+  it('costs well under a millisecond per frame of playback', () => {
+    const s = withWeight(samples()[1], 0.5, 0.25)
+    const shared = fakeSubjects()
+    for (let t = 0; t < 1000; t += 1000 / 60) evaluateCameraScript(s, t, shared, BASE_FOV) // warm the cache and the JIT
+    const frames = 360
+    const start = performance.now()
+    for (let i = 0; i < frames; i++) evaluateCameraScript(s, 1000 + (i * 1000) / 60, shared, BASE_FOV)
+    const perFrame = (performance.now() - start) / frames
+    const coldStart = performance.now()
+    eval_(s, 3500) // a scrub: every sample of the window fresh
+    const cold = performance.now() - coldStart
+    const rawStart = performance.now()
+    for (let i = 0; i < frames; i++) eval_(samples()[1], 1000 + (i * 1000) / 60)
+    const rawPerFrame = (performance.now() - rawStart) / frames
+    console.info(`camera weight: ${perFrame.toFixed(3)} ms per frame (unweighted ${rawPerFrame.toFixed(3)} ms), a scrub ${cold.toFixed(2)} ms`)
+    expect(perFrame).toBeLessThan(1)
+  })
+})
+
+function toThreeOf(p: ScriptVec3): ScriptVec3 {
+  return [p[0], p[2], -p[1]]
+}
