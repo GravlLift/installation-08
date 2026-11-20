@@ -86,7 +86,7 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
    setting applies.
 
 7. **Evaluation is one pure function**, `evaluateCameraScript(script, tMs, resolve)`, that returns
-   `{ position, target, verticalFov, rollDeg, focusDistance, aperture, shake }` in three.js
+   `{ position, target, verticalFov, rollDeg, focusDistance, aperture, shake, near }` in three.js
    coordinates (the lens and shake: decision 10). The screen loop, scrubbing
    and the export all reach it through `ReplayCamera3d.placeCamera`, which the export already calls
    with each frame (`replayExportScene3d.ts`, `exportFrame`). One path means the video matches what
@@ -196,6 +196,19 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
   (the exact distance from the camera to the target). In a run where some key has one, each key's
   focus distance (its look distance when it has none) follows the same C1 curve as `fov`: a focus
   pull. The pose carries `focusDistance` (world units) and `aperture`, both null without depth of field.
+- `near` (optional, per key): the camera's near clipping plane in WORLD UNITS (1 u = 3.048 m, the
+  unit of offsets and focus distances), 0.01 to 10. Map geometry nearer to the camera than `near`
+  (a depth along the view axis) is clipped away and never drawn, so the camera can sit behind a
+  wall and see through it: a cutaway. A key without one takes the nearest earlier key's `near` IN
+  ITS RUN, else the nearest later key's in the run; a run where no key has one keeps the view's
+  own near plane (0.02 u) exactly, so a cutaway never leaks across a cut into the next shot.
+  Between keys it follows the same C1 curve as `fov`. The pose carries `near` (null: the view's
+  own); `placeScripted` sets it on the camera and rebuilds the projection, and the camera's own
+  near plane returns when the run has none, the camera leaves Free, or the script stops. The far
+  plane never moves. The shadow maps have their own cameras and are unaffected; ambient occlusion
+  and the depth of field read `camera.near` every frame; the team outline's mask renders through
+  the same camera, so a player nearer than `near` is clipped there too. Players are clipped like
+  the map: keep `near` short of the subject.
 - `shakes` (optional, top level): at most 64 entries sorted by `at`, each
   `{ "at": 4200, "amp": 1.5, "decay": 250, "freq": 12 }`: `at` script ms (at least 0) where the
   jolt starts; `amp` its starting size in degrees of rotation, in (0, 10]; `decay` its e-folding
@@ -254,6 +267,12 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
   returns. It is a pure function of the frame: a longer hold only changes which bodies are present
   at a frame. A ragdoll bake is at most 4 s long; a body held past it keeps the last baked pose.
   Use it when a shot needs two bodies down together (a posthumous winner and their victim).
+- `outlines` (optional, top level, boolean, default true): `false` takes the team outline
+  (`scene3d/outline3d.ts`: its mask pass and its line pass) out of the frame while the script
+  drives the camera (free camera, on screen and in the export alike): no team line, no X-ray
+  silhouettes through walls, and no cost (the compositor skips both passes). It only turns the
+  outline off: with the console's `outline` knob off (`perfToggles3d`), a script never turns it
+  on. When the script stops, the knob's state returns (`replayScene3d.applyOutline`).
 - Validation rejects an unknown `version`, a `matchId` that differs from the route's, a key with
   no `pos` or `look`, a non-finite number, an out-of-range `fov`, and more than 512 keys. A
   player anchor whose xuid is not in the match is not a validation error: it resolves to null, and
@@ -320,10 +339,16 @@ view selector at the top left.
 - **Camera track**: an export run by URL (`#/matches/<id>?autoexport=<script>...`) also uploads
   the camera of every encoded frame to `PUT /api/matches/{id}/exports/{name}/camera`, stored as
   `exports\<name>.camera.json` beside the clip (`GET` the same path to read it):
-  `{version:1, matchId, script, fps, units, samples:[{i, frame, scriptMs, pos, dir, fov, target}]}`
+  `{version:1, matchId, script, fps, units, samples:[{i, frame, scriptMs, pos, dir, fov, target, sightBlockedAt, nearCover}]}`
   in world coordinates (world units, z up); `fov` is the camera's VERTICAL degrees, `target` the
   script's look point. A camera path is measured from it (speed, turn rate, distance to the
-  subject) instead of judged by eye.
+  subject) instead of judged by eye. `sightBlockedAt` is the distance from the camera to the first
+  map surface between it and `target` (null: clear); surfaces nearer than the camera's near plane
+  are clipped away and ignored, so a cutaway (`near`) is not flagged. `nearCover` (0 to 1) is the
+  share of the frame covered by map geometry nearer than 35% of the camera-to-target distance and
+  beyond the near plane, from a 12 x 7 grid of first-hit rays through the frame against the same
+  surfaces (`scene3d/cameraSight3d.ts`): it catches a wall slab filling a third of the shot. Both
+  are null without a target.
 - **Motion blur** (`&blur=<subframes 1..32>`, default 1 = off; `&shutter=<degrees 1..360>`,
   default 180): each file frame is the GPU average, in linear light, of N subframes centered on
   the frame's time and spread over `shutter / 360` of the frame interval

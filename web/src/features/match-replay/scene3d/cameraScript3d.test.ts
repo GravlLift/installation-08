@@ -4,10 +4,13 @@ import { describe, expect, it } from 'vitest'
 import {
   CAMERA_SCRIPT_MIN_FOCUS_U,
   CAMERA_SCRIPT_MIN_KEY_GAP_MS,
+  CAMERA_SCRIPT_NEAR_MAX,
+  CAMERA_SCRIPT_NEAR_MIN,
   circularMeanDeg,
   evaluateCameraScript,
   parseCameraScript,
   scriptClockOf,
+  scriptOutlines,
   shakeAt,
   type CameraKey,
   type CameraShake,
@@ -874,5 +877,109 @@ describe('shakeAt', () => {
   it('reaches the pose from the script', () => {
     const s: CameraScript = { ...script([key(0, w([0, 0, 0]), w([1, 0, 0]))]), shakes }
     expect(eval_(s, 1123)!.shake).toEqual(shakeAt(shakes, 1123))
+  })
+})
+
+describe('parseCameraScript (outlines)', () => {
+  const raw = (outlines: unknown): Record<string, unknown> => ({ ...script([key(0, w([0, 0, 0]), w([1, 0, 0]))]), outlines })
+
+  it('keeps true and false', () => {
+    expect(accepts(raw(false)).outlines).toBe(false)
+    expect(accepts(raw(true)).outlines).toBe(true)
+  })
+
+  it('leaves it out when absent, which draws the outline', () => {
+    const s = accepts(script([key(0, w([0, 0, 0]), w([1, 0, 0]))]))
+    expect('outlines' in s).toBe(false)
+    expect(scriptOutlines(s)).toBe(true)
+    expect(scriptOutlines(null)).toBe(true)
+    expect(scriptOutlines(accepts(raw(true)))).toBe(true)
+    expect(scriptOutlines(accepts(raw(false)))).toBe(false)
+  })
+
+  it('rejects anything but a boolean', () => {
+    for (const v of [0, 1, 'false', null, {}]) expect(rejects(raw(v))).toContain('outlines')
+  })
+})
+
+const nearKey = (t: number, nearU: number | undefined, extra: Partial<Pick<CameraKey, 'ease'>> = {}): CameraKey =>
+  ({ t, pos: w([0, 0, 0]), look: w([4, 0, 0]), ...(nearU === undefined ? {} : { near: nearU }), ...extra })
+
+describe('parseCameraScript (near)', () => {
+  it('keeps a valid near, range ends included', () => {
+    for (const v of [CAMERA_SCRIPT_NEAR_MIN, 1.5, CAMERA_SCRIPT_NEAR_MAX]) {
+      expect(accepts(script([nearKey(0, v)])).keys[0].near).toBe(v)
+    }
+    expect(CAMERA_SCRIPT_NEAR_MIN).toBe(0.01)
+    expect(CAMERA_SCRIPT_NEAR_MAX).toBe(10)
+  })
+
+  it('leaves it out when absent', () => {
+    expect('near' in accepts(script([nearKey(0, undefined)])).keys[0]).toBe(false)
+  })
+
+  it('rejects a near out of [0.01, 10] or not a finite number, naming the key', () => {
+    for (const v of [0, 0.009, 10.01, -1, Number.NaN, Number.POSITIVE_INFINITY, '1' as unknown as number, null as unknown as number]) {
+      const error = rejects(script([nearKey(0, undefined), nearKey(1000, v)]))
+      expect(error).toContain('key 1')
+      expect(error).toContain('near')
+    }
+  })
+})
+
+describe('evaluateCameraScript (near)', () => {
+  it('is null on every frame when no key carries one (the view keeps its own near plane)', () => {
+    const s = script([nearKey(0, undefined), nearKey(1000, undefined), nearKey(2000, undefined, { ease: 'cut' })])
+    for (const t of [-100, 0, 500, 1000, 1500, 2000, 3000]) expect(eval_(s, t)!.near).toBeNull()
+  })
+
+  it('holds the key value at each key and before the first', () => {
+    const s = script([nearKey(0, 2), nearKey(1000, 6)])
+    expect(eval_(s, -50)!.near).toBeCloseTo(2, 9)
+    expect(eval_(s, 0)!.near).toBeCloseTo(2, 9)
+    expect(eval_(s, 1000)!.near).toBeCloseTo(6, 9)
+    expect(eval_(s, 1500)!.near).toBeCloseTo(6, 9)
+  })
+
+  it('moves on the C1 curve between keys: monotone, no overshoot, smooth through a middle key', () => {
+    const s = script([nearKey(0, 1), nearKey(1000, 3), nearKey(2000, 9)])
+    const mid = eval_(s, 500)!.near!
+    expect(mid).toBeGreaterThan(1)
+    expect(mid).toBeLessThan(3)
+    let prev = -Infinity
+    for (let t = 0; t <= 2000; t += 25) {
+      const v = eval_(s, t)!.near!
+      expect(v).toBeGreaterThanOrEqual(prev - 1e-9) // never runs backward
+      expect(v).toBeGreaterThanOrEqual(1 - 1e-9)
+      expect(v).toBeLessThanOrEqual(9 + 1e-9)
+      prev = v
+    }
+    // C1 through key 1: the slope just before equals the slope just after.
+    const h = 1e-3
+    const before = (eval_(s, 1000)!.near! - eval_(s, 1000 - h)!.near!) / h
+    const after = (eval_(s, 1000 + h)!.near! - eval_(s, 1000)!.near!) / h
+    expect(after).toBeCloseTo(before, 3)
+    expect(before).toBeGreaterThan(0) // the move does not stop at the middle key
+  })
+
+  it('carries a near across the keys of its run: earlier first, else later', () => {
+    const s = script([nearKey(0, undefined), nearKey(1000, 3), nearKey(2000, undefined), nearKey(3000, 5)])
+    // Key 0 takes the later key 1's (no earlier), key 2 takes key 1's (the nearest earlier).
+    expect(eval_(s, 0)!.near).toBeCloseTo(3, 9)
+    expect(eval_(s, 500)!.near).toBeCloseTo(3, 9) // 3 to 3: flat
+    expect(eval_(s, 1500)!.near).toBeCloseTo(3, 9)
+    expect(eval_(s, 2000)!.near).toBeCloseTo(3, 9)
+    expect(eval_(s, 3000)!.near).toBeCloseTo(5, 9)
+  })
+
+  it('never crosses a cut: a run without a near is the view near plane', () => {
+    const s = script([nearKey(0, 4), nearKey(1000, undefined), nearKey(2000, undefined, { ease: 'cut' }), nearKey(3000, undefined)])
+    expect(eval_(s, 500)!.near).toBeCloseTo(4, 9)
+    expect(eval_(s, 1000)!.near).toBeCloseTo(4, 9)
+    expect(eval_(s, 2000)!.near).toBeNull() // the cut starts a run with no near
+    expect(eval_(s, 2500)!.near).toBeNull()
+    const back = script([nearKey(0, undefined), nearKey(1000, undefined, { ease: 'cut' }), nearKey(2000, 0.5)])
+    expect(eval_(back, 500)!.near).toBeNull() // a later run's near does not reach back over the cut
+    expect(eval_(back, 1000)!.near).toBeCloseTo(0.5, 9)
   })
 })

@@ -6,6 +6,7 @@ import { buildFilmAllegiance } from '@/lib/replay/filmAllegiance'
 import type { ReplayPlayer } from '@/lib/replay/rosterLogic'
 
 import type { ActionContext } from './actionScene3d'
+import { scriptOutlines, type CameraScript } from './cameraScript3d'
 import { BodyFx3d } from './bodyFx3d'
 import type { BodyFxState } from './bodyShell3d'
 import { FLARE_PX, maskDrawOf, Outline3d, OUTLINE_PX, projectedHeightPx, STAND_BELOW_PX } from './outline3d'
@@ -211,5 +212,29 @@ it('prepares both mask paths and restores the subjects even if the render fails'
   })).toThrow('render')
   expect(o.subjectsOf()).toEqual([{ root: previous, ally: false, flare: 0 }])
   expect(o.maskPass.enabled).toBe(false)
+  o.dispose()
+})
+
+it("setDrawn takes both passes out and puts them back; a script's outlines:false only adds to the knob", () => {
+  const o = new Outline3d(new THREE.PerspectiveCamera())
+  expect(o.drawn).toBe(true)
+  // The scene's rule (`replayScene3d.applyOutline`): the knob, and the playing script's switch.
+  const apply = (knob: boolean, script: CameraScript | null) => o.setDrawn(knob && scriptOutlines(script))
+  const base = { version: 1 as const, matchId: 'm', name: 's', keys: [] }
+  apply(true, { ...base, outlines: false })
+  expect(o.maskPass.enabled).toBe(false)
+  expect(o.linePass.enabled).toBe(false)
+  expect(o.drawn).toBe(false)
+  apply(true, null) // the script stops: the knob's state returns
+  expect(o.maskPass.enabled).toBe(true)
+  expect(o.linePass.enabled).toBe(true)
+  apply(true, { ...base, outlines: true })
+  expect(o.drawn).toBe(true)
+  apply(true, base) // absent: drawn
+  expect(o.drawn).toBe(true)
+  apply(false, base) // the user's knob off: a script never turns it back on
+  expect(o.drawn).toBe(false)
+  apply(false, null)
+  expect(o.drawn).toBe(false)
   o.dispose()
 })

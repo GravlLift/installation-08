@@ -147,6 +147,20 @@ export class Outline3d {
     this.linePass = new OutlinePass((renderer, read, write, screen) => this.drawLine(renderer, read, write, screen), true)
   }
 
+  /** drawn: both passes are in the frame. */
+  get drawn(): boolean {
+    return this.maskPass.enabled && this.linePass.enabled
+  }
+
+  /**
+   * setDrawn puts both passes in the frame or takes them out: off, the compositor skips them, so
+   * the outline costs nothing (no mask render, no line) and nothing of it shows, X-ray included.
+   */
+  setDrawn(on: boolean): void {
+    this.maskPass.enabled = on
+    this.linePass.enabled = on
+  }
+
   /** begin empties the frame's player list. */
   begin(): void {
     this.count = 0

@@ -56,7 +56,8 @@ import { serialize } from './serialiser3d'
 import { now, measureDuration, timedSync } from './perf3d'
 import { probeSurface, type SurfaceProbe } from './surfaceProbe3d'
 import { aimDirThree, toThree, type PlayerState3d, type Tracks3d } from './tracks3d'
-import { scriptClockOf, type CameraScript, type ScriptClockView, type ScriptSubjects } from './cameraScript3d'
+import { scriptClockOf, scriptOutlines, type CameraScript, type ScriptClockView, type ScriptSubjects } from './cameraScript3d'
+import { nearCoverOf, SIGHT_MIN_AXIS_COS, sightBlockOf, type SightCast } from './cameraSight3d'
 import { activeHolds, holdStateAt, lerpHeading, type Hold, type HoldState } from './hold3d'
 import { heroRigOf, heroRimTint, resolveHeroLight, type Vec3 as HeroVec3 } from './heroLights3d'
 import { clearHeroRigs, setHeroRigs, type HeroRigUniform } from './heroLightShader3d'
@@ -174,6 +175,8 @@ export class ReplayScene3d implements Replay3DExportSource {
   /** The console's performance knobs (perfToggles3d), read at each frame. */
   private readonly knobs: PerfToggles = { ...PERF_TOGGLES_DEFAULT }
   private lookOcclusion = true
+  /** The console's outline knob as last read (with post-processing on); a script can only turn the outline off on top of it. */
+  private knobOutline = true
   /** The look's glow animation (`Look3d.glowAnimation`): off, the self-lit surfaces stay still and nothing runs per frame. */
   private lookGlow = true
   /** The match duration of a document frame (ms), the glow animation's clock (`frameToMs`). */
@@ -493,6 +496,17 @@ export class ReplayScene3d implements Replay3DExportSource {
   private applyFilmLook(topView: boolean): void {
     const script = topView ? null : this.cameraPlacement.activeScript()
     this.post.setFilmLook(script?.look ?? null, this.cameraPlacement.scriptTime())
+    this.applyOutline()
+  }
+
+  /**
+   * applyOutline draws the team outline as the console's knob says (`knobOutline`), unless the
+   * playing camera script turns it off (`outlines: false`, `scriptOutlines`); when the script
+   * stops the knob's state returns. Run with the film look before every drawn frame (screen and
+   * export) and after the knobs are read (screen).
+   */
+  private applyOutline(): void {
+    this.post.outline.setDrawn(this.knobOutline && scriptOutlines(this.cameraPlacement.activeScript()))
   }
 
   /**
@@ -766,8 +780,8 @@ export class ReplayScene3d implements Replay3DExportSource {
   private applyKnobs(): PerfToggles {
     const k = currentPerfToggles(this.knobs)
     const fx = k.postFx
-    this.post.outline.maskPass.enabled = fx && k.outline
-    this.post.outline.linePass.enabled = fx && k.outline
+    this.knobOutline = fx && k.outline
+    this.applyOutline()
     this.post.gtao.enabled = fx && k.ao && this.lookOcclusion
     if (this.post.bloom) this.post.bloom.enabled = fx && k.bloom
     if (this.post.dof) this.post.dof.enabled = fx
@@ -833,46 +847,81 @@ export class ReplayScene3d implements Replay3DExportSource {
     const w = (v: { x: number; y: number; z: number }): [number, number, number] => [v.x, -v.z, v.y]
     const d = this.camera.getWorldDirection(new THREE.Vector3())
     const t = this.cameraPlacement.lastScriptPose?.target
+    const target = t ? new THREE.Vector3(t[0], t[1], t[2]) : null
     return {
       pos: w(this.camera.position),
       dir: w(d),
       fov: this.camera.fov,
       target: t ? w({ x: t[0], y: t[1], z: t[2] }) : null,
-      sightBlockedAt: t ? this.sightBlockedAt(new THREE.Vector3(t[0], t[1], t[2])) : null,
+      sightBlockedAt: target ? this.sightBlockedAt(target, d) : null,
+      nearCover: target ? this.nearCover(target, d) : null,
     }
   }
 
   /**
-   * The distance from the camera to the first MAP surface between it and `target` (world units),
-   * or null when the line of sight is clear. Cast BOTH ways: a camera inside a wall sees only that
-   * wall's back faces, which a front-face raycast skips; from the target the same wall is a front
-   * face. The last LOS_TARGET_MARGIN before the target is not tested (the subject's own floor).
+   * withSightCast runs `measure` with a first-hit cast against the ground surfaces (the map's,
+   * then the posed layer's), the shared raycaster's state saved and restored around it; null
+   * without surfaces.
    */
-  private sightBlockedAt(target: THREE.Vector3): number | null {
-    const LOS_TARGET_MARGIN = 0.1
+  private withSightCast<T>(measure: (cast: SightCast) => T): T | null {
     const surfaces = this.groundSurfaces()
-    const cam = this.camera.position
-    const len = cam.distanceTo(target)
-    if (surfaces.length === 0 || len <= LOS_TARGET_MARGIN) return null
+    if (surfaces.length === 0) return null
     const rc = this.raycaster
     const saved = { far: rc.far, near: rc.near, first: rc.firstHitOnly }
+    const origin = new THREE.Vector3()
+    const dir = new THREE.Vector3()
     try {
       rc.firstHitOnly = true
-      rc.near = 0
-      rc.far = len - LOS_TARGET_MARGIN
-      const dir = target.clone().sub(cam).normalize()
-      rc.set(cam, dir)
-      const fromCam = rc.intersectObjects(surfaces, false)[0]
-      let best = fromCam ? fromCam.distance : Infinity
-      rc.set(target.clone().addScaledVector(dir, -LOS_TARGET_MARGIN), dir.clone().negate())
-      const fromTarget = rc.intersectObjects(surfaces, false)[0]
-      if (fromTarget) best = Math.min(best, len - LOS_TARGET_MARGIN - fromTarget.distance)
-      return Number.isFinite(best) ? Math.max(0, best) : null
+      return measure((o, d, near, far) => {
+        rc.near = near
+        rc.far = far
+        rc.set(origin.set(o[0], o[1], o[2]), dir.set(d[0], d[1], d[2]))
+        const hit = rc.intersectObjects(surfaces, false)[0]
+        return hit ? hit.distance : null
+      })
     } finally {
       rc.far = saved.far
       rc.near = saved.near
       rc.firstHitOnly = saved.first
     }
+  }
+
+  /**
+   * The distance from the camera to the first MAP surface between it and `target` (world units),
+   * or null when the line of sight is clear (`sightBlockOf`: cast both ways, hits nearer than the
+   * camera's near plane ignored, so a cutaway through a wall is not flagged). `forward`: the
+   * camera's unit view direction (three axes).
+   */
+  private sightBlockedAt(target: THREE.Vector3, forward: THREE.Vector3): number | null {
+    const cam = this.camera.position
+    return this.withSightCast((cast) =>
+      sightBlockOf([cam.x, cam.y, cam.z], [target.x, target.y, target.z], this.camera.near, [forward.x, forward.y, forward.z], cast),
+    )
+  }
+
+  /**
+   * The fraction of the frame covered by map geometry nearer than 35% of the camera-to-target
+   * distance and beyond the near plane (`nearCoverOf`, a 12 x 7 grid of first-hit rays through
+   * the frame); 0 without surfaces. `forward`: the camera's unit view direction (three axes).
+   */
+  private nearCover(target: THREE.Vector3, forward: THREE.Vector3): number {
+    const camera = this.camera
+    camera.updateMatrixWorld()
+    const lookDistance = camera.position.distanceTo(target)
+    const ndc = new THREE.Vector2()
+    const ray = new THREE.Raycaster()
+    return this.withSightCast((cast) =>
+      nearCoverOf(camera.near, lookDistance, (x, y, minDepth, maxDepth) => {
+        // The ray through the NDC point (a scratch raycaster: the shared one is the cast's), and
+        // its cosine to the view axis to turn depths into distances along it.
+        ray.setFromCamera(ndc.set(x, y), camera)
+        const o = ray.ray.origin
+        const d = ray.ray.direction
+        const cos = Math.max(SIGHT_MIN_AXIS_COS, d.dot(forward))
+        const hit = cast([o.x, o.y, o.z], [d.x, d.y, d.z], minDepth / cos, maxDepth / cos)
+        return hit === null ? null : hit * cos
+      }),
+    ) ?? 0
   }
   /**
    * Loads still in flight: one gate counts the weapon models, armor and rigs (cf. `loadGate3d`),

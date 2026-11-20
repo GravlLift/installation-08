@@ -55,6 +55,8 @@ export class ReplayCamera3d {
   private scriptMs = 0
   /** The pose of the last scripted placement, null until the script places a camera. */
   lastScriptPose: ScriptPose | null = null
+  /** The camera's own near plane while a script's `near` replaces it, else null (nothing to restore). */
+  private savedNear: number | null = null
 
   constructor(state: CameraState) { this.state = state }
 
@@ -78,6 +80,7 @@ export class ReplayCamera3d {
     if (!script) {
       this.lastScriptPose = null
       this.state.setLens?.(null)
+      this.restoreNear()
     }
   }
 
@@ -104,6 +107,7 @@ export class ReplayCamera3d {
     const { state: s, status } = this.povState(f)
     if (this.scripted()) { this.placeScripted(); return status }
     this.state.setLens?.(null)
+    this.restoreNear()
     if (!s || this.state.mode === 'free') return status
     // In first person, a dead player follows their ragdoll in third person, or keeps their last eye.
     if (this.state.mode === 'fp' && status === 'dead') { this.placeDead(f, s); return status }
@@ -125,13 +129,15 @@ export class ReplayCamera3d {
    * placeScripted poses the camera from the script at the current script time; a null pose
    * leaves the camera as it is. The pose is stored in `lastScriptPose` (its target is what the
    * free orbit should keep when the script stops). The pose's shake turns the camera about its
-   * own axes after the roll; its lens goes to `setLens`.
+   * own axes after the roll; its lens goes to `setLens`; its `near` replaces the camera's near
+   * plane (restored by `restoreNear` when the run has none or the script stops).
    */
   private placeScripted(): void {
     const script = this.script
     if (!script) return
     const pose = evaluateCameraScript(script, this.scriptMs, this.state.subjects, this.state.gameFov)
-    if (!pose) { this.state.setLens?.(null); return }
+    if (!pose) { this.state.setLens?.(null); this.restoreNear(); return }
+    this.applyNear(pose.near)
     const camera = this.state.camera
     camera.position.set(pose.position[0], pose.position[1], pose.position[2])
     camera.lookAt(pose.target[0], pose.target[1], pose.target[2])
@@ -146,6 +152,31 @@ export class ReplayCamera3d {
     this.lastScriptPose = pose
     const { focusDistance, aperture } = pose
     this.state.setLens?.(focusDistance !== null && aperture !== null ? { focusDistance, aperture } : null)
+  }
+
+  /**
+   * applyNear sets the camera's near plane to a script pose's `near` (the camera's own is kept
+   * aside the first time), or restores the camera's own for null. The projection is rebuilt only
+   * when the plane moves; the depth readers (GTAO, depth of field) take `camera.near` each frame.
+   */
+  private applyNear(near: number | null): void {
+    if (near === null) { this.restoreNear(); return }
+    const camera = this.state.camera
+    if (this.savedNear === null) this.savedNear = camera.near
+    if (camera.near === near) return
+    camera.near = near
+    camera.updateProjectionMatrix()
+  }
+
+  /** restoreNear gives the camera its own near plane back after a script's `near`; nothing when none was set. */
+  private restoreNear(): void {
+    if (this.savedNear === null) return
+    const camera = this.state.camera
+    const near = this.savedNear
+    this.savedNear = null
+    if (camera.near === near) return
+    camera.near = near
+    camera.updateProjectionMatrix()
   }
 
   /** springArm: the third-person camera, pulled in by the map when the arm from the head hits it. */
