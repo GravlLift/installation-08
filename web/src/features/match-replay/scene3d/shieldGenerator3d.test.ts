@@ -127,26 +127,13 @@ describe('the generator shader helpers', () => {
 })
 
 describe('the shell draws the game impact generator', () => {
-  it('a hit lights the generator in the team color at the measured level, extruded', () => {
+  it('a hit or a break with no impact point draws nothing (no whole-body flood)', () => {
     const shell = makeShell(spartan())
     showShell(shell, fx({ shield: { ...NO_SHIELD_FX, hit: 0.6 } }))
-    const u = shell.material.uniforms
-    expect(shell.meshes.every((m) => m.visible)).toBe(true)
-    expect(u.uGen.value).toBe(1)
-    expect(u.uExtrude.value).toBe(0.005)
-    const hit = u.uHitCol.value as THREE.Color
-    expect([hit.r, hit.g, hit.b]).toEqual([0.6, 0, 0.6])
-    // The edge glow and the plasma colors are constants of 0 in the game's generator.
-    expect((u.uEdgeCol.value as THREE.Color).getHex()).toBe(0)
-    expect((u.uCenterCol.value as THREE.Color).getHex()).toBe(0)
-    expect((u.uPlasmaShape.value as THREE.Vector4).toArray()).toEqual([2, 0.1, 1, 0])
-  })
-
-  it('a break drives the same generator at the break strength', () => {
-    const shell = makeShell(spartan())
+    expect(shell.meshes.every((m) => !m.visible)).toBe(true)
     showShell(shell, fx({ shield: { ...NO_SHIELD_FX, broke: 1, breakAge: 0 } }))
-    expect(shell.material.uniforms.uGen.value).toBe(1)
-    expect((shell.material.uniforms.uHitCol.value as THREE.Color).r).toBe(1)
+    expect(shell.meshes.every((m) => !m.visible)).toBe(true)
+    expect(shell.material.uniforms.uGen.value).toBe(0)
   })
 
   it('without the library entry no hit is drawn', () => {
