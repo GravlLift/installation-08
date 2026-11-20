@@ -27,7 +27,7 @@ import { framesPerSecond, frameToMs } from '@/lib/replay/replayLogic'
 import { FirstPersonArms3d } from './firstPersonArms3d'
 import { firstPersonFolder } from './firstPersonRig3d'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
-import type { Export3dSetup, ExportCamera3d, ExportTag3d, Replay3DExportSource } from '../export/replay3dExportStore'
+import type { Export3dSetup, ExportCamera3d, ExportSubframe3d, ExportTag3d, Replay3DExportSource } from '../export/replay3dExportStore'
 import type { Action3dInputs } from './action3dInputs'
 import { Ground, InkCache } from './actionKit'
 import { buildActionScene } from './actionLayers3d'
@@ -227,6 +227,8 @@ export class ReplayScene3d implements Replay3DExportSource {
       setSkyClock: (seconds) => { if (this.ciel) setCloudClock(this.ciel, seconds) },
       setGlowClock: (seconds) => this.animateGlow(seconds),
       hideTopDown: () => this.top?.idle(),
+      applyFilmLook: () => this.applyFilmLook(false),
+      readCamera: () => this.readCamera(),
     })
   }
   /** attach poses the map and the players, lights the play area, and captures the environment. */
@@ -480,6 +482,16 @@ export class ReplayScene3d implements Replay3DExportSource {
   setCameraScriptTime(sMs: number): void { this.cameraPlacement.setScriptTime(sMs) }
 
   /**
+   * applyFilmLook draws the playing camera script's film look (`look`), seeded by its script
+   * time, or the default look when no script plays, it has no look, or the view is top-down
+   * (`topView`). Run before every drawn frame, on screen and in the export alike.
+   */
+  private applyFilmLook(topView: boolean): void {
+    const script = topView ? null : this.cameraPlacement.activeScript()
+    this.post.setFilmLook(script?.look ?? null, this.cameraPlacement.scriptTime())
+  }
+
+  /**
    * captureCamera: the camera's eye and look target in GAME coordinates (z up) and its vertical
    * field of view in degrees, for a camera script's key.
    */
@@ -677,6 +689,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     let status: PovStatus = 'none'
     const p = this.profile
     let t = performance.now(); this.renderer.info.reset()
+    this.applyFilmLook(this.view === 'top' && this.top !== null)
     const knobs = this.applyKnobs()
     this.post.resetCosts()
     const shadowCost = this.lighting.split.cost
@@ -755,6 +768,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     if (this.post.dof) this.post.dof.enabled = fx
     this.post.output.enabled = fx
     this.post.grade.enabled = fx
+    if (this.post.filmPass) this.post.filmPass.enabled = fx
     this.post.smaa.enabled = fx && k.smaa
     this.lighting.shadowUpdates = k.shadows
     this.lighting.split.split = k.shadowSplit
@@ -802,9 +816,14 @@ export class ReplayScene3d implements Replay3DExportSource {
   redReticle(frame: number, allegiance: Pick<FilmAllegiance, 'ofXuid'>, held: HeldWeapon | null): boolean {
     return this.mode === 'fp' && readRedReticle({ tracks: this.tracks, frame, xuid: this.povXuid, camera: this.camera, drop: this.originAboveFloor, allegiance, surfaces: this.groundSurfaces(), raycaster: this.raycaster, riderAt: (xuid, f) => this.action?.riderAt(xuid, f) ?? null, range: held ? this.weaponModels?.reticleRange(held.weaponId, held.zoomLevel) ?? null : null })
   }
-  exportFrame(frame: number): HTMLCanvasElement { return this.exportScene.exportFrame(frame) }
+  exportFrame(frame: number, subframes?: readonly ExportSubframe3d[]): HTMLCanvasElement {
+    return subframes ? this.exportScene.exportFrame(frame, subframes) : this.exportScene.exportFrame(frame)
+  }
   exportTags(): readonly ExportTag3d[] { return this.exportScene.exportTags() }
-  exportCamera(): ExportCamera3d {
+  /** The camera the last exported frame was taken from (a motion-blurred frame's: its center subframe's). */
+  exportCamera(): ExportCamera3d { return this.exportScene.exportCamera() ?? this.readCamera() }
+  /** readCamera: the camera as posed now, in world coordinates. */
+  private readCamera(): ExportCamera3d {
     // three.js is y up with world y on -z (`toThree`): back to world [x, y, z] = [a, -c, b].
     const w = (v: { x: number; y: number; z: number }): [number, number, number] => [v.x, -v.z, v.y]
     const d = this.camera.getWorldDirection(new THREE.Vector3())
@@ -814,6 +833,40 @@ export class ReplayScene3d implements Replay3DExportSource {
       dir: w(d),
       fov: this.camera.fov,
       target: t ? w({ x: t[0], y: t[1], z: t[2] }) : null,
+      sightBlockedAt: t ? this.sightBlockedAt(new THREE.Vector3(t[0], t[1], t[2])) : null,
+    }
+  }
+
+  /**
+   * The distance from the camera to the first MAP surface between it and `target` (world units),
+   * or null when the line of sight is clear. Cast BOTH ways: a camera inside a wall sees only that
+   * wall's back faces, which a front-face raycast skips; from the target the same wall is a front
+   * face. The last LOS_TARGET_MARGIN before the target is not tested (the subject's own floor).
+   */
+  private sightBlockedAt(target: THREE.Vector3): number | null {
+    const LOS_TARGET_MARGIN = 0.1
+    const surfaces = this.groundSurfaces()
+    const cam = this.camera.position
+    const len = cam.distanceTo(target)
+    if (surfaces.length === 0 || len <= LOS_TARGET_MARGIN) return null
+    const rc = this.raycaster
+    const saved = { far: rc.far, near: rc.near, first: rc.firstHitOnly }
+    try {
+      rc.firstHitOnly = true
+      rc.near = 0
+      rc.far = len - LOS_TARGET_MARGIN
+      const dir = target.clone().sub(cam).normalize()
+      rc.set(cam, dir)
+      const fromCam = rc.intersectObjects(surfaces, false)[0]
+      let best = fromCam ? fromCam.distance : Infinity
+      rc.set(target.clone().addScaledVector(dir, -LOS_TARGET_MARGIN), dir.clone().negate())
+      const fromTarget = rc.intersectObjects(surfaces, false)[0]
+      if (fromTarget) best = Math.min(best, len - LOS_TARGET_MARGIN - fromTarget.distance)
+      return Number.isFinite(best) ? Math.max(0, best) : null
+    } finally {
+      rc.far = saved.far
+      rc.near = saved.near
+      rc.firstHitOnly = saved.first
     }
   }
   /**

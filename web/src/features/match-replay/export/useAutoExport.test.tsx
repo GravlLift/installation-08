@@ -108,6 +108,8 @@ describe('useAutoExport — the run', () => {
       view3d: { camera: 'free', pov: null, minimap: false },
       clean: true,
       script: SCRIPT,
+      motionBlur: { subframes: 1, shutterDeg: 180 },
+      supersample: 1,
     })
 
     // RERENDERING AGAIN CHANGES NOTHING: the run is a once-a-page-load thing.
@@ -129,6 +131,17 @@ describe('useAutoExport — the run', () => {
     expect(options?.sound).toBe(false)
     // The upload's name defaults to the script's name; the parameters do not leak into the run.
     void rerender
+  })
+
+  it('the URL\'s motion blur and supersampling reach the run', async () => {
+    window.location.hash = '#/matches/m-1?autoexport=demo-5&blur=8&shutter=270&ss=2'
+    api.fetchCameraScript.mockResolvedValue(SCRIPT)
+    const fake = fakeExport()
+    renderHook((o) => useAutoExport(o), { initialProps: inputs('m-1', fake.export, SCENE) })
+    await waitFor(() => expect(fake.run).toHaveBeenCalledTimes(1))
+    const options = fake.run.mock.calls[0][1]
+    expect(options?.motionBlur).toEqual({ subframes: 8, shutterDeg: 270 })
+    expect(options?.supersample).toBe(2)
   })
 
   it('done: the clip is uploaded under the URL\'s out, and released', async () => {

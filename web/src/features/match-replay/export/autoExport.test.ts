@@ -27,6 +27,8 @@ describe('parseAutoExport — the request, defaults filled in', () => {
       clean: true,
       sound: true,
       out: 'demo-5',
+      motionBlur: { subframes: 1, shutterDeg: 180 },
+      supersample: 1,
     })
   })
 
@@ -37,6 +39,8 @@ describe('parseAutoExport — the request, defaults filled in', () => {
       clean: false,
       sound: false,
       out: 'clip_1',
+      motionBlur: { subframes: 1, shutterDeg: 180 },
+      supersample: 1,
     })
   })
 
@@ -105,5 +109,50 @@ describe('parseAutoExport — an invalid value is refused at once, never a silen
   it('an `out` outside [a-z0-9_-]{1,64}', () => {
     const r = parseAutoExport('#/matches/m-1?autoexport=demo-5&out=My Clip')
     expect(r).toEqual({ error: expect.stringContaining('out') })
+  })
+
+  it('a `blur` that is not a whole number of subframes from 1 to 32', () => {
+    for (const blur of ['0', '33', '2.5', '-4', 'x', '', '1e1', '+8']) {
+      const r = parseAutoExport(`#/matches/m-1?autoexport=demo-5&blur=${encodeURIComponent(blur)}`)
+      expect(r).toEqual({ error: expect.stringContaining(`blur '${blur}'`) })
+    }
+  })
+
+  it('a `shutter` outside 1 to 360 degrees', () => {
+    for (const shutter of ['0', '0.5', '361', '-90', 'open', '', '1e2']) {
+      const r = parseAutoExport(`#/matches/m-1?autoexport=demo-5&shutter=${encodeURIComponent(shutter)}`)
+      expect(r).toEqual({ error: expect.stringContaining(`shutter '${shutter}'`) })
+    }
+  })
+
+  it('an `ss` that is not 1 or 2', () => {
+    for (const ss of ['0', '3', '4', '1.5', 'yes']) {
+      const r = parseAutoExport(`#/matches/m-1?autoexport=demo-5&ss=${ss}`)
+      expect(r).toEqual({ error: expect.stringContaining(`ss '${ss}'`) })
+    }
+  })
+})
+
+describe('parseAutoExport — film quality: motion blur and supersampling', () => {
+  it('off by default: one subframe at a 180 degree shutter, no supersampling', () => {
+    const r = request('#/matches/m-1?autoexport=demo-5')
+    expect(r.motionBlur).toEqual({ subframes: 1, shutterDeg: 180 })
+    expect(r.supersample).toBe(1)
+  })
+
+  it('each chosen on its own, at its bounds', () => {
+    expect(request('#/matches/m-1?autoexport=a&blur=8').motionBlur).toEqual({ subframes: 8, shutterDeg: 180 })
+    expect(request('#/matches/m-1?autoexport=a&blur=32').motionBlur.subframes).toBe(32)
+    expect(request('#/matches/m-1?autoexport=a&blur=1').motionBlur.subframes).toBe(1)
+    expect(request('#/matches/m-1?autoexport=a&shutter=360').motionBlur).toEqual({ subframes: 1, shutterDeg: 360 })
+    expect(request('#/matches/m-1?autoexport=a&shutter=1').motionBlur.shutterDeg).toBe(1)
+    expect(request('#/matches/m-1?autoexport=a&shutter=172.8').motionBlur.shutterDeg).toBe(172.8)
+    expect(request('#/matches/m-1?autoexport=a&ss=2').supersample).toBe(2)
+    expect(request('#/matches/m-1?autoexport=a&ss=1').supersample).toBe(1)
+  })
+
+  it('all together, beside the other parameters', () => {
+    const r = request('#/matches/m-1?autoexport=demo-5&format=720p&blur=16&shutter=270&ss=2&out=film')
+    expect(r).toMatchObject({ format: '720p', out: 'film', motionBlur: { subframes: 16, shutterDeg: 270 }, supersample: 2 })
   })
 })

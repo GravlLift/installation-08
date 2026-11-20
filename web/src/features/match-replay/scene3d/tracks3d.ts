@@ -15,7 +15,7 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 
 import { covers } from '../model/replaySpans'
 import { fineLifePoints } from './fineTracks3d'
-import { bracketAt, gaitAt, lifeDistances, type Gait } from './gait3d'
+import { axisAt, bracketAt, gaitAt, headingAt, lifeDistances, type Bracket, type Gait } from './gait3d'
 import { EYE_IN_DURATION, EYE_OUT_DURATION, eyeDrop, mergeIntervals, NO_INTERVALS, type EyeInterval } from './eye3d'
 import { filmPosture } from './posturesFilm3d'
 import { NO_SHIELD_FX, shieldFxAt, shieldSamplesOf, type ShieldFx, type ShieldSamples } from './shields3d'
@@ -232,13 +232,21 @@ function prepareLife(tr: ReplayDocumentReady['tracks'][number]): Life {
   return { slot: tr.slot, t0, t1, pts, dist: lifeDistances(pts), shield: shieldSamplesOf(tr.points) }
 }
 
+// The bracket `sampleLife` reads, rewritten on every call.
+const AT: Bracket = { lo: 0, hi: 0, u: 0 }
+
 function sampleLife(life: Life, f: number, crouch: boolean, dropOeil: number): PlayerState3d {
-  const { lo, hi, u } = bracketAt(life.pts, f)
-  return stateOf(life.pts[lo], life.pts[hi], u, { crouch, dropOeil }, life.slot)
+  return { ...pointStateAt(life.pts, f), crouch, dropOeil, slot: life.slot }
 }
 
-function stateOf(a: LifePoint, b: LifePoint, u: number, pose: { crouch: boolean; dropOeil: number }, slot: number): PlayerState3d {
-  const lerp = (x: number, y: number) => x + (y - x) * u
-  const dh = ((b.h - a.h + 540) % 360) - 180
-  return { x: lerp(a.x, b.x), y: lerp(a.y, b.y), z: lerp(a.z, b.z), h: a.h + dh * u, p: lerp(a.p, b.p), ...pose, slot }
+/**
+ * pointStateAt: position and aim of a life's points at frame `f`, on the C1 curve through the
+ * points (`gait3d.cubicAt`: a monotone cubic in time per axis, heading unwrapped by the shortest
+ * arc). It passes every point exactly, keeps the velocity continuous across points so a body in
+ * slow motion glides instead of stepping at the replication rate, and holds across a
+ * replication gap as before. A pure function of `f`.
+ */
+export function pointStateAt(pts: readonly LifePoint[], f: number): { x: number; y: number; z: number; h: number; p: number } {
+  const br = bracketAt(pts, f, AT)
+  return { x: axisAt(pts, 'x', br), y: axisAt(pts, 'y', br), z: axisAt(pts, 'z', br), h: headingAt(pts, br), p: axisAt(pts, 'p', br) }
 }
