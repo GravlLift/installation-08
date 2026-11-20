@@ -47,6 +47,7 @@ import { CoatingsSetupControl } from './CoatingsSetupControl'
 import { useReplaySound } from '../features/match-replay/sound/useReplaySound'
 import { replaySpartanPiecesPath, type ReplayArmorSource } from '../lib/replay/spartanArmor'
 import { endMatchSoundSpec } from '../features/match-replay/sound/endMatchSound'
+import { useAutoExport } from '../features/match-replay/export/useAutoExport'
 import { useReplayCapture } from '../features/match-replay/export/useReplayCapture'
 import { isExportBusy, ReplayExportDialog } from '../features/match-replay/export/ReplayExportDialog'
 import { exportLayoutRequested, useExportLayout } from '../features/match-replay/export/exportLayoutStore'
@@ -186,6 +187,10 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
     outcome: { code: replayContext.context?.header.outcome_code }, viewpoint, locale: 'en',
     soundTrack: sound.exportTrack, soundVolume: sound.volume,
   })
+  // The driven run: a URL that asks the page to render a camera script and upload the clip,
+  // with no clicks. It runs at most once per page load, only when the URL asks, and says each
+  // step in its pill (bottom-left), the title, and the console.
+  const autoExport = useAutoExport({ matchId, videoExport: capture.videoExport, exportScene })
 
   const stepFrames = useCallback(
     (delta: number) => {
@@ -472,6 +477,8 @@ export function ReplayViewer({ matchId, doc, onBack, held = false, onLoadState, 
           rootRef={barRef}
         />
       </div>
+
+      {autoExport.pill}
     </div>
   )
 }

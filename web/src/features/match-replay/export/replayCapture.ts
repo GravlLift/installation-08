@@ -109,6 +109,12 @@ const URL_RELEASE_MS = 1000
  * nothing.
  */
 export interface PendingDownload {
+  /**
+   * The held clip itself. Readable while the hold lives (the URL is created on the call and
+   * revoked only by `release`), which is what a delivery that is not a click — an upload to
+   * the server, the auto-export's — needs: the bytes, not the anchor.
+   */
+  readonly blob: Blob
   /** Triggers the download. Call from a user's click, as often as needed. */
   save: () => void
   /** Revokes the object URL and returns the blob to the collector. Call once, when closing without saving. */
@@ -118,15 +124,17 @@ export interface PendingDownload {
 /**
  * holdDownload prepares a download without triggering it.
  *
- * The object URL is created on the call: it lives in what the return value carries. `save`
- * places the anchor and clicks it, NEVER revoking — the URL must survive every "Save" click
- * (the first can fail, the second must work). It is `release` — and only `release` — that
- * revokes it. As long as the user has not closed, the blob stays readable.
+ * The object URL is created on the call: it lives in what the return value carries, along
+ * with the blob itself (readable until `release`). `save` places the anchor and clicks it,
+ * NEVER revoking — the URL must survive every "Save" click (the first can fail, the second
+ * must work). It is `release` — and only `release` — that revokes it. As long as the user has
+ * not closed, the blob stays readable.
  */
 export function holdDownload(blob: Blob, filename: string): PendingDownload {
   const url = URL.createObjectURL(blob)
   let released = false
   return {
+    blob,
     save() {
       const a = document.createElement('a')
       a.href = url

@@ -23,6 +23,13 @@ export interface CameraScriptSaved {
   keys: number
 }
 
+/** The answer of a `PUT .../exports/{name}`: the stored name, the clip's path on the server, and its byte count. */
+export interface ExportUploaded {
+  name: string
+  path: string
+  bytes: number
+}
+
 /** One row of `GET /api/spartan/poses`: a pose clip the scene can resolve as a hold's `clip`. */
 export interface PoseSummary {
   id: string
@@ -94,6 +101,30 @@ export async function saveCameraScript(script: CameraScript, signal?: AbortSigna
     throw new ApiError(`PUT .../camera-scripts/${script.name}: HTTP ${res.status}`, res.status, body)
   }
   return (await res.json()) as CameraScriptSaved
+}
+
+/**
+ * `PUT /api/matches/{id}/exports/{name}` — hand a rendered clip to the server under `name`
+ * (the auto-export's delivery: the bytes go up, no click on a download). A non-2xx answer
+ * throws an `ApiError` whose message carries the status and, when the server says so, its
+ * `error` field.
+ */
+export async function uploadExport(matchId: string, name: string, blob: Blob, signal?: AbortSignal): Promise<ExportUploaded> {
+  const res = await fetch(`/api/matches/${encodeURIComponent(matchId)}/exports/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'video/mp4' },
+    body: blob,
+    signal,
+  })
+  if (!res.ok) {
+    const body = await readErrorBody(res)
+    const server =
+      typeof body === 'object' && body !== null && typeof (body as { error?: unknown }).error === 'string'
+        ? (body as { error: string }).error
+        : null
+    throw new ApiError(`PUT .../exports/${name}: HTTP ${res.status}${server ? ` (${server})` : ''}`, res.status, body)
+  }
+  return (await res.json()) as ExportUploaded
 }
 
 /**

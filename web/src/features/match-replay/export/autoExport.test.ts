@@ -1,0 +1,109 @@
+// SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
+/**
+ * autoExport.test.ts — WHAT THE URL ASKS: the parsing of `?autoexport=...` (and its optional
+ * parameters) out of a page hash.
+ *
+ * WHAT THEY PROTECT. The contract the driving tool relies on: a URL with no request means no
+ * request (the page runs normally); every parameter defaults are filled in; and an invalid
+ * value is REFUSED with a stated reason, never silently replaced by a default — a silent
+ * fallback would render the wrong clip and call it the right one.
+ */
+import { describe, expect, it } from 'vitest'
+
+import { parseAutoExport, type AutoExportRequest } from './autoExport'
+
+/** A hash the test knows asks for a valid request: the parser's answer, narrowed to it. */
+function request(hash: string): AutoExportRequest {
+  const r = parseAutoExport(hash)
+  if (r === null || 'error' in r) throw new Error(`expected a request, got ${JSON.stringify(r)}`)
+  return r
+}
+
+describe('parseAutoExport — the request, defaults filled in', () => {
+  it('the name alone: the defaults are 1080p, clean, sound on, and out = the script name', () => {
+    expect(parseAutoExport('#/matches/m-1?autoexport=demo-5')).toEqual({
+      name: 'demo-5',
+      format: '1080p',
+      clean: true,
+      sound: true,
+      out: 'demo-5',
+    })
+  })
+
+  it('every parameter present, all of them chosen', () => {
+    expect(parseAutoExport('#/matches/m-1?autoexport=demo-5&format=720p&clean=0&sound=0&out=clip_1')).toEqual({
+      name: 'demo-5',
+      format: '720p',
+      clean: false,
+      sound: false,
+      out: 'clip_1',
+    })
+  })
+
+  it('each parameter can be chosen on its own', () => {
+    expect(request('#/matches/m-1?autoexport=a&format=720p').format).toBe('720p')
+    expect(request('#/matches/m-1?autoexport=a&clean=0').clean).toBe(false)
+    expect(request('#/matches/m-1?autoexport=a&sound=0').sound).toBe(false)
+    expect(request('#/matches/m-1?autoexport=a&out=b-2').out).toBe('b-2')
+  })
+
+  it('a hash with no query at all: no request', () => {
+    expect(parseAutoExport('#/matches/m-1')).toBeNull()
+  })
+
+  it('a query without the `autoexport` parameter: no request', () => {
+    expect(parseAutoExport('#/matches/m-1?format=720p')).toBeNull()
+  })
+
+  it('the empty hash: no request', () => {
+    expect(parseAutoExport('')).toBeNull()
+  })
+})
+
+describe('parseAutoExport — the route part before `?` is ignored on purpose', () => {
+  it('any route, any id: the request is read from the query only', () => {
+    for (const hash of [
+      '#/matches/any-id?autoexport=demo-5',
+      '#/other/page?autoexport=demo-5',
+      '?autoexport=demo-5',
+      '/matches/m-2?autoexport=demo-5',
+    ]) {
+      expect(request(hash).name).toBe('demo-5')
+    }
+  })
+
+  it('a non-match page is not a page that asks for an export on its match', () => {
+    // The hook only runs on a match's page; the parser's job is to read the query, and it
+    // does so without judging the route.
+    expect(request('#/leaderboard?autoexport=demo-5').name).toBe('demo-5')
+  })
+})
+
+describe('parseAutoExport — an invalid value is refused at once, never a silent default', () => {
+  it('an unknown format', () => {
+    const r = parseAutoExport('#/matches/m-1?autoexport=demo-5&format=4k')
+    expect(r).toEqual({ error: expect.stringContaining('4k') })
+  })
+
+  it('a script name outside [a-z0-9_-]{1,64}', () => {
+    for (const name of ['Demo', 'demo 5', 'demo/5', 'x'.repeat(65)]) {
+      const r = parseAutoExport(`#/matches/m-1?autoexport=${encodeURIComponent(name)}`)
+      expect(r).toMatchObject({ error: expect.stringContaining(name === 'x'.repeat(65) ? 'is not a script name' : name) })
+    }
+  })
+
+  it('a `clean` that is not 0 or 1', () => {
+    const r = parseAutoExport('#/matches/m-1?autoexport=demo-5&clean=2')
+    expect(r).toEqual({ error: expect.stringContaining('clean') })
+  })
+
+  it('a `sound` that is not 0 or 1', () => {
+    const r = parseAutoExport('#/matches/m-1?autoexport=demo-5&sound=yes')
+    expect(r).toEqual({ error: expect.stringContaining('sound') })
+  })
+
+  it('an `out` outside [a-z0-9_-]{1,64}', () => {
+    const r = parseAutoExport('#/matches/m-1?autoexport=demo-5&out=My Clip')
+    expect(r).toEqual({ error: expect.stringContaining('out') })
+  })
+})
