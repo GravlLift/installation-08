@@ -125,8 +125,9 @@ const EquipmentRuleCurrent = 2
 // particle effects (idle_effects, the Shock Rifle's electricity) and their fx-* files. 5: the idle
 // effects' weapon functions carry their mapping (the Heatwave's `fx_camo_off` is 1 - camo).
 // 6: vehicle models and the Spartan's vehicle-seat animations. 7: the Spartan shield's impact
-// generator (shield_hit) and its fx-* textures.
-const SchemaCurrent = 7
+// generator (shield_hit) and its fx-* textures. 8: its function properties carry their curves (the
+// hit's intensity and radius over the time since the impact).
+const SchemaCurrent = 8
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).

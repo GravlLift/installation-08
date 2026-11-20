@@ -41,6 +41,22 @@ func TestShieldHitFromGame(t *testing.T) {
 	if g.HitIntensity.Input != "impactTime" || g.EdgeGlowIntensity.Constant == nil || *g.EdgeGlowIntensity.Constant != 0 {
 		t.Errorf("properties: hit %+v, edge %+v", g.HitIntensity, g.EdgeGlowIntensity)
 	}
+	in, rad := g.HitIntensity.Curve, g.HitRadius.Curve
+	if in == nil || rad == nil || g.InverseHitTime != 1 {
+		t.Fatalf("curves: intensity %+v, radius %+v, inverse hit time %g", in, rad, g.InverseHitTime)
+	}
+	if got := curveAt(in, 0); got != 90 {
+		t.Errorf("intensity at impact %g, want 90", got)
+	}
+	if got := curveAt(in, 1); got > 1e-3 {
+		t.Errorf("intensity at 1 s %g, want 0", got)
+	}
+	if got := curveAt(rad, 0); got < 0.0999 || got > 0.1001 {
+		t.Errorf("radius at impact %g, want 0.1", got)
+	}
+	if got := curveAt(rad, 1); got < 0.0499 || got > 0.0501 {
+		t.Errorf("radius at 1 s %g, want 0.05", got)
+	}
 	if g.PlasmaTileScale != 2 || g.PlasmaScrollSpeed != 0.1 || g.EdgeInnerFadeRadius != 0.75 {
 		t.Errorf("parameters %+v", g)
 	}
