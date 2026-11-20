@@ -2,6 +2,8 @@
 import * as THREE from 'three'
 import { Sky } from 'three/addons/objects/Sky.js'
 
+import { markEmissive } from './emissionMark3d'
+
 // Neutral coverage when the world publishes no usable measurement.
 const NEUTRAL_COVERAGE = 0.48
 const CLOUD_SPEED = 0.0008
@@ -82,6 +84,8 @@ export function creerCiel(sun: { azimuth: number; elevation: number }, texture: 
         retColor = mix(retColor, vec3(${CLOUD_GLOW}) * sunlight, clouds * 0.88);
         gl_FragColor = vec4( mix(${NIGHT_SKY} * (1.6 - direction.y), retColor, daylight), 1.0 );`)
   }
+  // The sky is light given off, not a lit surface: the highlight meter leaves it out (`emissionMark3d`).
+  sky.material.fragmentShader = markEmissive(sky.material.fragmentShader)
   sky.onBeforeRender = (_renderer, _scene, camera) => {
     sky.position.copy(camera.position)
     sky.updateMatrixWorld()

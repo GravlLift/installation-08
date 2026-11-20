@@ -2,12 +2,18 @@
 /**
  * highlightMeter3d.ts — THE HIGHLIGHT CEILING ON THE GPU (the rule: `highlightCeiling3d.ts`).
  *
- * Two small passes per drawn frame, on the scene's linear HDR image as the output pass receives
- * it (after bloom and depth of field), nothing read back to the CPU:
+ * Two small passes per drawn frame, on the scene's linear HDR image as it stands once the opaque
+ * scene is drawn and before any transparent effect (`postFx3d` runs them from a probe between
+ * three's opaque and transparent lists), nothing read back to the CPU:
  *  1. Cells: the frame reduced to `CELLS_X` x `CELLS_Y` cells (64 x 36). Each cell is the mean
- *     luminance of 16 bilinear taps (4 x 4, 64 pixels at 1080p) and the share of those taps
- *     that do NOT glow (brightest channel above `BLOOM_THRESHOLD`: lamps, signs, energy, which are
- *     meant to bloom, not to be metered).
+ *     luminance of 16 bilinear taps (4 x 4, 64 pixels at 1080p) that are LIT SURFACE, and the
+ *     share of such taps. A tap is left out when the emission mark in its alpha
+ *     (`emissionMark3d`) says at least `EMISSION_SHARE_MAX` of its light is its own (a lamp panel,
+ *     a light strip, an orb's core, the sky). Brightness never excludes a tap: a wall or armor lit
+ *     past white by a detonation's flash is exactly what the ceiling is for. (Until 2026-11-20 any
+ *     tap with a channel above the bloom threshold, 1.5, was left out as glow; that also dropped
+ *     the flash-lit walls and bodies of demo-8-game-winner's freeze, and its ceiling stayed 0.)
+ *     Transparent effects (explosions, sparks, muzzle flashes, beams, glows) are not drawn yet.
  *  2. Ceiling: one fragment reads the 2304 cells, takes the 97th percentile of the metered cells'
  *     luminance from a 48-bin log histogram (interpolated inside its bin, so it moves smoothly as
  *     the frame changes), looks the ceiling up in the chain's table, and eases it from the previous
@@ -18,7 +24,7 @@
 import * as THREE from 'three'
 import { FullScreenQuad } from 'three/addons/postprocessing/Pass.js'
 
-import { BLOOM_THRESHOLD } from './bloom3d'
+import { EMISSION_ALPHA } from './emissionMark3d'
 import { ceilingTable, MeterClock, METER_PERCENTILE, TABLE_LOG_MIN, TABLE_SIZE, TABLE_STEP, type ToneChain } from './highlightCeiling3d'
 
 /** The metering grid (16:9). */
@@ -28,8 +34,13 @@ export const CELLS_Y = 36
 const HIST_LOG_MIN = TABLE_LOG_MIN
 const HIST_BINS = 48
 const HIST_STEP = 0.25
-/** At least this share of cells must be metered (not glowing) for a ceiling; fewer, it stays 0. */
+/** At least this share of cells must be metered (lit surface) for a ceiling; fewer, it stays 0. */
 const MIN_METERED_SHARE = 0.05
+/**
+ * A tap whose emission share (its mark minus 1, `emissionMark3d`) reaches this is light given off,
+ * not metered: half of `EMISSION_ALPHA - 1`, i.e. more of its light is its own than received.
+ */
+export const EMISSION_SHARE_MAX = (EMISSION_ALPHA - 1) / 2
 
 const f = (v: number) => v.toFixed(4)
 
@@ -45,11 +56,11 @@ void main() {
   float n = 0.0;
   for (int j = 0; j < 4; j++) {
     for (int i = 0; i < 4; i++) {
-      vec3 c = texture2D(tHdr, origin + (vec2(float(i), float(j)) + 0.5) * 0.25 * cell).rgb;
-      if (any(isnan(c)) || any(isinf(c))) continue;
-      c = max(c, vec3(0.0));
-      if (max(c.r, max(c.g, c.b)) > ${f(BLOOM_THRESHOLD)}) continue;
-      sum += dot(c, LUMA);
+      vec4 t = texture2D(tHdr, origin + (vec2(float(i), float(j)) + 0.5) * 0.25 * cell);
+      if (any(isnan(t)) || any(isinf(t))) continue;
+      // The emission mark (emissionMark3d): alpha 1 is lit surface, 2 is light given off.
+      if (t.a - 1.0 >= ${f(EMISSION_SHARE_MAX)}) continue;
+      sum += dot(max(t.rgb, vec3(0.0)), LUMA);
       n += 1.0;
     }
   }
@@ -99,6 +110,33 @@ void main() {
   gl_FragColor = vec4(stops, exp2(stops), level, 1.0);
 }
 `
+
+/** The probe's render order: three draws it first of the transparent list. */
+export const PROBE_RENDER_ORDER = -1e9
+
+/**
+ * makeMeterProbe: an object that draws nothing (a zero-area triangle, no color, no depth) and is
+ * TRANSPARENT, with the lowest render order: three draws its opaque list, then its transparent list
+ * sorted by render order, so the probe's `onBeforeRender` runs once the opaque scene is in the
+ * target and before any transparent object. `reach` is called there with the renderer (still bound
+ * to the scene's target); three supports a render from `onBeforeRender` (its render-state stack,
+ * as `Reflector` uses). Never culled, never casts a shadow.
+ */
+export function makeMeterProbe(reach: (renderer: THREE.WebGLRenderer) => void): THREE.Mesh {
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0, 0, 0, 0], 3))
+  const material = new THREE.MeshBasicMaterial({ transparent: true, depthTest: false, depthWrite: false, colorWrite: false })
+  const probe = new THREE.Mesh(geometry, material)
+  probe.name = 'highlight-meter-probe'
+  probe.frustumCulled = false
+  probe.castShadow = false
+  probe.receiveShadow = false
+  probe.renderOrder = PROBE_RENDER_ORDER
+  probe.matrixAutoUpdate = false
+  probe.raycast = () => {}
+  probe.onBeforeRender = (renderer) => reach(renderer)
+  return probe
+}
 
 /** tableKey: what the ceiling table depends on, to rebuild it only when the chain changes. */
 function tableKey(chain: ToneChain): string {
@@ -168,7 +206,7 @@ export class HighlightMeter3d {
   /** reset: the next frame takes its own ceiling at once (no easing from the last one). */
   reset(): void { this.clock.reset() }
 
-  /** update meters `hdr` (the frame about to be tone mapped) at clock time `clockMs` and writes the eased ceiling. */
+  /** update meters `hdr` (the opaque scene, emission marked in alpha) at clock time `clockMs` and writes the eased ceiling. */
   update(renderer: THREE.WebGLRenderer, hdr: THREE.Texture, clockMs: number): void {
     const step = this.clock.step(clockMs)
     const previous = renderer.getRenderTarget()

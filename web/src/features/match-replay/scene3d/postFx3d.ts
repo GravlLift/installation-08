@@ -25,9 +25,10 @@
  * Cleared, the chain is the default one again, with the drawer's bloom setting.
  *
  * Highlight ceiling (`highlightCeiling3d`, `highlightMeter3d`): while on (`setHighlightCeiling`,
- * the perspective view), the output pass first meters the HDR image it receives and multiplies it
- * by the eased ceiling's gain (1 or less) before tone mapping, so a frame's pale surfaces keep
- * detail. Its easing runs on the clock `setExposureClock` gives (wall clock on screen, the file
+ * the perspective view), the scene pass meters its own image once the opaque scene is drawn and
+ * before any transparent effect (a probe, `makeMeterProbe`), lit surfaces only (`emissionMark3d`),
+ * and the output pass multiplies the HDR image by the eased ceiling's gain (1 or less) before tone
+ * mapping, so a frame's pale surfaces keep detail. Its easing runs on the clock `setExposureClock` gives (wall clock on screen, the file
  * frame's time in an export); `resetExposure` makes the next frame take its own ceiling at once.
  */
 import * as THREE from 'three'
@@ -42,7 +43,8 @@ import { BLOOM_STRENGTH, GlowBloomPass } from './bloom3d'
 import { DofPass, type Lens3d } from './dof3d'
 import { FILM_FRAGMENT, filmSeed, resolveFilmLook, seedOffset, warmthGain, type FilmLook, type FilmLookSettings } from './filmLook3d'
 import { GpuTimer } from './gpuTimer3d'
-import { HighlightMeter3d } from './highlightMeter3d'
+import { installEmissionMarks } from './emissionMark3d'
+import { HighlightMeter3d, makeMeterProbe } from './highlightMeter3d'
 import { Outline3d } from './outline3d'
 
 export interface PostFx3d {
@@ -193,28 +195,52 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
   // ambient occlusion intact (the target it writes to may be the scene's).
   output.material.depthTest = false
   output.material.depthWrite = false
-  // The highlight ceiling's gain, read by the output pass before tone mapping (1 while off).
+  // THE HIGHLIGHT CEILING. It meters the scene's own image while the scene pass draws it, from a
+  // probe three draws first among the transparent objects: the opaque scene (lit surfaces, with
+  // their emission marked in alpha, `emissionMark3d`) is complete, no transparent effect
+  // (explosion, sparks, muzzle flash, beam, glow) is drawn yet. The output pass applies its gain
+  // before tone mapping (1 while off, or when the frame was not metered).
+  installEmissionMarks()
   const meter = new HighlightMeter3d()
   const ceilingUniforms = graftHighlightCeiling(output, meter.texture)
   // Off until the scene turns it on (`setHighlightCeiling`, every drawn frame of the perspective view).
   let ceilingOn = false
   let exposureClock = Number.NaN
+  /** The scene target the probe meters, while the scene pass draws into it; null otherwise. */
+  let armed: THREE.WebGLRenderTarget | null = null
+  /** The frame being composed was metered: its output pass applies the ceiling. */
+  let meteredFrame = false
+  // The probe acts only inside the scene pass, on its own target: every other render of the scene
+  // (environment capture, outline mask, top-down image) draws it too and finds it disarmed.
+  const probe = makeMeterProbe((r) => {
+    const target = armed
+    if (!target || r.getRenderTarget() !== target) return
+    armed = null
+    // The view's own exposure (the film's stops are swapped in at the output pass, and enter here through the chain).
+    meter.setChain({ exposure: r.toneMappingExposure, grade: GRADE_GAIN as [number, number, number], film: fx.film })
+    meter.update(r, target.texture, exposureClock)
+    meteredFrame = true
+  })
+  scene.add(probe)
+  const sceneRender = scenePass.render.bind(scenePass)
+  scenePass.render = (r, writeBuffer, readBuffer, deltaTime, maskActive) => {
+    meteredFrame = false
+    // RenderPass draws into its READ buffer (or the screen, every later pass off).
+    armed = ceilingOn && !scenePass.renderToScreen ? readBuffer : null
+    try {
+      sceneRender(r, writeBuffer, readBuffer, deltaTime, maskActive)
+    } finally {
+      armed = null
+    }
+  }
   // A film look tone maps this pass alone at its exposure (and with AgX when it asks): the
   // renderer's settings are swapped in for the pass and given back after it (the minimap, drawn
   // straight to the screen after the composer, keeps the view's own).
   const outputRender = output.render.bind(output) as (renderer: THREE.WebGLRenderer, ...rest: unknown[]) => void
   output.render = ((renderer: THREE.WebGLRenderer, ...rest: unknown[]) => {
     const film = fx.film
-    // The ceiling meters the HDR image this pass is about to tone map (its read buffer), with the
-    // view's own exposure (the film's stops are swapped in below, and enter through the chain).
-    const readBuffer = rest[1] as THREE.WebGLRenderTarget | null
-    const metered = ceilingOn && readBuffer !== null
-    ceilingUniforms.uCeilingOn.value = metered ? 1 : 0
-    if (metered) {
-      meter.setChain({ exposure: renderer.toneMappingExposure, grade: GRADE_GAIN as [number, number, number], film })
-      meter.update(renderer, readBuffer.texture, exposureClock)
-      ceilingUniforms.tCeiling.value = meter.texture
-    }
+    ceilingUniforms.uCeilingOn.value = ceilingOn && meteredFrame ? 1 : 0
+    ceilingUniforms.tCeiling.value = meter.texture
     if (!film) return outputRender(renderer, ...rest)
     const toneMapping = renderer.toneMapping
     const exposure = renderer.toneMappingExposure
@@ -369,6 +395,9 @@ export function buildPostFx(renderer: THREE.WebGLRenderer, scene: THREE.Scene, c
       fx.setBloom(false)
       bloomGpu.dispose()
       meter.dispose()
+      probe.removeFromParent()
+      probe.geometry.dispose()
+      ;(probe.material as THREE.Material).dispose()
       outline.dispose()
       gtao.dispose()
       grade.dispose()

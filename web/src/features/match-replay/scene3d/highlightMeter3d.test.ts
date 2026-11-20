@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import { resolveFilmLook } from './filmLook3d'
 import { ceilingTable, type ToneChain } from './highlightCeiling3d'
-import { HighlightMeter3d } from './highlightMeter3d'
+import { EMISSION_SHARE_MAX, HighlightMeter3d, makeMeterProbe, PROBE_RENDER_ORDER } from './highlightMeter3d'
 
 const BASE: ToneChain = { exposure: 1.15, grade: [0.93, 1.02, 1.07], film: null }
 const DEMO3: ToneChain = { ...BASE, film: resolveFilmLook({ preset: 'film', exposure: 0.5 }) }
@@ -64,10 +64,42 @@ describe('HighlightMeter3d', () => {
     meter.dispose()
   })
 
-  it('leaves glowing pixels out of the metering and sizes its shader arrays from the table', () => {
+  it('leaves out only taps marked as emission, never a tap for its brightness, and sizes its shader arrays from the table', () => {
     const { internals, meter } = rig()
-    expect(internals.cellsMaterial.fragmentShader).toContain('> 1.5000) continue;')
+    const cells = internals.cellsMaterial.fragmentShader
+    expect(EMISSION_SHARE_MAX).toBe(0.5)
+    expect(cells).toContain('if (t.a - 1.0 >= 0.5000) continue;')
+    // No brightness test is left: a wall lit past white by a detonation's flash is metered.
+    expect(cells).not.toMatch(/max\(\s*\w+\.r\s*,\s*max\(/)
+    expect(cells).not.toContain('1.5000')
     expect(internals.ceilingMaterial.fragmentShader).toContain(`uniform float uTable[${(internals.ceilingMaterial.uniforms.uTable.value as Float32Array).length}];`)
     meter.dispose()
+  })
+})
+
+describe('makeMeterProbe', () => {
+  it('is a transparent, colorless, depthless object drawn first of the transparent list, never culled', () => {
+    const probe = makeMeterProbe(() => {})
+    const m = probe.material as THREE.MeshBasicMaterial
+    expect(m.transparent).toBe(true)
+    expect(m.colorWrite).toBe(false)
+    expect(m.depthTest).toBe(false)
+    expect(m.depthWrite).toBe(false)
+    expect(probe.renderOrder).toBe(PROBE_RENDER_ORDER)
+    expect(probe.frustumCulled).toBe(false)
+    expect(probe.castShadow).toBe(false)
+    // A zero-area triangle: nothing to rasterize, nothing to hit.
+    expect(Array.from(probe.geometry.getAttribute('position').array).every((v) => v === 0)).toBe(true)
+    const hits: THREE.Intersection[] = []
+    probe.raycast(new THREE.Raycaster(), hits)
+    expect(hits).toEqual([])
+  })
+
+  it('hands the renderer to its callback when three is about to draw it', () => {
+    const seen: unknown[] = []
+    const probe = makeMeterProbe((r) => seen.push(r))
+    const renderer = {} as THREE.WebGLRenderer
+    probe.onBeforeRender(renderer, new THREE.Scene(), new THREE.PerspectiveCamera(), probe.geometry, probe.material as THREE.Material, null as never)
+    expect(seen).toEqual([renderer])
   })
 })

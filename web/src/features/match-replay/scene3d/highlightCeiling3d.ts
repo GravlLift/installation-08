@@ -16,8 +16,10 @@
  * the look pushed ordinary highlights into the shoulder.
  *
  * THE RULE, per frame. P is the frame's highlight level: the 97th percentile of the scene's linear
- * luminance (before exposure), self-lit pixels excluded (brightest channel above the bloom
- * threshold: they are meant to glow). The ceiling is the smallest darkening c (stops, 0 to
+ * luminance (before exposure) of the frame's LIT SURFACES, however bright: light given off (lamp
+ * panels, light strips, the sky, unlit effect cores: `emissionMark3d`) and every transparent effect
+ * (explosions, sparks, muzzle flashes, beams: metered before they are drawn) is left out, a wall lit
+ * past white by a detonation's flash is not. The ceiling is the smallest darkening c (stops, 0 to
  * -`CEILING_MAX_STOPS`) under which the chain drawing the frame still renders P with at least
  * - the default view's own detail at P (a film look never draws the frame's highlights flatter
  *   than the game-matched view would), and

@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js'
 import type { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js'
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 
@@ -394,20 +395,34 @@ describe('buildPostFx — the highlight ceiling', () => {
     vi.spyOn(OutputPass.prototype, 'render').mockImplementation(() => {})
     const update = vi.spyOn(HighlightMeter3d.prototype, 'update').mockImplementation(() => {})
     const setChain = vi.spyOn(HighlightMeter3d.prototype, 'setChain')
+    let bound: THREE.WebGLRenderTarget | null = null
     const renderer = {
       getPixelRatio: () => 1,
       info: { render: { calls: 0, triangles: 0 } },
       toneMapping: THREE.ACESFilmicToneMapping as THREE.ToneMapping,
       toneMappingExposure: 1.15,
+      getRenderTarget: () => bound,
     } as unknown as THREE.WebGLRenderer
-    const fx = buildPostFx(renderer, new THREE.Scene(), new THREE.PerspectiveCamera(), false)
+    const scene = new THREE.Scene()
+    const fx = buildPostFx(renderer, scene, new THREE.PerspectiveCamera(), false)
+    const probe = scene.getObjectByName('highlight-meter-probe') as THREE.Mesh
+    /** three drawing a scene into `target`: the opaque list, then the transparent list, the probe first. */
+    const drawScene = (target: THREE.WebGLRenderTarget | null) => {
+      bound = target
+      probe.onBeforeRender(renderer, scene, new THREE.PerspectiveCamera(), probe.geometry, probe.material as THREE.Material, null as never)
+      bound = null
+    }
+    vi.spyOn(RenderPass.prototype, 'render').mockImplementation(function (this: RenderPass, _r: unknown, _w: unknown, read: THREE.WebGLRenderTarget) {
+      drawScene(this.renderToScreen ? null : read)
+    } as never)
     const hdr = new THREE.WebGLRenderTarget(4, 4)
+    const drawScenePass = () => (fx.composer.passes[0].render as (...a: unknown[]) => void)(renderer, null, hdr, 0, false)
     const drawOutput = () => (fx.output.render as (...a: unknown[]) => void)(renderer, null, hdr, 0, false)
-    return { fx, renderer, hdr, update, setChain, drawOutput }
+    return { fx, renderer, hdr, probe, update, setChain, drawScene, drawScenePass, drawOutput }
   }
 
   it("grafts the gain into the output shader before tone mapping, off (exactly the old shader's math) until turned on", () => {
-    const { fx, drawOutput, update } = ceilingRig()
+    const { fx, drawScenePass, drawOutput, update } = ceilingRig()
     try {
       const source = (fx.output.material as THREE.ShaderMaterial).fragmentShader
       const read = source.indexOf('gl_FragColor = texture2D( tDiffuse, vUv );')
@@ -415,6 +430,7 @@ describe('buildPostFx — the highlight ceiling', () => {
       expect(read).toBeGreaterThan(0)
       expect(gain).toBeGreaterThan(read)
       expect(gain).toBeLessThan(source.indexOf('// tone mapping'))
+      drawScenePass()
       drawOutput()
       expect(ceilingOf(fx).uCeilingOn.value).toBe(0)
       expect(update).not.toHaveBeenCalled()
@@ -423,21 +439,23 @@ describe('buildPostFx — the highlight ceiling', () => {
     }
   })
 
-  it('meters the HDR image the output pass reads, on the given clock, with the chain it is drawn through', () => {
-    const { fx, hdr, drawOutput, update, setChain } = ceilingRig()
+  it('meters the scene target from the probe, inside the scene pass, on the given clock, with the chain it is drawn through', () => {
+    const { fx, hdr, drawScenePass, drawOutput, update, setChain } = ceilingRig()
     try {
       fx.setHighlightCeiling(true)
       fx.setExposureClock(4200)
       fx.setFilmLook({ preset: 'film', exposure: 0.5 }, 4200)
-      drawOutput()
-      expect(ceilingOf(fx).uCeilingOn.value).toBe(1)
+      drawScenePass()
       expect(update).toHaveBeenCalledTimes(1)
       expect(update.mock.calls[0][1]).toBe(hdr.texture)
       expect(update.mock.calls[0][2]).toBe(4200)
       // The view's own exposure (the look's stops ride in the chain's film settings).
       expect(setChain.mock.calls[0][0]).toEqual({ exposure: 1.15, grade: GRADE_GAIN, film: fx.film })
+      drawOutput()
+      expect(ceilingOf(fx).uCeilingOn.value).toBe(1)
       expect(ceilingOf(fx).tCeiling.value).toBe(fx.meter.texture)
       fx.setHighlightCeiling(false)
+      drawScenePass()
       drawOutput()
       expect(ceilingOf(fx).uCeilingOn.value).toBe(0)
       expect(update).toHaveBeenCalledTimes(1)
@@ -448,6 +466,29 @@ describe('buildPostFx — the highlight ceiling', () => {
     }
   })
 
+  it('ignores every other render of the scene (environment capture, outline mask): the probe is armed by the scene pass alone', () => {
+    const { fx, hdr, drawScene, drawOutput, update } = ceilingRig()
+    try {
+      fx.setHighlightCeiling(true)
+      drawScene(hdr)
+      drawScene(null)
+      expect(update).not.toHaveBeenCalled()
+      drawOutput()
+      expect(ceilingOf(fx).uCeilingOn.value).toBe(0)
+    } finally {
+      hdr.dispose()
+      fx.dispose()
+    }
+  })
+
+  it('puts its probe in the scene as the first transparent object, and takes it out on dispose', () => {
+    const { fx, probe } = ceilingRig()
+    expect(probe).toBeDefined()
+    expect((probe.material as THREE.Material).transparent).toBe(true)
+    expect(probe.renderOrder).toBeLessThan(-1e6)
+    fx.dispose()
+    expect(probe.parent).toBeNull()
+  })
   it('refuses to graft onto an output shader without the line it follows', () => {
     const output = new OutputPass()
     ;(output.material as THREE.ShaderMaterial).fragmentShader = 'void main() { gl_FragColor = vec4(1.0); }'
