@@ -154,6 +154,9 @@ export function useAutoExport(o: AutoExportInputs): { state: AutoExportState | n
           script: request.name,
           fps: st.fps ?? null,
           units: 'world units (1 = 3.048 m), z up',
+          // The clip's clipped-to-white check (`clipMetric.ClipSummary`); each sample carries its
+          // own `clippedPct` and the highlight ceiling it was drawn with (`ceilingStops`).
+          clipping: st.clipping ?? null,
           samples: st.cameraTrack,
         })
         if (!liveRef.current) return
