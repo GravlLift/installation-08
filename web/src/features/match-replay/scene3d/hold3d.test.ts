@@ -2,6 +2,7 @@
 /** hold3d.test.ts — the hold format (validation) and the held pose at a script time. */
 import { describe, expect, it } from 'vitest'
 import {
+  activeHoldOf,
   activeHolds,
   holdStateAt,
   parseHolds,
@@ -202,5 +203,17 @@ describe('activeHolds', () => {
     expect([...activeHolds([h1, h2], 1000).keys()].sort()).toEqual(['A', 'B'])
     expect([...activeHolds([h1, h2], 2100).keys()].sort()).toEqual(['A', 'B']) // h1's blend-out runs to 2200
     expect([...activeHolds([h1, h2], 2200).keys()]).toEqual(['B'])
+  })
+})
+
+describe('activeHoldOf', () => {
+  const h1 = hold(1000, { xuid: 'A', until: 2000, blendMs: 200 })
+  const h2 = hold(500, { xuid: 'B' })
+
+  it("answers one player's hold the way activeHolds does", () => {
+    for (const sMs of [0, 400, 500, 999, 1000, 1500, 2100, 2199, 2200, 9000]) {
+      const map = activeHolds([h1, h2], sMs)
+      for (const xuid of ['A', 'B', 'C']) expect(activeHoldOf([h1, h2], xuid, sMs)).toBe(map.get(xuid) ?? null)
+    }
   })
 })

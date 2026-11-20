@@ -59,7 +59,7 @@ import { probeSurface, type SurfaceProbe } from './surfaceProbe3d'
 import { aimDirThree, toThree, type PlayerState3d, type Tracks3d } from './tracks3d'
 import { scriptClockOf, scriptOutlines, type CameraScript, type ScriptClockView, type ScriptSubjects } from './cameraScript3d'
 import { nearCoverOf, SIGHT_MIN_AXIS_COS, sightBlockOf, type SightCast } from './cameraSight3d'
-import { activeHolds, holdStateAt, lerpHeading, type Hold, type HoldState } from './hold3d'
+import { activeHoldOf, activeHolds, holdStateAt, lerpHeading, type Hold, type HoldState } from './hold3d'
 import { heroRigOf, heroRimTint, resolveHeroLight, type Vec3 as HeroVec3 } from './heroLights3d'
 import { clearHeroRigs, setHeroRigs, type HeroRigUniform } from './heroLightShader3d'
 import { holdMix } from './holdPose3d'
@@ -161,8 +161,8 @@ export class ReplayScene3d implements Replay3DExportSource {
   private readonly scopeView = new ScopeView3d(verticalFovOf(GAME_FOV_DEFAULT))
   /** The game's FOV setting (horizontal degrees at 16:9): the camera's base field and a camera script's base. */
   private gameFovDeg = GAME_FOV_DEFAULT
-  /** The players' feet for a camera script's player anchors (`scriptSubjectAt`). */
-  private readonly scriptSubjects: ScriptSubjects = { feetAt: (xuid, docMs) => this.scriptSubjectAt(xuid, docMs / this.msPerFrame) }
+  /** The players' feet for a camera script's player anchors (`scriptSubjectAt`), with the holds at the asked script time. */
+  private readonly scriptSubjects: ScriptSubjects = { feetAt: (xuid, docMs, sMs) => this.scriptSubjectAt(xuid, docMs / this.msPerFrame, sMs) }
   /** The pose clips on demand (`poseClips3d`), for a held player (docs/design/hold.md); disposed with the scene. */
   private readonly poseClips = new PoseClips()
   /** The script clocks, built once per set script object (`scriptClockOf`). */
@@ -557,20 +557,23 @@ export class ReplayScene3d implements Replay3DExportSource {
   }
 
   /**
-   * holdOf: a player's hold at the current script time: the hold, the film's sample at the hold's
+   * holdOf: a player's hold at script ms `sMs` (absent: the current script time; a camera
+   * weight's past samples ask for their own time): the hold, the film's sample at the hold's
    * start frame (`at`), the start frame itself, and the pose state (`holdStateAt`); null when the
    * camera is not scripted, the player is not held, the film has no sample at the start (the
    * player falls back to the film), or the rejoin blend has fully run out.
    */
-  private holdOf(xuid: string): { hold: Hold; held: PlayerState3d; atFrame: number; state: HoldState } | null {
+  private holdOf(xuid: string, sMs?: number): { hold: Hold; held: PlayerState3d; atFrame: number; state: HoldState } | null {
     const script = this.cameraPlacement.activeScript()
     if (!script || !this.tracks) return null
-    const hold = this.currentHolds().get(xuid)
+    const now = this.cameraPlacement.scriptTime()
+    const at = sMs ?? now
+    const hold = at === now ? this.currentHolds().get(xuid) : activeHoldOf(script.holds ?? [], xuid, at)
     if (!hold) return null
     const atFrame = this.scriptClock(script).docMsAt(hold.at) / this.msPerFrame
     const held = this.tracks.sample(xuid, atFrame) ?? this.tracks.lastLifeBefore(xuid, atFrame)
     if (!held) return null
-    const state = holdStateAt(hold, this.cameraPlacement.scriptTime(), { h: held.h, p: held.p })
+    const state = holdStateAt(hold, at, { h: held.h, p: held.p })
     if (!state) return null
     return { hold, held, atFrame, state }
   }
@@ -589,8 +592,8 @@ export class ReplayScene3d implements Replay3DExportSource {
    * null when the player has no state there. A held player answers with the held body (feet at
    * the hold's start, the hold's heading), so a key anchored on them orbits a body that stays put.
    */
-  scriptSubjectAt(xuid: string, frame: number): { x: number; y: number; z: number; h: number } | null {
-    const held = this.holdOf(xuid)
+  scriptSubjectAt(xuid: string, frame: number, sMs?: number): { x: number; y: number; z: number; h: number } | null {
+    const held = this.holdOf(xuid, sMs)
     // The feet use the drop the bodies are drawn with (`placeAvatars`: `originAboveFloor`), so an
     // anchor lines up with the body on screen.
     if (held) return { x: held.held.x, y: held.held.y, z: held.held.z - this.originAboveFloor, h: held.state.heading }

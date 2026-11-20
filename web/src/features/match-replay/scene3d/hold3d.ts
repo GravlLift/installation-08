@@ -194,11 +194,23 @@ export function holdStateAt(hold: Hold, sMs: number, start: HoldStart): HoldStat
   return { sinceMs, clipTimeS, weight, heading, pitch }
 }
 
+/** Whether a hold's state window holds `sMs` (from `at` to `until + blendMs`, open-ended with no `until`). */
+function holdActive(h: Hold, sMs: number): boolean {
+  return sMs >= h.at && (h.until === null || sMs < h.until + h.blendMs)
+}
+
 /** The holds with a non-null state window at `sMs` (a helper for the scene), by xuid. */
 export function activeHolds(holds: readonly Hold[], sMs: number): Map<string, Hold> {
   const out = new Map<string, Hold>()
   for (const h of holds) {
-    if (sMs >= h.at && (h.until === null || sMs < h.until + h.blendMs)) out.set(h.xuid, h)
+    if (holdActive(h, sMs)) out.set(h.xuid, h)
   }
+  return out
+}
+
+/** One player's hold active at `sMs` (`activeHolds`, for one xuid without building the map), or null. */
+export function activeHoldOf(holds: readonly Hold[], xuid: string, sMs: number): Hold | null {
+  let out: Hold | null = null
+  for (const h of holds) if (h.xuid === xuid && holdActive(h, sMs)) out = h // the later wins, as in the map
   return out
 }

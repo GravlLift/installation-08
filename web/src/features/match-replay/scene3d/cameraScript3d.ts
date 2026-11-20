@@ -22,6 +22,8 @@
  * A key's optional `near` cuts the map nearer than it away (a cutaway through a wall, `mapCut3d`;
  * players and effects are never cut), and
  * the top-level `outlines: false` takes the team outline out of the shot (`scriptOutlines`).
+ * A key's optional `weight` (and `lookWeight`) puts a spring between the scripted path and the
+ * camera (`cameraWeight3d`): a heavy rig's lag and settle, still a pure function of script time.
  */
 import { toThree, type Vec3 } from './tracks3d'
 import { verticalFovOf } from '../model/fovLogic'
@@ -29,6 +31,14 @@ import { BODY_CENTER } from './body3d'
 import { parseHolds, type Hold } from './hold3d'
 import { parseFilmLook, type FilmLook } from './filmLook3d'
 import { parseHeroLights, type HeroLight } from './heroLights3d'
+import {
+  CAMERA_WEIGHT_MIN_S,
+  CAMERA_WEIGHT_STEP_MS,
+  CAMERA_WEIGHT_STEPS_PER_SETTLE,
+  CAMERA_WEIGHT_WINDOW,
+  springApply,
+  springOf,
+} from './cameraWeight3d'
 
 export type Ease = 'smooth' | 'linear' | 'in' | 'out' | 'cut'
 export type ScriptVec3 = [number, number, number]
@@ -72,6 +82,16 @@ export interface CameraKey {
    * key of a run, nothing is cut.
    */
   near?: number
+  /**
+   * The camera's weight: the settle time (seconds, 0 to CAMERA_SCRIPT_WEIGHT_MAX) of a spring
+   * between the scripted path and the camera, on the position and on the look point, each on its
+   * own (`cameraWeight3d`). 0 or absent on every key of a run: the camera is the scripted path
+   * exactly. A key without one takes the nearest earlier key's in its run, else the nearest later
+   * key's; a cut resets it.
+   */
+  weight?: number
+  /** The look point's own settle time (seconds, same range and carry as `weight`); absent on every key of the run, `weight`. */
+  lookWeight?: number
 }
 /**
  * One camera jolt: from script ms `at`, a smooth deterministic wobble of yaw, pitch and roll whose
@@ -138,6 +158,8 @@ export const CAMERA_SCRIPT_DEATH_HOLD_MAX_MS = 30000
 /** A key's `near` (world units): from 0.01 u (3 cm) to 10 u (30 m). */
 export const CAMERA_SCRIPT_NEAR_MIN = 0.01
 export const CAMERA_SCRIPT_NEAR_MAX = 10
+/** A key's `weight` and `lookWeight` (settle time, seconds) are in [0, CAMERA_SCRIPT_WEIGHT_MAX]. */
+export const CAMERA_SCRIPT_WEIGHT_MAX = 3
 
 export type ParseResult = { ok: true; script: CameraScript } | { ok: false; error: string }
 
@@ -309,6 +331,14 @@ export function parseCameraScript(raw: unknown, expectedMatchId?: string): Parse
       }
       out.near = k.near
     }
+    for (const field of ['weight', 'lookWeight'] as const) {
+      const v = k[field]
+      if (v === undefined) continue
+      if (!isFiniteNumber(v) || v < 0 || v > CAMERA_SCRIPT_WEIGHT_MAX) {
+        return { ok: false, error: `key ${i}: ${field} must be seconds in [0, ${CAMERA_SCRIPT_WEIGHT_MAX}]` }
+      }
+      out[field] = v
+    }
     keys.push(out)
   }
 
@@ -429,9 +459,14 @@ export function scriptOutlines(script: CameraScript | null): boolean {
   return script?.outlines !== false
 }
 
-/** A player's feet in GAME coordinates (already floor-adjusted by the caller) and heading (deg) at document ms `tMs`; null when unknown. */
+/**
+ * A player's feet in GAME coordinates (already floor-adjusted by the caller) and heading (deg) at
+ * document ms `tMs`; null when unknown. `sMs` is the script time the answer is for (the holds
+ * active then, `hold3d`); absent, the current script time. The camera's weight reads the path at
+ * past script times, so their answers must not depend on the time being drawn.
+ */
 export interface ScriptSubjects {
-  feetAt(xuid: string, tMs: number): { x: number; y: number; z: number; h: number } | null
+  feetAt(xuid: string, tMs: number, sMs?: number): { x: number; y: number; z: number; h: number } | null
 }
 
 /** circularMeanDeg — the mean direction of a set of angles in degrees, in [0, 360). */
@@ -589,7 +624,7 @@ const SMOOTH_JUMP_U_PER_S = 50
  * turn, by about acceleration * sigma^2 / 2). A side stops at an unknown sample or at a jump
  * (`SMOOTH_JUMP_U_PER_S`), and the weights renormalize. A pure function of `tMs`.
  */
-function smoothedFeet(xuid: string, tMs: number, smooth: number, subjects: ScriptSubjects, center: Vec3): Vec3 {
+function smoothedFeet(xuid: string, tMs: number, sMs: number, smooth: number, subjects: ScriptSubjects, center: Vec3): Vec3 {
   if (smooth <= 0) return center
   const sigma = smooth / 2
   const side = Math.min(SMOOTH_SIDE_MAX, Math.max(SMOOTH_SIDE_MIN, Math.ceil(smooth / SMOOTH_STEP_MS)))
@@ -604,7 +639,7 @@ function smoothedFeet(xuid: string, tMs: number, smooth: number, subjects: Scrip
     let py = center[1]
     let pz = center[2]
     for (let i = 1; i <= side; i++) {
-      const s = subjects.feetAt(xuid, tMs + dir * i * step)
+      const s = subjects.feetAt(xuid, tMs + dir * i * step, sMs)
       if (s === null || Math.hypot(s.x - px, s.y - py, s.z - pz) > maxStep) break
       const d = i * step
       const w = Math.exp(-(d * d) / (2 * sigma * sigma))
@@ -620,12 +655,15 @@ function smoothedFeet(xuid: string, tMs: number, smooth: number, subjects: Scrip
   return [sx / sw, sy / sw, sz / sw]
 }
 
-/** Resolves a point at the time being drawn into GAME coordinates; null when the player is unknown. */
-function resolvePoint(point: ScriptPoint, tMs: number, subjects: ScriptSubjects, isLook: boolean): Vec3 | null {
+/**
+ * Resolves a point at the time being drawn (document ms `tMs`, script ms `sMs`) into GAME
+ * coordinates; null when the player is unknown.
+ */
+function resolvePoint(point: ScriptPoint, tMs: number, sMs: number, subjects: ScriptSubjects, isLook: boolean): Vec3 | null {
   if (point.at === 'world') return point.point
-  const raw = subjects.feetAt(point.xuid, tMs)
+  const raw = subjects.feetAt(point.xuid, tMs, sMs)
   if (raw === null) return null
-  const [x, y, z] = smoothedFeet(point.xuid, tMs, point.smooth ?? PLAYER_SMOOTH_DEFAULT_MS, subjects, [raw.x, raw.y, raw.z])
+  const [x, y, z] = smoothedFeet(point.xuid, tMs, sMs, point.smooth ?? PLAYER_SMOOTH_DEFAULT_MS, subjects, [raw.x, raw.y, raw.z])
   const feet = { x, y, z, h: raw.h }
   // A look point WITHOUT an offset aims at the body center; every other point uses [0,0,0].
   const offset: ScriptVec3 = point.offset ?? (isLook ? [0, 0, BODY_CENTER] : [0, 0, 0])
@@ -634,7 +672,7 @@ function resolvePoint(point: ScriptPoint, tMs: number, subjects: ScriptSubjects,
     const window = point.window ?? HEADING_WINDOW_DEFAULT_MS
     const samples: number[] = []
     for (let i = 0; i < 8; i++) {
-      const s = subjects.feetAt(point.xuid, tMs - (window * i) / 7)
+      const s = subjects.feetAt(point.xuid, tMs - (window * i) / 7, sMs)
       if (s !== null) samples.push(s.h)
     }
     const h = samples.length > 0 ? circularMeanDeg(samples) : feet.h
@@ -710,6 +748,9 @@ function catmullRom(P0: Vec3, P1: Vec3, P2: Vec3, P3: Vec3, u: number): Vec3 {
  * time `docMsAt(sMs)` (the time the world is at), so the camera can move on a slow or frozen
  * world. A key before the first key holds the first key, a cut key holds the previous key, both
  * still resolved at the document time, so a held player key keeps following its player.
+ *
+ * A run with a `weight` puts a spring between that scripted path and the camera (`weightedPose`):
+ * the camera lags, settles and slightly overshoots, still a pure function of `sMs`.
  */
 export function evaluateCameraScript(
   script: CameraScript,
@@ -717,6 +758,30 @@ export function evaluateCameraScript(
   subjects: ScriptSubjects,
   baseGameFov: number,
 ): ScriptPose | null {
+  const raw = rawPose(script, sMs, subjects, baseGameFov)
+  if (raw === null) return null
+  return weightedPose(script, sMs, subjects, baseGameFov, raw)
+}
+
+/** How the pose's focus distance follows the camera (`RawPose.focus`). */
+type FocusRule = { kind: 'look' } | { kind: 'point'; point: Vec3 } | { kind: 'curve' } | { kind: 'none' }
+
+/** The scripted pose at one time with what the weight needs: the run, the segment, the points in GAME coordinates. */
+interface RawPose {
+  pose: ScriptPose
+  a: number
+  b: number
+  k: number
+  /** The run's timing, or null when key k is held (before the first key, or after the run's last). */
+  run: RunTiming | null
+  pos: Vec3
+  look: Vec3
+  /** `look`: the distance to the target; `point`: the axial distance to a fixed focus; `curve`: a pulled focus (kept). */
+  focus: FocusRule
+}
+
+/** The scripted pose (no weight) at script ms `sMs`: the path the camera's spring follows. */
+function rawPose(script: CameraScript, sMs: number, subjects: ScriptSubjects, baseGameFov: number): RawPose | null {
   const keys = script.keys
   if (keys.length === 0) return null
 
@@ -737,16 +802,16 @@ export function evaluateCameraScript(
   // in the same run, else the nearest later key in the same run, else the world origin.
   const resolve = (i: number, field: 'pos' | 'look'): Vec3 => {
     const point = keys[i][field]
-    const direct = resolvePoint(point, tMs, subjects, field === 'look')
+    const direct = resolvePoint(point, tMs, sMs, subjects, field === 'look')
     if (direct !== null) return direct
     for (let j = i - 1; j >= 0; j--) {
       if (!sameRun(j, i)) break
-      const earlier = resolvePoint(keys[j][field], tMs, subjects, field === 'look')
+      const earlier = resolvePoint(keys[j][field], tMs, sMs, subjects, field === 'look')
       if (earlier !== null) return earlier
     }
     for (let j = i + 1; j < keys.length; j++) {
       if (!sameRun(i, j)) break
-      const later = resolvePoint(keys[j][field], tMs, subjects, field === 'look')
+      const later = resolvePoint(keys[j][field], tMs, sMs, subjects, field === 'look')
       if (later !== null) return later
     }
     return [0, 0, 0]
@@ -764,23 +829,26 @@ export function evaluateCameraScript(
   // A key's focus point: its own `focus`, else (or unresolved) its look point.
   const focusPoint = (i: number, look: Vec3): Vec3 => {
     const focus = keys[i].focus
-    return (focus && resolvePoint(focus, tMs, subjects, true)) ?? look
+    return (focus && resolvePoint(focus, tMs, sMs, subjects, true)) ?? look
   }
 
   if (sMs < keys[0].t || k === b) {
     // Hold key k: its points, resolved at the document time.
     const pos = resolve(k, 'pos')
     const look = resolve(k, 'look')
-    return {
+    const focus = apertures ? focusPoint(k, look) : look
+    const pose: ScriptPose = {
       position: toThree(...pos),
       target: toThree(...look),
       verticalFov: verticalFovOf(keys[k].fov ?? baseGameFov),
       rollDeg: keys[k].roll ?? 0,
-      focusDistance: apertures ? axialDistance(pos, look, focusPoint(k, look)) : null,
+      focusDistance: apertures ? axialDistance(pos, look, focus) : null,
       aperture: apertures ? apertures[k] : null,
       shake,
       near: nears ? nears[k] : null,
     }
+    const rule: FocusRule = !apertures ? { kind: 'none' } : focus === look ? { kind: 'look' } : { kind: 'point', point: focus }
+    return { pose, a, b, k, run: null, pos, look, focus: rule }
   }
 
   // A RUN IS ONE MOVE (docs/design/camera-scripts.md, "Timing"): its ends ease as the first and
@@ -806,10 +874,13 @@ export function evaluateCameraScript(
   const fovOf = (i: number): number => keys[i].fov ?? baseGameFov
   const rollOf = (i: number): number => keys[i].roll ?? 0
 
-  const position = toThree(...pathAt(at('pos'), run, k, sMs))
-  const target = toThree(...pathAt(at('look'), run, k, sMs))
+  const gamePos = pathAt(at('pos'), run, k, sMs)
+  const gameLook = pathAt(at('look'), run, k, sMs)
+  const position = toThree(...gamePos)
+  const target = toThree(...gameLook)
   let focusDistance: number | null = null
   let aperture: number | null = null
+  let focus: FocusRule = { kind: 'none' }
   if (apertures) {
     // The aperture moves in stops (log2 of the f-number), the way a lens's iris ring turns.
     aperture = 2 ** curveAt((i) => Math.log2(apertures[i]), run, k, sMs)
@@ -828,7 +899,9 @@ export function evaluateCameraScript(
         return d
       }
       focusDistance = Math.max(CAMERA_SCRIPT_MIN_FOCUS_U, curveAt(focusOf, run, k, sMs))
+      focus = { kind: 'curve' }
     } else {
+      focus = { kind: 'look' }
       // Focus on the look point: exactly the distance to the target being looked at, at every frame.
       focusDistance = Math.max(
         CAMERA_SCRIPT_MIN_FOCUS_U,
@@ -837,7 +910,7 @@ export function evaluateCameraScript(
     }
   }
 
-  return {
+  const pose: ScriptPose = {
     position,
     target,
     verticalFov: verticalFovOf(curveAt(fovOf, run, k, sMs)),
@@ -850,6 +923,226 @@ export function evaluateCameraScript(
       ? Math.min(CAMERA_SCRIPT_NEAR_MAX, Math.max(CAMERA_SCRIPT_NEAR_MIN, curveAt((i) => nears[i], run, k, sMs)))
       : null,
   }
+  return { pose, a, b, k, run, pos: gamePos, look: gameLook, focus }
+}
+
+/**
+ * The settle times of one field (`weight` or `lookWeight`) on every key of the run [a, b]
+ * (indexed by key), or null when no key of the run carries one. A key without one takes the
+ * nearest earlier key's in the run, else the nearest later key's (the `near` rule): a weight
+ * never crosses a cut.
+ */
+function weightTrack(keys: readonly CameraKey[], a: number, b: number, field: 'weight' | 'lookWeight'): number[] | null {
+  let last: number | undefined
+  for (let i = a; i <= b && last === undefined; i++) last = keys[i][field]
+  if (last === undefined) return null
+  const out: number[] = []
+  for (let i = a; i <= b; i++) {
+    const v = keys[i][field]
+    if (v !== undefined) last = v
+    out[i] = last
+  }
+  return out
+}
+
+/** A run's settle time at script ms `sMs` (seconds): the key's on a held key, else the run's C1 curve through its keys. */
+function settleAt(track: readonly number[] | null, raw: RawPose, sMs: number): number {
+  if (track === null) return 0
+  const v = raw.run === null ? track[raw.k] : curveAt((i) => track[i], raw.run, raw.k, sMs)
+  return v >= CAMERA_WEIGHT_MIN_S ? v : 0
+}
+
+/** The path samples of one run, by grid key (`gridKey`: game pos xyz, look xyz), plus the run's first pose. */
+interface RunSamples {
+  grid: Map<number, Float64Array>
+  start: Float64Array | null
+  /** The run's subjects as they answered when the samples were taken (`subjectsPrint`). */
+  print: string
+}
+/** At most this many samples are kept per run (a window holds at most about 100); past it the run starts over. */
+const WEIGHT_CACHE_MAX = 4096
+/**
+ * The weight's path samples, per script object, per subjects object, per run (its first key).
+ * A sample is the scripted pose at a grid time, a pure function of (script, subjects, time): the
+ * subjects answer for the script time asked (`ScriptSubjects.feetAt`'s `sMs`, the holds then), so
+ * a cached sample is exactly what a fresh evaluation gives. The run starts over when its
+ * subjects answer differently at its first key (`subjectsPrint`: a new followed player's floor,
+ * tracks that finished loading).
+ */
+const weightCache = new WeakMap<CameraScript, WeakMap<ScriptSubjects, Map<number, RunSamples>>>()
+
+function runSamplesOf(script: CameraScript, subjects: ScriptSubjects, a: number, print: string): RunSamples {
+  let bySubjects = weightCache.get(script)
+  if (!bySubjects) {
+    bySubjects = new WeakMap()
+    weightCache.set(script, bySubjects)
+  }
+  let runs = bySubjects.get(subjects)
+  if (!runs) {
+    runs = new Map()
+    bySubjects.set(subjects, runs)
+  }
+  let samples = runs.get(a)
+  if (!samples || samples.print !== print || samples.grid.size > WEIGHT_CACHE_MAX) {
+    samples = { grid: new Map(), start: null, print }
+    runs.set(a, samples)
+  }
+  return samples
+}
+
+/** The run's players' raw answers at its first key (script ms `tA`, document ms `docMs`), as one string. */
+function subjectsPrint(keys: readonly CameraKey[], a: number, b: number, subjects: ScriptSubjects, docMs: number, tA: number): string {
+  let print = ''
+  for (let i = a; i <= b; i++) {
+    for (const p of [keys[i].pos, keys[i].look]) {
+      if (p.at !== 'player') continue
+      const f = subjects.feetAt(p.xuid, docMs, tA)
+      print += f === null ? `${p.xuid}:-;` : `${p.xuid}:${f.x},${f.y},${f.z},${f.h};`
+    }
+  }
+  return print
+}
+
+/** The scripted pose's points at script ms `s` (game pos, then look), as one sample. */
+function sampleAt(script: CameraScript, s: number, subjects: ScriptSubjects, baseGameFov: number): Float64Array {
+  const raw = rawPose(script, s, subjects, baseGameFov) as RawPose // the script has keys: the caller has a pose
+  const out = new Float64Array(6)
+  out[0] = raw.pos[0]
+  out[1] = raw.pos[1]
+  out[2] = raw.pos[2]
+  out[3] = raw.look[0]
+  out[4] = raw.look[1]
+  out[5] = raw.look[2]
+  return out
+}
+
+/** Scratch knots for `weightedPose` (ages in seconds, 6 values per knot), grown as needed. */
+let knotTaus = new Float64Array(0)
+let knotValues = new Float64Array(0)
+
+/** The coarsest grid level: a step of CAMERA_WEIGHT_STEP_MS * 8 (15 Hz). */
+const GRID_LEVEL_MAX = 3
+
+/**
+ * The sample grid's level for a settle time (seconds): the grid step is CAMERA_WEIGHT_STEP_MS
+ * times 2^level, the coarsest power of two that keeps at least CAMERA_WEIGHT_STEPS_PER_SETTLE
+ * steps in one settle time, at most GRID_LEVEL_MAX (120 Hz below a weight of 0.13 s, 60 Hz to
+ * 0.27 s, 30 Hz to 0.53 s, 15 Hz beyond). A spring of a long weight passes only slow motion, so
+ * the coarser grid loses nothing visible (a straight line between samples cuts a curve's corner
+ * by its acceleration * step^2 / 12: about 0.003 u at 30 Hz for a sprinting turn) and keeps a
+ * window at about 45 samples (135 at 3 s); a power of two keeps the levels' grid times nested.
+ */
+function gridLevel(settleS: number): number {
+  const ratio = (settleS * 1000) / (CAMERA_WEIGHT_STEP_MS * CAMERA_WEIGHT_STEPS_PER_SETTLE)
+  return ratio < 2 ? 0 : Math.min(GRID_LEVEL_MAX, Math.floor(Math.log2(ratio)))
+}
+/**
+ * The pose with the run's weight (docs/design/camera-scripts.md, `weight`): the position and the
+ * look point each follow the scripted path through their own spring (`cameraWeight3d`), as the
+ * convolution of the path over the last CAMERA_WEIGHT_WINDOW settle times, sampled on an absolute
+ * grid of SCRIPT time (`gridLevel`) and held at the run's first key before it (the camera starts
+ * at rest on it; a cut starts the next run on its first key exactly). A still path gives exactly
+ * the path, so a held last key is reached. While the clock is frozen the script time still runs,
+ * so the camera settles onto the frozen world. Fov, roll, aperture and near are not weighted; a
+ * focus that follows the look point is measured to the weighted target. No weight on the run:
+ * the scripted pose as is.
+ */
+function weightedPose(script: CameraScript, sMs: number, subjects: ScriptSubjects, baseGameFov: number, raw: RawPose): ScriptPose {
+  const keys = script.keys
+  const { a, b, pose } = raw
+  const tA = keys[a].t
+  if (sMs <= tA) return pose // at (or before) the run's first key the camera is at rest on it
+  const posTrack = weightTrack(keys, a, b, 'weight')
+  const lookTrack = weightTrack(keys, a, b, 'lookWeight') ?? posTrack
+  const posSettle = settleAt(posTrack, raw, sMs)
+  const lookSettle = settleAt(lookTrack, raw, sMs)
+  if (posSettle === 0 && lookSettle === 0) return pose
+
+  // The knots: the pose now (age 0), the grid samples strictly between the run's start and now,
+  // newest first, back to the window's edge, and the run's first pose when the window reaches it.
+  const settle = Math.max(posSettle, lookSettle)
+  const level = gridLevel(settle)
+  const step = CAMERA_WEIGHT_STEP_MS * 2 ** level
+  const edge = sMs - CAMERA_WEIGHT_WINDOW * settle * 1000
+  let newest = Math.ceil(sMs / step) - 1 // the newest grid time strictly before sMs
+  if (newest * step >= sMs) newest-- // float noise at a grid time
+  let first = Math.floor(tA / step) + 1 // the oldest grid time strictly after tA
+  if (first * step <= tA) first++
+  const windowOldest = Math.floor(edge / step) // at or before the window's edge
+  const clamped = windowOldest < first // the window reaches back to the run's first key
+  let oldest = clamped ? first : windowOldest
+  if (oldest > newest) oldest = newest + 1 // no grid time in (tA, sMs)
+  const n = 1 + (newest - oldest + 1) + (clamped ? 1 : 0)
+  if (knotTaus.length < n) {
+    knotTaus = new Float64Array(n * 2)
+    knotValues = new Float64Array(n * 12)
+  }
+  const taus = knotTaus
+  const values = knotValues
+  taus[0] = 0
+  values[0] = raw.pos[0]
+  values[1] = raw.pos[1]
+  values[2] = raw.pos[2]
+  values[3] = raw.look[0]
+  values[4] = raw.look[1]
+  values[5] = raw.look[2]
+
+  const print = subjectsPrint(keys, a, b, subjects, scriptClockOf(script).docMsAt(tA), tA)
+  const samples = runSamplesOf(script, subjects, a, print)
+  // A grid time's key: its index on the finest grid (levels nest), so a sample is shared across levels.
+  const sampleOf = (i: number): Float64Array => {
+    const gridKey = i * 2 ** level
+    let p = samples.grid.get(gridKey)
+    if (p === undefined) {
+      p = sampleAt(script, i * step, subjects, baseGameFov) // i * step is gridKey * CAMERA_WEIGHT_STEP_MS exactly (a power of two)
+      samples.grid.set(gridKey, p)
+    }
+    return p
+  }
+
+  let j = 1
+  for (let i = newest; i >= oldest; i--, j++) {
+    const p = sampleOf(i)
+    taus[j] = (sMs - i * step) / 1000
+    values.set(p, j * 6)
+  }
+  if (clamped) {
+    let p = samples.start
+    if (p === null) {
+      p = sampleAt(script, tA, subjects, baseGameFov)
+      samples.start = p
+    }
+    taus[j] = (sMs - tA) / 1000
+    values.set(p, j * 6)
+  }
+
+  const gamePos: Vec3 = [raw.pos[0], raw.pos[1], raw.pos[2]]
+  const gameLook: Vec3 = [raw.look[0], raw.look[1], raw.look[2]]
+  const out = [0, 0, 0]
+  if (posSettle > 0) {
+    springApply(springOf(posSettle), taus, values, n, 6, 0, out)
+    gamePos[0] = out[0]
+    gamePos[1] = out[1]
+    gamePos[2] = out[2]
+  }
+  if (lookSettle > 0) {
+    springApply(springOf(lookSettle), taus, values, n, 6, 3, out)
+    gameLook[0] = out[0]
+    gameLook[1] = out[1]
+    gameLook[2] = out[2]
+  }
+  const position = toThree(...gamePos)
+  const target = toThree(...gameLook)
+  let focusDistance = pose.focusDistance
+  if (raw.focus.kind === 'look') {
+    focusDistance = Math.max(
+      CAMERA_SCRIPT_MIN_FOCUS_U,
+      Math.hypot(target[0] - position[0], target[1] - position[1], target[2] - position[2]),
+    )
+  } else if (raw.focus.kind === 'point') {
+    focusDistance = axialDistance(gamePos, gameLook, raw.focus.point)
+  }
+  return { ...pose, position, target, focusDistance }
 }
 
 /**

@@ -212,6 +212,37 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
   environment probes). A cut wall is not in the depth buffer, so ambient occlusion and the depth
   of field see no wall there; the team outline's mask draws only players; shadows ignore the cut,
   so a wall cut away still casts its shadow. A cut wall shows its inside (no capping).
+- `weight` (optional, per key, 2026-11-20): the camera's weight, in SECONDS, 0 to 3
+  (`CAMERA_SCRIPT_WEIGHT_MAX`). It is the settle time of a spring between the scripted path and the
+  camera, applied to the position and to the look point, each on its own, in world space
+  (`scene3d/cameraWeight3d.ts`): the camera lags the path, settles onto it and overshoots very
+  slightly, the way a heavy rig operated by a person never snaps. The spring is second order with
+  damping ratio 0.85 (`CAMERA_WEIGHT_DAMPING`: a step overshoots by about 0.6%, is within 2% of its
+  target by 0.9 `weight` and within 0.4% at `weight`); a path moving at constant speed v is
+  trailed by `v * 0.36 * weight`. 0 or absent on every key of a run is today's exact pose. A key
+  without one takes the nearest earlier key's IN ITS RUN, else the nearest later key's (the `near`
+  rule); between keys it follows the same C1 curve as `fov`. `lookWeight` (same units, range and
+  carry) is the look point's own settle time; a run where no key has one uses `weight` for both.
+  Guidance: 0.15 to 0.4 s reads as a heavy handheld or a steadicam; 0.6 to 1.2 s as a crane or a
+  drone that lags a sprint; a `lookWeight` smaller than `weight` keeps the subject framed while the
+  body of the camera drifts behind.
+  The pose stays a pure function of script time (exports render frames out of order, with motion
+  blur subframes, and scrubbing jumps): the camera is the convolution of the scripted path with
+  the spring's impulse response over the last 3 settle times (`CAMERA_WEIGHT_WINDOW`; the kernel
+  left beyond is under 1e-5), not a simulation stepped frame to frame. The path is sampled on an
+  absolute grid of script time (120 Hz, coarser in powers of two for a long weight, at least 8
+  steps per settle time, down to 15 Hz) and taken as a straight line between samples, which the
+  kernel integrates in closed form; its weights sum to exactly 1, so a still path gives exactly
+  that path and a last key held long enough is reached exactly. Before a run's first key the path
+  is held at that key: every run, the one after a cut included, starts at rest on its first key
+  exactly. While the clock is frozen the script time still runs, so the camera settles onto the
+  frozen world. Fov, roll, aperture and `near` are not weighted; a focus that follows the look
+  point is measured to the weighted target. The samples are cached per script, per run and grid
+  time, so a frame of playback evaluates one or two new ones (about 0.2 ms in all, measured in the
+  test); a scrub that leaves the window evaluates a whole window (about 45 samples, 5 to 15 ms).
+  A sample at an earlier script time asks the scene for the players AT THAT SCRIPT TIME
+  (`ScriptSubjects.feetAt`'s `sMs`: the holds active then), so a weighted camera on a player who
+  becomes held trails into the hold instead of jumping to it.
 - `shakes` (optional, top level): at most 64 entries sorted by `at`, each
   `{ "at": 4200, "amp": 1.5, "decay": 250, "freq": 12 }`: `at` script ms (at least 0) where the
   jolt starts; `amp` its starting size in degrees of rotation, in (0, 10]; `decay` its e-folding
