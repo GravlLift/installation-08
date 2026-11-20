@@ -126,8 +126,10 @@ const EquipmentRuleCurrent = 2
 // effects' weapon functions carry their mapping (the Heatwave's `fx_camo_off` is 1 - camo).
 // 6: vehicle models and the Spartan's vehicle-seat animations. 7: the Spartan shield's impact
 // generator (shield_hit) and its fx-* textures. 8: the models carry the game's vertex normals
-// (himap geometry_normales.go), so the view shades them smooth instead of faceted.
-const SchemaCurrent = 8
+// (himap geometry_normales.go), so the view shades them smooth instead of faceted. 9: the shield
+// generator's function properties carry their curves (the hit's intensity and radius over the time
+// since the impact).
+const SchemaCurrent = 9
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).

@@ -23,8 +23,12 @@
 // are each a float4 descriptor: a constant when bit 21 of the uint of its y is set (the value in
 // x), otherwise a function of one engine input (bits 17..21 of the uint of its w; the inputs are
 // the compute shader's: impact time, shield vitality, damage...). The functions' curves sit in the
-// tag too (the material's property buffer, the shader's `cbPropertiesConstants`), but their layout
-// is NOT decoded here: such a property is published with its input and no value.
+// tag too: the material post-process's second constant block is the compute shader's
+// `cbPropertiesConstants` (reg 0 the color offset, then 29 function records of 4 registers each).
+// A function property's curve is read from it by the compute shader's own evaluation (`readCurve`);
+// a property whose evaluation needs more than its one input (a blend of two curves by a second
+// input, an add or multiply by another input, an exclusion band, a transition or periodic segment)
+// is published with its input and no curve.
 package weapons
 
 import (
@@ -61,8 +65,19 @@ const (
 	postTextureStride   = 0x38
 	postTextureOffReg   = 0x2A // the texture's bindless register offset in $Globals (bytes)
 	postOffConstants    = 0x58
+	postOffProperties   = 0x6C // the compute shader's cbPropertiesConstants, 16-byte registers
 	postConstantStride  = 0x10
 	alphaBlendAdditive  = 1
+)
+
+// The function records of cbPropertiesConstants (the compute shader's s_function_definition):
+// record k sits at register 4k+1, as (type, domainMax, rangeMin, rangeMax), (flags, exclusionMin,
+// exclusionMax, -), then its two coefficient registers.
+const (
+	curveRecordRegs   = 4
+	curveMaxSegments  = 4 // the shader tests records f..f+3
+	curveFlagSaturate = 4
+	curveFlagExclude  = 8
 )
 
 // The $Globals byte offsets of the generator's three textures' bindless indices (DXIL reflection):
@@ -80,10 +95,88 @@ var generatorInputs = [...]string{"recentDamage", "currentDamage", "damage", "sh
 	"impactTime", "systemAge", "effectScaleA", "effectScaleB"}
 
 // GeneratorProperty is one GPU property of the generator shader: a constant (Constant set), or a
-// function of the engine input Input whose curve is not decoded (Constant nil).
+// function of the engine input Input, with its Curve when this file can evaluate it (nil otherwise).
 type GeneratorProperty struct {
-	Constant *float32 `json:"constant,omitempty"`
-	Input    string   `json:"input,omitempty"`
+	Constant *float32        `json:"constant,omitempty"`
+	Input    string          `json:"input,omitempty"`
+	Curve    *GeneratorCurve `json:"curve,omitempty"`
+}
+
+// GeneratorCurve is a function property's curve, evaluated as the compute shader does: x is the
+// input saturated to 0..1; the segment is the first whose DomainMax is >= x (the first one when
+// none is); v is the segment's shape at x (absolute x, not relative to the segment), saturated when
+// Saturate; the value is RangeMin + (RangeMax - RangeMin) * v. The range and the flags are the
+// first record's.
+type GeneratorCurve struct {
+	RangeMin float32        `json:"rangeMin"`
+	RangeMax float32        `json:"rangeMax"`
+	Saturate bool           `json:"saturate"`
+	Segments []CurveSegment `json:"segments"`
+}
+
+// CurveSegment is one record of a curve. Kind: "identity" (v = x), "constant" (v = c0), "linear"
+// (v = c0 x + c1), "power" (v = c0 + (c1 - c0) x^c2), "cubic" (v = c0 x^3 + c1 x^2 + c2 x + c3).
+type CurveSegment struct {
+	Kind         string     `json:"kind"`
+	DomainMax    float32    `json:"domainMax"`
+	Coefficients [4]float32 `json:"c"`
+}
+
+// readCurve reads function record f of the property buffer `props` (raw registers) by the compute
+// shader's evaluation. nil: the record is missing, or it needs what a single curve does not carry
+// (an exclusion band, a transition or periodic segment).
+func readCurve(props []byte, f int) *GeneratorCurve {
+	reg := func(r, lane int) (float32, bool) {
+		off := r*postConstantStride + lane*4
+		if off+4 > len(props) {
+			return 0, false
+		}
+		return math.Float32frombits(binary.LittleEndian.Uint32(props[off:])), true
+	}
+	base := f*curveRecordRegs + 1
+	rangeMin, ok1 := reg(base, 2)
+	rangeMax, ok2 := reg(base, 3)
+	flags, ok3 := reg(base+1, 0)
+	if !ok1 || !ok2 || !ok3 || uint32(flags)&curveFlagExclude != 0 {
+		return nil
+	}
+	c := &GeneratorCurve{RangeMin: rangeMin, RangeMax: rangeMax, Saturate: uint32(flags)&curveFlagSaturate != 0}
+	for i := 0; i < curveMaxSegments; i++ {
+		r := (f+i)*curveRecordRegs + 1
+		typ, ok := reg(r, 0)
+		domainMax, ok2 := reg(r, 1)
+		if !ok || !ok2 {
+			if i == 0 {
+				return nil
+			}
+			break
+		}
+		var kind string
+		switch typ {
+		case 0:
+			kind = "identity"
+		case 1:
+			kind = "constant"
+		case 2, 3:
+			return nil // transition, periodic: not read
+		case 4:
+			kind = "linear"
+		case 9:
+			kind = "power"
+		default:
+			kind = "cubic" // 7, and the shader's fallback for any other type
+		}
+		s := CurveSegment{Kind: kind, DomainMax: domainMax}
+		for k := range s.Coefficients {
+			s.Coefficients[k], _ = reg(r+2, k)
+		}
+		c.Segments = append(c.Segments, s)
+		// x never exceeds 1: the records past this one are never selected.
+		if domainMax >= 1 {
+			break
+		}
+	}
+	return c
 }
 
 // GeneratorTexture is one texture of the generator, a library file read as the shader reads it.
@@ -115,6 +208,9 @@ type ShieldGenerator struct {
 	HitIntensity              GeneratorProperty `json:"hitIntensity"`
 	HitRadius                 GeneratorProperty `json:"hitRadius"`
 	ColorOverrideDesaturation GeneratorProperty `json:"colorOverrideDesaturation"`
+
+	// InverseHitTime scales the time since the impact into the impactTime input.
+	InverseHitTime float32 `json:"inverseHitTime"`
 
 	FlatColor [3]float32 `json:"flatColor"`
 
@@ -152,9 +248,10 @@ type ShieldGenerator struct {
 // generatorTag is what a generator tag holds for the view: its blend mode, its material constants
 // (the shader's $Globals), its textures by the register they bind.
 type generatorTag struct {
-	additive  bool
-	constants []byte
-	textures  map[int]uint32 // $Globals register offset -> bitm id
+	additive   bool
+	constants  []byte
+	properties []byte         // cbPropertiesConstants, raw registers (empty when the tag has none)
+	textures   map[int]uint32 // $Globals register offset -> bitm id
 }
 
 // readGeneratorTag walks an `efge` tag down to its first generator's material.
@@ -199,6 +296,11 @@ func readGeneratorTag(raw []byte) (generatorTag, error) {
 		return generatorTag{}, err
 	}
 	out := generatorTag{additive: alpha == alphaBlendAdditive, constants: c, textures: map[int]uint32{}}
+	if props, err := p.Block(postOffProperties, postConstantStride); err == nil && props.Len() > 0 {
+		if out.properties, err = props.At(0).Bytes(0, props.Len()*postConstantStride); err != nil {
+			return generatorTag{}, err
+		}
+	}
 	texs, err := p.Block(postOffTextures, postTextureStride)
 	if err != nil {
 		return generatorTag{}, err
@@ -215,9 +317,10 @@ func readGeneratorTag(raw []byte) (generatorTag, error) {
 	return out, nil
 }
 
-// decodeGeneratorConstants reads the generator shader's $Globals `c` by the shader's layout. The
-// textures are left to the caller.
-func decodeGeneratorConstants(c []byte) (ShieldGenerator, error) {
+// decodeGeneratorConstants reads the generator shader's $Globals `c` by the shader's layout, and
+// the function properties' curves from the property buffer `props`. The textures are left to the
+// caller.
+func decodeGeneratorConstants(c, props []byte) (ShieldGenerator, error) {
 	if len(c) != generatorConstantsSize {
 		return ShieldGenerator{}, fmt.Errorf("generator constants: %d bytes, want %d", len(c), generatorConstantsSize)
 	}
@@ -231,10 +334,17 @@ func decodeGeneratorConstants(c []byte) (ShieldGenerator, error) {
 			return GeneratorProperty{Constant: &v}
 		}
 		in := int(uint32(f(off+12))>>17) & 31
+		p := GeneratorProperty{Input: fmt.Sprintf("#%d", in)}
 		if in < len(generatorInputs) {
-			return GeneratorProperty{Input: generatorInputs[in]}
+			p.Input = generatorInputs[in]
 		}
-		return GeneratorProperty{Input: fmt.Sprintf("#%d", in)}
+		y, z := uint32(f(off+4)), uint32(f(off+8))
+		// y&31 names a second curve blended in by a second input, z&3 an add or a multiply by another
+		// input: neither is a single curve of the one input. Otherwise the curve is function z>>17.
+		if y&31 == 0 && z&3 == 0 && in < len(generatorInputs) {
+			p.Curve = readCurve(props, int(z>>17)&31)
+		}
+		return p
 	}
 	return ShieldGenerator{
 		TintInsteadOfReplace:      u(12) != 0,
@@ -251,6 +361,7 @@ func decodeGeneratorConstants(c []byte) (ShieldGenerator, error) {
 		HitIntensity:              prop(240),
 		HitRadius:                 prop(256),
 		ColorOverrideDesaturation: prop(272),
+		InverseHitTime:            f(288),
 		EdgeOuterFadeRadius:       f(300),
 		EdgeInnerFadeRadius:       f(308),
 		EdgeScaleOuter:            f(312),
@@ -305,7 +416,7 @@ func readShieldHit(ctx context.Context, a *himap.Arsenal, gameRoot, module, dir 
 		slog.WarnContext(ctx, "shield impact generator unreadable", "err", err)
 		return nil, nil
 	}
-	g, err := decodeGeneratorConstants(gt.constants)
+	g, err := decodeGeneratorConstants(gt.constants, gt.properties)
 	if err != nil {
 		return nil, err
 	}

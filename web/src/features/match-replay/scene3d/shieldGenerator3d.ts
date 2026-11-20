@@ -12,29 +12,53 @@
  *   p1     = noise1(uv*tile*scale1 + t*speed*(1/24, 1/26))^sharp0 * intensity0
  *   p2     = noise2(uv*tile*scale2 + t*speed*(-1/22, 1/34))^sharp1 * intensity1
  *   plasma = blend(p1, p2), mode 0: saturate(1 - |p1 - p2|)^mix(centerSharpness, edgeSharpness, pmask)
- *   out    = edge*edgeColor + flatColor + (mix(centerColor, plasmaEdgeColor, pmask) + hitColor*hitMask) * plasma
+ *   hit    = saturate(1 - |p - impact| / hitRadius) * hitColor * hitIntensity
+ *   out    = edge*edgeColor + flatColor + (mix(centerColor, plasmaEdgeColor, pmask) + hit) * plasma
  *
  * added over the scene (the generator's blend mode). For the shield impact the noise is the
  * game's hex grid, the second noise a white default texture, the edge and plasma intensities are
  * constants of 0: what shows is the hit color through the hex pattern, the pattern alone where the
  * body faces the camera, solid toward its silhouette (the exponent goes to 0 at grazing angles).
  *
+ * The hit intensity and the hit radius are GPU functions of the time since the impact (times
+ * `inverseHitTime`), their curves read from the tag (`GeneratorProperty.curve`, `evalCurve`): for
+ * the shield impact, 90 at the impact, ~19 at 0.10 s, 0 at 1 s, over a radius of 0.1 u shrinking to
+ * 0.05 u. Each hit is its own generator, drawn additively: overlapping hits add up
+ * (`shieldImpacts3d` places them, `bodyShell3d` draws them).
+ *
  * NOT decoded (stated, not guessed):
- *  - the hit intensity and the hit radius are GPU functions of the time since the impact whose
- *    curves are in the tag but not read: the hit level is the film's measured shield drop
- *    (`ShieldFx.hit`, `shields3d`) instead, and the mask is the whole shell (the film carries no
- *    impact point, so `hitMask` is 1);
  *  - the override color slots are engine runtime colors: the team color stands for them;
- *  - the engine's exposure (`exposureAmount` times its alternate exposure) is not applied.
+ *  - the engine's exposure (`exposureAmount` times its alternate exposure) is not applied: the hit
+ *    intensity, an HDR strength, goes through the view's mapping of every game emissive strength
+ *    (`lighting.glowLevel`).
  */
 import * as THREE from 'three'
 
 import { IndexField, type FetchJson } from './indexField3d'
 
-/** A GPU property: a constant, or a function of an engine input whose curve is not decoded. */
+/** A GPU property: a constant, or a function of an engine input, with its curve when it was read. */
 export interface GeneratorProperty {
   constant?: number
   input?: string
+  curve?: GeneratorCurve
+}
+
+/** One segment of a curve (Go `weapons.CurveSegment`). */
+export interface CurveSegment {
+  kind: 'identity' | 'constant' | 'linear' | 'power' | 'cubic'
+  domainMax: number
+  c: [number, number, number, number]
+}
+
+/**
+ * A function property's curve (Go `weapons.GeneratorCurve`), evaluated as the game's compute shader
+ * does (`evalCurve`).
+ */
+export interface GeneratorCurve {
+  rangeMin: number
+  rangeMax: number
+  saturate: boolean
+  segments: CurveSegment[]
 }
 
 export interface GeneratorTexture {
@@ -61,6 +85,8 @@ export interface ShieldGenerator {
   hitIntensity: GeneratorProperty
   hitRadius: GeneratorProperty
   colorOverrideDesaturation: GeneratorProperty
+  /** Scales the time since the impact (s) into the `impactTime` input. */
+  inverseHitTime: number
   flatColor: [number, number, number]
   edgeOuterFadeRadius: number
   edgeInnerFadeRadius: number
@@ -103,7 +129,7 @@ const NUMBER_FIELDS = [
   'plasma0Intensity', 'plasma0Sharpness', 'noise1UScale', 'noise1VScale', 'plasma1Intensity', 'plasma1Sharpness',
   'noise2UScale', 'noise2VScale', 'plasmaTileScale', 'plasmaScrollSpeed', 'plasmaEdgeSharpness',
   'plasmaCenterSharpness', 'plasmaOuterFadeRadius', 'plasmaInnerFadeRadius', 'plasmaEdgeScaleInner',
-  'plasmaEdgeScaleOuter', 'exposureAmount',
+  'plasmaEdgeScaleOuter', 'exposureAmount', 'inverseHitTime',
 ] as const
 const PROPERTY_FIELDS = [
   'edgeGlowIntensity', 'plasmaCenterIntensity', 'plasmaEdgeIntensity', 'flatColorIntensity', 'extrusionDistance',
@@ -115,9 +141,18 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null
 }
 
+const SEGMENT_KINDS = new Set(['identity', 'constant', 'linear', 'power', 'cubic'])
+
+function isCurve(v: unknown): v is GeneratorCurve {
+  if (!isRecord(v) || typeof v.rangeMin !== 'number' || typeof v.rangeMax !== 'number' || typeof v.saturate !== 'boolean') return false
+  if (!Array.isArray(v.segments) || v.segments.length === 0) return false
+  return v.segments.every((s: unknown) => isRecord(s) && typeof s.kind === 'string' && SEGMENT_KINDS.has(s.kind) &&
+    typeof s.domainMax === 'number' && Array.isArray(s.c) && s.c.length === 4 && s.c.every((k: unknown) => typeof k === 'number'))
+}
+
 function isProperty(v: unknown): v is GeneratorProperty {
   return isRecord(v) && (v.constant === undefined || typeof v.constant === 'number') &&
-    (v.input === undefined || typeof v.input === 'string')
+    (v.input === undefined || typeof v.input === 'string') && (v.curve === undefined || isCurve(v.curve))
 }
 
 /** parseShieldHit reads `shield_hit` out of the weapon library index (null: absent or malformed). */
@@ -132,9 +167,36 @@ export function parseShieldHit(doc: unknown): ShieldGenerator | null {
   return g as unknown as ShieldGenerator
 }
 
-/** constantOf: a property's value when it is a constant, `fallback` when it is an undecoded function. */
+/** constantOf: a property's value when it is a constant, `fallback` when it is a function. */
 export function constantOf(p: GeneratorProperty, fallback: number): number {
   return p.constant ?? fallback
+}
+
+/**
+ * evalCurve: a curve's value at engine input `input`, as the compute shader evaluates it: x is the
+ * input saturated to 0..1; the segment is the first whose `domainMax` is >= x (the first one when
+ * none is); its shape at x (absolute x), saturated when the curve says so, maps onto the range.
+ */
+export function evalCurve(curve: GeneratorCurve, input: number): number {
+  const x = Math.min(1, Math.max(0, input))
+  const s = curve.segments.find((seg) => x <= seg.domainMax) ?? curve.segments[0]
+  const [c0, c1, c2, c3] = s.c
+  let v: number
+  switch (s.kind) {
+    case 'identity': v = x; break
+    case 'constant': v = c0; break
+    case 'linear': v = c0 * x + c1; break
+    case 'power': v = c0 + (c1 - c0) * Math.pow(x, c2); break
+    default: v = ((c0 * x + c1) * x + c2) * x + c3
+  }
+  if (curve.saturate) v = Math.min(1, Math.max(0, v))
+  return curve.rangeMin + (curve.rangeMax - curve.rangeMin) * v
+}
+
+/** propertyAt: a property's value at input `input`; null for a function whose curve was not read. */
+export function propertyAt(p: GeneratorProperty, input: number): number | null {
+  if (p.constant !== undefined) return p.constant
+  return p.curve ? evalCurve(p.curve, input) : null
 }
 
 /**
@@ -150,13 +212,6 @@ export function plasmaExponent(g: ShieldGenerator, pmask: number): number {
   return g.plasmaCenterSharpness + (g.plasmaEdgeSharpness - g.plasmaCenterSharpness) * pmask
 }
 
-/**
- * hitLevel: the impact's strength at one frame, from the film's shield measurements: the hit's
- * glow, or the break (the hit that empties the shield), whichever is stronger.
- */
-export function hitLevel(shield: { hit: number; broke: number }): number {
-  return Math.max(shield.hit, shield.broke)
-}
 
 // The luminance weights of the vertex shader's color desaturation.
 const LUMA = [0.2125, 0.7154, 0.0721] as const
