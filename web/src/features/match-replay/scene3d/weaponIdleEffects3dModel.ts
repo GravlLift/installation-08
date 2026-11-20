@@ -29,12 +29,22 @@
  * DETERMINISM: everything is a function of the match time and a player seed (`unitHash`): the same
  * frame always draws the same particles.
  */
+import { periodicWave } from './glowAnimation3d'
 import { glowLevel } from './lighting'
 
 /** A piece of a multi-spline: the polynomial (highest degree first) up to `end`. */
 export interface CurveSegment {
   end: number
   coefs: number[]
+}
+
+/** A periodic sub-function (`himap.Periodique`): wave(frequence x input + phase), brought into [min, max]. */
+export interface PeriodicPart {
+  onde: number
+  frequence: number
+  phase: number
+  min: number
+  max: number
 }
 
 /** An emitter property (`himap.FonctionParticule`). */
@@ -48,6 +58,8 @@ export interface ParticleFunction {
   min: number
   max: number
   curves?: CurveSegment[][]
+  /** A periodic function's sub-functions (type 3; two when ranged). */
+  periodic?: PeriodicPart[]
   color?: [number, number, number]
 }
 
@@ -130,6 +142,7 @@ export type IdleEffectTable = Readonly<Record<string, readonly IdleEffect[]>>
 /** Function types the index carries (`himap/effet_arme.go`). */
 export const FN_IDENTITY = 0
 export const FN_CONSTANT = 1
+export const FN_PERIODIC = 3
 export const FN_MULTI_SPLINE = 8
 
 /** Engine inputs of a property (the community plugin's enum). */
@@ -193,14 +206,34 @@ export function curveAt(segs: readonly CurveSegment[], x: number): number {
 }
 
 /**
+ * periodicAt is a periodic sub-function's value at x: wave(frequence x x + phase) brought into its
+ * [min, max], the waves the map's animated lights already draw (`glowAnimation3d.periodicWave`; a
+ * random wave hashes `seed`).
+ */
+function periodicAt(p: PeriodicPart, x: number, seed: number): number {
+  return p.min + (p.max - p.min) * periodicWave(p.onde, p.frequence * x + p.phase, seed)
+}
+
+/**
  * propertyAt is the value of a property given its inputs' values (`input(k)`, the engine input k:
  * particle age in [0, 1], a random in [0, 1], an effect scale...). Min + (Max - Min) x the function's
- * value; a ranged function mixes its two curves (or its two ends, a constant) by the range input.
+ * value; a ranged function mixes its two curves (or its two ends, a constant, or its two periodic
+ * sub-functions) by the range input. `seed` feeds a periodic function's random waves (jitter,
+ * noise): the same seed, the same values.
  */
-export function propertyAt(f: ParticleFunction, input: (k: number) => number): number {
+export function propertyAt(f: ParticleFunction, input: (k: number) => number, seed = 0): number {
   const r = f.ranged ? input(f.rangeInput) : 0
   let v: number
   switch (f.type) {
+    case FN_PERIODIC: {
+      const p = f.periodic ?? []
+      if (p.length === 0) return 0
+      const x = input(f.input)
+      const a = periodicAt(p[0], x, seed)
+      const y = f.ranged && p.length > 1 ? a + (periodicAt(p[1], x, seed + 1) - a) * r : a
+      v = f.min + (f.max - f.min) * y
+      break
+    }
     case FN_IDENTITY:
       v = f.min + (f.max - f.min) * input(f.input)
       break
@@ -385,7 +418,8 @@ export function simulateSystem(s: IdleSystem, t: number, seed: number, rank: num
 /** particleAt evaluates one particle's state from its inputs. */
 function particleAt(s: IdleSystem, input: (k: number) => number, age: number, rnd: (j: number) => number): LiveParticle {
   const p = s.emitter.properties
-  const v = (name: string, fallback: number) => (p[name] ? propertyAt(p[name], input) : fallback)
+  // A periodic property's random waves draw from the particle's own seed, one per property.
+  const v = (name: string, fallback: number) => (p[name] ? propertyAt(p[name], input, Math.floor(rnd(500 + nameCode(name)) * 0x7fffffff)) : fallback)
   const [dx, dy, dz] = unit(s.emitter.direction)
   // Spawn: along the axis for a tube, line or cylinder (inferred, header), else at the location;
   // then the starting interpolant and the travel along the direction.
@@ -419,6 +453,97 @@ function particleAt(s: IdleSystem, input: (k: number) => number, age: number, rn
 }
 
 const SHAPE_ALONG = new Set([SHAPE_TUBE, SHAPE_LINE, SHAPE_CYLINDER])
+
+/** nameCode: a small stable code of a property name (its random draw's key). */
+function nameCode(name: string): number {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (Math.imul(h, 31) + name.charCodeAt(i)) % 997
+  return h
+}
+
+/** Event flag (plugin): the event's particles die when the effect ends. */
+export const EVENT_PARTICLES_DIE = 1 << 1
+
+/**
+ * simulateOnce fills `out` with the live particles of system `s` of a ONE-SHOT effect (a shot's
+ * firing, flight or impact effect, `gameShotEffects3d`) `age` seconds after the effect started, for
+ * the seed `seed` (the shot) and rank `rank` (the system). Returns `out`.
+ *
+ * Read from the tags: every event of these effects starts with the effect (their level of detail
+ * runs its events in parallel, every delay 0) and lasts its duration; a system emits its starting
+ * count at the start, then `emissionRate` particles a second until the event ends; a particle lives
+ * its lifespan, cut when its event ends when the system's particles are hard killed with the event
+ * or the event's particles die with the effect. `killAt` (seconds, Infinity: never): the effect is
+ * deleted then (a flight effect once its projectile is gone and its death delay spent), every
+ * particle with it.
+ *
+ * INFERRED, not read: the effect plays once (no loop: nothing re-plays an impact); the system age
+ * input runs over the event's duration.
+ */
+export function simulateOnce(s: IdleSystem, age: number, seed: number, rank: number, inputs: EffectInputs, out: LiveParticle[], killAt = Infinity): LiveParticle[] {
+  out.length = 0
+  if (age < 0 || age >= killAt) return out
+  const p = s.emitter.properties
+  const d = Math.max(1e-3, s.eventDuration[0] || 1)
+  const killed = (s.flags & SYSTEM_KILLED_WITH_EVENT) !== 0 || (s.eventFlags & EVENT_PARTICLES_DIE) !== 0
+  if (killed && age >= d) return out
+  const sysInput = (k: number): number => {
+    switch (k) {
+      case IN_SYSTEM_AGE: return 0
+      case IN_SYSTEM_RANDOM: return unitHash(seedOf(seed, rank, 3))
+      case IN_SCALE_A: return inputs.scaleA
+      case IN_SCALE_B: return inputs.scaleB
+      case IN_CAMERA_DISTANCE: return inputs.cameraDistance
+      default: return unitHash(seedOf(seed, rank, 100 + k))
+    }
+  }
+  const maxCount = p.maxCount ? propertyAt(p.maxCount, sysInput) : 0
+  const start = Math.max(0, Math.floor(p.startingCount ? propertyAt(p.startingCount, sysInput) : 0))
+  const rate = Math.max(0, p.emissionRate ? propertyAt(p.emissionRate, sysInput) : 0)
+  // Births at (n + 0.5) / rate over the event, as the idle effects' emission.
+  const emitted = rate > 0 ? Math.max(0, Math.ceil(d * rate - 0.5)) : 0
+  const total = Math.min(MAX_PER_SYSTEM, start + emitted)
+  for (let k = 0; k < total; k++) {
+    const born = k < start ? 0 : (k - start + 0.5) / rate
+    if (born > age) break
+    const pk = seedOf(seed, rank, k)
+    const rnd = (j: number) => unitHash(seedOf(pk, j))
+    let ageNorm = 0
+    const particleInput = (k2: number): number => {
+      switch (k2) {
+        case IN_PARTICLE_AGE: return ageNorm
+        case IN_SYSTEM_AGE: return Math.min(1, age / d)
+        case IN_SYSTEM_RANDOM: return sysInput(IN_SYSTEM_RANDOM)
+        case IN_EMISSION_TIME: return born / d
+        case IN_SCALE_A: return inputs.scaleA
+        case IN_SCALE_B: return inputs.scaleB
+        case IN_CAMERA_DISTANCE: return inputs.cameraDistance
+        case IN_GAME_TIME: return age
+        default: return rnd(k2)
+      }
+    }
+    const lifeInput = (k2: number) => (k2 === IN_PARTICLE_AGE ? 0 : particleInput(k2))
+    const life = p.lifespan ? propertyAt(p.lifespan, lifeInput) : 1
+    const pAge = age - born
+    if (life <= 0 || pAge < 0 || pAge >= life) continue
+    if (maxCount > 0 && out.length >= maxCount) break
+    ageNorm = pAge / life
+    out.push(particleAt(s, particleInput, pAge, rnd))
+  }
+  return out
+}
+
+/**
+ * oneShotSeconds: how long system `s` of a one-shot effect can show particles: its event, then its
+ * longest particle life (none past the event when its particles die with it).
+ */
+export function oneShotSeconds(s: IdleSystem): number {
+  const d = Math.max(1e-3, s.eventDuration[0] || 1)
+  const killed = (s.flags & SYSTEM_KILLED_WITH_EVENT) !== 0 || (s.eventFlags & EVENT_PARTICLES_DIE) !== 0
+  const l = s.emitter.properties.lifespan
+  const longest = l ? Math.max(Math.abs(l.min), Math.abs(l.max)) : 1
+  return killed ? d : d + longest
+}
 
 function unit(v: readonly number[]): [number, number, number] {
   const l = Math.hypot(v[0], v[1], v[2])

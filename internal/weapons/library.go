@@ -232,6 +232,10 @@ func readTagFields(ctx context.Context, a *himap.Arsenal, src tagSource, idx *In
 	if idx.IdleEffects, err = readIdleEffects(ctx, a, src.gameRoot, src.module, src.dir, idx.WeapKeys); err != nil {
 		return fmt.Errorf("idle effects: %w", err)
 	}
+	announce("reading weapon shot effects")
+	if idx.ShotEffects, err = readShotEffects(ctx, a, src.gameRoot, src.module, src.dir, idx.WeapKeys); err != nil {
+		return fmt.Errorf("shot effects: %w", err)
+	}
 	announce("reading the shield impact effect")
 	if idx.ShieldHit, err = readShieldHit(ctx, a, src.gameRoot, src.module, src.dir); err != nil {
 		return fmt.Errorf("shield impact: %w", err)

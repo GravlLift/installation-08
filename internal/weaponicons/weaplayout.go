@@ -35,7 +35,9 @@ var weapRootBlockFields = []int{
 	2712, 2928, 2956, 2984,
 	3104, // UI display info
 	3152, // magazines
-	3200, 3220, 3512, 3568, 3888, 3972, 4032, 4288, 4396, 4416,
+	3200,
+	3220, // barrels
+	3512, 3568, 3888, 3972, 4032, 4288, 4396, 4416,
 }
 
 // weapRootFields: the reference-layout offsets of the root's scalar fields read (aimassist.go).
@@ -76,6 +78,9 @@ var weapBlocks = map[string]weapBlockDef{
 	pathMagazines: {field: 3152, stride: 160, at: map[string]int{
 		fieldRoundsLoadedMax: 10,
 	}},
+	// barrels: the live element (928 bytes) and its offsets are shot.go's, measured on the live
+	// tag; only the root field is the reference layout's.
+	pathBarrels: {field: 3220, stride: barrelStride, at: map[string]int{}},
 }
 
 // uiBlockOffsets returns the offsets, in one `UI display info` element, of its `sprite`,

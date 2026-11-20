@@ -362,6 +362,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       weaponClipSeconds: (key, action) => this.arms?.clipDuration(key, action) ?? null,
       scriptDeathHoldMs: () => this.cameraPlacement.activeScript()?.deathHoldMs ?? null,
       scriptShockLook: () => scriptShockLook(this.cameraPlacement.activeScript()),
+      cameraPosition: (out) => this.camera.getWorldPosition(out),
       flashes: this.lighting.flashes, baked: this.model?.baked ?? null, probeAt: (p) => this.lighting.probeAt(p),
     })
     this.preloadRigs()

@@ -29,7 +29,9 @@ import (
 // counter's digits carry all their images (himap.ImagesEmissives: the BR75, Bandit and Commando).
 // 7: each weapon's magazine size (WeaponEntry.Magazine), for the Shock Rifle's and Commando's gauges.
 // 8: the rigs carry the game's vertex normals (himap geometry_normales.go): smooth shading.
-const SchemaFirstPerson = 8
+// 9: the effect markers include those of the barrel's firing effect (the Shock Rifle's
+// primary_trigger), where the shot's game effect plays in first person.
+const SchemaFirstPerson = 9
 
 // EffectMarker is a marker an idle effect emits at, on the rig: its name (StringID, hex), the bone
 // that carries it (its glTF node name), and its position and rotation (quaternion x, y, z, w) in the

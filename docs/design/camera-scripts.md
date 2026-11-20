@@ -319,7 +319,7 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
   silhouettes through walls, and no cost (the compositor skips both passes). It only turns the
   outline off: with the console's `outline` knob off (`perfToggles3d`), a script never turns it
   on. When the script stops, the knob's state returns (`replayScene3d.applyOutline`).
-- `shockLook` (optional, top level, `beam` or `arc`, default `beam`): how the Shock Rifle's shot
+- `shockLook` (optional, top level, `beam`, `arc` or `game`, default `beam`): how the Shock Rifle's shot
   draws while the script drives the camera (free camera, on screen and in the export alike).
   `beam`, or absent, is the default look exactly: three jagged beams (`scene3d/shockShots3d.ts`).
   `arc` draws it as electricity (`scene3d/shockArcShot3d.ts`): a thin jagged blue-white core bolt
@@ -331,6 +331,19 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
   is a pure function of the shot and the document time: a freeze holds, an export draws the same
   frames in any order. The game data gives the shot's arc texture, sizes and lifetimes but no bolt
   geometry; the bolt's width, roughness and fork layout are named estimates (the file's header).
+  `game` draws the shot with the game's own effects, read from the weapon library's `shot_effects`
+  (`internal/weapons/shot_effects.go`, `scene3d/gameShotEffects3d.ts`) and drawn by the same particle
+  code as the barrel's idle electricity: the barrel's firing effect at the weapon's markers (in place
+  of the muzzle spray; the flash light stays), the projectile's flight effect (an electric plume
+  sprite along the flight) riding it at its tag speed of 5000 u/s, and its default-material impact
+  effect where it hits the scenery, within its 500 u range. A trigger pull is the barrel's burst:
+  three rounds 1/60 s apart (its tag's shots per fire and rate of fire), each with its own firing,
+  flight and impact, at its own instant in match time (so a 0.1x playback shows the three apart).
+  The film writes one shot record per round but leaves some out; a missing round is placed at its
+  rank's instant (`scene3d/shockBurst3d.ts`). A round paired with a damage from the shooter (its frame
+  or the next) lands on its victim: the head when the pull is the victim's headshot kill, the body
+  otherwise (`scene3d/shockBurstTargets3d.ts`). The files' headers list what is filled and what is not
+  drawn. While the library has no shot for the weapon, the beams draw.
   When the script stops, the default look returns. Validation rejects any other value.
 - Validation rejects an unknown `version`, a `matchId` that differs from the route's, a key with
   no `pos` or `look`, a non-finite number, an out-of-range `fov`, and more than 512 keys. A

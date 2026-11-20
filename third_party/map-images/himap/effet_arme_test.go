@@ -21,6 +21,27 @@ func octetsCourbe(mots ...any) []byte {
 	return b
 }
 
+// TestProprietePeriodique — a particle property may be a periodic function (the Shock Rifle
+// projectile's electric sprite: its size jitters four times a life, 9f69be2d), read with its
+// sub-functions (fonctionPeriodiqueOctets, emissif_fonctions_test.go: ranged when it has two); a
+// sub-function count that does not match the range flag is refused.
+func TestProprietePeriodique(t *testing.T) {
+	jitter := Periodique{Onde: 9, Frequence: 4, Min: 0, Max: 1}
+	f, err := litProprieteParticule([]byte{0, 2, 0, 0}, fonctionPeriodiqueOctets(0.025, 0.035, jitter))
+	if err != nil || f.Type != fonctionPeriodique || len(f.Periodic) != 1 || f.Periodic[0] != jitter || f.Min != 0.025 || f.Max != 0.035 {
+		t.Fatalf("periodic = %+v, %v", f, err)
+	}
+	bad := fonctionPeriodiqueOctets(0, 1, jitter)
+	bad[1] = 1 // ranged, one sub-function
+	if _, err := litProprieteParticule([]byte{0, 2, 0, 0}, bad); err == nil {
+		t.Error("ranged periodic with one sub-function accepted")
+	}
+	f, err = litProprieteParticule([]byte{0, 2, 0, 0}, fonctionPeriodiqueOctets(0, 1, jitter, Periodique{Onde: 6, Frequence: 8, Phase: 0.5, Max: 1}))
+	if err != nil || len(f.Periodic) != 2 || !f.Ranged {
+		t.Fatalf("ranged periodic = %+v, %v", f, err)
+	}
+}
+
 func TestCourbesMultiSpline(t *testing.T) {
 	// The arcs' alpha: a line piece (its code's high bytes set) then a line, ending at the largest float.
 	b := octetsCourbe(2, 0x53000000, 0.8983333, 0.0, 0.0, 4, float64(math.MaxFloat32), 9.836063, -8.836063)

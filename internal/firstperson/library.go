@@ -329,7 +329,8 @@ func rigIndex(r *himap.RigPremierePersonne, file string) Rig {
 }
 
 // effectMarkers reads the markers the weapon's idle effects emit at (the effects its attachments
-// scale by a weapon function, like the weapons library's idle_effects) on its first-person model:
+// scale by a weapon function, like the weapons library's idle_effects) and its barrel's firing
+// effect emits at (the library's shot_effects) on its first-person model:
 // the rig carries that model's nodes as bones of the same name, and a bone's local frame is its
 // node's in GLB axes (the rig conjugates every node pose by the axis change). Never nil.
 func effectMarkers(ctx context.Context, a *himap.Arsenal, s himap.SourcesArme) []EffectMarker {
@@ -347,6 +348,11 @@ func effectMarkers(ctx context.Context, a *himap.Arsenal, s himap.SourcesArme) [
 		if at.PrimaryScale != 0 {
 			effects = append(effects, at.Effect)
 		}
+	}
+	// The barrel's firing effect plays at the weapon's markers too (the weapons library's
+	// shot_effects: the Shock Rifle's muzzle electricity at primary_trigger).
+	if shot, err := weaponicons.ReadBarrelShot(raw); err == nil && shot.FiringEffect != 0 {
+		effects = append(effects, shot.FiringEffect)
 	}
 	names := a.EmplacementsDesEffets(effects)
 	if len(names) == 0 {

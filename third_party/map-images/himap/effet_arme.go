@@ -212,6 +212,9 @@ type FonctionParticule struct {
 	Min           float32           `json:"min"`
 	Max           float32           `json:"max"`
 	Curves        [][]SegmentCourbe `json:"curves,omitempty"`
+	// Periodic: a periodic function's sub-functions (type 3; two when ranged), each
+	// wave(frequency x input + phase) brought into its [min, max] (emissif_fonctions.go Periodique).
+	Periodic []Periodique `json:"periodic,omitempty"`
 	// Color: a color function's first color (linear RGB), its header's first word.
 	Color *[3]float32 `json:"color,omitempty"`
 }
@@ -421,6 +424,17 @@ func litProprieteParticule(entrees, b []byte) (FonctionParticule, error) {
 			return FonctionParticule{}, fmt.Errorf("unreadable multi-spline")
 		}
 		f.Curves = courbes
+	case fonctionPeriodique:
+		// LOCAL-CHANGE (infinite-theater-3d): periodic particle properties. The sub-functions are the material functions' periodic records (litFonctionJeu: 20 bytes
+		// each, wave u8, frequency, phase, min, max); a ranged function carries two.
+		n := 1
+		if fj.Plage {
+			n = 2
+		}
+		if len(fj.Periodiques) != n {
+			return FonctionParticule{}, fmt.Errorf("periodic function with %d sub-functions, %d expected", len(fj.Periodiques), n)
+		}
+		f.Periodic = fj.Periodiques
 	default:
 		return FonctionParticule{}, fmt.Errorf("function of type %d not read", fj.Type)
 	}
