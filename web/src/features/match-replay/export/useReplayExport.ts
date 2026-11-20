@@ -1017,6 +1017,10 @@ async function encodeAll(
   for (let k = 0; k < count; k++) {
     if (hooks.cancelled()) return false
     const i = order ? order[k] : k
+    // A STILL IS PAINTED TWICE: in a clip, whatever an effect builds on its first frame (a body's
+    // shield shell placed in the scene, its material compiled) is ready by the frames after it;
+    // a still has no frame before it, so the first paint stands in for them.
+    if (order) await paint(frames[i], i)
     // The frame is complete before it is handed over (`renderComplete` in 3D): `addFrame` reads
     // the canvas as it is, and the file index alone gives its timestamp. The plan index reaches
     // the painter: a camera-script export sets the script's time from it.
