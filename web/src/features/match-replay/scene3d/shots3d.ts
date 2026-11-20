@@ -23,7 +23,8 @@
  *
  * The shock shot (family `shock`) has neither bullet nor streak: THREE sound electric beams,
  * from muzzle to wall (`shockShots3d`), full at the instant of the shot, jittered per bucket
- * and faded linearly over `SHOCK_BEAM_SECONDS`.
+ * and faded linearly over `SHOCK_BEAM_SECONDS`. A camera script's `shockLook: 'arc'` draws it
+ * instead as a thin forking electric bolt with an arc burst at the impact (`shockArcShot3d`).
  *
  * The muzzle flash is placed at the end of the weapon the scene DRAWS at the displayed frame
  * (`drawnWeapon`): in 1st person, the drawn weapon is the arms + weapon rig, which has no
@@ -55,6 +56,18 @@ import { newRecoil, type Recoil } from './recoil3d'
 import { recoilPoint } from './recoilPose3d'
 import { boltEndAge, boltPath, boltTrail, spreadDirections, SPREAD_BOUNCE_RANGE, SPREAD_RANGE, SPREAD_SPEED, SPREAD_TRAIL, type BoltPath } from './spreadShots3d'
 import { shockBeamPaths, shockJitterBucket, SHOCK_BEAM_SECONDS, SHOCK_BEAMS, SHOCK_HD, type ShockBeam } from './shockShots3d'
+import {
+  ARC_CORE_MIN_PX,
+  ARC_CORE_RADIUS,
+  ARC_CORE_WHITE,
+  ARC_GLOW_DIM,
+  ARC_GLOW_MIN_PX,
+  ARC_GLOW_MULT,
+  shockArcStrokes,
+  shockImpactArcs,
+  widenedMaterial,
+  type ArcStroke,
+} from './shockArcShot3d'
 import { ShooterRecoil } from './recoilShots3d'
 import { aimDirThree, toThree } from './tracks3d'
 import { viewGripOf } from './viewGrip3d'
@@ -85,6 +98,10 @@ const CORE_MIX = 0.5
 // saturated bolt, so only a touch of the white core goes in.
 const ENERGY_CORE_MIX = 0.1
 const CAPACITY = 512
+// The arc look's batches: a 30 u bolt is 128 pieces, its 32 forks 8 each, the impact 16 (~400
+// a shot): room for ten shots alive at once.
+const ARC_CAPACITY = 4096
+const WHITE = new THREE.Color(1, 1, 1)
 // 1st-person shot scratch buffers: the camera frame is rotated into the aim, no shot allocates.
 const VIEW_UP = new THREE.Vector3(0, 1, 0)
 const VIEW_Q = new THREE.Quaternion()
@@ -202,8 +219,11 @@ export class Shots3dLayer implements ActionLayer3d {
   private readonly petals: InstancePool
   /** The camera's weapon spray: over the weapon, whose body hides the muzzle from the eye. */
   private readonly viewPetals: InstancePool
-  private readonly pools: readonly { begin(): void; end(): void; dispose(): void }[]
+  private pools: readonly { begin(): void; end(): void; dispose(): void }[]
+  /** The arc look's core and glow batches (`arcPools`), null until a script asks for it. */
+  private arcs: { core: SegmentPool; glow: SegmentPool } | null = null
   private readonly lineInk = new THREE.Color()
+  private readonly arcInk = new THREE.Color()
   private source: readonly ShotFxEntry[] | null = null
   private sorted: ShotFxEntry[] = []
   private readonly paths = new Map<ShotFxEntry, ShotPath | null>()
@@ -371,6 +391,10 @@ export class Shots3dLayer implements ActionLayer3d {
    * threshold. The spark is born at the shot (the impact is at zero range).
    */
   private drawShock(path: ShotPath, to: THREE.Vector3, age: number, tint: THREE.Color, shot: ShotLook): void {
+    if (this.ctx.scriptShockLook?.() === 'arc') {
+      this.drawShockArc(path, to, age, tint, shot)
+      return
+    }
     const fade = beamFade(age, SHOCK_BEAM_SECONDS)
     if (fade > 0) {
       const beams = shockBeamPaths(path.from, to, shot.e.seed, shockJitterBucket(age), this.shockBeams)
@@ -383,6 +407,54 @@ export class Shots3dLayer implements ActionLayer3d {
     }
     const spark = path.hit ? impactAge(0, age) : null
     if (spark !== null) this.dots.add(to, null, IMPACT_RADIUS * (1 - spark / IMPACT_SECONDS), tint)
+  }
+
+  /**
+   * drawShockArc : the shock shot as electricity (camera-script `shockLook: 'arc'`,
+   * `shockArcShot3d`): the jagged core bolt and its forks, re-seeded per jitter bucket and faded
+   * over SHOCK_BEAM_SECONDS like the beams; the impact's arcs at the end point when the shot hit,
+   * each living its own tag life; the same spark as the beams. Every stroke is a blue-white core
+   * and a dim glow in their own batches, which never thin below their minimum on-screen width.
+   */
+  private drawShockArc(path: ShotPath, to: THREE.Vector3, age: number, tint: THREE.Color, shot: ShotLook): void {
+    const arcs = this.arcPools()
+    const fade = beamFade(age, SHOCK_BEAM_SECONDS)
+    if (fade > 0) for (const s of shockArcStrokes(path.from, to, shot.e.seed, shockJitterBucket(age))) this.arcStroke(arcs, s, fade, tint)
+    if (path.hit && path.length > 1e-6) {
+      const back = this.b.subVectors(path.from, to).divideScalar(path.length)
+      for (const s of shockImpactArcs(to, back, shot.e.seed, age)) this.arcStroke(arcs, s, 1, tint)
+    }
+    const spark = path.hit ? impactAge(0, age) : null
+    if (spark !== null) this.dots.add(to, null, IMPACT_RADIUS * (1 - spark / IMPACT_SECONDS), tint)
+  }
+
+  /** arcStroke: one stroke of the arc look, its core (tint toward white) and its glow, at strength `k`. */
+  private arcStroke(arcs: { core: SegmentPool; glow: SegmentPool }, s: ArcStroke, k: number, tint: THREE.Color): void {
+    const strength = k * s.strength * SHOCK_HD
+    const core = this.arcInk.copy(tint).lerp(WHITE, ARC_CORE_WHITE).multiplyScalar(strength)
+    const glow = this.lineInk.copy(tint).multiplyScalar(strength * ARC_GLOW_DIM)
+    const r = ARC_CORE_RADIUS * s.width
+    for (let i = 1; i < s.points.length; i++) {
+      arcs.core.add(s.points[i - 1], s.points[i], r, core)
+      arcs.glow.add(s.points[i - 1], s.points[i], r * ARC_GLOW_MULT, glow)
+    }
+  }
+
+  /** arcPools: the arc look's batches, made on its first use (the default look's scene has none). */
+  private arcPools(): { core: SegmentPool; glow: SegmentPool } {
+    if (!this.arcs) {
+      const core = widenedMaterial(ARC_CORE_MIN_PX)
+      const glow = widenedMaterial(ARC_GLOW_MIN_PX)
+      const arcs = { core: new SegmentPool(this.ctx.root, core.material, ARC_CAPACITY), glow: new SegmentPool(this.ctx.root, glow.material, ARC_CAPACITY) }
+      core.attach(arcs.core.mesh)
+      glow.attach(arcs.glow.mesh)
+      // Opened mid-frame: the pools of this frame were begun already.
+      arcs.core.begin()
+      arcs.glow.begin()
+      this.arcs = arcs
+      this.pools = [...this.pools, arcs.core, arcs.glow]
+    }
+    return this.arcs
   }
 
   /**

@@ -21,7 +21,8 @@
  * the pose's orientation. Both are pure functions of script time, like the rest of the pose.
  * A key's optional `near` cuts the map nearer than it away (a cutaway through a wall, `mapCut3d`;
  * players and effects are never cut), and
- * the top-level `outlines: false` takes the team outline out of the shot (`scriptOutlines`).
+ * the top-level `outlines: false` takes the team outline out of the shot (`scriptOutlines`), and
+ * the top-level `shockLook: 'arc'` draws the Shock Rifle's shot as forking electricity (`scriptShockLook`).
  * A key's optional `weight` (and `lookWeight`) puts a spring between the scripted path and the
  * camera (`cameraWeight3d`): a heavy rig's lag and settle, still a pure function of script time.
  */
@@ -126,7 +127,16 @@ export interface CameraScript {
    * takes its mask and line passes out of the frame, X-ray silhouettes included.
    */
   outlines?: boolean
+  /**
+   * How the Shock Rifle's shot draws while the script plays (`shots3d`): 'beam' (default) the three
+   * jagged beams, 'arc' a thin forking electric bolt (`shockArcShot3d`).
+   */
+  shockLook?: ShockLook
 }
+
+/** The Shock Rifle shot's looks (`CameraScript.shockLook`). */
+export type ShockLook = 'beam' | 'arc'
+export const SHOCK_LOOKS: readonly ShockLook[] = ['beam', 'arc']
 
 export const CAMERA_SCRIPT_MAX_KEYS = 512
 export const CAMERA_SCRIPT_FOV_MIN = 10
@@ -393,6 +403,10 @@ export function parseCameraScript(raw: unknown, expectedMatchId?: string): Parse
     if (typeof r.outlines !== 'boolean') return { ok: false, error: 'outlines must be true or false' }
     script.outlines = r.outlines
   }
+  if (r.shockLook !== undefined) {
+    if (!SHOCK_LOOKS.includes(r.shockLook as ShockLook)) return { ok: false, error: `shockLook must be one of ${SHOCK_LOOKS.join(', ')}` }
+    script.shockLook = r.shockLook as ShockLook
+  }
   return { ok: true, script }
 }
 
@@ -457,6 +471,11 @@ export interface ScriptPose {
 /** scriptOutlines: whether a script lets the team outline draw (`outlines`, default true); no script, true. */
 export function scriptOutlines(script: CameraScript | null): boolean {
   return script?.outlines !== false
+}
+
+/** scriptShockLook: the Shock Rifle shot's look a script asks for (`shockLook`, default 'beam'); no script, 'beam'. */
+export function scriptShockLook(script: CameraScript | null): ShockLook {
+  return script?.shockLook ?? 'beam'
 }
 
 /**

@@ -57,7 +57,7 @@ import { serialize } from './serialiser3d'
 import { now, measureDuration, timedSync } from './perf3d'
 import { probeSurface, type SurfaceProbe } from './surfaceProbe3d'
 import { aimDirThree, toThree, type PlayerState3d, type Tracks3d } from './tracks3d'
-import { scriptClockOf, scriptOutlines, type CameraScript, type ScriptClockView, type ScriptSubjects } from './cameraScript3d'
+import { scriptClockOf, scriptOutlines, scriptShockLook, type CameraScript, type ScriptClockView, type ScriptSubjects } from './cameraScript3d'
 import { nearCoverOf, SIGHT_MIN_AXIS_COS, sightBlockOf, type SightCast } from './cameraSight3d'
 import { activeHoldOf, activeHolds, holdStateAt, lerpHeading, type Hold, type HoldState } from './hold3d'
 import { heroRigOf, heroRimTint, resolveHeroLight, type Vec3 as HeroVec3 } from './heroLights3d'
@@ -355,6 +355,7 @@ export class ReplayScene3d implements Replay3DExportSource {
       firstPersonAnchorMiss: () => (this.arms ? this.arms.anchorMiss : 'no first-person arms'),
       weaponClipSeconds: (key, action) => this.arms?.clipDuration(key, action) ?? null,
       scriptDeathHoldMs: () => this.cameraPlacement.activeScript()?.deathHoldMs ?? null,
+      scriptShockLook: () => scriptShockLook(this.cameraPlacement.activeScript()),
       flashes: this.lighting.flashes, baked: this.model?.baked ?? null, probeAt: (p) => this.lighting.probeAt(p),
     })
     this.preloadRigs()
