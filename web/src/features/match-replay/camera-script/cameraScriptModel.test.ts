@@ -38,8 +38,8 @@ function base(): CameraScript {
     name: 's',
     keys: [
       { t: 0, pos: world([0, 0, 0]), look: world([1, 0, 0]) },
-      { t: 100, pos: world([0, 0, 0]), look: world([1, 0, 0]) },
-      { t: 200, pos: world([0, 0, 0]), look: world([1, 0, 0]) },
+      { t: 1000, pos: world([0, 0, 0]), look: world([1, 0, 0]) },
+      { t: 2000, pos: world([0, 0, 0]), look: world([1, 0, 0]) },
     ],
   }
 }
@@ -171,12 +171,12 @@ it('captureKey: the capture field carries the converted fov; base omits it', () 
 
 it('insertKey keeps keys sorted (stable) and replaces a same-t non-cut key', () => {
   const s = base()
-  expect(tOf(insertKey(s, { t: 150, pos: world([1, 1, 1]), look: world([2, 2, 2]) }))).toEqual([0, 100, 150, 200])
-  expect(tOf(insertKey(s, { t: 50, pos: world([0, 0, 0]), look: world([0, 0, 0]) }))).toEqual([0, 50, 100, 200])
-  expect(tOf(insertKey(s, { t: 300, pos: world([0, 0, 0]), look: world([0, 0, 0]) }))).toEqual([0, 100, 200, 300])
+  expect(tOf(insertKey(s, { t: 1500, pos: world([1, 1, 1]), look: world([2, 2, 2]) }))).toEqual([0, 1000, 1500, 2000])
+  expect(tOf(insertKey(s, { t: 500, pos: world([0, 0, 0]), look: world([0, 0, 0]) }))).toEqual([0, 500, 1000, 2000])
+  expect(tOf(insertKey(s, { t: 3000, pos: world([0, 0, 0]), look: world([0, 0, 0]) }))).toEqual([0, 1000, 2000, 3000])
 
-  // Same t as an existing non-cut key (t = 100) replaces it; the length is unchanged.
-  const r = insertKey(s, { t: 100, pos: world([9, 9, 9]), look: world([9, 9, 9]) })
+  // Same t as an existing non-cut key (t = 1000) replaces it; the length is unchanged.
+  const r = insertKey(s, { t: 1000, pos: world([9, 9, 9]), look: world([9, 9, 9]) })
   expect(r).toMatchObject({ ok: true })
   const rs = (r as { ok: true; script: CameraScript }).script
   expect(rs.keys.length).toBe(3)
@@ -184,48 +184,54 @@ it('insertKey keeps keys sorted (stable) and replaces a same-t non-cut key', () 
   expect(s.keys.length).toBe(3) // the input is left unchanged
 })
 
+it('insertKey refuses a key closer than the minimum gap to its neighbor, with the reason', () => {
+  const r = insertKey(base(), { t: 1100, pos: world([1, 1, 1]), look: world([2, 2, 2]) })
+  expect(r).toMatchObject({ ok: false })
+  expect((r as { ok: false; error: string }).error).toMatch(/at least 250 ms apart/)
+})
+
 it('insertKey rejects a non-cut after a cut at the same t and accepts a cut', () => {
   const s: CameraScript = {
     version: 1,
     matchId: 'm',
     name: 's',
-    keys: [{ t: 50, pos: world([0, 0, 0]), look: world([1, 0, 0]), ease: 'cut' }],
+    keys: [{ t: 500, pos: world([0, 0, 0]), look: world([1, 0, 0]), ease: 'cut' }],
   }
-  expect(insertKey(s, { t: 50, pos: world([0, 0, 0]), look: world([1, 0, 0]) })).toMatchObject({ ok: false })
-  const r = insertKey(s, { t: 50, pos: world([0, 0, 0]), look: world([1, 0, 0]), ease: 'cut' })
+  expect(insertKey(s, { t: 500, pos: world([0, 0, 0]), look: world([1, 0, 0]) })).toMatchObject({ ok: false })
+  const r = insertKey(s, { t: 500, pos: world([0, 0, 0]), look: world([1, 0, 0]), ease: 'cut' })
   expect(r).toMatchObject({ ok: true })
   expect((r as { ok: true; script: CameraScript }).script.keys.length).toBe(2)
 })
 
 it('replaceKey swaps the key in place', () => {
   const s = base()
-  const r = replaceKey(s, 1, { t: 100, pos: world([7, 7, 7]), look: world([7, 7, 7]) })
+  const r = replaceKey(s, 1, { t: 1000, pos: world([7, 7, 7]), look: world([7, 7, 7]) })
   expect(r).toMatchObject({ ok: true })
   expect((r as { ok: true; script: CameraScript }).script.keys[1].pos).toEqual({ at: 'world', point: [7, 7, 7] })
-  expect(tOf(r)).toEqual([0, 100, 200])
-  expect(replaceKey(s, 3, { t: 100, pos: world([0, 0, 0]), look: world([0, 0, 0]) })).toMatchObject({ ok: false })
+  expect(tOf(r)).toEqual([0, 1000, 2000])
+  expect(replaceKey(s, 3, { t: 1000, pos: world([0, 0, 0]), look: world([0, 0, 0]) })).toMatchObject({ ok: false })
 })
 
 it('removeKey drops the key and leaves the input unchanged', () => {
   const s = base()
   const r = removeKey(s, 1)
   expect(r).toMatchObject({ ok: true })
-  expect(tOf(r)).toEqual([0, 200])
+  expect(tOf(r)).toEqual([0, 2000])
   expect(s.keys.length).toBe(3)
 })
 
 it('updateKey re-sorts after a t change and reports the new index', () => {
-  const r = updateKey(base(), 0, { t: 150 })
+  const r = updateKey(base(), 0, { t: 1500 })
   expect(r).toMatchObject({ ok: true })
   expect((r as { ok: true; script: CameraScript; index: number }).index).toBe(1)
-  expect(tOf(r)).toEqual([100, 150, 200])
+  expect(tOf(r)).toEqual([1000, 1500, 2000])
 })
 
 it('updateKey edits ease/fov/roll without moving the key', () => {
   const r = updateKey(base(), 1, { fov: 80, roll: 5, ease: 'linear' })
   expect(r).toMatchObject({ ok: true })
   expect((r as { ok: true; script: CameraScript; index: number }).index).toBe(1)
-  expect((r as { ok: true; script: CameraScript }).script.keys[1]).toMatchObject({ t: 100, fov: 80, roll: 5, ease: 'linear' })
+  expect((r as { ok: true; script: CameraScript }).script.keys[1]).toMatchObject({ t: 1000, fov: 80, roll: 5, ease: 'linear' })
 })
 
 it('updateKey: an out-of-range fov is rejected and leaves the input unchanged', () => {
@@ -248,8 +254,8 @@ it('isDirty is false for the same script and field-order differences, true for r
     name: 's',
     keys: [
       { pos: world([0, 0, 0]), look: world([1, 0, 0]), t: 0 },
-      { pos: world([0, 0, 0]), look: world([1, 0, 0]), t: 100 },
-      { pos: world([0, 0, 0]), look: world([1, 0, 0]), t: 200 },
+      { pos: world([0, 0, 0]), look: world([1, 0, 0]), t: 1000 },
+      { pos: world([0, 0, 0]), look: world([1, 0, 0]), t: 2000 },
     ],
   }
   expect(isDirty(s, reordered)).toBe(false)

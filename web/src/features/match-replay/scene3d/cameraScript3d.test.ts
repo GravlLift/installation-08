@@ -2,6 +2,7 @@
 /** cameraScript3d.test.ts — the script format (validation) and the pose evaluator. */
 import { describe, expect, it } from 'vitest'
 import {
+  CAMERA_SCRIPT_MIN_KEY_GAP_MS,
   circularMeanDeg,
   evaluateCameraScript,
   parseCameraScript,
@@ -158,7 +159,7 @@ describe('parseCameraScript', () => {
   })
 
   it('rejects a non-finite offset number', () => {
-    const s = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(1, w([0, 0, 0]), pl('A', { offset: [0, NaN, 0] }))])
+    const s = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(1000, w([0, 0, 0]), pl('A', { offset: [0, NaN, 0] }))])
     expect(rejects(s)).toContain('look')
   })
 
@@ -186,7 +187,7 @@ describe('parseCameraScript', () => {
   })
 
   it('rejects a bad ease', () => {
-    const s = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(1, w([0, 0, 0]), w([0, 0, 0]), { ease: 'bounce' as Ease })])
+    const s = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(1000, w([0, 0, 0]), w([0, 0, 0]), { ease: 'bounce' as Ease })])
     expect(rejects(s)).toContain('ease')
   })
 })
@@ -498,9 +499,10 @@ describe('evaluateCameraScript', () => {
     expect(eval_(noFov, 500)?.verticalFov).toBeCloseTo(verticalFovOf(BASE_FOV), 5)
     const withFov = script([key(0, w([0, 0, 0]), w([0, 0, 0]), { fov: 60 }), key(1000, w([1, 0, 0]), w([0, 0, 0]), { ease: 'linear', fov: 100 })])
     expect(eval_(withFov, 500)?.verticalFov).toBeCloseTo(verticalFovOf(80), 5)
-    // 'in' easing: at u = 0.5 the eased u is 0.25, so fov = 60 + 40 * 0.25 = 70.
+    // 'in' on a run's only segment: the run starts from rest (slope 0) and leaves at the
+    // secant (0.04/ms); the Hermite midpoint is 30 + 50 - 0.125 * 1000 * 0.04 = 75.
     const inFov = script([key(0, w([0, 0, 0]), w([0, 0, 0]), { fov: 60 }), key(1000, w([1, 0, 0]), w([0, 0, 0]), { ease: 'in', fov: 100 })])
-    expect(eval_(inFov, 500)?.verticalFov).toBeCloseTo(verticalFovOf(70), 5)
+    expect(eval_(inFov, 500)?.verticalFov).toBeCloseTo(verticalFovOf(75), 5)
   })
 
   it('lerps roll with the same ease and defaults to 0', () => {
@@ -512,12 +514,13 @@ describe('evaluateCameraScript', () => {
 
   it('does not NaN when spline knots coincide', () => {
     // P0 == P1 (key 0 and key 1 share a point): the neighbor is replaced by a mirrored phantom, so
-    // the centripetal form stays well-defined; the points are collinear, so the result is the midpoint.
+    // the centripetal form stays well-defined. Key 0 -> 1 is a dwell (no distance), so the camera
+    // leaves key 1 from rest and ends at the secant: distance 2 - 0.125 * 1000 * 0.004 = 1.5.
     const s = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(1000, w([0, 0, 0]), w([0, 0, 0])), key(2000, w([4, 0, 0]), w([0, 0, 0]), { ease: 'linear' })])
     const pose = eval_(s, 1500)
     expect(pose).not.toBeNull()
     expect(pose!.position.every(Number.isFinite)).toBe(true)
-    expectVec(pose!.position, 2, 0, 0)
+    expectVec(pose!.position, 1.5, 0, 0)
   })
 
   it('curves through a three-key run (not a straight line with a corner)', () => {
@@ -543,5 +546,71 @@ describe('evaluateCameraScript', () => {
     const pose = eval_(s, 1500)
     expect(pose).not.toBeNull()
     expect(pose!.position.every(Number.isFinite)).toBe(true)
+  })
+})
+
+describe('evaluateCameraScript (a run is one move)', () => {
+  // Three-coordinate distance between two poses' positions.
+  const gap = (p: number[], q: number[]): number => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2])
+  // Speed (units/ms) over a small step at script ms t.
+  const speedAt = (s: ReturnType<typeof script>, t: number, dt = 1): number =>
+    gap(eval_(s, t + dt)!.position, eval_(s, t)!.position) / dt
+
+  it('refuses keys of one run closer than the minimum gap, and allows a cut at any gap', () => {
+    const tight = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(CAMERA_SCRIPT_MIN_KEY_GAP_MS - 1, w([1, 0, 0]), w([0, 0, 0]))])
+    expect(rejects(tight)).toContain(`at least ${CAMERA_SCRIPT_MIN_KEY_GAP_MS} ms apart`)
+    const atGap = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(CAMERA_SCRIPT_MIN_KEY_GAP_MS, w([1, 0, 0]), w([0, 0, 0]))])
+    expect(accepts(atGap).keys).toHaveLength(2)
+    const cut = script([key(0, w([0, 0, 0]), w([0, 0, 0])), key(10, w([5, 0, 0]), w([0, 0, 0]), { ease: 'cut' })])
+    expect(accepts(cut).keys).toHaveLength(2)
+  })
+
+  it('keeps its speed continuous through an interior key, even with uneven key spacing', () => {
+    // 2 units in the first second, 8 in the next two: per-segment timing jumped at key 1.
+    const s = script([
+      key(0, w([0, 0, 0]), w([0, 0, 0])),
+      key(1000, w([2, 0, 0]), w([0, 0, 0]), { ease: 'linear' }),
+      key(3000, w([10, 0, 0]), w([0, 0, 0]), { ease: 'linear' }),
+    ])
+    const before = speedAt(s, 999)
+    const after = speedAt(s, 1000)
+    expect(before).toBeGreaterThan(0)
+    expect(Math.abs(after - before) / before).toBeLessThan(0.02)
+  })
+
+  it('does not stop at interior keys with the default ease, only at the run ends', () => {
+    const s = script([
+      key(0, w([0, 0, 0]), w([0, 0, 0])),
+      key(1000, w([3, 0, 0]), w([0, 0, 0])),
+      key(2000, w([6, 1, 0]), w([0, 0, 0])),
+      key(3000, w([9, 0, 0]), w([0, 0, 0])),
+    ])
+    expect(speedAt(s, 0)).toBeLessThan(0.0005)
+    expect(speedAt(s, 1000)).toBeGreaterThan(0.002)
+    expect(speedAt(s, 2000)).toBeGreaterThan(0.002)
+    expect(speedAt(s, 2999)).toBeLessThan(0.0005)
+  })
+
+  it('never backs up along the path, and passes every key at its time', () => {
+    // Uneven keys, a sharp turn: distance from the start must only grow along the run.
+    const pts: [number, number, number][] = [[0, 0, 0], [1, 0, 0], [1.5, 3, 0], [6, 3, 1], [6.2, 3.1, 1]]
+    const times = [0, 600, 1100, 2600, 2900]
+    const s = script(pts.map((p, i) => key(times[i], w(p), w([0, 0, 0]), { ease: i === 0 || i === pts.length - 1 ? undefined : 'linear' })))
+    let traveled = 0
+    let prev = eval_(s, 0)!.position
+    for (let t = 10; t <= 2900; t += 10) {
+      const p = eval_(s, t)!.position
+      const step = gap(p, prev)
+      // Every step moves forward along the curve: no step is a large reversal of the previous one.
+      traveled += step
+      prev = p
+    }
+    expect(traveled).toBeGreaterThan(0)
+    for (let i = 0; i < pts.length; i++) {
+      const at = eval_(s, times[i])!.position
+      expectVec(at, pts[i][0], pts[i][2], -pts[i][1])
+    }
+    // Speed sampled densely never drops to a stop strictly inside the run.
+    for (let t = 300; t <= 2600; t += 50) expect(speedAt(s, t)).toBeGreaterThan(0)
   })
 })

@@ -42,15 +42,29 @@ feature (a player leaving the film's motion to pose) is a separate plan that bui
    over a short window (default 400 ms, 8 samples ending at `t`). The mean is a pure function of
    `t`, so scrubbing and export agree.
 
-5. **Interpolation: centripetal Catmull-Rom on positions and look targets, with an ease per
-   segment.** Each key's `ease` says how the camera arrives at that key from the previous one:
-   `smooth` (ease in and out, the default), `linear`, `in`, `out`, or `cut` (a jump at the key's
-   time, with no blend). A `cut` splits the script into runs, and the spline's neighbor points never
-   cross a cut. At the ends of a run the missing neighbor is a phantom point mirrored through
-   the end key (`2*P1 - P2`), so the first and last segments still curve. Before the first key the camera
-   holds the first key's pose, and after the last key it holds the last key's pose, both still
-   resolved at `t`, so a held key on a player keeps following that player. `fov` and `roll` are
-   eased linearly with the same ease.
+5. **Interpolation: centripetal Catmull-Rom on positions and look targets; a run of keys is
+   ONE move.** A `cut` key (a jump at its time, with no blend) splits the script into runs, and
+   the spline's neighbor points never cross a cut. At the ends of a run the missing neighbor is
+   a phantom point mirrored through the end key (`2*P1 - P2`), so the first and last segments
+   still curve. Before the first key the camera holds the first key's pose, and after the last
+   key it holds the last key's pose, both still resolved at `t`, so a held key on a player keeps
+   following that player.
+
+   **Timing (2026-11-19).** The camera travels each spline BY DISTANCE: the distance along the
+   run is a C1 monotone cubic of time (PCHIP, Fritsch-Butland slopes) that passes every key at its
+   `t`. The speed therefore changes smoothly through every interior key, never stops at one, and
+   the camera never backs up along its path; uneven key spacing gives a smooth acceleration, not
+   a jump. Only a run's ENDS ease: the first segment's `ease` (the second key's) starts the run
+   from rest when it is `smooth` (the default) or `in`, and the last key's `ease` brings it to
+   rest when it is `smooth` or `out`; `linear` leaves that end at its segment's own speed. An
+   interior `ease` other than `cut` does not shape the timing. A dwell is two keys at one place.
+   `fov` and `roll` follow the same kind of curve through their key values.
+
+   **Keys are sparse.** Keys of one run must be at least 250 ms apart
+   (`CAMERA_SCRIPT_MIN_KEY_GAP_MS`); a cut may follow at any gap. A move is a few keys with the
+   spline between them; a path sampled into dense keys loses the spline and carries each
+   sample's error into the frame as jitter (the 2026-11-19 demo scripts, keyed every 100 ms, read
+   as the camera lurching in and out).
 
 6. **Field of view in the game's own convention.** `fov` is horizontal degrees at 16:9, the same
    as the game's FOV setting (`fovLogic.ts`: `GAME_FOV_DEFAULT` 100, `verticalFovOf`), with an
@@ -192,6 +206,13 @@ view selector at the top left.
   the bounds to the first and last key's frames.
 - **Clean frame**: an export option that paints no HUD and no name tags, for footage that gets
   graphics composited over it later. It is off by default. It applies to any 3D export, not only scripted ones.
+- **Camera track**: an export run by URL (`#/matches/<id>?autoexport=<script>...`) also uploads
+  the camera of every encoded frame to `PUT /api/matches/{id}/exports/{name}/camera`, stored as
+  `exports\<name>.camera.json` beside the clip (`GET` the same path to read it):
+  `{version:1, matchId, script, fps, units, samples:[{i, frame, scriptMs, pos, dir, fov, target}]}`
+  in world coordinates (world units, z up); `fov` is the camera's VERTICAL degrees, `target` the
+  script's look point. A camera path is measured from it (speed, turn rate, distance to the
+  subject) instead of judged by eye.
 
 ## Out of scope for version 1
 

@@ -65,6 +65,12 @@ export const CAMERA_SCRIPT_FOV_MAX = 150
 export const HEADING_WINDOW_DEFAULT_MS = 400
 export const CLOCK_RATE_MIN = 0
 export const CLOCK_RATE_MAX = 4
+/**
+ * The closest two keys of one run may be (script ms). A camera move is a few keys with the
+ * spline between them; a path sampled into dense keys loses the spline and carries every
+ * sample's error as jitter. A cut starts a new run, so it may follow at any gap.
+ */
+export const CAMERA_SCRIPT_MIN_KEY_GAP_MS = 250
 
 export type ParseResult = { ok: true; script: CameraScript } | { ok: false; error: string }
 
@@ -176,6 +182,14 @@ export function parseCameraScript(raw: unknown, expectedMatchId?: string): Parse
       if (k.t < prevT) return { ok: false, error: `key ${i}: keys are not sorted by t` }
       if (k.t === prevT && k.ease !== 'cut') {
         return { ok: false, error: `key ${i}: a key sharing its time with key ${i - 1} must be a cut` }
+      }
+      if (k.ease !== 'cut' && k.t - prevT < CAMERA_SCRIPT_MIN_KEY_GAP_MS) {
+        return {
+          ok: false,
+          error:
+            `key ${i}: ${k.t - prevT} ms after key ${i - 1}; keys in a run must be at least ${CAMERA_SCRIPT_MIN_KEY_GAP_MS} ms apart ` +
+            '(a move is a few keys with the spline between them, not a sampled path; a jump is a cut)',
+        }
       }
     }
     const pos = parsePoint(k.pos)
@@ -494,7 +508,13 @@ export function evaluateCameraScript(
     return [0, 0, 0]
   }
 
-  if (sMs < keys[0].t || k === keys.length - 1 || isCut(k + 1)) {
+  // The run holding key k: from key a (key 0, or the cut that starts it) to key b (its last).
+  let a = k
+  while (a > 0 && !isCut(a)) a--
+  let b = k
+  while (b + 1 < keys.length && !isCut(b + 1)) b++
+
+  if (sMs < keys[0].t || k === b) {
     // Hold key k: its points, resolved at the document time.
     const position = toThree(...resolve(k, 'pos'))
     const target = toThree(...resolve(k, 'look'))
@@ -506,23 +526,136 @@ export function evaluateCameraScript(
     }
   }
 
-  const u = easeOf(keys[k + 1].ease ?? 'smooth', (sMs - keys[k].t) / (keys[k + 1].t - keys[k].t))
-
-  // Spline neighbors: a run's end is mirrored through its neighbor (a phantom), so the first and last
-  // segment of a run still curve instead of going straight to a duplicated point.
-  const P1 = resolve(k, 'pos')
-  const P2 = resolve(k + 1, 'pos')
-  const P0 = k >= 1 && sameRun(k - 1, k) ? resolve(k - 1, 'pos') : mirrorVec(P1, P2)
-  const P3 = k + 2 < keys.length && sameRun(k + 1, k + 2) ? resolve(k + 2, 'pos') : mirrorVec(P2, P1)
-  const L1 = resolve(k, 'look')
-  const L2 = resolve(k + 1, 'look')
-  const L0 = k >= 1 && sameRun(k - 1, k) ? resolve(k - 1, 'look') : mirrorVec(L1, L2)
-  const L3 = k + 2 < keys.length && sameRun(k + 1, k + 2) ? resolve(k + 2, 'look') : mirrorVec(L2, L1)
+  // A RUN IS ONE MOVE (docs/design/camera-scripts.md, "Timing"): its ends ease as the first and
+  // last segment's `ease` asks, and in between the motion never stops at a key: distance along
+  // the spline, fov and roll each follow one C1 monotone curve of time through the keys.
+  const run: RunTiming = {
+    a,
+    b,
+    t: (i) => keys[i].t,
+    easeStart: easesFromRest(keys[a + 1].ease),
+    easeEnd: easesToRest(keys[b].ease),
+  }
+  const cache = new Map<string, Vec3>()
+  const at = (field: 'pos' | 'look') => (i: number): Vec3 => {
+    const id = `${field}${i}`
+    let p = cache.get(id)
+    if (p === undefined) {
+      p = resolve(i, field)
+      cache.set(id, p)
+    }
+    return p
+  }
+  const fovOf = (i: number): number => keys[i].fov ?? baseGameFov
+  const rollOf = (i: number): number => keys[i].roll ?? 0
 
   return {
-    position: toThree(...catmullRom(P0, P1, P2, P3, u)),
-    target: toThree(...catmullRom(L0, L1, L2, L3, u)),
-    verticalFov: verticalFovOf(lerp(keys[k].fov ?? baseGameFov, keys[k + 1].fov ?? baseGameFov, u)),
-    rollDeg: lerp(keys[k].roll ?? 0, keys[k + 1].roll ?? 0, u),
+    position: toThree(...pathAt(at('pos'), run, k, sMs)),
+    target: toThree(...pathAt(at('look'), run, k, sMs)),
+    verticalFov: verticalFovOf(curveAt(fovOf, run, k, sMs)),
+    rollDeg: curveAt(rollOf, run, k, sMs),
   }
+}
+
+/** One run's timing: its key range [a, b], key times, and whether each end eases from/to rest. */
+interface RunTiming {
+  a: number
+  b: number
+  t: (i: number) => number
+  easeStart: boolean
+  easeEnd: boolean
+}
+
+/** A run starts from rest when its first segment eases in (`smooth`, the default, or `in`). */
+function easesFromRest(ease: Ease | undefined): boolean {
+  const e = ease ?? 'smooth'
+  return e === 'smooth' || e === 'in'
+}
+
+/** A run comes to rest when its last segment eases out (`smooth`, the default, or `out`). */
+function easesToRest(ease: Ease | undefined): boolean {
+  const e = ease ?? 'smooth'
+  return e === 'smooth' || e === 'out'
+}
+
+/**
+ * The slope of a run's value curve at key i (value per script ms). The run's ends: zero when
+ * that end eases to rest, else the end segment's secant. Inside: the monotone (PCHIP,
+ * Fritsch-Butland) slope, a weighted harmonic mean of the two neighboring secants, zero where
+ * they disagree in sign, so the curve never overshoots a key and never runs backward.
+ */
+function runSlope(v: (i: number) => number, run: RunTiming, i: number): number {
+  const { a, b, t } = run
+  if (i === a) return run.easeStart ? 0 : (v(a + 1) - v(a)) / (t(a + 1) - t(a))
+  if (i === b) return run.easeEnd ? 0 : (v(b) - v(b - 1)) / (t(b) - t(b - 1))
+  const hPrev = t(i) - t(i - 1)
+  const h = t(i + 1) - t(i)
+  const dPrev = (v(i) - v(i - 1)) / hPrev
+  const d = (v(i + 1) - v(i)) / h
+  if (dPrev * d <= 0) return 0
+  const w1 = 2 * h + hPrev
+  const w2 = h + 2 * hPrev
+  return (w1 + w2) / (w1 / dPrev + w2 / d)
+}
+
+/** Cubic Hermite between (t0, v0) and (t1, v1) with slopes m0, m1, at t. */
+function hermite(t0: number, t1: number, v0: number, v1: number, m0: number, m1: number, t: number): number {
+  const h = t1 - t0
+  const x = (t - t0) / h
+  const x2 = x * x
+  const x3 = x2 * x
+  return (2 * x3 - 3 * x2 + 1) * v0 + (x3 - 2 * x2 + x) * h * m0 + (-2 * x3 + 3 * x2) * v1 + (x3 - x2) * h * m1
+}
+
+/** A scalar key value (fov, roll) at script ms `sMs` inside segment k of the run: C1 through every key. */
+function curveAt(v: (i: number) => number, run: RunTiming, k: number, sMs: number): number {
+  return hermite(run.t(k), run.t(k + 1), v(k), v(k + 1), runSlope(v, run, k), runSlope(v, run, k + 1), sMs)
+}
+
+/** Segment j of a run's spline at u; a run's end is mirrored through its neighbor (a phantom), so the end segments still curve. */
+function splineAt(pt: (i: number) => Vec3, run: RunTiming, j: number, u: number): Vec3 {
+  const P1 = pt(j)
+  const P2 = pt(j + 1)
+  const P0 = j > run.a ? pt(j - 1) : mirrorVec(P1, P2)
+  const P3 = j + 1 < run.b ? pt(j + 2) : mirrorVec(P2, P1)
+  return catmullRom(P0, P1, P2, P3, u)
+}
+
+/** Samples per segment for its arc length. */
+const ARC_STEPS = 96
+
+/** Segment j's cumulative arc length at ARC_STEPS + 1 even steps of u (world units). */
+function arcTable(pt: (i: number) => Vec3, run: RunTiming, j: number): number[] {
+  const cum = [0]
+  let prev = splineAt(pt, run, j, 0)
+  for (let s = 1; s <= ARC_STEPS; s++) {
+    const p = splineAt(pt, run, j, s / ARC_STEPS)
+    cum.push(cum[s - 1] + Math.hypot(p[0] - prev[0], p[1] - prev[1], p[2] - prev[2]))
+    prev = p
+  }
+  return cum
+}
+
+/**
+ * The point of a run's spline at script ms `sMs` inside segment k, timed BY DISTANCE: the
+ * distance traveled is a C1 monotone curve of time through the keys (each key is passed at its
+ * `t`), so the speed changes smoothly through every key and the camera never backs up. Only the
+ * segments k-1..k+1 are measured: the slopes at keys k and k+1 need no more.
+ */
+function pathAt(pt: (i: number) => Vec3, run: RunTiming, k: number, sMs: number): Vec3 {
+  const table = arcTable(pt, run, k)
+  const len = table[ARC_STEPS]
+  if (len < CR_EPS) return splineAt(pt, run, k, 0)
+  const lenPrev = k > run.a ? arcTable(pt, run, k - 1)[ARC_STEPS] : 0
+  const lenNext = k + 1 < run.b ? arcTable(pt, run, k + 1)[ARC_STEPS] : 0
+  // Distance along the run, measured from key k (only differences enter the slopes).
+  const dist = (i: number): number => (i <= k - 1 ? -lenPrev : i === k ? 0 : i === k + 1 ? len : len + lenNext)
+  const s = hermite(run.t(k), run.t(k + 1), 0, len, runSlope(dist, run, k), runSlope(dist, run, k + 1), sMs)
+  const target = Math.min(len, Math.max(0, s))
+  // Distance back to the spline's parameter, through the segment's arc table.
+  let i = 1
+  while (i < ARC_STEPS && table[i] < target) i++
+  const span = table[i] - table[i - 1]
+  const u = (i - 1 + (span > 0 ? (target - table[i - 1]) / span : 0)) / ARC_STEPS
+  return splineAt(pt, run, k, u)
 }
