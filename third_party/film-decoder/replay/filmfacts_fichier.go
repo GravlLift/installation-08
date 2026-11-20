@@ -262,8 +262,9 @@ const VersionCodecFaits = 2
 // bascules fausses sans erreur, et un profil qui les croit fausses lit un film HI_1_11_0 a HI_1_13_0 comme avant : c est le refus SUR
 // L EN-TETE qui doit le dire. `grammar.Rev` (`grammar-2026-11-12.4`) et `profile.Rev` montent avec ce numero, comme aux schemas 11 et 15.
 // Le SCHEMA 23 (2026-11-13, port) est documente dans filmfacts_schema23.go, le SCHEMA 24 (LOCAL-CHANGE
-// infinite-theater-3d, 2026-11-16, attaches de projectile) dans filmfacts_attaches.go.
-const SchemaDesFaits = 24
+// infinite-theater-3d, 2026-11-16, attaches de projectile) dans filmfacts_attaches.go, le SCHEMA 25
+// (LOCAL-CHANGE infinite-theater-3d, 2026-11-19, vie du projectile de chaque lancer) dans filmfacts_lancers.go.
+const SchemaDesFaits = 25
 
 // Identifiants de section. Ils ne se reutilisent JAMAIS : un identifiant retire reste retire, sinon
 // un vieux fichier se relit comme une section qui n est pas la sienne.

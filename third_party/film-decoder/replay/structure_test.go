@@ -1548,8 +1548,11 @@ func TestStructureIsOptionalInDocument(t *testing.T) {
 	//   schema 118) : a v126 reads « a republier ». Detail : chronique.
 	// - 128 (2026-11-16, LOCAL-CHANGE) : `projectiles[].attach`, where a projectile that sticks sits until it
 	//   explodes (parent slot, node, pose in that node's frame) : a v127 reads « a republier ». Detail : chronique.
-	if SchemaVersion != 128 {
-		t.Fatalf("SchemaVersion = %d, attendu 128 : incrémenter exige une raison écrite ci-dessus "+
+	// - 129 (2026-11-19, LOCAL-CHANGE) : `grenades[].deto`, the explosion of a throw whose flight is not
+	//   published (a point-blank stick), found by its projectile's handle; `SchemaDesFaits` 25 carries that
+	//   handle : a v128 reads « a republier » once redecoded. Detail : chronique.
+	if SchemaVersion != 129 {
+		t.Fatalf("SchemaVersion = %d, attendu 129 : incrémenter exige une raison écrite ci-dessus "+
 			"(un champ optionnel de plus n'en est pas une)", SchemaVersion)
 	}
 }

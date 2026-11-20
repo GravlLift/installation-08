@@ -82,6 +82,11 @@ type Grenade struct {
 	// valide, un int l'omettrait exactement comme une absence de lien. Nil quand aucun
 	// projectile n'apparie, ou quand celui qui appariait n'est pas publié (trop court).
 	Proj *int `json:"proj,omitempty"`
+	// LOCAL-CHANGE (infinite-theater-3d): Deto is the EXPLOSION of a throw without Proj, the film's
+	// detonation message for the projectile the throw created (grenades_detonation.go): a point-blank
+	// stick publishes no flight but still explodes. Nil when Proj is set (its explosion is the
+	// projectile's) or when the film writes no detonation for that projectile.
+	Deto *GrenadeDetonation `json:"deto,omitempty"`
 }
 
 // buildGrenades situe les lancers et rend la couverture.
@@ -92,6 +97,15 @@ type Grenade struct {
 func buildGrenades(pos []grammar.BipedPosition, throws []grammar.GrenadeThrow,
 	origin, step uint64, occ occupantsDesSlots, proj []types.ProjectileTrack,
 	pubProjByRaw map[int]int) ([]Grenade, LayerCoverage) {
+	return buildGrenadesEtDetonations(pos, throws, origin, step, occ, proj, pubProjByRaw, nil)
+}
+
+// buildGrenadesEtDetonations is [buildGrenades] that also publishes, on a throw without a published
+// flight, the detonation the film writes for its projectile (Grenade.Deto). LOCAL-CHANGE
+// (infinite-theater-3d).
+func buildGrenadesEtDetonations(pos []grammar.BipedPosition, throws []grammar.GrenadeThrow,
+	origin, step uint64, occ occupantsDesSlots, proj []types.ProjectileTrack,
+	pubProjByRaw map[int]int, detos []types.ProjectileDetonation) ([]Grenade, LayerCoverage) {
 	cov := LayerCoverage{Available: len(throws)}
 	if len(throws) == 0 {
 		return nil, cov
@@ -118,6 +132,9 @@ func buildGrenades(pos []grammar.BipedPosition, throws []grammar.GrenadeThrow,
 				p := pub
 				gr.Proj = &p
 			}
+		}
+		if gr.Proj == nil {
+			gr.Deto = grenadeDetonation(g, detos, origin, step) // LOCAL-CHANGE (infinite-theater-3d)
 		}
 		cov.count(reasonAttached)
 		gr.T = int((g.TimestampUS - origin) / step)

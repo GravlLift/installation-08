@@ -110,6 +110,7 @@ var ordresFiges = map[string][]string{
 		"@/internal/constat",
 		"@/internal/profile",
 		"@/internal/source",
+		"@/types", // LOCAL-CHANGE (infinite-theater-3d): GrenadeThrow.Life
 		"cmp",
 		"slices",
 	},
