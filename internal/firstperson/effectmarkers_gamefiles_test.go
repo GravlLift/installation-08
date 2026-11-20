@@ -42,5 +42,9 @@ func TestShockEffectMarkersFromGame(t *testing.T) {
 			t.Errorf("marker %s = %+v (%v)", name, m, ok)
 		}
 	}
+	// The barrel's firing effect (136580d8) emits at primary_trigger too.
+	if m, ok := par["ee18be86"]; !ok || m.Bone == "" {
+		t.Errorf("primary_trigger = %+v (%v)", m, ok)
+	}
 	t.Logf("markers %+v", ms)
 }

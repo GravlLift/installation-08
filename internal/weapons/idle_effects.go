@@ -268,7 +268,7 @@ func (w effectWriter) effectsOf(ctx context.Context, weap uint32, raw []byte) ([
 // effect builds one IdleEffect and writes its files.
 func (w effectWriter) effect(at weaponicons.EffectAttachment, fns []weaponicons.ObjectFunction, mode uint32, fx *himap.EffetParticules) (IdleEffect, error) {
 	e := IdleEffect{Effect: fmt.Sprintf("%08x", at.Effect), ScaleA: functionName(at.PrimaryScale),
-		ScaleB: functionName(at.SecondaryScale), Markers: map[string][][3]float64{}, MarkerRotations: map[string][][4]float64{}}
+		ScaleB: functionName(at.SecondaryScale)}
 	for _, f := range fns {
 		m, ok := mappingOf(f.Mapping)
 		if !ok {
@@ -277,45 +277,64 @@ func (w effectWriter) effect(at weaponicons.EffectAttachment, fns []weaponicons.
 		e.Functions = append(e.Functions, IdleFunction{Import: functionName(f.Import), Default: f.Default,
 			Export: functionName(f.Export), TurnOffWith: functionName(f.TurnOffWith), Invert: f.Invert, Mapping: m})
 	}
+	var err error
+	if e.Markers, e.MarkerRotations, err = w.modelMarkers(mode, fx); err != nil {
+		return IdleEffect{}, err
+	}
+	for _, s := range fx.Systems {
+		if len(e.Markers[fmt.Sprintf("%08x", s.Location)]) == 0 {
+			continue // the model has no such marker: nowhere to emit
+		}
+		sys, err := w.system(s)
+		if err != nil {
+			return IdleEffect{}, err
+		}
+		e.Systems = append(e.Systems, sys)
+	}
+	return e, nil
+}
+
+// modelMarkers reads, on the render model `mode`, every instance of the markers the systems of `fx`
+// emit at: per location, model space at the rest pose (GLB axes), and their rotations.
+func (w effectWriter) modelMarkers(mode uint32, fx *himap.EffetParticules) (map[string][][3]float64, map[string][][4]float64, error) {
 	names := map[uint32]bool{}
 	for _, s := range fx.Systems {
 		names[s.Location] = true
 	}
 	ms, err := w.a.MarqueursDuModele(mode, names)
 	if err != nil {
-		return IdleEffect{}, err
+		return nil, nil, err
 	}
+	pos, rot := map[string][][3]float64{}, map[string][][4]float64{}
 	for _, m := range ms {
 		k := fmt.Sprintf("%08x", m.Nom)
 		p, q := markerFrame(m.Model)
-		e.Markers[k] = append(e.Markers[k], p)
-		e.MarkerRotations[k] = append(e.MarkerRotations[k], q)
+		pos[k] = append(pos[k], p)
+		rot[k] = append(rot[k], q)
 	}
-	for _, s := range fx.Systems {
-		loc := fmt.Sprintf("%08x", s.Location)
-		if len(e.Markers[loc]) == 0 {
-			continue // the model has no such marker: nowhere to emit
-		}
-		r, err := w.render(s.Render)
-		if err != nil {
-			return IdleEffect{}, err
-		}
-		em := s.Emitter
-		e.Systems = append(e.Systems, IdleSystem{
-			Location: loc, Event: s.Event, EventFlags: s.EventFlags, EventDuration: s.EventDuration,
-			CoordinateSystem: s.Coordinate, CameraMode: s.CameraMode, Flags: s.Flags, SizeScale: s.SizeScale,
-			Particle: fmt.Sprintf("%08x", s.Render.Particle),
-			Emitter: IdleEmitter{
-				Flags: em.Flags, Appearance: em.Appearance, ParticleFlags: em.ParticleFlags, Shape: em.Shape,
-				AxisScale:           [3]float32{em.AxisScale[0], em.AxisScale[2], em.AxisScale[1]},
-				Direction:           gltf32(em.Direction),
-				StartingInterpolant: gltf32(em.StartingOffset),
-				Billboard:           em.Billboard, Properties: em.Properties,
-			},
-			Render: r,
-		})
+	return pos, rot, nil
+}
+
+// system builds one system's entry, its vectors in GLB axes, and writes its particle's files.
+func (w effectWriter) system(s himap.SystemeParticules) (IdleSystem, error) {
+	r, err := w.render(s.Render)
+	if err != nil {
+		return IdleSystem{}, err
 	}
-	return e, nil
+	em := s.Emitter
+	return IdleSystem{
+		Location: fmt.Sprintf("%08x", s.Location), Event: s.Event, EventFlags: s.EventFlags, EventDuration: s.EventDuration,
+		CoordinateSystem: s.Coordinate, CameraMode: s.CameraMode, Flags: s.Flags, SizeScale: s.SizeScale,
+		Particle: fmt.Sprintf("%08x", s.Render.Particle),
+		Emitter: IdleEmitter{
+			Flags: em.Flags, Appearance: em.Appearance, ParticleFlags: em.ParticleFlags, Shape: em.Shape,
+			AxisScale:           [3]float32{em.AxisScale[0], em.AxisScale[2], em.AxisScale[1]},
+			Direction:           gltf32(em.Direction),
+			StartingInterpolant: gltf32(em.StartingOffset),
+			Billboard:           em.Billboard, Properties: em.Properties,
+		},
+		Render: r,
+	}, nil
 }
 
 // render writes a particle's textures and mesh and returns its entry.

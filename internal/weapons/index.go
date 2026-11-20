@@ -99,6 +99,9 @@ type Index struct {
 	// (idle_effects.go: the Shock Rifle's electricity). Always written, empty included: an index
 	// without the field predates it and is stale.
 	IdleEffects map[string][]IdleEffect `json:"idle_effects"`
+	// ShotEffects: what a weapon's shot plays (shot_effects.go: the Shock Rifle's firing, flight and
+	// impact effects), and the effects themselves with their fx-* files; null when not read.
+	ShotEffects *ShotTable `json:"shot_effects"`
 	// ShieldHit: the Spartan shield's impact generator (shield_hit.go), its parameters and the
 	// fx-* textures it samples; null when the game holds no readable one (the view draws no hit).
 	ShieldHit *ShieldGenerator `json:"shield_hit"`
@@ -128,8 +131,10 @@ const EquipmentRuleCurrent = 2
 // generator (shield_hit) and its fx-* textures. 8: the models carry the game's vertex normals
 // (himap geometry_normales.go), so the view shades them smooth instead of faceted. 9: the shield
 // generator's function properties carry their curves (the hit's intensity and radius over the time
-// since the impact).
-const SchemaCurrent = 9
+// since the impact). 10: the weapons' shot effects (shot_effects: the Shock Rifle's firing, flight
+// and impact effects, its projectile's speed and range) and their fx-* files; a particle property
+// may be a periodic function (himap effet_arme.go), so idle effects gain the systems it had left out.
+const SchemaCurrent = 10
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).
