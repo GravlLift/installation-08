@@ -37,6 +37,10 @@
  * (`ActionContext.attachBone`); in first person on him, the arms rig's bone of the same name, or
  * nothing when the rig has no such bone. A parent the scene draws no body for (a device, a weapon, a
  * Forge object, a dead player) leaves the projectile at the end of its flight, as before.
+ *
+ * A THROW WITHOUT A FLIGHT (schema 129, `Grenade.deto`): a grenade stuck point-blank replicates no
+ * flight, so nothing flies or rides a bone; its explosion is the film's own detonation of the
+ * projectile the throw created, placed at its published position AND height (`GrenadeRestFx.z`).
  */
 import * as THREE from 'three'
 
@@ -447,9 +451,10 @@ function buildBlasts(ctx: ActionContext, flights: readonly Flight[]): Blast[] {
   for (const f of flights) endsByFrame.set(f.detoT, [...(endsByFrame.get(f.detoT) ?? []), f.pts[f.pts.length - 1]])
   return buildRestFx(doc).map((rest) => {
     const kind = rest.tint ? 'explosion' : restKindOf(rest.rank)
-    const [x, , z] = toThree(rest.x, rest.y, 0)
+    const [x, publishedY, z] = toThree(rest.x, rest.y, rest.z ?? 0)
     const near = (endsByFrame.get(rest.frame) ?? []).find((e) => Math.hypot(e.x - x, e.z - z) < 1.5)
-    const y = near?.y ?? (ctx.ground.floorY(rest.x, rest.y, null) ?? 0) + REST_LIFT
+    // The published height first (a throw's own detonation, schema 129: on the body it stuck to).
+    const y = rest.z !== undefined ? publishedY : near?.y ?? (ctx.ground.floorY(rest.x, rest.y, null) ?? 0) + REST_LIFT
     return {
       rest,
       at: new THREE.Vector3(x, y, z),

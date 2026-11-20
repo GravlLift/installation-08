@@ -28,7 +28,7 @@ import { normalizeScoreTimeline } from '@/lib/replay/scoreTimeline'
 import { markTranslocationCuts } from '@/lib/replay/translocationCuts'
 import type { ReplayDocument } from '@/lib/api/types'
 
-import type { ReplayDocumentReady, ReplayProjectileAttach, ReplayStep, ReplayXY } from './replayReadyTypes'
+import type { ReplayDocumentReady, ReplayGrenadeDetonation, ReplayProjectileAttach, ReplayStep, ReplayXY } from './replayReadyTypes'
 
 /**
  * The grid step of a document that does not publish `frameIntervalMs`: the producer's own
@@ -219,7 +219,11 @@ export function normalizeReplayDocument(raw: ReplayDocument): ReplayDocumentRead
     // arriving with `g: null` would crash the grenade box at runtime.
     grenadeReads: (raw.grenadeReads ?? []).map((gr) => ({ ...gr, g: gr.g ?? [] })),
     ammoReads: raw.ammoReads ?? [],
-    grenades: raw.grenades ?? [],
+    // `deto` (schema 129): the explosion of a throw without a published flight, kept only whole.
+    grenades: (raw.grenades ?? []).map((g) => {
+      const deto = grenadeDetonationOf((g as { deto?: unknown }).deto)
+      return deto ? { ...g, deto } : g
+    }),
     // THE IDENTITY REGISTRY (schema 50): its three lists are filled in, the OBJECT keeps the
     // right to be absent. An artifact predating schema 50 carries none, and an empty object
     // would read as "the registry was computed, it found nothing" — the opposite of "nobody
@@ -356,6 +360,13 @@ export function normalizeReplayDocument(raw: ReplayDocument): ReplayDocumentRead
 /** A vehicle LIFE's key: `(slot, gen)`, a life's only key (see `VehicleTrack`). */
 function vehicleLifeKey(slot: number, gen: number): string {
   return `${slot}/${gen}`
+}
+
+/** grenadeDetonationOf: a throw's published detonation (schema 129) when every field is there, undefined otherwise. */
+function grenadeDetonationOf(raw: unknown): ReplayGrenadeDetonation | undefined {
+  const d = raw as Partial<ReplayGrenadeDetonation> | undefined
+  if (!d || ![d.t, d.x, d.y, d.z].every(Number.isFinite)) return undefined
+  return { t: d.t as number, x: d.x as number, y: d.y as number, z: d.z as number }
 }
 
 /** attachOf: a projectile's published attach (schema 128) when every field is there, undefined otherwise. */

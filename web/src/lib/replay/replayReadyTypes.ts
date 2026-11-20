@@ -93,6 +93,20 @@ export interface ReplayProjectileAttach {
   pose: [number, number, number]
 }
 /**
+ * ReplayGrenadeDetonation — the explosion of a throw whose flight is not published (schema 129): the
+ * film's detonation message for the projectile the throw created, typically a point-blank stick. `t` is
+ * the absolute frame (like a projectile's `detoT`), `x`/`y` the position on the tracks' axes, `z` its
+ * height.
+ */
+export interface ReplayGrenadeDetonation {
+  t: number
+  x: number
+  y: number
+  z: number
+}
+/** A grenade throw past the boundary: `deto` (schema 129) kept only whole; absent on a throw with `proj`. */
+export type ReplayGrenadeReady = NonNullable<ReplayDocument['grenades']>[number] & { deto?: ReplayGrenadeDetonation }
+/**
  * ReplayRosterEntryReady — a roster entry whose PRESENCE is filled in (schema 69, batch
  * M2.4). Empty = the entry holds no seat at any frame, OR the artifact predates schema
  * 69 and publishes none at all — `seatLogic` tells the two apart at the document level
@@ -404,7 +418,7 @@ export type ReplayDocumentReady = Omit<
   grenadeReads: ReplayGrenadeReadReady[]
   /** Ammo readings per weapon slot (keyframes and deltas), sorted by instant. */
   ammoReads: ReplayAmmoRead[]
-  grenades: NonNullable<ReplayDocument['grenades']>
+  grenades: ReplayGrenadeReady[]
   inventory: ReplayInventoryReady[]
   loadouts: ReplayLoadoutReady[]
   neutralDeaths: NonNullable<ReplayDocument['neutralDeaths']>

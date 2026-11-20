@@ -94,7 +94,11 @@ engineering backlog; this page keeps only the user-visible parts of it.
 - A grenade stuck to a player rides the part of his body it hit, but can sit a few inches off it:
   his animation is the viewer's reconstruction, not the game's. One stuck to something other than a
   player (a lift, a weapon, a Forge object) still stays where it hit until it explodes. In first person,
-  a grenade stuck to your own body is not shown unless it is on your arms or hands.
+  a grenade stuck to your own body is not shown unless it is on your arms or hands. A grenade stuck at
+  arm's length (it hits before the film records any of its flight) shows only its explosion, where the
+  film places it: the grenade itself is not drawn on the player between the throw and the blast, since
+  the film gives neither a flight nor the spot it stuck to. A match imported before this change needs a
+  rebuild to get that explosion.
 - The HUD's bottom strip (score, kill feed, ammo) can sit under the control bar while the bar
   is showing; only the shield indicator currently avoids this.
 - The home screen does not yet have Settings or Quit rows, gamepad input, or live 3D

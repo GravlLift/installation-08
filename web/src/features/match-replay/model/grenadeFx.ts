@@ -95,6 +95,9 @@ export interface GrenadeRestFx {
   frame: number
   x: number
   y: number
+  /** The published HEIGHT of the explosion, when the document carries it (a throw's own `deto`,
+   *  schema 129). Absent: the 3D places it at the end of the flight, or on the floor. */
+  z?: number
   /** Rank of the grenade type (index in grenadeLabels), `-1` when the film does not publish it.
    *  NO FALLBACK TO 0: `restKindOf` then returns the subtle halo — exactly what its
    *  own doctrine promises — and the SOUND falls silent (EXPLOSION_SOUND_STEMS, grenadeSound.ts).
@@ -174,7 +177,15 @@ export function grenadeThrowActive(
 export function buildGrenadeRestFx(doc: ReplayDocumentReady): GrenadeRestFx[] {
   const out: GrenadeRestFx[] = []
   for (const g of doc.grenades) {
-    if (g.proj === undefined || g.proj === null) continue
+    if (g.proj === undefined || g.proj === null) {
+      // A THROW WITHOUT A PUBLISHED FLIGHT (schema 129): a point-blank stick replicates no flight,
+      // and its explosion is the film's detonation of the projectile the throw created (`deto`,
+      // linked by the projectile's handle on the server side). Same staging as a flight's end.
+      if (g.deto) {
+        out.push({ frame: g.deto.t, x: g.deto.x, y: g.deto.y, z: g.deto.z, rank: g.rank ?? -1, rest: false, seed: explosionSeedOf(g.deto.t) })
+      }
+      continue
+    }
     const pr = doc.projectiles[g.proj]
     if (!pr) continue
     const frame = pr.detoT
