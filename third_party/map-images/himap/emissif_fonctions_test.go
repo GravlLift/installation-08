@@ -85,6 +85,26 @@ func TestAnimationsEmissives(t *testing.T) {
 	}
 }
 
+// LOCAL-CHANGE (infinite-theater-3d): object-driven color mappings survive material export.
+func TestObjetEmissif(t *testing.T) {
+	e := &Emissif{octets: cibleEmissive{couleur: 224}}
+	pp := postprocessLu{animes: []ParametreAnime{
+		{Sorte: AnimeCouleur, Octet: 224, Entree: 0x4a2c3a6a, Donnees: []byte{0, 1, 2}},
+		{Sorte: AnimeCouleur, Octet: 16, Entree: 1, Donnees: []byte{3}},
+		{Sorte: AnimeCouleur, Octet: 224, Entree: 0, Donnees: []byte{4}},
+	}}
+	got := objetsEmissifs(e, pp)
+	if len(got) != 1 || got[0].Entree != 0x4a2c3a6a || string(got[0].Donnees) != string([]byte{0, 1, 2}) {
+		t.Fatalf("object emissive mappings: %+v", got)
+	}
+	g := gltfMaterial{Extras: map[string]any{}}
+	w := ecrivainMateriaux{doc: &gltfDoc{}, bin: &tamponGLB{}, m: &MaillageMonde{}}
+	w.appliqueImages(&g, Materiau{Emissif: &Emissif{Couleur: [3]float32{1, 1, 1}, Force: 1, Objets: got}}, false)
+	if g.Extras["emissionObject"] == nil {
+		t.Fatal("object mapping missing from GLB extras")
+	}
+}
+
 // TestEcritGLBAnimationEmissive: the animations go into the material's extras; a still light
 // writes none.
 func TestEcritGLBAnimationEmissive(t *testing.T) {

@@ -55,7 +55,7 @@ import { toThree } from './tracks3d'
 import { WeaponModelPool, weaponModelKey } from './weaponModels3d'
 import { centerOffset, faceMountOffset, groundWeaponPose, standingItemCorrection } from './groundWeaponPose3d'
 import { applyWeaponCoating } from './avatar3d'
-import { padItemRotation } from './padOffsets3d'
+import { padItemRotation, type PadOffset } from './padOffsets3d'
 
 /** The weapon box: length, height, width (u). */
 const BOX_LENGTH = 0.5
@@ -331,7 +331,7 @@ interface PadDrawn {
 }
 
 /** A baked pad: its data, its nature, its foot (three axes), its kind (floor or wall rack). */
-interface PadSpot {
+export interface PadSpot {
   index: number
   pad: ReplayWeaponPadReady
   family: PadFamily
@@ -347,6 +347,60 @@ interface PadSpot {
   last?: PadDrawn
   /** A floating pad item, turned about its model center: its loaded model and that center offset. */
   item?: { model: THREE.Object3D; offset: THREE.Vector3 }
+}
+
+/**
+ * padItemCenter — the center (three axes) the item of `spot` is drawn at at `frame`, the same
+ * point `paintPads` adds its model to. The caller passes the item's `look`, its loaded `model`
+ * (null when not solid or not loaded), the pad `offset` marker (null when it has none) and the
+ * equipment `standing` correction (null when the item is not an equipment pad); `groundScale`
+ * is the item's ground scale. `out` is written and returned. This is the single source the 3D
+ * pickups layer and the pad navpoint markers (`padNavpointMarkers3d`) share, so the icon always
+ * sits where the item is drawn, not at the pad's base.
+ */
+export function padItemCenter(
+  spot: PadSpot,
+  frame: number,
+  look: BoxLook,
+  model: THREE.Object3D | null,
+  offset: PadOffset | null,
+  groundScale: number | null,
+  standing: { rotation: THREE.Quaternion; center: THREE.Vector3 } | null,
+  out: THREE.Vector3,
+): THREE.Vector3 {
+  const q = new THREE.Quaternion().setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
+  const base = out.copy(spot.feet)
+  if (spot.placed) {
+    // A placed weapon stands at its spawner; the icon anchors on the spawner.
+    return base
+  }
+  if (spot.rack) {
+    // A rack holds its weapon still on the front of the shut doors; the icon anchors there.
+    if (model && spot.rack.offset) return base.add(spot.rack.offset)
+    return base.add(new THREE.Vector3(0, 0, RACK_FACE + BOX_WIDTH / 2).applyQuaternion(spot.rack.rotation))
+  }
+  if (spot.mounted) {
+    // A wall rack (no crossing): the weapon is posed at its height; the icon anchors at the feet.
+    return base
+  }
+  base.setY(spot.feet.y + PAD_BOX_LIFT + BOX_HEIGHT / 2)
+  if (look === 'solid' && model && offset) {
+    const scale = groundScale ?? 1
+    q.copy(padItemRotation(offset, q, new THREE.Quaternion()))
+    base.add(new THREE.Vector3().copy(spot.item?.offset ?? centerOffset(model)).multiplyScalar(scale).applyQuaternion(q))
+    return base
+  }
+  if (look === 'solid' && model) {
+    if (spot.slot === 'equipment' && standing) {
+      q.multiply(standing.rotation)
+      base.add(new THREE.Vector3().copy(standing.center).applyQuaternion(q).negate())
+    } else {
+      base.add(new THREE.Vector3().copy(spot.item?.offset ?? centerOffset(model)).applyQuaternion(q))
+    }
+    return base
+  }
+  // Box (ghost or solid-without-model): centered on the float height.
+  return base
 }
 
 /** One row of `window.__it3dPickups`: what a pad holds and what the view drew for it. */
@@ -458,6 +512,9 @@ export class Pickups3dLayer implements ActionLayer3d {
   /** The painted materials, disposed with the layer (a painted model's and its glow copy's clones share them). */
   private readonly paintedMaterials: THREE.Material[] = []
 
+  /** The baked pads (their data, feet, kind) the layer draws; `spot.last` holds what the last `update` drew. */
+  get spots(): readonly PadSpot[] { return this.pads }
+
   constructor(ctx: ActionContext) {
     this.ctx = ctx
     this.pads = padSpotsOf(ctx, prepareWeaponPads(ctx.doc))
@@ -546,7 +603,7 @@ export class Pickups3dLayer implements ActionLayer3d {
   }
 
   private paintPads(frame: number, ink: Readonly<Record<PadFamily, string>>): void {
-    const { p, q, c } = this.scratch
+    const { p, q } = this.scratch
     for (const spot of this.pads) {
       const state = padStateAt(spot.pad, frame)
       const last: PadDrawn = { state, drawn: null, pos: null }
@@ -580,39 +637,41 @@ export class Pickups3dLayer implements ActionLayer3d {
       }
       const look = padBoxLook(state)
       if (!look) continue
-      p.copy(spot.feet).setY(spot.feet.y + PAD_BOX_LIFT + BOX_HEIGHT / 2)
-      q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
+      // The item's center is shared with the navpoint markers (`padItemCenter`): the same spin,
+      // the same hold, the same ground scale, so the icon always sits where the item is drawn.
       const source = look === 'solid' ? this.ctx.weaponModel(spot.pad.weapon) : null
       let model: THREE.Object3D | null = null
       if (source) model = this.noShadow(this.paintedObject(spot.pad.weapon, source))
       const offset = model ? this.ctx.weaponPadOffset?.(spot.pad.weapon) ?? null : null
+      const groundScale = this.ctx.weaponGroundScale?.(spot.pad.weapon) ?? null
+      const standing = look === 'solid' && model && spot.slot === 'equipment' ? this.standingOf(model) : null
+      padItemCenter(spot, frame, look, model, offset, groundScale, standing, p)
       if (model && offset) {
         // The game's own hold: the item turned so its `weapon_pad_offset` marker is upright on the
         // pad, weapons and equipment alike, and turning about up through the center of its
         // bounds (the Grapple's marker sits at its back end; the game spins it about its middle).
         // At the item's ground scale (weapons 1.3, the Grapple 2.75), as the game draws it.
-        const scale = this.ctx.weaponGroundScale?.(spot.pad.weapon) ?? 1
-        padItemRotation(offset, q, q)
+        q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
+        q.copy(padItemRotation(offset, q, q))
         if (spot.item?.model !== model) spot.item = { model, offset: centerOffset(model) }
-        p.add(this.scratch.o.copy(spot.item.offset).multiplyScalar(scale).applyQuaternion(q))
-        this.models.add(this.glowOf(model, this.ctx.ink.of(ink[spot.family])), p, q, scale)
+        this.models.add(this.glowOf(model, this.ctx.ink.of(ink[spot.family])), p, q, groundScale ?? 1)
       } else if (model) {
-        if (spot.slot === 'equipment') {
+        q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
+        if (spot.slot === 'equipment' && standing) {
           // An equipment GLB is not authored with the weapon's up: stand the item on its thinnest
           // bounding-box edge (a disc stands on its edge) BEFORE the spin about world up, and
           // center it on the float height.
-          const standing = this.standingOf(model)
           q.multiply(standing.rotation)
-          p.sub(c.copy(standing.center).applyQuaternion(q))
-        } else {
-          // Every floating item turns about its model center, over the pad's center: a weapon
-          // turned about its grip swept its barrel past the pad's rim (the S7 on Fortress reached
-          // 0.4 u off the kit), and from above read as lying on the floor beside the pad.
+        }
+        // Every floating item turns about its model center, over the pad's center: a weapon
+        // turned about its grip swept its barrel past the pad's rim (the S7 on Fortress reached
+        // 0.4 u off the kit), and from above read as lying on the floor beside the pad.
+        if (spot.slot !== 'equipment') {
           if (spot.item?.model !== model) spot.item = { model, offset: centerOffset(model) }
-          p.add(this.scratch.o.copy(spot.item.offset).applyQuaternion(q))
         }
         this.models.add(this.glowOf(model, this.ctx.ink.of(ink[spot.family])), p, q)
       } else {
+        q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
         this.poolOf(look).add(p, q, 1, this.ctx.ink.of(ink[spot.family]))
       }
       Object.assign(last, { drawn: model ? 'model' : look === 'solid' ? 'box' : 'ghost', pos: p.clone() })
