@@ -135,6 +135,7 @@ interface Marker {
   /** The icon's last written scale and line length (cqh), to skip redundant style writes. */
   scale: number
   lineCqh: number
+  lineAngle: number
 }
 
 /** Scratch vectors for per-frame projection (avoids allocation). */
@@ -150,6 +151,14 @@ const _anchor = new THREE.Vector3()
  * a few units away, the right size.
  */
 const ICON_FULL_SIZE_DISTANCE = 3
+
+/**
+ * The icon's height above its pad: this many times the item's float height over the pad's feet,
+ * and at least ICON_TOP_GAP (u) over the item's top. Inferred from Jordan's captures (2026-11-21):
+ * the icon stays at one height whatever the item, just above the tallest ones.
+ */
+const ICON_HEIGHT_FACTOR = 1.5
+const ICON_TOP_GAP = 0.05
 const ICON_MIN_SCALE = 0.25
 
 /** The layer of pad navpoint markers, one per pad the pickups layer draws. */
@@ -220,7 +229,7 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     // The line: a thin vertical strip from the icon's bottom edge down to the anchor.
     // Its height is the icon offset (the distance from the icon to the anchor).
     const line = document.createElement('div')
-    line.style.cssText = `position:absolute;left:50%;top:100%;transform:translateX(-50%);width:${LINE_WIDTH_PX}px;height:${cq(ICON_OFFSET_UI)};background:var(--replay-hud-weapon,#c7ebfa);opacity:0.7;pointer-events:none;`
+    line.style.cssText = `position:absolute;left:50%;top:100%;transform:translateX(-50%);transform-origin:50% 0;width:${LINE_WIDTH_PX}px;height:${cq(ICON_OFFSET_UI)};background:var(--replay-hud-weapon,#c7ebfa);opacity:0.7;pointer-events:none;`
     box.appendChild(line)
 
     // The timer: below the line, at the game's offset from the anchor.
@@ -233,7 +242,7 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     const obj = new CSS2DObject(point)
     obj.visible = false
     this.root.add(obj)
-    return { spot, obj, icon: { url: icon.url, mirrored: icon.mirrored }, box, line, timer, timerText: '', timerShown: false, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: false, hidden: false, scale: 1, lineCqh: -1 }
+    return { spot, obj, icon: { url: icon.url, mirrored: icon.mirrored }, box, line, timer, timerText: '', timerShown: false, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: false, hidden: false, scale: 1, lineCqh: -1, lineAngle: 0 }
   }
 
   /** arrowEl adds the off-screen arrow to a marker, hidden until the marker docks. */
@@ -259,7 +268,7 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     const obj = new CSS2DObject(point)
     obj.visible = false
     this.root.add(obj)
-    return { spot, obj, icon: null, box, line, timer, timerText: '', timerShown: false, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: true, hidden: false, scale: 1, lineCqh: -1 }
+    return { spot, obj, icon: null, box, line, timer, timerText: '', timerShown: false, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: true, hidden: false, scale: 1, lineCqh: -1, lineAngle: 0 }
   }
 
   /**
@@ -390,19 +399,33 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
    */
   private placeRaised(m: Marker, center: THREE.Vector3, project: NonNullable<ActionContext['projectToScreen']>): void {
     const feetY = m.spot.feet.y
-    _anchor.set(center.x, feetY + 2 * (center.y - feetY), center.z)
+    const top = m.spot.last?.top ?? center.y
+    _anchor.set(center.x, Math.max(top + ICON_TOP_GAP, feetY + ICON_HEIGHT_FACTOR * (center.y - feetY)), center.z)
     m.obj.position.copy(_anchor)
     this.ctx.cameraPosition?.(_camPos)
     const distance = _camPos.distanceTo(_anchor)
     this.setIconScale(m, Math.max(ICON_MIN_SCALE, Math.min(1, ICON_FULL_SIZE_DISTANCE / Math.max(distance, 1e-3))))
-    const top = m.spot.last?.top ?? center.y
+    // The line runs from the icon's bottom center to the item's top as projected: with the camera
+    // pitched, that point is not straight below the icon.
     const a = project([_anchor.x, _anchor.y, _anchor.z])
-    const t = project([center.x, Math.min(top, _anchor.y), center.z])
-    const lineCqh = a && t ? Math.max(0, (t[1] - a[1]) * 100) : 0
-    if (Math.abs(lineCqh - m.lineCqh) > 0.05) {
+    const t = project([center.x, top, center.z])
+    const host = m.obj.element.parentElement
+    const aspect = host && host.clientHeight > 0 ? host.clientWidth / host.clientHeight : 16 / 9
+    let dx = 0
+    let dy = 0
+    if (a && t) {
+      dx = (t[0] - a[0]) * 100 * aspect
+      dy = (t[1] - a[1]) * 100
+    }
+    const lineCqh = Math.hypot(dx, dy)
+    const angle = Math.atan2(-dx, dy)
+    if (Math.abs(lineCqh - m.lineCqh) > 0.05 || Math.abs(angle - m.lineAngle) > 0.005) {
       m.line.style.height = `${lineCqh.toFixed(2)}cqh`
-      m.timer.style.top = `calc(100% + ${lineCqh.toFixed(2)}cqh)`
+      m.line.style.transform = `translateX(-50%) rotate(${angle.toFixed(4)}rad)`
+      m.timer.style.top = `calc(100% + ${dy.toFixed(2)}cqh)`
+      m.timer.style.left = `calc(50% + ${dx.toFixed(2)}cqh)`
       m.lineCqh = lineCqh
+      m.lineAngle = angle
     }
   }
 
