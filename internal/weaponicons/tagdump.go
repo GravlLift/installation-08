@@ -73,10 +73,26 @@ func (r *TagReader) Tag(id uint32) ([]byte, error) {
 }
 
 // Resources returns the pixel payloads of every resource the tag id's entry owns, in the
-// module's resource-table order. See ownedPayloads for the ownership and variant rules.
+// module's resource-table order (see ownedResources for the ownership and variant rules).
 // It errors when the tag is absent or no variant carries a resource.
 func (r *TagReader) Resources(id uint32) ([][]byte, error) {
-	return ownedPayloads(context.Background(), r.ix, id)
+	ref, res, err := ownedResourcesWithRef(context.Background(), r.ix, id)
+	if err != nil {
+		return nil, err
+	}
+	m, err := r.ix.open(ref.Module)
+	if err != nil {
+		return nil, err
+	}
+	out := make([][]byte, 0, len(res))
+	for _, f := range res {
+		blob, err := m.Extract(f)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, f.Donnees(blob))
+	}
+	return out, nil
 }
 
 // StringIDNames returns, for every harvested string whose hash is wanted (nil wanted =

@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/JGtm/halo-infinite-map-images/himap"
-
 	"github.com/llampwall/infinite-theater-3d/internal/announcer"
 )
 
@@ -85,16 +83,23 @@ func buildNavpointBadge(ix *tagIndex, navpoint []byte, out string) (NavpointBadg
 		if !ok {
 			return 0, 0, fmt.Errorf("navpoint bitmap %08x not found", bitmap)
 		}
-		idx, err := himap.NewModuleIndex(r.Module)
+		m, err := ix.open(r.Module)
 		if err != nil {
 			return 0, 0, err
 		}
-		tex, err := himap.LitCoucheBitmap(idx, bitmap, s.Frame, 128)
+		f, ok := ix.byEntry[r.Module][r.Entry]
+		if !ok {
+			return 0, 0, fmt.Errorf("navpoint bitmap %08x: entry %d out of range", bitmap, r.Entry)
+		}
+		src, err := decodeBitmapLayer(m, f, s.Frame)
 		if err != nil {
 			return 0, 0, fmt.Errorf("navpoint bitmap %08x frame %d: %w", bitmap, s.Frame, err)
 		}
+		// The old reader scaled the frame down under 128 (a cote, never up): the true layers
+		// are 96 and 116 wide, so they pass through at their own size.
+		img := fitDown(src, 128)
 		s.File = file
-		return writeHudFile(out, file, tex.Image)
+		return writeHudFile(out, file, img)
 	}
 	files, bytes := 0, 0
 	add := func(n, by int, err error) error {

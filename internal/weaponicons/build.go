@@ -64,11 +64,7 @@ type iconEntry struct {
 	CroppedW       int      `json:"cropped_w"`
 	CroppedH       int      `json:"cropped_h"`
 	BC7Format      int      `json:"bc7_format"`
-	Verified       bool     `json:"align_verified"`
 	Noise          string   `json:"alpha_noise"`
-	RebuiltPc      string   `json:"bc7_rebuilt_pct"`
-	OpaquePc       string   `json:"bc7_opaque_pct"`
-	DegradedPc     string   `json:"bc7_degraded_pct"`
 }
 
 // Build decodes every icon atlas of the install at gameRoot (empty auto-detects it the
@@ -146,7 +142,7 @@ func writeAtlas(ctx context.Context, ix *tagIndex, out string, keyByIndex map[in
 	for _, at := range atlasTags {
 		n := 0
 		for idx := 0; idx < atlasLimit; idx++ {
-			img, st, im, err := decodeAlphaGlyph(ix, at.ID, idx)
+			img, im, err := decodeAlphaGlyph(ix, at.ID, idx)
 			if err != nil {
 				slog.InfoContext(ctx, "atlas stops", "style", at.Style, "index", idx, "err", err)
 				break
@@ -163,7 +159,7 @@ func writeAtlas(ctx context.Context, ix *tagIndex, out string, keyByIndex map[in
 				return nil, 0, err
 			}
 			total += int(fi.Size())
-			all = append(all, entryFor(at, name, keyByIndex, names, kfNames, tagsByIndex, img, st, im, ix, idx))
+			all = append(all, entryFor(at, name, keyByIndex, names, kfNames, tagsByIndex, img, im, idx))
 			n++
 		}
 		slog.InfoContext(ctx, "atlas written", "style", at.Style, "icons", n)
@@ -174,7 +170,7 @@ func writeAtlas(ctx context.Context, ix *tagIndex, out string, keyByIndex map[in
 // entryFor fills the index.json entry of one icon.
 func entryFor(at atlasTag, name string, keyByIndex map[int]string,
 	names map[int][]string, kfNames map[int]string, tagsByIndex map[int][]string,
-	img *image.NRGBA, st glyphStats, im bitmImg, ix *tagIndex, idx int,
+	img *image.NRGBA, im bitmImg, idx int,
 ) iconEntry {
 	// The weapon key only applies to the two weapon atlases: the sandbox atlas has its
 	// own numbering, unrelated to `sprite index`.
@@ -205,12 +201,9 @@ func entryFor(at atlasTag, name string, keyByIndex map[int]string,
 		GameName: gameName, NameUnverified: unverified,
 		SourceTag: fmt.Sprintf("%08x", at.ID),
 		SourceW:   im.W, SourceH: im.H,
-		CroppedW: img.Bounds().Dx(), CroppedH: img.Bounds().Dy(),
-		BC7Format: im.Format, Verified: imageVerified(ix, at.ID, idx),
-		Noise:      fmt.Sprintf("%.4f", alphaNoise(img)),
-		RebuiltPc:  pct(st.Rebuilt, st.Blocks),
-		OpaquePc:   pct(st.Opaque, st.Blocks),
-		DegradedPc: pct(st.Degraded, st.Blocks),
+		CroppedW:  img.Bounds().Dx(), CroppedH: img.Bounds().Dy(),
+		BC7Format: im.Format,
+		Noise:     fmt.Sprintf("%.4f", alphaNoise(img)),
 	}
 }
 

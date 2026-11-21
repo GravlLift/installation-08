@@ -1,137 +1,35 @@
 // SPDX-License-Identifier: AGPL-3.0-only. Additional terms: see NOTICE.md.
 
-// align.go — image descriptor <-> pixel resource pairing, and the per-tag cache.
+// align.go — one icon `bitm` atlas tag, its declared images, and the decode of each
+// image through the shared bitmap decoder.
 //
-// Kept apart from extract.go (the 500-line limit): this file carries only the question
-// "which resource holds the pixels of which declared image", where the risk of a silent
-// error is highest.
+// The pixels of an atlas image live either INLINE in the tag (the small atlases: after
+// the header and the tag data, level by level from the largest, one level after another,
+// tight rows) or in the tag's RESOURCE entries (one mip level per entry, each row
+// padded to 256 bytes, from the smallest level to the largest). The two cases are told
+// apart by the entry's own `ucsh` fields (ActualResourceSize, measured on the install),
+// the same split himap's bitmap reader uses.
 
 package weaponicons
 
-import "fmt"
+import (
+	"encoding/binary"
+	"fmt"
 
-// bcSize: the weight of an image in 4x4 blocks of 16 bytes.
-func bcSize(w, h int) int { return ((w + 3) / 4) * ((h + 3) / 4) * 16 }
+	"github.com/JGtm/halo-infinite-map-images/bitmapdecode"
+)
 
-// expectedSizes: the ADMISSIBLE payload weights of a resource for a given image — the
-// cumulative sums of the mip chain, from mip0 alone up to the full chain. An exact check,
-// not an interval: a resource is accepted if it weighs EXACTLY one of these values.
-//
-// The number of levels actually stored is not postulated. The `mips` field of the
-// descriptor gives it for the weapon atlas (333x117 mips=2 -> 40320+10080+2688 = 53088, to
-// the byte), but requiring it would reject 9 of the same atlas's 39 images: other entries
-// store a shorter chain. Any truncation of the chain is accepted, which stays an exact
-// equality — it is not a tolerance.
-func expectedSizes(im bitmImg) []int {
-	var out []int
-	total, w, h := 0, im.W, im.H
-	for lvl := 0; lvl < 14; lvl++ {
-		total += bcSize(w, h)
-		out = append(out, total)
-		if w == 1 && h == 1 {
-			break
-		}
-		w, h = max1(w/2), max1(h/2)
-	}
-	return out
-}
-
-func max1(v int) int {
-	if v < 1 {
-		return 1
-	}
-	return v
-}
-
-// alignImages pairs the image descriptors to the resources by ARITHMETIC CHECK, not by
-// rank alone.
-//
-// WHY. Rank alone (resource[base+i] for descriptor i) drifted on the sandbox atlas: the
-// descriptor census was then heuristic and its false positives consumed resources,
-// shifting everything after — hence the striped images at the tail of the atlas. THE CAUSE
-// IS HANDLED AT THE SOURCE since (scanImgs reads the declared array instead of hunting a
-// signature) and no image drifts anymore.
-//
-// The check stays as a NET, and it is not decorative: a silent shift would serve one
-// entry's icon for another, exactly the kind of fault that is never seen.
-//
-// HOW. Rank remains the starting point, but every pairing is CHECKED: the resource's
-// payload must weigh exactly one cumulative sum of the mip chain. If it does not fit, a
-// short forward probe re-aligns on the first resource that fits.
-//
-// If none fits, the rank pairing is KEPT but marked unverified (`align_verified=false`):
-// rejecting it would lose icons that are correct to the eye. The doubt is reported in
-// index.json, never swallowed.
-// probeWindow: the probe depth of the re-alignment. Adjustable to measure its effect.
-var probeWindow = 6
-
-func alignImages(m *hmod, tab []uint32, base int, imgs []bitmImg) (slots []int, verified []bool) {
-	window := probeWindow
-	out := make([]int, len(imgs))
-	okFlags := make([]bool, len(imgs))
-	cur := base
-	for i, im := range imgs {
-		out[i] = -1
-		want := expectedSizes(im)
-		for probe := cur; probe < cur+window && probe < len(tab); probe++ {
-			fi := int(tab[probe])
-			if fi < 0 || fi >= m.hdr.FileCount {
-				continue
-			}
-			blob, err := m.extract(m.file(fi))
-			if err != nil {
-				continue
-			}
-			rh, ok := parseTagHeader(blob)
-			if !ok {
-				continue
-			}
-			px := int(rh.HeaderSize) + int(rh.DataSize)
-			if px < 0 || px > len(blob) {
-				continue
-			}
-			payload := len(blob) - px
-			match := false
-			for _, w := range want {
-				if payload == w {
-					match = true
-					break
-				}
-			}
-			if !match {
-				continue
-			}
-			out[i] = probe
-			okFlags[i] = true
-			cur = probe + 1
-			break
-		}
-		if out[i] < 0 {
-			// No resource fits exactly. Keep the rank and mark the doubt — BUT only if the
-			// resource at rank can at least CONTAIN the mip0: otherwise the descriptor is a
-			// false positive of the census, and keeping it would shift everything after (this
-			// is what derailed the sandbox atlas after 41).
-			if cur < len(tab) && resourcePayload(m, tab, cur) >= bcSize(im.W, im.H) {
-				out[i] = cur
-				cur++
-			}
-		}
-	}
-	return out, okFlags
-}
-
-// atlas: one icon `bitm` tag, its paired descriptors, and its archive's resource table.
-// The pairing is costly (it decompresses to check the sizes): it is done ONCE per tag,
-// then cached.
+// atlas: one icon `bitm` tag, its declared images, its pixel format (the bitmap header's
+// own) and, per image, the bytes of that image's mip chain (mip 0 first, tight rows). The
+// pairing is done once per tag, then cached.
 type atlas struct {
-	mod   *hmod
-	tab   []uint32
-	imgs  []bitmImg // kept descriptors, in order
-	verif []bool    // pairing confirmed by the arithmetic check
-	slots []int     // resource index of each kept descriptor
+	imgs     []bitmImg
+	fm       bitmapdecode.Format
+	payloads [][]byte
 }
 
-// atlasOf pairs a tag's images to their resources once and for all.
+// atlasOf decodes the tag once and for all: it reads the `bitm` header (the record
+// array, the format), extracts the tag, and collects the pixels of every declared image.
 func atlasOf(ix *tagIndex, id uint32) (*atlas, error) {
 	if a, ok := ix.atlases[id]; ok {
 		if a == nil {
@@ -139,97 +37,135 @@ func atlasOf(ix *tagIndex, id uint32) (*atlas, error) {
 		}
 		return a, nil
 	}
-	build := func() (*atlas, error) {
-		r, ok := pickRef(ix.byID[id])
-		if !ok {
-			return nil, fmt.Errorf("tag %08x absent from the archives", id)
-		}
-		m, err := ix.open(r.Module)
-		if err != nil {
-			return nil, err
-		}
-		tab, err := resourceTable(m)
-		if err != nil {
-			return nil, err
-		}
-		data, err := ix.extract(r)
-		if err != nil {
-			return nil, err
-		}
-		h, ok := parseTagHeader(data)
-		if !ok {
-			return nil, fmt.Errorf("tag %08x without a ucsh header", id)
-		}
-		all := scanImgs(data[h.HeaderSize:])
-		slots, verif := alignImages(m, tab, entryResourceIndex(m, r.Entry), all)
-		a := &atlas{mod: m, tab: tab}
-		for i, s := range slots {
-			if s >= 0 {
-				a.imgs = append(a.imgs, all[i])
-				a.slots = append(a.slots, s)
-				a.verif = append(a.verif, verif[i])
-			}
-		}
-		return a, nil
-	}
-	a, err := build()
+	a := &atlas{}
 	ix.atlases[id] = a
-	return a, err
+	return a, buildAtlas(a, ix, id)
 }
 
-// resBlob returns the content of the resource paired to image idx, and the offset of its
-// pixels. The resource is itself a blob with a `ucsh` header: the pixels start after
-// headerSize + dataSize (checked to the byte, cf. the packet header).
-func resBlob(ix *tagIndex, id uint32, idx int) (blob []byte, px int, im bitmImg, err error) {
-	a, err := atlasOf(ix, id)
-	if err != nil {
-		return nil, 0, im, err
-	}
-	if idx < 0 || idx >= len(a.imgs) {
-		return nil, 0, im, fmt.Errorf("index %d out of range (%d paired images)", idx, len(a.imgs))
-	}
-	blob, err = a.mod.extract(a.mod.file(int(a.tab[a.slots[idx]])))
-	if err != nil {
-		return nil, 0, im, err
-	}
-	rh, ok := parseTagHeader(blob)
+// buildAtlas fills a for tag id. The format is the one the tag's own bitmap header
+// declares (never assumed by the caller): an unknown format leaves the atlas empty.
+func buildAtlas(a *atlas, ix *tagIndex, id uint32) error {
+	r, ok := pickRef(ix.byID[id])
 	if !ok {
-		return nil, 0, im, fmt.Errorf("resource %d without a ucsh header", a.slots[idx])
+		return fmt.Errorf("tag %08x absent from the archives", id)
 	}
-	return blob, int(rh.HeaderSize) + int(rh.DataSize), a.imgs[idx], nil
-}
-
-// imageVerified says whether image idx's pairing was confirmed by the arithmetic check
-// (exact weight of a mip chain) or only deduced from the rank.
-func imageVerified(ix *tagIndex, id uint32, idx int) bool {
-	a, err := atlasOf(ix, id)
-	if err != nil || idx < 0 || idx >= len(a.verif) {
-		return false
-	}
-	return a.verif[idx]
-}
-
-// resourcePayload returns the weight of a resource's payload (everything after its `ucsh`
-// header), or -1 if it is not readable.
-func resourcePayload(m *hmod, tab []uint32, slot int) int {
-	if slot < 0 || slot >= len(tab) {
-		return -1
-	}
-	fi := int(tab[slot])
-	if fi < 0 || fi >= m.hdr.FileCount {
-		return -1
-	}
-	blob, err := m.extract(m.file(fi))
+	m, err := ix.open(r.Module)
 	if err != nil {
-		return -1
+		return err
 	}
-	rh, ok := parseTagHeader(blob)
+	f, ok := ix.byEntry[r.Module][r.Entry]
 	if !ok {
-		return -1
+		return fmt.Errorf("entry %d out of range in %s", r.Entry, r.Module)
 	}
-	px := int(rh.HeaderSize) + int(rh.DataSize)
-	if px < 0 || px > len(blob) {
-		return -1
+	data, err := m.Extract(f)
+	if err != nil {
+		return err
 	}
-	return len(blob) - px
+	body := data
+	if n := f.HeaderSize + f.TagDataSize; n > 0 && n <= len(data) {
+		body = data[:n]
+	}
+	e, err := readBitmHdr(body)
+	if err != nil {
+		return err
+	}
+	fm, ok := bitmapdecode.Lookup(e.format)
+	if !ok {
+		return fmt.Errorf("tag %08x: unsupported bitmap format %d", id, e.format)
+	}
+	all := scanImgs(body)
+	a.imgs = all
+	a.fm = fm
+	if f.ActualResourceSize > 0 {
+		// Inline: the pixels follow the header and the tag data, one image after another,
+		// each its full mip chain (mip 0 first, tight rows). The offset of image i is the
+		// cumulative weight of the larger images.
+		flat := f.Donnees(data)
+		off := 0
+		for i := range all {
+			a.payloads = append(a.payloads, flat[off:])
+			off += mipChainSize(fm, all[i].W, all[i].H)
+		}
+		return nil
+	}
+	// Resource-backed: each image owns its resource (rank pairing, the pairing the old
+	// arithmetic check confirmed). The payload of image i is the i-th resource's bytes
+	// past its own header — that image's mip chain, mip 0 first.
+	res, err := m.Ressources(f)
+	if err != nil {
+		return err
+	}
+	for i := range all {
+		if i >= len(res) {
+			break
+		}
+		octets, err := m.Extract(res[i])
+		if err != nil {
+			return err
+		}
+		a.payloads = append(a.payloads, res[i].Donnees(octets))
+	}
+	return nil
+}
+
+// mipChainSize is the total byte weight of an image's stored mip chain (mip 0 down to 1x1),
+// tight rows.
+func mipChainSize(fm bitmapdecode.Format, w, h int) int {
+	total := 0
+	for lvl := 0; lvl < 14; lvl++ {
+		total += fm.LevelSize(w, h)
+		if w == 1 && h == 1 {
+			break
+		}
+		w, h = max1(w/2), max1(h/2)
+	}
+	return total
+}
+
+// bitmHdr describes the `bitm` bitmap block of a tag body: the record array's
+// offset (in the body), its first record's dimensions and format, and the record count.
+// The block is reached through the tag's own tables, exactly as himap's bitmap reader
+// reaches it (the `bitmaps` block at 0xD4 of the root block).
+type bitmHdr struct {
+	off, w, h, format, count int
+}
+
+// bitmOffBitmaps is the offset of the `bitmaps` block field in the root block, the way
+// himap's bitmap reader reaches it (a fixed child-block field, not a scan).
+const bitmOffBitmaps = 0xD4
+
+func readBitmHdr(tag []byte) (bitmHdr, error) {
+	wt, err := openWeapTag(tag)
+	if err != nil {
+		return bitmHdr{}, err
+	}
+	root, err := wt.rootBlock()
+	if err != nil {
+		return bitmHdr{}, err
+	}
+	blk := wt.childBlock(root, bitmOffBitmaps)
+	if blk < 0 {
+		return bitmHdr{}, fmt.Errorf("bitm: the bitmaps block is not in the tag")
+	}
+	a, s := wt.blockAbs(blk)
+	if a < 0 || s < 40 || a+s > len(tag) {
+		return bitmHdr{}, fmt.Errorf("bitm: the bitmaps block is out of bounds")
+	}
+	return bitmHdr{
+		off:    a,
+		w:      int(binary.LittleEndian.Uint16(tag[a:])),
+		h:      int(binary.LittleEndian.Uint16(tag[a+2:])),
+		format: int(binary.LittleEndian.Uint16(tag[a+8:])),
+		count:  s / 40,
+	}, nil
+}
+
+// atlasImageInfo returns the descriptor, the bytes of image idx (its mip chain, mip 0
+// first) and the image's format.
+func atlasImageInfo(ix *tagIndex, id uint32, idx int) (im bitmImg, px []byte, fm bitmapdecode.Format, ok bool) {
+	a, err := atlasOf(ix, id)
+	if err != nil || idx < 0 || idx >= len(a.imgs) || idx >= len(a.payloads) {
+		return bitmImg{}, nil, bitmapdecode.Format{}, false
+	}
+	return a.imgs[idx], a.payloads[idx], a.fm, true
 }
