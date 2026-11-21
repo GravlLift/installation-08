@@ -1,9 +1,9 @@
 # EMPREINTE DE FORME DU DOCUMENT DE REJEU — fige par document_shape_test.go.
 # Ne s'edite JAMAIS a la main : regeneration decrite en tete de ce test.
-schema 129
-empreinte-stockee 35fce9931941165c
-empreinte-servie 35fce9931941165c
-empreinte-cuite 88896900f4f1388a
+schema 130
+empreinte-stockee defd2a6e91034a11
+empreinte-servie defd2a6e91034a11
+empreinte-cuite 3365cadfd4cc4154
 empreinte-cuite-regle 4
 
 AbilityCharge
@@ -1038,6 +1038,7 @@ ReplayDocument
   ObjectiveObjects json:"objectiveObjects,omitempty" []ObjectiveObjectLife
   Objectives json:"objectives,omitempty" []ObjectiveAction
   OriginMs json:"originMs,omitempty" *int64
+  PadCandidates json:"padCandidates,omitempty" []WeaponPad
   PadPickups json:"padPickups,omitempty" []PadPickup
   Pickups json:"pickups,omitempty" []Pickup
   Projectiles json:"projectiles,omitempty" []Projectile

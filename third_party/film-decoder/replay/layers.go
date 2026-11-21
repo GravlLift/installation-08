@@ -167,6 +167,7 @@ var couchesDesCalques = map[string]string{
 	"weaponChanges":       grammar.Rev, // build_calques.go <- FilmInputs.WeaponChanges
 	"pickups":             grammar.Rev, // build_calques.go <- FilmInputs.Pickups
 	"weaponPads":          grammar.Rev, // build_ground_weapons.go <- FilmInputs.Pads (ti=42 et ti=37)
+	"padCandidates":       grammar.Rev, // build_ground_weapons.go <- FilmInputs.Pads (ti=42 et ti=37), LOCAL-CHANGE (infinite-theater-3d)
 	"padPickups":          grammar.Rev, // build_ground_weapons.go <- FilmInputs.Pads
 	"groundWeapons":       grammar.Rev, // build_calques.go `buildGroundWeaponItems` <- FilmInputs.Pads + WeaponChanges
 	"objectiveObjects":    grammar.Rev, // build_objective_objects.go <- FilmInputs.Pads.Weapons SEUL : son en-tete mesure « aucune lecture de film ajoutee », ni statborg ni morts

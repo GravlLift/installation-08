@@ -1551,8 +1551,11 @@ func TestStructureIsOptionalInDocument(t *testing.T) {
 	// - 129 (2026-11-19, LOCAL-CHANGE) : `grenades[].deto`, the explosion of a throw whose flight is not
 	//   published (a point-blank stick), found by its projectile's handle; `SchemaDesFaits` 25 carries that
 	//   handle : a v128 reads « a republier » once redecoded. Detail : chronique.
-	if SchemaVersion != 129 {
-		t.Fatalf("SchemaVersion = %d, attendu 129 : incrémenter exige une raison écrite ci-dessus "+
+	// - 130 (2026-11-20, LOCAL-CHANGE) : `padCandidates`, the single-apparition clusters the recurrence rule
+	//   sets aside (an item the map placed and nobody took, so it never reappeared), for the server to promote
+	//   where the map confirms a pad : a v129 lacks them and reads « a republier ». Detail : chronique.
+	if SchemaVersion != 130 {
+		t.Fatalf("SchemaVersion = %d, attendu 130 : incrémenter exige une raison écrite ci-dessus "+
 			"(un champ optionnel de plus n'en est pas une)", SchemaVersion)
 	}
 }

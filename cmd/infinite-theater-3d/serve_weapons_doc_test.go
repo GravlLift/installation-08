@@ -390,3 +390,32 @@ func TestServedWeaponIconCoverage(t *testing.T) {
 		}
 	}
 }
+
+// TestPromotePadCandidates — a candidate (an item seen once at rest, never taken) becomes a pad
+// on a map pad location, or on an equipment spawn point when it is equipment; never on a site an
+// existing pad stands on, never on an equipment point when it is a weapon, never off the map's
+// sites; appended after the existing pads.
+func TestPromotePadCandidates(t *testing.T) {
+	equipmentSpawn := int32(-467576609) // 0xE42158DF
+	variant := &mapvar.Variant{Objects: []mapvar.Object{
+		testPadObject(mapvar.Vec3{X: 1, Y: 2, Z: 3}, mapvar.PadFamilyRack),
+		testPadObject(mapvar.Vec3{X: 10, Y: 0, Z: 0}, mapvar.PadFamilyRack),
+		{Pos: mapvar.Vec3{X: 20, Y: 0, Z: 0}, TypeID: equipmentSpawn},
+		{Pos: mapvar.Vec3{X: 30, Y: 0, Z: 0}, TypeID: equipmentSpawn},
+	}}
+	pads := []replay.WeaponPad{{X: 1, Y: 2, Z: 3, Weapon: "0xf408190f", Spawns: []int{0, 100}}}
+	cands := []replay.WeaponPad{
+		{X: 1.1, Y: 2, Z: 3, Weapon: "0x2b1824d5", Spawns: []int{0}},  // the site a pad holds
+		{X: 10.2, Y: 0, Z: 0, Weapon: "0x2b1824d5", Spawns: []int{0}}, // a free rack: promoted
+		{X: 20.1, Y: 0, Z: 0, Weapon: "thruster", Spawns: []int{0}},   // an equipment point: promoted
+		{X: 30, Y: 0.1, Z: 0, Weapon: "0x2b1824d5", Spawns: []int{0}}, // a weapon on an equipment point
+		{X: 50, Y: 0, Z: 0, Weapon: "repulsor", Spawns: []int{0}},     // no site
+	}
+	out := promotePadCandidates(variant, pads, cands)
+	if len(out) != 3 || out[0].Weapon != "0xf408190f" || out[1].X != 10.2 || out[2].Weapon != "thruster" {
+		t.Fatalf("promoted: %+v", out)
+	}
+	if got := promotePadCandidates(nil, pads, cands); len(got) != 1 {
+		t.Fatalf("without a variant: %+v", got)
+	}
+}

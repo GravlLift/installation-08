@@ -4293,3 +4293,17 @@ package replay
 //	                bouge pas (l empreinte est refigee a revision constante, comme au v128).
 //
 //	LE PARC         un artefact 128 : verdict `a republier` ; ses faits du schema 24 sont refuses sur l en-tete.
+
+// v130 (2026-11-20, LOCAL-CHANGE infinite-theater-3d) : les apparitions UNIQUES au repos sortent en candidats.
+//
+//	`padCandidates`  la forme de `weaponPads`, pour les grappes d UNE apparition que la regle « un socle est
+//	                 une recurrence » ecarte (`gwPadCandidates`) : un objet pose par la carte que personne n a
+//	                 pris, donc jamais reapparu (les socles de grappin, de repulseur et de propulseur d AIMBOTZ,
+//	                 match 0ace97d0). Ce ne sont PAS des socles : le serveur promeut ceux qu un socle ou un point
+//	                 d apparition de la variante confirme a moins d un metre, et n en sert aucun comme candidat.
+//	                 Couverture et occupations : celles des seuls socles publies, inchangees.
+//
+//	CE QUI MONTE    `SchemaVersion` 129 -> 130. `SchemaDesFaits` et `grammar.Rev` ne bougent pas.
+//	AVEC ELLE
+//
+//	LE PARC         un artefact 129 : verdict `a republier` (ses socles non pris restent absents sinon).

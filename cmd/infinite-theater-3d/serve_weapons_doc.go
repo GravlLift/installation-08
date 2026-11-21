@@ -105,6 +105,55 @@ func mapWeaponPadsFor(ctx context.Context, id string, keys matchMapKeys, variant
 	return out
 }
 
+// promotePadCandidates returns the match's pads followed by the film's pad candidates (items
+// that appeared once at rest and were never taken, so the film's recurrence rule cannot call them
+// pads) that the map confirms: a pad location (`PadSpots`) within the confirmation radius, or,
+// for an equipment item, an equipment spawn point. A site an existing pad already stands on
+// confirms no candidate, and each site confirms at most one. Appended after the existing pads,
+// so `padPickups[].pad` keeps its meaning. Without a map variant, the pads unchanged.
+func promotePadCandidates(variant *mapvar.Variant, pads, candidates []replay.WeaponPad) []replay.WeaponPad {
+	if variant == nil || len(candidates) == 0 {
+		return pads
+	}
+	type site struct {
+		pos       mapvar.Vec3
+		equipOnly bool
+	}
+	var sites []site
+	for _, s := range mapvar.PadSpots(variant) {
+		sites = append(sites, site{pos: s.Pos})
+	}
+	for _, p := range mapvar.SpawnPoints(variant) {
+		if p.Kind == mapvar.SpawnKindEquipment {
+			sites = append(sites, site{pos: p.Pos, equipOnly: true})
+		}
+	}
+	near := func(a mapvar.Vec3, p replay.WeaponPad) bool {
+		return mapvar.Dist3(a, mapvar.Vec3{X: float64(p.X), Y: float64(p.Y), Z: float64(p.Z)}) < mapWeaponPadMatchM
+	}
+	claimed := make([]bool, len(sites))
+	for i, s := range sites {
+		for _, p := range pads {
+			if near(s.pos, p) {
+				claimed[i] = true
+				break
+			}
+		}
+	}
+	out := pads
+	for _, c := range candidates {
+		for i, s := range sites {
+			if claimed[i] || (s.equipOnly && !isEquipmentPadItem(c.Weapon)) || !near(s.pos, c) {
+				continue
+			}
+			claimed[i] = true
+			out = append(out, c)
+			break
+		}
+	}
+	return out
+}
+
 // padFamilyEquipment is the family an EQUIPMENT pad publishes: a round floor pad whose item is
 // a carried equipment (Repulsor, Threat Sensor, Drop Wall, Translocator...), drawn like a
 // weapon pad (the item floats and turns above it).

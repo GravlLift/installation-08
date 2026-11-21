@@ -177,6 +177,9 @@ type padChainCounts struct {
 	accepted, kept, rejected, objectives int
 	dropped, spawned, atRest             int
 	clusters, pads                       int
+	// candidates (LOCAL-CHANGE (infinite-theater-3d)): the voie's single-apparition clusters
+	// (`gwPadCandidates`), carried out beside the counts.
+	candidates []WeaponPad
 }
 
 // buildWeaponPads assemble les socles du match — LES DEUX NATURES — et les occupations achevées.
@@ -195,13 +198,22 @@ type padChainCounts struct {
 func buildWeaponPads(
 	scans PadScans, positions []grammar.BipedPosition, clock replayClock, cat padCatalogs,
 ) ([]WeaponPad, []PadPickup, *GroundWeaponCoverage, []gwPickupObject) {
+	pads, picks, cov, objs, _ := buildWeaponPadsAndCandidates(scans, positions, clock, cat)
+	return pads, picks, cov, objs
+}
+
+// buildWeaponPadsAndCandidates (LOCAL-CHANGE (infinite-theater-3d)) is buildWeaponPads that also
+// returns the two voies' pad candidates (`gwPadCandidates`), weapons first.
+func buildWeaponPadsAndCandidates(
+	scans PadScans, positions []grammar.BipedPosition, clock replayClock, cat padCatalogs,
+) ([]WeaponPad, []PadPickup, *GroundWeaponCoverage, []gwPickupObject, []WeaponPad) {
 	cov := &GroundWeaponCoverage{
 		Scanned: scans.Weapons.Scanned, Slots: scans.Weapons.Stats.Slots,
 		Anchors: scans.Weapons.Stats.Anchors, Accepted: scans.Weapons.Stats.Accepted,
 		PowerupScanned: scans.Powerups.Scanned, PowerupAccepted: scans.Powerups.Stats.Accepted,
 	}
 	if clock.step == 0 {
-		return nil, nil, cov, nil
+		return nil, nil, cov, nil, nil
 	}
 	in := padChainInputs{lives: equipmentLives(positions), positions: positions, clock: clock}
 	pads, picks, wc, wObjs := buildPadChain(scans.Weapons, weaponPadRule(cat.ObjectiveObjects), in, cov)
@@ -217,11 +229,12 @@ func buildWeaponPads(
 	for i := range puPicks {
 		puPicks[i].Pad += len(pads)
 	}
+	cands := append(wc.candidates, pc.candidates...) // LOCAL-CHANGE (infinite-theater-3d)
 	out := append(pads, pu...)
 	if len(out) == 0 {
-		return nil, nil, cov, wObjs
+		return nil, nil, cov, wObjs, cands
 	}
-	return out, append(picks, puPicks...), cov, wObjs
+	return out, append(picks, puPicks...), cov, wObjs, cands
 }
 
 // buildPadChain déroule UNE voie : identité, classement, grappes, socles, occupations.
@@ -261,7 +274,26 @@ func buildPadChain(
 		out, picks = append(out, pad), append(picks, padPicks...)
 	}
 	n.pads = len(out)
+	n.candidates = gwPadCandidates(pads, objs, members, in.clock)
 	return out, picks, n, objs
+}
+
+// gwPadCandidates (LOCAL-CHANGE (infinite-theater-3d)) rend les grappes a UNE seule apparition au
+// repos, que `gwPadsKeep` ecarte : un socle dont l objet n a jamais ete pris (il ne reapparait donc
+// jamais) n en a qu une. Elles ne sont PAS des socles : seul le croisement avec la carte (un socle
+// ou un point d apparition de la variante a moins d un metre, cote serveur) les promeut. Leur
+// couverture est jetee (les compteurs restent ceux des socles publies) et leurs occupations ne
+// sont pas publiees : la presence bornee suffit a l etat du socle.
+func gwPadCandidates(clusters []gwPadCluster, objs []gwPickupObject, members map[int][]int, clock replayClock) []WeaponPad {
+	var out []WeaponPad
+	for i, c := range clusters {
+		if len(c.TS) >= gwPadMinHits {
+			continue
+		}
+		pad, _ := gwBuildPad(c, objs, members[i], clock, &GroundWeaponCoverage{})
+		out = append(out, pad)
+	}
+	return out
 }
 
 // gwAtRestOf sélectionne les apparitions « apparues au repos » — `spawned` SANS vie delta — et

@@ -280,6 +280,11 @@ type ReplayDocument struct {
 	// Forme, chronique et refus de publication : document_ground_weapons.go.
 	WeaponPads []WeaponPad `json:"weaponPads,omitempty"`
 	PadPickups []PadPickup `json:"padPickups,omitempty"`
+	// PadCandidates (LOCAL-CHANGE (infinite-theater-3d)) are the single-apparition clusters the
+	// pad rule sets aside (`gwPadCandidates`): an item the map placed at rest and nobody took, so it
+	// never reappeared. Not pads: the server promotes the ones a map pad or spawn point confirms
+	// into WeaponPads, and serves none of them as candidates.
+	PadCandidates []WeaponPad `json:"padCandidates,omitempty"`
 	// Grenades est la liste des LANCERS de grenade rattachés à un slot (cf. grenades.go).
 	// Contrairement aux tirs, chaque lancer porte son auteur DANS le film — il n'est pas
 	// deviné. Ce n'est pas l'inventaire de grenades (c'est i22, non résolu) : c'est

@@ -187,7 +187,7 @@ func attachWeaponPads(ctx context.Context,
 	// L ADAPTATION DU CATALOGUE SE FAIT ICI, PAS DANS L ASSEMBLAGE : `buildWeaponPads` est PUR
 	// et ne prend que les deux tables qu il consomme, jamais le catalogue entier du titre.
 	var objs []gwPickupObject
-	doc.WeaponPads, doc.PadPickups, doc.Coverage.GroundWeapons, objs = buildWeaponPads(
+	doc.WeaponPads, doc.PadPickups, doc.Coverage.GroundWeapons, objs, doc.PadCandidates = buildWeaponPadsAndCandidates(
 		scans, positions, clock,
 		padCatalogs{ObjectiveObjects: cat.ObjectiveObjects, EquipmentFamilies: cat.EquipmentFamilies,
 			DeployedEquipment: cat.DeployedEquipment}) // LOCAL-CHANGE (infinite-theater-3d)

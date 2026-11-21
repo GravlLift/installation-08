@@ -200,6 +200,9 @@ func enrichReplayDocument(ctx context.Context, root *store.Root, id string, cat 
 	} else if objectives != nil {
 		doc.MapObjectives = objectives
 	}
+	// The film's pad candidates the map confirms become pads; the rest are not served.
+	doc.WeaponPads = promotePadCandidates(variant, doc.WeaponPads, doc.PadCandidates)
+	doc.PadCandidates = nil
 	doc.MapWeaponPads = mapWeaponPadsFor(ctx, id, keys, variant, doc.WeaponPads)
 	doc.WeaponTiers = weaponTiersFor(keys.pairName)
 	enrichWeaponLabels(ctx, cat, doc)

@@ -448,3 +448,28 @@ func TestBuildWeaponPadsSansBalayageNePublieRien(t *testing.T) {
 		t.Fatalf("couverture attendue presente et `scanned: false` : %+v", cov)
 	}
 }
+
+// TestBuildWeaponPadsGardeLApparitionUniqueEnCandidat (LOCAL-CHANGE (infinite-theater-3d)) : une
+// arme apparue UNE fois au repos (jamais prise, donc jamais reapparue) n'est pas un socle, mais
+// elle sort en candidat, a la position de sa grappe, pour que le croisement avec la carte la
+// promeuve. Les compteurs restent ceux des socles publies.
+func TestBuildWeaponPadsGardeLApparitionUniqueEnCandidat(t *testing.T) {
+	scan, _ := gwTestPadScan(t)
+	scan.Creations = scan.Creations[:1]
+	pos := gwTestPositions(nil, 10, 10)
+	pads, picks, cov, _, cands := buildWeaponPadsAndCandidates(PadScans{Weapons: scan}, pos, gwTestClock(), padCatalogs{})
+	if len(pads) != 0 || len(picks) != 0 {
+		t.Fatalf("aucun socle attendu : %+v %+v", pads, picks)
+	}
+	if len(cands) != 1 || len(cands[0].Spawns) != 1 || len(cands[0].Presence) != 1 {
+		t.Fatalf("1 candidat a une apparition attendu : %+v", cands)
+	}
+	if cov.Pads != 0 || cov.Occupancies != 0 {
+		t.Fatalf("la couverture compte le candidat : %+v", cov)
+	}
+	// La voie a deux apparitions ne rend aucun candidat.
+	full, _ := gwTestPadScan(t)
+	if _, _, _, _, c := buildWeaponPadsAndCandidates(PadScans{Weapons: full}, pos, gwTestClock(), padCatalogs{}); len(c) != 0 {
+		t.Fatalf("un socle recurrent sort aussi en candidat : %+v", c)
+	}
+}

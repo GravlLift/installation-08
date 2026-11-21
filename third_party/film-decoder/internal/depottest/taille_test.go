@@ -36,12 +36,12 @@ var plafondsGeles = map[string]int{
 	"replay/attachement_phase0_bord_test.go":                                 522,
 	"replay/closures_test.go":                                                598,
 	"replay/ctf_retour_zone_research_test.go":                                806,
-	"replay/document_chronicle.go":                                           4295, // 2026-11-19, schema 129 (LOCAL-CHANGE)
+	"replay/document_chronicle.go":                                           4309, // 2026-11-20, schema 130 (LOCAL-CHANGE)
 	"replay/equipment_uses_join_test.go":                                     573,
 	"replay/golden_assembly_test.go":                                         1174, // 2026-11-13, baisse (port : 8 fixtures sautes)
 	"replay/ground_link_research_test.go":                                    813,
 	"replay/minifilm_test.go":                                                579,
-	"replay/structure_test.go":                                               1558, // 2026-11-19, schema 129 (LOCAL-CHANGE)
+	"replay/structure_test.go":                                               1561, // 2026-11-20, schema 130 (LOCAL-CHANGE)
 	"replay/t0_mouvement_research_test.go":                                   868,
 	"replay/vehicules_v1a_test.go":                                           577,
 	"replay/visee_larg114_research_test.go":                                  501,

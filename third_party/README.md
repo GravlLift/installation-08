@@ -179,6 +179,15 @@ after upstream schema 115; see [the rebase inventory](REBASE-v1.3.6.md). Kept ca
   reason, regenerated `document_shape.golden`, and the two size caps of
   `internal/depottest/taille_test.go` (stale since schema 127); covered by
   `replay/grenades_detonation_test.go` (new, the 9220185c game-winning stick).
+- `replay/ground_weapon_pads.go` (LOCAL-CHANGE): `ReplayDocument.PadCandidates`
+  (`padCandidates`, schema 130) publishes the single-apparition clusters the "a pad is a
+  recurrence" rule sets aside (`gwPadCandidates`): an item the map placed at rest that nobody took
+  never reappears and was dropped (the grapple, repulsor and thruster pads of match 0ace97d0).
+  They are not pads; the server promotes the ones a map pad or equipment spawn point confirms
+  (`promotePadCandidates`, `cmd/infinite-theater-3d/serve_weapons_doc.go`). `buildWeaponPads` is
+  unchanged and wraps `buildWeaponPadsAndCandidates`; the layer entry in `replay/layers.go`, chronicle
+  v130, `structure_test.go` reason, regenerated `document_shape.golden`, and the two size caps of
+  `internal/depottest/taille_test.go`; covered by `ground_weapon_pads_test.go`.
 - Log and error message text and slog attribute keys translated from French to English (files marked LOCAL-CHANGE); identifiers, comments and research/ unchanged. Second pass: remaining French slog attribute keys and values (coverage logging call sites the first pass missed), plus `diag.Signaler` diagnostic `Message`/`Attrs` text in `internal/grammar`, `internal/facts/fallback` and `internal/facts/objectives`. Left untranslated and documented in the pass's report: the `repli_*` fallback names (`internal/facts/fallback` registries) — they are published into `coverage.fallbacks[]`, referenced by golden test data and `FORMAT.md`, and renaming them is a wire-format change out of this pass's scope; and `Diagnostic.Code` constants (e.g. `grammar.grenade_couverture`) — structured codes compared in code, not prose. Third pass: the `repli_*` registry names still reached server.log as-is through `replay/fallbacks_publication.go`'s "fallback" attribute; `internal/facts/fallback/english_names.go` adds an English snake_case name per registry entry (checked exhaustively by `TestEveryRegistryEntryHasAnEnglishName`) and the log line, plus the "fallback triggered outside the registry" diagnostic, now use it, falling back to the raw name. `coverage.fallbacks[]` and the registry names themselves are unchanged.
 ## Omitted upstream files
 
