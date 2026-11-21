@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -430,5 +431,90 @@ func TestPromoteWeaponSpawnCandidate(t *testing.T) {
 	}
 	if got := promotePadCandidates(variant, nil, []replay.WeaponPad{{X: 4.9, Y: 7.9, Z: 59.1, Weapon: "repulsor"}}); len(got) != 0 {
 		t.Fatalf("equipment on weapon spawn: %+v", got)
+	}
+}
+
+func TestPlacedWeaponCandidates(t *testing.T) {
+	variant := &mapvar.Variant{Objects: []mapvar.Object{
+		{TypeID: 123, Pos: mapvar.Vec3{X: 2, Y: 3, Z: 4}, Forward: mapvar.Vec3{X: 1}, Up: mapvar.Vec3{Z: 1}, Scale: &mapvar.Vec3{X: 2, Y: 3, Z: 4}},
+		{TypeID: 456, Pos: mapvar.Vec3{X: 5, Y: 3, Z: 4}},
+	}}
+	candidates := []replay.WeaponPad{
+		{X: 2.004, Y: 3, Z: 4, Weapon: "0x2B1824D5", Spawns: []int{0}},
+		{X: 5, Y: 3, Z: 4, Weapon: "0x2B1824D5", Spawns: []int{0}},
+		{X: 2.1, Y: 3, Z: 4, Weapon: "0x2B1824D5", Spawns: []int{0}},
+	}
+	resolver := func(id uint32) uint32 {
+		if id == 123 {
+			return 0x611bbae4
+		}
+		return 0
+	}
+	pads, spots := placedWeaponCandidates(variant, nil, candidates, resolver)
+	if len(pads) != 1 || len(spots) != 1 || spots[0].Family != "placed" || spots[0].Pad != 0 || len(spots[0].Scale) != 3 || spots[0].Scale[1] != 3 || spots[0].Forward[0] != 1 || spots[0].Up[2] != 1 {
+		t.Fatalf("placed candidates: pads=%+v spots=%+v", pads, spots)
+	}
+	if pads[0].X != candidates[0].X {
+		t.Fatalf("film position changed: %+v", pads[0])
+	}
+	if pads[0].Weapon != "0x611BBAE4" {
+		t.Fatalf("Forge weapon model: %q", pads[0].Weapon)
+	}
+}
+
+func TestForgeWeapon(t *testing.T) {
+	tag := make([]byte, 32)
+	binary.LittleEndian.PutUint32(tag, 0x2b1824d5)
+	copy(tag[12:], "paew")
+	if got := forgeWeapon(tag); got != 0x2b1824d5 {
+		t.Fatalf("reference = %08x", got)
+	}
+	binary.LittleEndian.PutUint32(tag[16:], 0x6acdc44d)
+	copy(tag[28:], "paew")
+	if got := forgeWeapon(tag); got != 0 {
+		t.Fatalf("ambiguous references = %08x", got)
+	}
+}
+
+func TestPlacedWeaponCandidatesMatch(t *testing.T) {
+	dir := os.Getenv("IT3D_PAD_MATCH_DIR")
+	if dir == "" {
+		t.Skip("IT3D_PAD_MATCH_DIR not set")
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, "map.mvar"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	variant, err := mapvar.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err = os.ReadFile(filepath.Join(dir, "replay.json.gz"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := decodeReplayDocument(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	idx, err := openForgeWeapons()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer idx.Close()
+	pads := promotePadCandidates(variant, doc.WeaponPads, doc.PadCandidates)
+	_, spots := placedWeaponCandidates(variant, pads, doc.PadCandidates, func(id uint32) uint32 {
+		group, _, ok := idx.Lookup(id)
+		if !ok || group != "food" {
+			return 0
+		}
+		tag, err := idx.Extract(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return forgeWeapon(tag)
+	})
+	if len(spots) != 15 {
+		t.Fatalf("placed spots: got %d, want 15: %+v", len(spots), spots)
 	}
 }
