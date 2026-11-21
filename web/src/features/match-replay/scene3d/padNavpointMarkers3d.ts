@@ -86,6 +86,9 @@ interface NavpointStyle {
 
 const HUD_SET = '/static/weapons-assets/halo_infinite/hud/'
 
+/** The map spawner kinds whose navpoint shows the item's own icon (the "power" state). */
+const ICON_SLOTS = new Set(['power', 'powerup', 'equipment'])
+
 function isSprite(v: unknown): v is BadgeSprite {
   const s = v as BadgeSprite | null
   return !!s && typeof s.file === 'string' && s.file !== '' && s.width > 0 && s.height > 0
@@ -169,9 +172,10 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     this.style = style
     const titleSlug = this.ctx.doc.titleSlug ?? 'halo_infinite'
     for (const spot of this.spots) {
-      // A rack weapon shows the navpoint's badge state (3d319069): the item's icon faded out, the
-      // hex outline in, the "weapon" glyph.
-      if ((spot.rack || spot.mounted) && style.badge) {
+      // Only the pads (power weapon, powerup, equipment spawners) show their item's icon; any other
+      // weapon (racks, uncrossed spots) shows the navpoint's badge state (3d319069): the icon faded
+      // out, the hex outline in, the "weapon" glyph.
+      if (!ICON_SLOTS.has(spot.slot ?? '') && style.badge) {
         this.markers.push(this.buildBadge(spot, style.badge))
         continue
       }
