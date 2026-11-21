@@ -8,12 +8,21 @@
 //	ressources de l'entree, un niveau de mip par ressource, du plus petit au plus grand ;
 //	une ressource peut elle-meme porter ses niveaux (bitmaps en tableau).
 //
+//	une ressource sans donnee propre (en-tete et donnees de tag seuls, mesure sur 8 bitmaps de
+//	2026-11-21, 256x128 a 5120x2160) porte a son tour les niveaux comme ses propres ressources.
+//
 // Le niveau lu est le plus grand qui tient sous la cote demandee : une vue 3D n'a pas l'usage
 // d'un 2048 x 2048, et decoder moins coute moins. Une ressource illisible (compagnon `_hd1`
 // absent) fait descendre d'un niveau.
+//
+// Le decodage des pixels (table des formats, BC6H, pas de ligne de 256 octets des ressources)
+// est celui du paquet bitmapdecode de ce module.
 package himap
 
 // LOCAL-CHANGE: user-visible strings translated to English.
+// LOCAL-CHANGE (infinite-theater-3d): pixels decoded through ../bitmapdecode (BC6H, nine more
+// formats, 256-byte row pitch of resource levels) and container resources descended into, ported
+// from The Library's 2026-11-21 fixes.
 
 import (
 	"errors"
@@ -21,7 +30,7 @@ import (
 	"image"
 
 	"github.com/JGtm/halo-infinite-files-reader/himodule"
-	"github.com/woozymasta/bcn"
+	"github.com/JGtm/halo-infinite-map-images/bitmapdecode"
 )
 
 // GroupeBitmap : le groupe de tag des textures.
@@ -41,34 +50,6 @@ type Texture struct {
 	// Monocanal : le format ne porte qu'un canal, recopie dans R, V et B (alpha a 255). C'est
 	// alors R, et non A, qui porte un masque de decoupe.
 	Monocanal bool
-}
-
-// formatBitmap traduit l'enum de format du moteur (ekur `BitmapFormat`) vers le decodeur.
-// Les formats absents de la table ne sont pas lus.
-var formatBitmap = map[int]struct {
-	f    bcn.Format
-	mono bool
-}{
-	0:  {bcn.FormatA8, true},
-	1:  {bcn.FormatR8, true},
-	2:  {bcn.FormatR8, true},
-	3:  {bcn.FormatRG8, false},
-	10: {bcn.FormatBGRX8, false},
-	11: {bcn.FormatBGRA8, false},
-	14: {bcn.FormatBC1, false},
-	15: {bcn.FormatBC2, false},
-	16: {bcn.FormatBC3, false},
-	22: {bcn.FormatRG8S, false},
-	36: {bcn.FormatBC4, true},
-	37: {bcn.FormatBC4S, true},
-	39: {bcn.FormatBC5S, false},
-	43: {bcn.FormatBC4, true},
-	44: {bcn.FormatBC4, true},
-	45: {bcn.FormatBC5, false},
-	46: {bcn.FormatBC5S, false},
-	47: {bcn.FormatBC6HU, false},
-	48: {bcn.FormatBC6HS, false},
-	49: {bcn.FormatBC7, false},
 }
 
 // ErrFormatBitmap signale un format de pixels que le decodeur ne lit pas.
@@ -123,31 +104,51 @@ func LitBitmap(idx *ModuleIndex, id uint32, cote int) (Texture, error) {
 	if err != nil {
 		return Texture{}, err
 	}
-	fm, ok := formatBitmap[e.format]
+	fm, ok := bitmapdecode.Lookup(e.format)
 	if !ok {
 		return Texture{}, fmt.Errorf("%w : %d", ErrFormatBitmap, e.format)
 	}
 	if f.ActualResourceSize > 0 {
-		return decodeNiveau(f.Donnees(brut), e.larg, e.haut, fm.f, fm.mono, cote)
+		return decodeNiveau(f.Donnees(brut), e.larg, e.haut, fm, bitmapdecode.Tight, cote)
 	}
-	niveaux, err := m.Ressources(f)
+	niveaux, err := niveauxBitmap(m, f, e.nombre)
 	if err != nil {
 		return Texture{}, err
 	}
-	if e.nombre > 1 && len(niveaux) > 0 {
-		// Bitmap en tableau : la premiere ressource porte le premier bitmap et ses niveaux.
-		if sous, err := m.Ressources(niveaux[0]); err == nil && len(sous) > 0 {
-			niveaux = sous
-		} else {
-			niveaux = niveaux[:1]
-		}
+	return lisNiveaux(m, niveaux, e, fm, cote)
+}
+
+// niveauxBitmap rend les entrees des niveaux de mip du premier bitmap d'un tag `bitm` de `nombre`
+// enregistrements dont les pixels vivent en ressources, du plus petit au plus grand. Pour un
+// bitmap en tableau, la premiere ressource porte le premier bitmap et ses niveaux ; une ressource
+// unique sans donnee propre (conteneur) les porte aussi.
+func niveauxBitmap(m *himodule.Module, f himodule.File, nombre int) ([]himodule.File, error) {
+	niveaux, err := m.Ressources(f)
+	if err != nil || len(niveaux) == 0 {
+		return niveaux, err
 	}
-	return lisNiveaux(m, niveaux, e, fm.f, fm.mono, cote)
+	if nombre <= 1 && (len(niveaux) > 1 || !sansDonneePropre(niveaux[0])) {
+		return niveaux, nil
+	}
+	if sous, err := m.Ressources(niveaux[0]); err == nil && len(sous) > 0 {
+		return sous, nil
+	}
+	if nombre > 1 {
+		return niveaux[:1], nil
+	}
+	return niveaux, nil
+}
+
+// sansDonneePropre dit si une entree ressource n'a que son en-tete et ses donnees de tag.
+func sansDonneePropre(r himodule.File) bool {
+	return r.HeaderSize > 0 && r.UncompSize <= r.HeaderSize+r.TagDataSize
 }
 
 // lisNiveaux parcourt les niveaux du plus grand au plus petit, garde le premier qui tient sous
-// la cote et se decode ; le niveau k (en partant du haut) mesure larg>>k x haut>>k.
-func lisNiveaux(m *himodule.Module, niveaux []himodule.File, e enteteBitmap, f bcn.Format, mono bool, cote int) (Texture, error) {
+// la cote et se decode ; le niveau k (en partant du haut) mesure larg>>k x haut>>k. Un niveau en
+// ressource a ses lignes alignees sur 256 octets quand il en a la taille
+// (bitmapdecode.Format.ResourceLayout).
+func lisNiveaux(m *himodule.Module, niveaux []himodule.File, e enteteBitmap, f bitmapdecode.Format, cote int) (Texture, error) {
 	derniere := fmt.Errorf("himap: bitmap without a readable level")
 	for k := 0; k < len(niveaux); k++ {
 		r := niveaux[len(niveaux)-1-k]
@@ -160,7 +161,8 @@ func lisNiveaux(m *himodule.Module, niveaux []himodule.File, e enteteBitmap, f b
 			derniere = err
 			continue
 		}
-		t, err := decodeNiveau(r.Donnees(octets), l, h, f, mono, cote)
+		d := r.Donnees(octets)
+		t, err := decodeNiveau(d, l, h, f, f.ResourceLayout(len(d), l, h), cote)
 		if err != nil {
 			derniere = err
 			continue
@@ -172,24 +174,15 @@ func lisNiveaux(m *himodule.Module, niveaux []himodule.File, e enteteBitmap, f b
 
 // decodeNiveau decode le premier niveau de mip des octets (les niveaux suivants, s'il y en a,
 // sont ignores), puis le reduit par moities jusqu'a la cote.
-func decodeNiveau(octets []byte, l, h int, f bcn.Format, mono bool, cote int) (Texture, error) {
-	img, err := bcn.DecodeImage(octets, l, h, f)
+func decodeNiveau(octets []byte, l, h int, f bitmapdecode.Format, disp bitmapdecode.Layout, cote int) (Texture, error) {
+	img, err := f.Decode(octets, l, h, disp)
 	if err != nil {
 		return Texture{}, fmt.Errorf("himap: decode %dx%d: %w", l, h, err)
-	}
-	if mono {
-		for i := 0; i+3 < len(img.Pix); i += 4 {
-			v := img.Pix[i]
-			if f == bcn.FormatA8 {
-				v = img.Pix[i+3]
-			}
-			img.Pix[i], img.Pix[i+1], img.Pix[i+2], img.Pix[i+3] = v, v, v, 255
-		}
 	}
 	for max(img.Rect.Dx(), img.Rect.Dy()) > cote && img.Rect.Dx() > 1 && img.Rect.Dy() > 1 {
 		img = demiImage(img)
 	}
-	return Texture{Image: img, Monocanal: mono}, nil
+	return Texture{Image: img, Monocanal: f.Mono()}, nil
 }
 
 // demiImage moyenne les pixels par carres de 2 x 2.

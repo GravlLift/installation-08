@@ -13,6 +13,7 @@ import (
 	"image/draw"
 
 	"github.com/JGtm/halo-infinite-files-reader/himodule"
+	"github.com/JGtm/halo-infinite-map-images/bitmapdecode"
 )
 
 // coteImagesEmissives: the read size of each image of a light's strip (a counter digit is a few
@@ -43,7 +44,7 @@ func LitBitmapImages(idx *ModuleIndex, id uint32, cote int) (t Texture, n int, e
 		t, err := LitBitmap(idx, id, cote)
 		return t, 1, err
 	}
-	fm, ok := formatBitmap[e.format]
+	fm, ok := bitmapdecode.Lookup(e.format)
 	if !ok || e.nombre < 2 || f.ActualResourceSize > 0 {
 		return seule()
 	}
@@ -58,7 +59,7 @@ func LitBitmapImages(idx *ModuleIndex, id uint32, cote int) (t Texture, n int, e
 		if err != nil || len(niveaux) == 0 {
 			niveaux = []himodule.File{ressources[i]}
 		}
-		im, err := lisNiveaux(m, niveaux, e, fm.f, fm.mono, cote)
+		im, err := lisNiveaux(m, niveaux, e, fm, cote)
 		if err != nil || (i > 0 && im.Image.Rect.Size() != images[0].Rect.Size()) {
 			return seule()
 		}

@@ -27,8 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-
-	"github.com/woozymasta/bcn"
 )
 
 // ErrSansBanniere : l'arme n'attache aucun effet de banniere lisible.
@@ -263,9 +261,11 @@ func (a *Arsenal) emblemeDe(ems []emetteur) (CoucheBanniere, int, Texture, bool)
 }
 
 // estNormale : un format a deux canaux (RG8, RG8S, BC5, BC5S), celui des cartes de normales.
+// LOCAL-CHANGE (infinite-theater-3d): the engine format values (bitm.xml names in
+// ../bitmapdecode) of the four formats the removed bcn table mapped to them.
 func estNormale(format int) bool {
-	switch formatBitmap[format].f {
-	case bcn.FormatRG8, bcn.FormatRG8S, bcn.FormatBC5, bcn.FormatBC5S:
+	switch format {
+	case 3, 22, 39, 45, 46: // r8g8_unorm_rrrg, r8g8_snorm, bc5_snorm, bc5_unorm_rrrg, bc5_snorm_rrrg
 		return true
 	}
 	return false
