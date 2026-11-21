@@ -186,7 +186,7 @@ func HudFileNames() []string {
 // so it is not ready and gets rebuilt once.
 func HudSetReady(dataDir string) bool {
 	dir := HudOutDir(dataDir)
-	for _, name := range []string{"index.json", "pad-navpoint.json", "NavpointFill.png", "NavpointGlyph-weapon.png","DamageArc.png", "ShieldChase.png", "ShieldQuad.png", "ScoreMeter.png", "ShieldGlow.png", "ShieldBurst.png", "HealthBar.png", "TeamEmblem8.png", hudFontRequired} {
+	for _, name := range []string{"index.json", "pad-navpoint.json", "hud-colors.json", "NavpointFill.png", "NavpointGlyph-weapon.png","DamageArc.png", "ShieldChase.png", "ShieldQuad.png", "ScoreMeter.png", "ShieldGlow.png", "ShieldBurst.png", "HealthBar.png", "TeamEmblem8.png", hudFontRequired} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			return false
 		}
@@ -269,8 +269,12 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	written += 1 + badgeFiles
-	total += len(navJSON) + 1 + badgeBytes
+	colorFiles, colorBytes, err := buildHudColors(ix, out)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	written += 1 + badgeFiles + colorFiles
+	total += len(navJSON) + 1 + badgeBytes + colorBytes
 	if err := writeHudIndex(out, entries, decoded); err != nil {
 		return 0, 0, 0, err
 	}

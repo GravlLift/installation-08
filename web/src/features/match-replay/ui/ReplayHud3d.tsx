@@ -20,6 +20,7 @@ import { DAMAGE_ARC_URL, paintDamageArcs } from './damageArcPaint'
 import { getScoreMeterMask, paintScoreMeter, type ScoreMeterMask } from './scoreMeter'
 import { hexRgb, shieldFloodAt, shieldFloodTint } from '../model/shieldFlood'
 import { SCORE_BAR_BAND_BOTTOM, SCORE_BAR_BAND_SHARE, SCORE_BAR_BAND_TOP, SCORE_BAR_BODY_SHARE } from '../model/scoreBarBand'
+import { ensureHudColors } from './hudColors'
 import { ensureHudFonts, HUD_FONT_FAMILY, HUD_SCORE_FONT_FAMILY } from './hudFonts'
 import { shieldFlash } from '../model/shieldHud'
 import { TEAM_EMBLEM_GAP_SHARE, TEAM_EMBLEM_HEIGHT_SHARE, teamEmblemUrl } from '../model/teamEmblem'
@@ -37,6 +38,8 @@ const RETICLE_CSS_SIZE = `max(${RETICLE_MIN_PX}px, ${RETICLE_HEIGHT_SHARE * 100}
 // The game's HUD faces (Normative Pro by default), registered once; until they load, and on
 // a set built before them, the fallback face draws.
 void ensureHudFonts()
+// The game's HUD inks (its CUI color tables), set on the document's tokens once served.
+void ensureHudColors()
 const HUD_STYLE = { color: tokenCssVar('replay-hud-on-dark'), fontFamily: HUD_FONT_FAMILY, fontSize: 'clamp(19px, calc(7.7px + 2.87cqh), 39px)', textShadow: '0 1px 2px var(--replay-hud-shadow)' }
 
 /** The weapon corner's thin rules (`HUD_RULE_ALPHA`): the weapon ink, partly see-through. */

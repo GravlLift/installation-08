@@ -24,7 +24,7 @@ import (
 // built glyphs, a file name the HUD document references. The build writes one file per
 // stem, the stem is the part before the .png.
 func hudIconFile(name string) bool {
-	if name == "index.json" || name == "pad-navpoint.json" {
+	if name == "index.json" || name == "pad-navpoint.json" || name == "hud-colors.json" {
 		return true
 	}
 	for _, stem := range weaponicons.HudFileNames() {
@@ -67,7 +67,7 @@ func (h serverHandlers) handleHudIconFile(w http.ResponseWriter, r *http.Request
 	}
 	defer f.Close()
 	switch {
-	case name == "index.json" || name == "pad-navpoint.json":
+	case name == "index.json" || name == "pad-navpoint.json" || name == "hud-colors.json":
 		w.Header().Set("Content-Type", "application/json")
 	case strings.HasSuffix(name, ".ttf"):
 		w.Header().Set("Content-Type", "font/ttf")
