@@ -545,6 +545,7 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
   const decalStencilCopy = (texture: THREE.Texture, pochoir?: Stencil) => decalStencilMaterial(texture, decalStencil, pochoir)
   const ctx: MaterialContext = { mats, owned, layered: new Map(), jobs: [], parser: gltf.parser, glowCopy, animateGlow, seeThroughGlow, tintCopy, tintedGlass: tintedGlassCopy, decalStencil: decalStencilCopy }
   const instanced: THREE.InstancedMesh[] = []
+  const geometryOf = geometryPerMaterial()
   timedSync(`${label}:traverse`, () => gltf.scene.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return
     const source = o.material as THREE.MeshStandardMaterial
@@ -554,6 +555,7 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
       o.visible = false
       return
     }
+    if (!(o instanceof THREE.InstancedMesh)) o.geometry = geometryOf(o.geometry, source)
     if (o instanceof THREE.InstancedMesh) {
       // A terrain's scattered clumps (grass, `decorHerbe*`): tens of thousands of copies of one
       // small cutout mesh. They get their material and receive shadows, and stay out of the
@@ -585,6 +587,45 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
   const merge = mergeLimits ? timedSync(`${label}:merge`, () => convertLayered(drawn, [...drawn, ...groups.seeThrough], owned, mergeLimits)) : null
   for (const m of owned) guardMaterial(m)
   return { scene: gltf.scene, groups, owned, merge, parser: gltf.parser, glowAnimation }
+}
+
+/**
+ * geometryPerMaterial returns a function giving each (geometry, source material) pair a geometry
+ * object of its own. three.js's glTF loader hands every primitive with the same vertex and index
+ * accessors one shared geometry, whatever its material: a Forge variant draws one model in several
+ * styles that way (AIMBOTZ's sign pieces in red, yellow, green and white share a primitive). The
+ * layered pass then writes per-material data onto the geometry (`prepareLayerUVs`'s sets, the
+ * merge's index and `cRow`), and the last material written won for every copy: the colored pieces
+ * drew white. The copy shares the attributes and index (one GPU buffer each), so only the per
+ * material writes diverge; placements of the same mesh and material keep sharing one geometry, as
+ * the ray index and bounds expect (`geometriesOf`).
+ */
+export function geometryPerMaterial(): (geometry: THREE.BufferGeometry, material: THREE.Material) => THREE.BufferGeometry {
+  const owner = new Map<THREE.BufferGeometry, THREE.Material>()
+  const copies = new Map<THREE.BufferGeometry, Map<THREE.Material, THREE.BufferGeometry>>()
+  return (geometry, material) => {
+    const first = owner.get(geometry)
+    if (first === undefined) {
+      owner.set(geometry, material)
+      return geometry
+    }
+    if (first === material) return geometry
+    let byMaterial = copies.get(geometry)
+    if (!byMaterial) copies.set(geometry, (byMaterial = new Map()))
+    let copy = byMaterial.get(material)
+    if (!copy) {
+      copy = new THREE.BufferGeometry()
+      for (const [name, a] of Object.entries(geometry.attributes)) copy.setAttribute(name, a)
+      copy.setIndex(geometry.index)
+      for (const g of geometry.groups) copy.addGroup(g.start, g.count, g.materialIndex)
+      copy.setDrawRange(geometry.drawRange.start, geometry.drawRange.count)
+      copy.boundingBox = geometry.boundingBox?.clone() ?? null
+      copy.boundingSphere = geometry.boundingSphere?.clone() ?? null
+      copy.userData = { ...geometry.userData }
+      byMaterial.set(material, copy)
+    }
+    return copy
+  }
 }
 
 /**
