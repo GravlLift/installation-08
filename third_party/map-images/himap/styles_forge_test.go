@@ -21,22 +21,35 @@ func procheRGB(got, want [3]float32) bool {
 	return true
 }
 
-// TestRgbCatalogue : a style color moves the swatch color toward it by its intensity; without an
-// intensity the swatch keeps its color.
-func TestRgbCatalogue(t *testing.T) {
+// TestTeinteTrio : a style color moves the swatch's colors toward it by its intensity, each keeping
+// its brightness relative to the middle color; without an intensity the swatch keeps its colors.
+func TestTeinteTrio(t *testing.T) {
 	c := []float32{0.4, 0.2, 0}
 	tint := &mapvar.Vec3{X: 0, Y: 1, Z: 0.5}
-	if got := rgbCatalogue(c, mapvar.StyleLayer{}); !procheRGB(got, [3]float32{0.4, 0.2, 0}) {
-		t.Errorf("no tint: %v", got)
+	for _, l := range []mapvar.StyleLayer{{}, {Tint: tint, Scalar: 0}} {
+		if h, m, b := teinteTrio(c, c, c, l); !procheRGB(h, [3]float32{0.4, 0.2, 0}) || h != m || m != b {
+			t.Errorf("%+v: %v %v %v", l, h, m, b)
+		}
 	}
-	if got := rgbCatalogue(c, mapvar.StyleLayer{Tint: tint, Scalar: 0}); !procheRGB(got, [3]float32{0.4, 0.2, 0}) {
-		t.Errorf("zero intensity: %v", got)
+	// One color for all three: the targets are the tint itself.
+	if _, m, _ := teinteTrio(c, c, c, mapvar.StyleLayer{Tint: tint, Scalar: 0.5}); !procheRGB(m, [3]float32{0.2, 0.6, 0.25}) {
+		t.Errorf("half intensity: %v", m)
 	}
-	if got := rgbCatalogue(c, mapvar.StyleLayer{Tint: tint, Scalar: 0.5}); !procheRGB(got, [3]float32{0.2, 0.6, 0.25}) {
-		t.Errorf("half intensity: %v", got)
+	if _, m, _ := teinteTrio(c, c, c, mapvar.StyleLayer{Tint: tint, Scalar: 3}); !procheRGB(m, [3]float32{0, 1, 0.5}) {
+		t.Errorf("intensity above 1: %v", m)
 	}
-	if got := rgbCatalogue(c, mapvar.StyleLayer{Tint: tint, Scalar: 3}); !procheRGB(got, [3]float32{0, 1, 0.5}) {
-		t.Errorf("intensity above 1: %v", got)
+	// Design Grid (ddc960b6) tinted grey 0.22 at intensity 1, as AIMBOTZ V2's floors: the middle
+	// takes the tint, the lines (top) stay lighter and the cells (bottom) darker.
+	haut, milieu, bas := []float32{0.5074, 0.3064, 0.1721}, []float32{0.4136, 0.1944, 0.0723}, []float32{0.3465, 0.1028, 0.0108}
+	gris := &mapvar.Vec3{X: 0.22, Y: 0.22, Z: 0.22}
+	h, m, b := teinteTrio(haut, milieu, bas, mapvar.StyleLayer{Tint: gris, Scalar: 1})
+	lum := func(c []float32) float32 { return 0.2126*c[0] + 0.7152*c[1] + 0.0722*c[2] }
+	rh, rb := 0.22*lum(haut)/lum(milieu), 0.22*lum(bas)/lum(milieu)
+	if !procheRGB(m, [3]float32{0.22, 0.22, 0.22}) || !procheRGB(h, [3]float32{rh, rh, rh}) || !procheRGB(b, [3]float32{rb, rb, rb}) {
+		t.Errorf("Design Grid grey: top %v mid %v bottom %v, want %v / 0.22 / %v", h, m, b, rh, rb)
+	}
+	if !(h[0] > 1.4*m[0] && b[0] < 0.7*m[0]) {
+		t.Errorf("Design Grid grey lost its gradient: %v %v %v", h, m, b)
 	}
 }
 
@@ -116,6 +129,7 @@ func TestResoutStylesForgeChaine(t *testing.T) {
 	if s.Zones[0] != nil || s.Zones[2] != nil {
 		t.Errorf("empty or disabled zone drawn: %+v / %+v", s.Zones[0], s.Zones[2])
 	}
+	// The swatch's top is twice as bright as its middle: tinted red, it is the red doubled, bounded.
 	if s.Zones[1] == nil || s.Zones[1].Bitmap != 0x10 || !procheRGB(s.Zones[1].Haut, [3]float32{1, 0, 0}) || !procheRGB(s.Zones[1].Milieu, [3]float32{1, 0, 0}) {
 		t.Errorf("zone 2 = %+v, want the game's swatch tinted red", s.Zones[1])
 	}

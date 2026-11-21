@@ -112,6 +112,12 @@ const (
 	BuildFormatKey             = "buildFormat"
 	BreakerMaterialRevisionKey = "breakerMaterialRevision"
 	BreakerMaterialRevision    = 1
+	// VariantRevisionKey / VariantRevision: the Forge variant layer's own revision, stamped on
+	// variant GLBs only, so a change to how Forge objects are built rebuilds the variants without
+	// rebuilding every map (1: a dynamic object draws the model variant its representation names;
+	// 2: a style tint keeps its swatch's gradient, teinteTrio).
+	VariantRevisionKey = "variantRevision"
+	VariantRevision    = 2
 )
 
 // commonExtras are the extras every map and variant GLB carries: the axis mapping (the

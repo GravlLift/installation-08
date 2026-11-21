@@ -31,6 +31,7 @@ const BY_KEY: Readonly<Record<string, WeaponClass>> = {
   hinf_br75: 'rifle',
   hinf_vk78_commando: 'rifle',
   hinf_bandit: 'rifle',
+  hinf_bandit_evo: 'rifle',
   hinf_cqs48_bulldog: 'rifle',
   hinf_s7_sniper: 'rifle',
   hinf_stalker_rifle: 'rifle',

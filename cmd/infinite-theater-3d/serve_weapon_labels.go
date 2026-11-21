@@ -28,8 +28,8 @@ func weaponFamilyHex(fam uint32) string {
 }
 
 // enrichWeaponLabels is the label step: complete the document's labels from the catalog,
-// then join each label to the tables of its key. Only ADDS: a stored label's text and fx
-// are never overwritten (the artefact is the authority for what it named).
+// then join each label to the tables of its key. Stored text and fx are retained except for
+// the old mixed-language Bandit label, which is corrected from the game's strings.
 //
 // Ported from LevelUp's resolveWeaponLabels; the catalog is the embedded table set instead
 // of the title's config directory (same content, one title).
@@ -53,6 +53,12 @@ func enrichWeaponLabels(ctx context.Context, cat weaponsCatalog, doc *replay.Rep
 			// Out-of-registry weapon: it keeps its label, stays mute and untinted.
 			// Borrowing a neighbour's key would give it another weapon's voice.
 			continue
+		}
+		// Older artifacts used one mixed-language label for both Bandits.
+		if (family == 0x2fb21c87 || family == 0x6acdc44d) && lbl.Text["en"] == "M392 Bandit" && lbl.Text["fr"] == "Bandit EVO" {
+			if corrected, ok := cat.LabelCatalog.Weapons[family]; ok {
+				lbl.Text = corrected.Text.Clone()
+			}
 		}
 		if icon, ok := cat.LabelCatalog.Icons[family]; ok && (lbl.Img == "" ||
 			lbl.Img == "/static/weapons-assets/halo_infinite/Grenade.png" ||

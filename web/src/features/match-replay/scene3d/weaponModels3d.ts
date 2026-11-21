@@ -287,7 +287,7 @@ export class WeaponModelPool {
 
   /** add places a copy of `model` at `position`, oriented by `rotation`. */
   /** add poses a copy of `model`; `scale` multiplies the model's own scale (an item's ground scale). */
-  add(model: THREE.Object3D, position: THREE.Vector3, rotation: THREE.Quaternion, scale = 1): void {
+  add(model: THREE.Object3D, position: THREE.Vector3, rotation: THREE.Quaternion, scale: number | THREE.Vector3 = 1): void {
     let list = this.free.get(model)
     if (!list) {
       list = []
@@ -301,7 +301,9 @@ export class WeaponModelPool {
     }
     copy.position.copy(position)
     copy.quaternion.copy(rotation)
-    copy.scale.copy(model.scale).multiplyScalar(scale)
+    copy.scale.copy(model.scale)
+    if (typeof scale === 'number') copy.scale.multiplyScalar(scale)
+    else copy.scale.multiply(scale)
     copy.visible = true
     this.used.push(copy)
     drawRecorder.adds++

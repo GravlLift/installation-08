@@ -232,6 +232,15 @@ func WeaponKeyContourFile(dataDir string) (map[string]string, error) {
 		if e.Style == "contour" && e.WeaponKey != "" {
 			out[e.WeaponKey] = e.File
 		}
+		if e.Style == "contour" {
+			for _, tag := range e.WeapTags {
+				for _, family := range weaponFamilyTable {
+					if tag == fmt.Sprintf("%08x", family.ID) {
+						out[family.Key] = e.File
+					}
+				}
+			}
+		}
 	}
 	return out, nil
 }

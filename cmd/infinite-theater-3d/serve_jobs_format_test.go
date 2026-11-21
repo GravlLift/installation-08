@@ -163,7 +163,15 @@ func TestJobModuleFormatVariant(t *testing.T) {
 	if jobModuleReady(root, key) || !jobModuleOutdated(root, key) {
 		t.Error("old variant: want not ready, outdated")
 	}
+	// The current build format without the current Forge variant revision is outdated.
 	writeGLBAt(t, variantPath(root, "abc", "variant.glb"), mapmesh.BuildFormat, false)
+	if jobModuleReady(root, key) || !jobModuleOutdated(root, key) {
+		t.Error("variant of an older revision: want not ready, outdated")
+	}
+	p := variantPath(root, "abc", "variant.glb")
+	if err := os.WriteFile(p, formatGLB(t, mapmesh.BuildFormat, false, map[string]any{mapmesh.VariantRevisionKey: mapmesh.VariantRevision}), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	if !jobModuleReady(root, key) || jobModuleOutdated(root, key) {
 		t.Error("current variant: want ready, not outdated")
 	}

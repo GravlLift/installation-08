@@ -76,6 +76,7 @@ export const SCOPES_BY_LABEL_KEY: Readonly<Record<string, ScopeSpec>> = {
   hinf_br75: SCOPES.br75,
   hinf_vk78_commando: SCOPES.vk78,
   hinf_bandit: SCOPES.bandit,
+  hinf_bandit_evo: SCOPES.bandit,
   hinf_vestige_carbine: SCOPES.vestige,
 }
 

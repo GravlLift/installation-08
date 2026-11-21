@@ -1,5 +1,8 @@
 # Upstream modules
 
+- `film-decoder/replay/map_weapon_pads.go` (LOCAL-CHANGE): publish the local scale of a directly placed Forge weapon in the served map-pad overlay.
+- `map-images/himap/bandit_strings_gamefiles_test.go` (LOCAL-CHANGE): checks the game's English and French Bandit names in the global localized strings.
+
 The source files below are as of 2026-11-13, with the documented changes noted per module. Each retains its own `go.mod`, license and notices. The listed h1 values are the Go module zip hashes, before the documented omissions. To compare against a future tag, download its module zip with `go mod download`, extract it outside this repository, and compare its module directory with the matching directory here, accounting for these omissions.
 
 | Directory | Upstream | Version | Zip hash | License |
@@ -72,6 +75,8 @@ and whose aoTuV packed codebook library it embeds unmodified. See
 [ww2ogg/NOTICE.md](ww2ogg/NOTICE.md).
 
 ## Changes from upstream v1.3.6 (film-decoder)
+
+- `internal/grammar/score_keyframe_probe_test.go` (LOCAL-CHANGE): an opt-in probe of the score components in a local test film.
 
 The film-decoder module carries the LevelUp `feat/replay-3d` port on upstream v1.3.6.
 Document schema 125, facts schema 23. Local steps 113–122 were renumbered 116–125
@@ -384,6 +389,13 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     34.5 m) and Medium-sized `rtgo`s: held against Small, it kept the base rule and sat half its
     scaled height off its centre pivot, through a base (4 308 player samples inside object
     #1221's box, 6 now). Covered by `himap/origine_forge_test.go` (modified).
+  - `himap/maillage_variante_representation.go` (LOCAL-CHANGE): a Forge object's dynamic
+    representation (the food's +0x34 block: the `bloc`/`scen`/`mach` it spawns as) draws the
+    model variant its record names (StringID at +0x04) through its `hlmt`, not every region's
+    permutation 0 (`variantesRepresentations`). On AIMBOTZ V2 the dynamic floor rectangles,
+    switches and screens drew a fixed orange or a default material where the game draws the
+    style material their Forge style repaints (green rectangles, colored switch frames).
+    Covered by `himap/representation_variante_gamefiles_test.go` (new).
   - `files-reader/mapvar/mapvar.go` (LOCAL-CHANGE): `Object.ModeForge` reads the object's Forge
     mode at `#8/24[0]/0` (3: telescoping, `ModeForgeTelescopique`).
   - `files-reader/mapvar/socles.go` (LOCAL-CHANGE): `PadSpot.Forward` and `PadSpot.Up` carry
@@ -493,6 +505,11 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
       nothing and leave the zone to the material: Fortress's Forerunner Platform panels in the
       blue tower name Blank in near-black brown on Mask0 R and drew the material's pale
       blue-grey there. A Blank layer without a color still leaves the zone to the material.
+    - `himap/styles_forge.go` (`teinteTrio`, replacing `rgbCatalogue`): a style tint keeps its
+      swatch's gradient. Each of the bottom, middle and top colors keeps its brightness relative
+      to the middle and takes the tint's hue (an inference, Ekur never draws these colors).
+      Moving all three onto the tint erased Design Grid's lines on AIMBOTZ V2's grey floors and
+      walls (tint at intensity 1), where the game draws them lighter than the cells.
     Covered by `himap/styles_forge_test.go`, `representation_test.go` (modified),
     `styles_forge_gamefiles_test.go` (new) and `representation_gamefiles_test.go` (modified).
   - `files-reader/mapvar/mapvar.go` (LOCAL-CHANGE): `Variant.Lighting` reads the variant's

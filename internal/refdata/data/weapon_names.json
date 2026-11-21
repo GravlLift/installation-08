@@ -129,8 +129,9 @@
   },
   "hinf_bandit": {
     "en": "M392 Bandit",
-    "fr": "Bandit EVO"
+    "fr": "Bandit M392"
   },
+  "hinf_bandit_evo": { "en": "Bandit Evo", "fr": "Bandit Evo" },
   "hinf_frag_grenade": {
     "en": "Frag Grenade",
     "fr": "Grenade frag"

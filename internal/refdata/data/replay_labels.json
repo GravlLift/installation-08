@@ -186,6 +186,7 @@
     "hinf_plasma_grenade": "explosive",
     "hinf_dynamo_grenade": "shock",
     "hinf_bandit": "ballistic",
+    "hinf_bandit_evo": "ballistic",
     "hinf_ma5k_avenger": "ballistic",
     "hinf_scorpion": "explosive",
     "hinf_rockethog": "explosive"
@@ -194,6 +195,7 @@
     "hinf_ma40_ar": "kinetic",
     "hinf_br75": "kinetic",
     "hinf_bandit": "kinetic",
+    "hinf_bandit_evo": "kinetic",
     "hinf_ma5k_avenger": "kinetic",
     "hinf_vk78_commando": "kinetic",
     "hinf_s7_sniper": "kinetic",

@@ -107,6 +107,7 @@ func BuildVariant(ctx context.Context, gameRoot string, t VariantTarget, path, g
 	for k, v := range commonExtras() {
 		extras[k] = v
 	}
+	extras[VariantRevisionKey] = VariantRevision
 	// Read before writing, so the texture pass does not keep the collected layer alive.
 	placed, unique := m.Poses.Triangles()
 	models := len(m.Poses.Geometries)

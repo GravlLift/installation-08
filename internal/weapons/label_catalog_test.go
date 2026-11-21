@@ -2,8 +2,7 @@
 
 package weapons
 
-// label_catalog_test.go — the family table's parity with LevelUp's weapon registry: the
-// family to key map must equal the map LevelUp's cat.Keys is built from.
+// label_catalog_test.go — family mappings, including the local Bandit Evo split.
 
 import (
 	"strings"
@@ -15,12 +14,11 @@ import (
 // levelUpRegistryFamilies is the family to key projection of LevelUp's
 // weaponRegistryInfiniteFilmshell (apps/go-api/internal/games/weapons/registry.go, worktree
 // replay-3d, branch integration): one line per family, first id per key, in the registry's
-// order. It is the single source the table above is ported from; a drift between the two
-// fails here before it reaches a served document.
+// order, with the Bandit Evo split locally.
 var levelUpRegistryFamilies = map[string]string{
 	"2b1824d5": "hinf_br75",
 	"2fb21c87": "hinf_bandit",
-	"6acdc44d": "hinf_bandit",
+	"6acdc44d": "hinf_bandit_evo",
 	"48c19d2d": "hinf_ma40_ar",
 	"f5c335df": "hinf_ma5k_avenger",
 	"fd98554c": "hinf_vk78_commando",
@@ -56,15 +54,13 @@ var levelUpRegistryFamilies = map[string]string{
 	"1d63a8cd": "hinf_coil_kinetic",
 }
 
-// TestFamilyToKeyMatchesLevelUpRegistry — the embedded family table is the registry's
-// projection itself: same entry count, same mapping, and the Bandit Evo family is among
-// them (the gap this table was too small for).
+// TestFamilyToKeyMatchesLevelUpRegistry checks the registry projection and the local Evo key.
 func TestFamilyToKeyMatchesLevelUpRegistry(t *testing.T) {
 	cat, err := LoadLabelCatalog()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := cat.FamilyToKey["6acdc44d"], "hinf_bandit"; got != want {
+	if got, want := cat.FamilyToKey["6acdc44d"], "hinf_bandit_evo"; got != want {
 		t.Fatalf("6acdc44d: got %q want %q", got, want)
 	}
 	if got, want := len(cat.FamilyToKey), len(levelUpRegistryFamilies); got != want {
@@ -90,6 +86,7 @@ func TestModelKeysForWeaponName(t *testing.T) {
 		"BR75 Battle Rifle":  {"2b1824d5"},
 		"MA40 Assault Rifle": {"48c19d2d"},
 		"M392 Bandit":        {"2fb21c87", "6acdc44d"},
+		"Bandit Evo":         {"6acdc44d"},
 		"Shock Rifle":        {"1a22fee6", "9387a8b9"},
 		"Stalker Rifle":      {"adb78225", "daf193c7"},
 		"Vestige Carbine":    {"3e070217"},

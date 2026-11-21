@@ -8895,6 +8895,7 @@ export interface components {
         MapWeaponPadDTO: {
             family: string;
             forward?: number[] | null;
+            scale?: number[] | null;
             up?: number[] | null;
             /** Format: int64 */
             pad: number;
