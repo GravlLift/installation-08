@@ -23,6 +23,7 @@ const usage = `usage: installation-08 <command> [flags]
   import --chunks <dir> --map <name> [--manifest <file>] [--stats <file>] [--mvar <file>] [--match <id>] [--catalog <file>] [--data <dir>]
   import-sounds --from <dir> [--data <dir>]
   rebuild <match-id> [--data <dir>]
+  recode-all [--data <dir>]
   serve [--addr <host:port>] [--web <dir>] [--data <dir>]
   build-mesh --map <key> [--game <root>] --out <file.glb>
   build-variant --map <key> --mvar <file.mvar> [--game <root>] --out <file.glb>
@@ -48,6 +49,7 @@ var commands = map[string]func([]string) error{
 	"import":                    runImport,
 	"import-sounds":             runImportSounds,
 	"rebuild":                   runRebuild,
+	"recode-all":                runRecodeAll,
 	"serve":                     runServe,
 	"build-mesh":                runBuildMesh,
 	"build-variant":             runBuildVariant,
