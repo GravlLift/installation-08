@@ -43,7 +43,7 @@ func jobModuleReady(root *store.Root, module string) bool {
 		if _, err := os.Stat(p); err != nil {
 			return false
 		}
-		return glbFormatCurrent(p)
+		return glbVariantCurrent(p)
 	}
 	switch module {
 	case meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces:
@@ -81,7 +81,7 @@ func jobModuleOutdated(root *store.Root, module string) bool {
 		if _, err := os.Stat(p); err != nil {
 			return false
 		}
-		return !glbFormatCurrent(p)
+		return !glbVariantCurrent(p)
 	}
 	switch module {
 	case meshjobs.JobWeapons, meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces:
@@ -99,6 +99,16 @@ func jobModuleOutdated(root *store.Root, module string) bool {
 
 func mapMaterialCurrent(module string, extras map[string]any) bool {
 	return module != "ctf_breaker" || fmt.Sprint(extras[mapmesh.BreakerMaterialRevisionKey]) == fmt.Sprint(mapmesh.BreakerMaterialRevision)
+}
+
+// glbVariantCurrent says whether a variant GLB records the current build format and the
+// current Forge variant revision (mapmesh.VariantRevision).
+func glbVariantCurrent(path string) bool {
+	if !glbFormatCurrent(path) {
+		return false
+	}
+	extras, err := texcompress.AssetExtras(path)
+	return err == nil && fmt.Sprint(extras[mapmesh.VariantRevisionKey]) == fmt.Sprint(mapmesh.VariantRevision)
 }
 
 func glbMapCurrent(path, module string) bool {

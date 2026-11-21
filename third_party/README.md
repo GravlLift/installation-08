@@ -384,6 +384,13 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
     34.5 m) and Medium-sized `rtgo`s: held against Small, it kept the base rule and sat half its
     scaled height off its centre pivot, through a base (4 308 player samples inside object
     #1221's box, 6 now). Covered by `himap/origine_forge_test.go` (modified).
+  - `himap/maillage_variante_representation.go` (LOCAL-CHANGE): a Forge object's dynamic
+    representation (the food's +0x34 block: the `bloc`/`scen`/`mach` it spawns as) draws the
+    model variant its record names (StringID at +0x04) through its `hlmt`, not every region's
+    permutation 0 (`variantesRepresentations`). On AIMBOTZ V2 the dynamic floor rectangles,
+    switches and screens drew a fixed orange or a default material where the game draws the
+    style material their Forge style repaints (green rectangles, colored switch frames).
+    Covered by `himap/representation_variante_gamefiles_test.go` (new).
   - `files-reader/mapvar/mapvar.go` (LOCAL-CHANGE): `Object.ModeForge` reads the object's Forge
     mode at `#8/24[0]/0` (3: telescoping, `ModeForgeTelescopique`).
   - `files-reader/mapvar/socles.go` (LOCAL-CHANGE): `PadSpot.Forward` and `PadSpot.Up` carry
