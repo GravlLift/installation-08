@@ -230,6 +230,14 @@ export const NAME_TAG_PAD_Y = 0.2
 export const NAME_TAG_PAD_X = 0.45
 
 /**
+ * The weapon corner's thin rules, as the game draws them (owner's in-game capture, 2026-11-20):
+ * the grenade and equipment slots are outlines with no backdrop, a rule runs above and below the
+ * ammo and weapon row, and an upright rule parts the magazine count from the reserve. Their
+ * opacity over the scene (read by eye off that capture, not from the HUD's tags).
+ */
+export const HUD_RULE_ALPHA = 0.75
+
+/**
  * The kill feed's top edge, as a share of the view height. The feed hangs from there and grows
  * down, newest row last: the kill feed screen (`cusc` 49050c80, `eventfeeddc`) aligns its list to
  * the top (vertical alignment -1), and on the owner's two reference frames (751 and 753 px tall)

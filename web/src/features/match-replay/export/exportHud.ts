@@ -3,7 +3,7 @@ import { resolveToken } from '@/lib/accessibility/resolveToken'
 import { formatClock, frameToMs } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { ReplayLocale } from '../i18n/i18n'
-import { hudClock, readHud, readKillFeed, readScoreHud, prepareHud, KILL_FEED_TOP_SHARE, NAME_TAG_EM, NAME_TAG_PAD_X, NAME_TAG_PAD_Y } from '../model/hud3d_logic'
+import { hudClock, readHud, readKillFeed, readScoreHud, prepareHud, HUD_RULE_ALPHA, KILL_FEED_TOP_SHARE, NAME_TAG_EM, NAME_TAG_PAD_X, NAME_TAG_PAD_Y } from '../model/hud3d_logic'
 import { SHIELD_CHASE_INK, SHIELD_CHASE_URL, SHIELD_QUAD_URL, shieldFlash } from '../model/shieldHud'
 import { hexRgb, shieldFloodAt, shieldFloodTint } from '../model/shieldFlood'
 import { SHIELD_BLOOM_BLUR, SHIELD_BLOOM_LAYERS, shieldBloomIntensity, shieldBloomSource } from '../model/shieldBloom'
@@ -466,6 +466,8 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       // the mag | reserve and the in-hand weapon below; the in-hand weapon's name under it, only
       // right after a swap, fading as the game fades it.
       const right = w * 0.97
+      // The corner's thin rules (slot outlines, the rows' rules, the mag | reserve divider).
+      const rule = Math.max(1, size * 0.05)
       // One bordered box of the upper row: an icon (or its name when the image is not loaded),
       // a trailing number; laid out from its right edge leftward, its center line at `cy`.
       // Returns its left edge so the next item sits to its left.
@@ -474,22 +476,28 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
         const count = num != null ? String(num) : '', countWidth = ctx.measureText(count).width
         const width = size * 0.78, height = size * 0.78
         const hasIcon = !!img && images.has(img)
-        const labelWidth = hasIcon ? width : ctx.measureText(text).width
+        // An empty slot (no text, no icon) keeps an icon's width, as the game draws it.
+        const labelWidth = hasIcon || !text ? width : ctx.measureText(text).width
         const boxWidth = countWidth + labelWidth + size * 0.45
         ctx.save(); ctx.globalAlpha = alpha; ctx.textAlign = 'right'
-        ctx.fillStyle = 'rgba(0,0,0,.8)'; ctx.fillRect(right - boxWidth, cy - height / 2, boxWidth, height)
+        // The game's slot: an outline only, no backdrop (`HUD_RULE_ALPHA`).
+        ctx.save(); ctx.globalAlpha = alpha * HUD_RULE_ALPHA; ctx.lineWidth = rule
         ctx.strokeStyle = weaponInk; ctx.strokeRect(right - boxWidth, cy - height / 2, boxWidth, height)
+        ctx.restore()
         ctx.fillStyle = weaponInk; ctx.fillText(count, right - size * 0.12, cy)
         const iconX = right - countWidth - size * 0.15
         if (!icon(ctx, img, weaponInk, tinted, false, iconX - width, cy - height / 2, width, height)) ctx.fillText(text, iconX, cy)
         ctx.restore()
         return right - boxWidth
       }
-      // The carried equipment, rightmost: the icon and its uses left, dimmed when spent.
+      // The carried equipment, rightmost: the icon and its uses left, dimmed when spent; with
+      // none carried, the game's empty slot.
       let left = right
       if (ath.equipment) {
         const label = doc.abilityLabels?.[String(ath.equipment.rank)]
         left = box(left, h * 0.86, catalogText(label, locale) ?? `rank ${ath.equipment.rank}`, label?.img, !!label?.tinted, ath.equipment.uses, ath.equipment.uses === 0 ? 0.45 : 1) - size * 0.3
+      } else {
+        left = box(left, h * 0.86, '', undefined, false, null, 1) - size * 0.3
       }
       // The one grenade box the game draws at a time (`ath.grenade`).
       const grenadeLabel = doc.grenadeLabels?.[ath.grenade.rank]
@@ -507,12 +515,25 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       const iconWidth = size * 2.8, iconHeight = size * 1.1
       const hasWeapon = weapon && icon(ctx, weapon.url, weaponInk, !!ath.label?.tinted, !weapon.mirrored, w * 0.97 - iconWidth, h * 0.94 - iconHeight, iconWidth, iconHeight)
       ctx.textAlign = 'right'; ctx.font = `700 ${size}px ${HUD_FONT_FAMILY}`
-      // "mag | reserve": the reserve in the weapon ink, the magazine count left of it, brighter.
+      // "mag | reserve": the reserve in the weapon ink, the magazine count left of it, brighter,
+      // the game's thin upright rule between them.
       const ammoX = w * 0.97 - (hasWeapon ? iconWidth + size * 0.3 : 0)
+      const rowY = h * 0.92
       const mag = ath.ammo?.mag != null ? String(ath.ammo.mag) : null
-      const reserve = ath.ammo?.res != null ? (mag != null ? ` | ${ath.ammo.res}` : String(ath.ammo.res)) : ''
-      if (reserve) { ctx.fillStyle = weaponInk; ctx.fillText(reserve, ammoX, h * 0.92) }
-      if (mag != null) { ctx.fillStyle = magInk; ctx.fillText(mag, ammoX - (reserve ? ctx.measureText(reserve).width : 0), h * 0.92) }
+      const reserve = ath.ammo?.res != null ? String(ath.ammo.res) : ''
+      const reserveWidth = reserve ? ctx.measureText(reserve).width : 0
+      const dividerX = ammoX - reserveWidth - size * 0.3
+      if (reserve) { ctx.fillStyle = weaponInk; ctx.fillText(reserve, ammoX, rowY) }
+      const magRight = reserve && mag != null ? dividerX - size * 0.3 : ammoX
+      if (mag != null) { ctx.fillStyle = magInk; ctx.fillText(mag, magRight, rowY) }
+      const rowLeft = mag != null ? magRight - ctx.measureText(mag).width : ammoX - reserveWidth
+      ctx.save(); ctx.globalAlpha = HUD_RULE_ALPHA; ctx.strokeStyle = weaponInk; ctx.lineWidth = rule
+      ctx.beginPath()
+      if (reserve && mag != null) { ctx.moveTo(dividerX, rowY - size * 0.5); ctx.lineTo(dividerX, rowY + size * 0.5) }
+      // The game's rules above and below the ammo and weapon row, from just left of the count to
+      // the weapon's right end.
+      for (const y of [rowY - size * 0.85, rowY + size * 0.85]) { ctx.moveTo(rowLeft - size * 0.5, y); ctx.lineTo(right, y) }
+      ctx.stroke(); ctx.restore()
       // The in-hand weapon's name tag, under the in-hand row, right-aligned, fading with the game:
       // a dark translucent plate behind the letters, the whole thing at the tag's opacity.
       if (ath.nameTag) {
