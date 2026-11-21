@@ -13,7 +13,8 @@
  *   rotation offset (degrees);
  * - its size is its radius curve times its X / Y scale curves (the effect part's radius modifier
  *   is not applied, `PAD_LENS_RADIUS_MODIFIER`);
- * - its light is its color curve times its intensity curve (linear RGB), added to the frame;
+ * - its light is its color curve times its intensity curve (linear RGB) through the view's
+ *   compression of game light strengths (`lighting.glowLevel`), added to the frame;
  * - it fades out between the flare's far fade distances (10 to 20) and between its falloff and
  *   cutoff angles off the view axis (65 to 80 degrees), linearly;
  * - it is hidden when the map stands between the camera and the source (no "no occlusion test"
@@ -28,6 +29,7 @@ import * as THREE from 'three'
 
 import { type FetchJson, IndexField, libraryTexture } from './indexField3d'
 import { type LightVolume, LightVolumeMesh, parseLightVolume } from './lightVolume3d'
+import { glowLevel } from './lighting'
 
 /**
  * The cone's axis: world up. The generator stacks its profiles along its emitter's local +X, and
@@ -305,7 +307,9 @@ export class PadGlow3d {
       for (const [event, { flares }] of data.events.entries()) for (const flare of flares) {
         for (const reflection of flare.reflections) {
           const c = reflection.color.color!
-          const light = new THREE.Color().setRGB(c[0], c[1], c[2], THREE.LinearSRGBColorSpace).multiplyScalar(reflection.intensity.max)
+          // The game's strength through the view's compression of material light (`glowLevel`), as
+          // every other game glow is drawn.
+          const light = new THREE.Color().setRGB(c[0], c[1], c[2], THREE.LinearSRGBColorSpace).multiplyScalar(glowLevel(reflection.intensity.max))
           const material = new THREE.SpriteMaterial({ ...ADD_LIGHT, map: this.texture(reflection.texture, reflection.srgb), rotation: THREE.MathUtils.degToRad(reflection.rotationOffset) })
           this.materials.push(material)
           const sprite = new THREE.Sprite(material)

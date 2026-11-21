@@ -8,7 +8,8 @@
  *   profile i = origin + axis * (profileOffset + i / profileDensity), t = i / (count - 1) (0 for one)
  *   quad      = facing the camera; width thickness(t) across the axis; length lerp(thickness,
  *               profileLength, sin(view ray to axis)) along the axis's screen direction
- *   light     = color * intensity(t) * alpha * brightnessRatio, added to the frame
+ *   light     = color * glowLevel(intensity(t) * alpha * brightnessRatio), added to the frame (the
+ *               view's compression of game light strengths, `lighting.glowLevel`)
  *   pixel     = light * saturate(centerOffset * (1 - r^2)) ^ volumeFalloff (r: 0 center, 1 edge)
  *   far fade  = from farFade[0] to farFade[1] (camera to origin)
  *
@@ -17,6 +18,7 @@
  */
 import * as THREE from 'three'
 
+import { glowLevel } from './lighting'
 import { evalCurve, type GeneratorCurve, type GeneratorProperty, propertyAt } from './shieldGenerator3d'
 
 export interface GeneratorColor extends GeneratorProperty {
@@ -176,7 +178,7 @@ export class LightVolumeMesh {
       // The shader's 0 / 0 for a single profile saturates to 0.
       const t = count > 1 ? i / (count - 1) : 0
       const thickness = valueAt(vol.profileThickness, t, inputs)
-      const k = valueAt(vol.profileIntensity, t, inputs) * alpha * vol.brightnessRatio * fade
+      const k = glowLevel(valueAt(vol.profileIntensity, t, inputs) * alpha * vol.brightnessRatio) * fade
       if (thickness <= 0 || k <= 0) continue
       colorAt(vol, t, inputs, this.color).multiplyScalar(k)
       this.p.copy(this.origin).addScaledVector(this.axis, offset + i / density)
