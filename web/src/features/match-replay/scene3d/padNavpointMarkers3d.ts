@@ -130,12 +130,27 @@ interface Marker {
   arrow: HTMLDivElement | null
   /** A rack weapon's marker: the hex badge alone, at the item, without the raised icon or line. */
   badge: boolean
+  /** Off screen with nowhere to dock (equipment): not drawn this frame. */
+  hidden: boolean
+  /** The icon's last written scale and line length (cqh), to skip redundant style writes. */
+  scale: number
+  lineCqh: number
 }
 
 /** Scratch vectors for per-frame projection (avoids allocation). */
 const _worldPos = new THREE.Vector3()
 const _camPos = new THREE.Vector3()
 const _dockedWorld = new THREE.Vector3()
+const _anchor = new THREE.Vector3()
+
+/**
+ * The distance (u) inside which a pad icon draws at the navpoint's full size; farther, it shrinks
+ * as the distance grows, down to ICON_MIN_SCALE. Not read from the game (the navpoint's "Scale Far
+ * Override" is unset and its default is not decoded yet): Jordan judged the nearest pad's icon,
+ * a few units away, the right size.
+ */
+const ICON_FULL_SIZE_DISTANCE = 3
+const ICON_MIN_SCALE = 0.25
 
 /** The layer of pad navpoint markers, one per pad the pickups layer draws. */
 export class PadNavpoints3dLayer implements ActionLayer3d {
@@ -218,7 +233,7 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     const obj = new CSS2DObject(point)
     obj.visible = false
     this.root.add(obj)
-    return { spot, obj, icon: { url: icon.url, mirrored: icon.mirrored }, box, line, timer, timerText: '', timerShown: false, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: false }
+    return { spot, obj, icon: { url: icon.url, mirrored: icon.mirrored }, box, line, timer, timerText: '', timerShown: false, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: false, hidden: false, scale: 1, lineCqh: -1 }
   }
 
   /** arrowEl adds the off-screen arrow to a marker, hidden until the marker docks. */
@@ -244,7 +259,7 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     const obj = new CSS2DObject(point)
     obj.visible = false
     this.root.add(obj)
-    return { spot, obj, icon: null, box, line, timer, timerText: '', timerShown: false, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: true }
+    return { spot, obj, icon: null, box, line, timer, timerText: '', timerShown: false, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: true, hidden: false, scale: 1, lineCqh: -1 }
   }
 
   /**
@@ -278,6 +293,14 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
       }
 
       const screen = project([_worldPos.x, _worldPos.y, _worldPos.z])
+      const offScreen = !screen || screen[0] < -0.02 || screen[0] > 1.02 || screen[1] < -0.02 || screen[1] > 1.02
+      // Only weapons dock at the screen's edge; an equipment item's navpoint is simply not drawn
+      // off screen (Jordan, 2026-11-21).
+      m.hidden = offScreen && !m.badge && m.spot.slot !== 'power'
+      if (m.hidden) {
+        m.dockAngle = null
+        continue
+      }
       if (!screen) {
         // Behind the camera: dock in the mirrored direction.
         this.ctx.cameraPosition?.(_camPos)
@@ -302,10 +325,13 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
         m.dockDir = Math.atan2(dirY, dirX)
         dockedAngles.push(angle)
         dockedIdx.push(i)
-      } else {
+      } else if (m.badge) {
         // On screen: the CSS2DRenderer projects the world position.
         m.obj.position.copy(_worldPos)
         m.dockAngle = null
+      } else {
+        m.dockAngle = null
+        this.placeRaised(m, _worldPos, project)
       }
     }
 
@@ -323,7 +349,12 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
 
     // Third pass: toggle lines, update timers, set visibility.
     for (const m of this.markers) {
+      if (m.hidden) {
+        m.obj.visible = false
+        continue
+      }
       const docked = m.dockAngle !== null
+      if (docked && !m.badge && m.scale !== 1) this.setIconScale(m, 1)
       if (docked !== m.wasDocked) {
         if (!m.badge) m.line.style.display = docked ? 'none' : ''
         if (m.arrow) m.arrow.style.display = docked ? '' : 'none'
@@ -349,6 +380,38 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
       }
       m.obj.visible = true
     }
+  }
+
+  /**
+   * placeRaised places an on-screen pad icon: at a point above its pad, twice the item's float
+   * height over the pad's feet (inferred from Jordan's captures of 2026-11-21: the icon stays at
+   * one height whatever the item, and the line takes up the difference), shrunk with its distance
+   * from the camera, its line running from the icon's bottom down to the top of the item.
+   */
+  private placeRaised(m: Marker, center: THREE.Vector3, project: NonNullable<ActionContext['projectToScreen']>): void {
+    const feetY = m.spot.feet.y
+    _anchor.set(center.x, feetY + 2 * (center.y - feetY), center.z)
+    m.obj.position.copy(_anchor)
+    this.ctx.cameraPosition?.(_camPos)
+    const distance = _camPos.distanceTo(_anchor)
+    this.setIconScale(m, Math.max(ICON_MIN_SCALE, Math.min(1, ICON_FULL_SIZE_DISTANCE / Math.max(distance, 1e-3))))
+    const top = m.spot.last?.top ?? center.y
+    const a = project([_anchor.x, _anchor.y, _anchor.z])
+    const t = project([center.x, Math.min(top, _anchor.y), center.z])
+    const lineCqh = a && t ? Math.max(0, (t[1] - a[1]) * 100) : 0
+    if (Math.abs(lineCqh - m.lineCqh) > 0.05) {
+      m.line.style.height = `${lineCqh.toFixed(2)}cqh`
+      m.timer.style.top = `calc(100% + ${lineCqh.toFixed(2)}cqh)`
+      m.lineCqh = lineCqh
+    }
+  }
+
+  /** setIconScale sizes the icon box at `scale` times the navpoint's icon size. */
+  private setIconScale(m: Marker, scale: number): void {
+    if (!this.style || Math.abs(scale - m.scale) < 0.01) return
+    m.box.style.width = cq(this.style.iconWidth * scale)
+    m.box.style.height = cq(this.style.iconHeight * scale)
+    m.scale = scale
   }
 
   dispose(): void {
