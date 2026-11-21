@@ -105,6 +105,12 @@ func mapWeaponPadsFor(ctx context.Context, id string, keys matchMapKeys, variant
 	return out
 }
 
+// weaponSpawnType is the Forge spawn point type that spawns weapons (mapvar lists it as
+// SpawnKindUnknown): measured at 0 % non-weapon on n = 4 there, and on AIMBOTZ V2 the film's
+// 11 weapon candidates (Bulldog, Heatwave, SPNKr, Hydra, S7 Sniper...) stand on these points
+// within 7 mm.
+const weaponSpawnType = 0x5f3fa667
+
 // promotePadCandidates returns the match's pads followed by the film's pad candidates (items
 // that appeared once at rest and were never taken, so the film's recurrence rule cannot call them
 // pads) that the map confirms: a pad location (`PadSpots`) within the confirmation radius, or,
@@ -127,8 +133,7 @@ func promotePadCandidates(variant *mapvar.Variant, pads, candidates []replay.Wea
 	for _, p := range mapvar.SpawnPoints(variant) {
 		if p.Kind == mapvar.SpawnKindEquipment {
 			sites = append(sites, site{pos: p.Pos, equipOnly: true})
-		} else if uint32(p.TypeID) == 0x5f3fa667 {
-			// AIMBOTZ V2: weapon candidates coincide with this spawn type within 7 mm.
+		} else if uint32(p.TypeID) == weaponSpawnType {
 			sites = append(sites, site{pos: p.Pos, weaponOnly: true})
 		}
 	}
