@@ -371,6 +371,23 @@ export class ReplayScene3d implements Replay3DExportSource {
       scriptDeathHoldMs: () => this.cameraPlacement.activeScript()?.deathHoldMs ?? null,
       scriptShockLook: () => scriptShockLook(this.cameraPlacement.activeScript()),
       cameraPosition: (out) => this.camera.getWorldPosition(out),
+      projectToScreen: (pt) => {
+        const v = new THREE.Vector3(pt[0], pt[1], pt[2]).project(this.camera)
+        if (v.z < -1 || v.z > 1) return null
+        return [(v.x + 1) / 2, (1 - v.y) / 2]
+      },
+      viewSize: () => [this.renderer.domElement.clientWidth || this.renderer.domElement.width, this.renderer.domElement.clientHeight || this.renderer.domElement.height],
+      screenToWorld: (sx, sy, distance, out) => {
+        // Convert normalised screen to NDC.
+        const ndcX = sx * 2 - 1
+        const ndcY = 1 - sy * 2
+        // Unproject at z=0 (near) and z=1 (far) in clip space, then interpolate along the ray.
+        const near = new THREE.Vector3(ndcX, ndcY, 0).unproject(this.camera)
+        const far = new THREE.Vector3(ndcX, ndcY, 1).unproject(this.camera)
+        const dir = far.sub(near).normalize()
+        this.camera.getWorldPosition(out)
+        out.addScaledVector(dir, distance)
+      },
       flashes: this.lighting.flashes, baked: this.model?.baked ?? null, probeAt: (p) => this.lighting.probeAt(p),
     })
     this.preloadRigs()

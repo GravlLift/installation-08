@@ -170,7 +170,8 @@ func HudFileNames() []string {
 	for stem := range hudSources {
 		out = append(out, stem)
 	}
-	out = append(out, "DamageArc", "ShieldChase", "ShieldQuad", "ScoreMeter", "ShieldGlow", "ShieldBurst", "HealthBar")
+	out = append(out, "DamageArc", "ShieldChase", "ShieldQuad", "ScoreMeter", "ShieldGlow", "ShieldBurst", "HealthBar",
+		"NavpointFill", "NavpointOutline", "NavpointArrow", "NavpointGlyph-weapon", "NavpointGlyph-equipment")
 	for k := 0; k < teamEmblemCount; k++ {
 		out = append(out, fmt.Sprintf("TeamEmblem%d", k))
 	}
@@ -185,7 +186,7 @@ func HudFileNames() []string {
 // so it is not ready and gets rebuilt once.
 func HudSetReady(dataDir string) bool {
 	dir := HudOutDir(dataDir)
-	for _, name := range []string{"index.json", "pad-navpoint.json", "DamageArc.png", "ShieldChase.png", "ShieldQuad.png", "ScoreMeter.png", "ShieldGlow.png", "ShieldBurst.png", "HealthBar.png", "TeamEmblem8.png", hudFontRequired} {
+	for _, name := range []string{"index.json", "pad-navpoint.json", "NavpointFill.png", "NavpointGlyph-weapon.png","DamageArc.png", "ShieldChase.png", "ShieldQuad.png", "ScoreMeter.png", "ShieldGlow.png", "ShieldBurst.png", "HealthBar.png", "TeamEmblem8.png", hudFontRequired} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			return false
 		}
@@ -246,7 +247,14 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	navJSON, err := json.Marshal(navpoint)
+	badge, badgeFiles, badgeBytes, err := buildNavpointBadge(ix, tag, out)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	navJSON, err := json.Marshal(struct {
+		PadNavpoint
+		Badge NavpointBadge `json:"badge"`
+	}{navpoint, badge})
 	if err != nil {
 		return 0, 0, 0, err
 	}
@@ -261,8 +269,8 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 	if err != nil {
 		return 0, 0, 0, err
 	}
-	written++
-	total += len(navJSON) + 1
+	written += 1 + badgeFiles
+	total += len(navJSON) + 1 + badgeBytes
 	if err := writeHudIndex(out, entries, decoded); err != nil {
 		return 0, 0, 0, err
 	}

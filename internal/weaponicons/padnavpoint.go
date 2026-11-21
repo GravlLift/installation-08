@@ -51,7 +51,17 @@ func ReadPadNavpoint(tag []byte) (PadNavpoint, error) {
 	if u(ia) != 0xc6e3db3c || u(na) != 0x8b5e436e || u(ia+2*0x5c) != 0x40892f58 || u(ta+0x48) != 0x83f1ae1e {
 		return result, fmt.Errorf("unexpected navpoint element identities")
 	}
-	result = PadNavpoint{IconWidth: f(ia + 0x10), IconHeight: f(ia + 0x14), IconAlpha: f(ia + 0x1c), TimerSize: u(na + 0x44), TimerOffsetY: f(ga + 2*0xa8 + 0x10), TimerFormat: u(na + 0x58), PowerColor: u(ia + 2*0x5c + 0x18), NumericTimerSize: u(ta + 0x44), NumericTimerOffsetY: f(ga + 4*0xa8 + 0x10)}
+	result = PadNavpoint{
+		IconWidth:           f(ia + 0x10),
+		IconHeight:          f(ia + 0x14),
+		IconAlpha:           f(ia + 0x1c),
+		TimerSize:           u(na + 0x44),
+		TimerOffsetY:        f(ga + 2*0xa8 + 0x10),
+		TimerFormat:         u(na + 0x58),
+		PowerColor:          u(ia + 2*0x5c + 0x18),
+		NumericTimerSize:    u(ta + 0x44),
+		NumericTimerOffsetY: f(ga + 4*0xa8 + 0x10),
+	}
 	if math.IsNaN(float64(result.IconWidth)) || math.IsNaN(float64(result.IconHeight)) || result.IconWidth <= 0 || result.IconHeight <= 0 {
 		return PadNavpoint{}, fmt.Errorf("invalid navpoint dimensions")
 	}
