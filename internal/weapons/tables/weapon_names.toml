@@ -8,7 +8,8 @@
 
 [weapons]
 hinf_br75 = { en = "BR75", fr = "BR75" }
-hinf_bandit = { en = "M392 Bandit", fr = "Bandit EVO" }
+hinf_bandit = { en = "M392 Bandit", fr = "Bandit M392" }
+hinf_bandit_evo = { en = "Bandit Evo", fr = "Bandit Evo" }
 hinf_ma40_ar = { en = "MA40 AR", fr = "MA40 AR" }
 hinf_ma5k_avenger = { en = "MA5K Avenger", fr = "MA5K Avenger" }
 hinf_vk78_commando = { en = "VK78 Commando", fr = "VK78 Commando" }

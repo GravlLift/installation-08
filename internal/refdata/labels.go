@@ -131,7 +131,7 @@ func WeaponKeys() map[uint32]string {
 var familyToKey = map[uint32]string{
 	0x2b1824d5: "hinf_br75",
 	0x2fb21c87: "hinf_bandit",
-	0x6acdc44d: "hinf_bandit",
+	0x6acdc44d: "hinf_bandit_evo",
 	0x48c19d2d: "hinf_ma40_ar",
 	0xf5c335df: "hinf_ma5k_avenger",
 	0xfd98554c: "hinf_vk78_commando",
@@ -171,6 +171,7 @@ var familyToKey = map[uint32]string{
 var rolesByKey = map[string]string{
 	"hinf_br75":            "precision",
 	"hinf_bandit":          "precision",
+	"hinf_bandit_evo":      "precision",
 	"hinf_ma40_ar":         "automatic",
 	"hinf_ma5k_avenger":    "automatic",
 	"hinf_vk78_commando":   "automatic",

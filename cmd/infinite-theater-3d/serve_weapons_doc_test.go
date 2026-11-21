@@ -33,6 +33,23 @@ func testWeaponDoc() *replay.ReplayDocument {
 	}
 }
 
+func TestEnrichBanditLabels(t *testing.T) {
+	doc := &replay.ReplayDocument{WeaponLabels: map[string]replay.WeaponLabel{
+		"0x2FB21C8742C9679F": {Text: replay.Text{"en": "M392 Bandit", "fr": "Bandit EVO"}},
+		"0x6ACDC44D42C9679F": {Text: replay.Text{"en": "M392 Bandit", "fr": "Bandit EVO"}},
+	}}
+	enrichWeaponLabels(context.Background(), testLabelCatalog, doc)
+	for id, want := range map[string]struct{ key, en, fr string }{
+		"0x2FB21C8742C9679F": {"hinf_bandit", "M392 Bandit", "Bandit M392"},
+		"0x6ACDC44D42C9679F": {"hinf_bandit_evo", "Bandit Evo", "Bandit Evo"},
+	} {
+		got := doc.WeaponLabels[id]
+		if got.Key != want.key || got.Text["en"] != want.en || got.Text["fr"] != want.fr || got.Img == "" {
+			t.Errorf("%s: %+v", id, got)
+		}
+	}
+}
+
 // TestEnrichWeaponLabelsNamesPickedWeapons — a weapon the document knows only from a pickup
 // (a bare 8-hex family in weaponChanges) gets a label, with its key, under the id the client
 // looks up for the hand ("0x" + upper-case family). A drop (empty w) and an unknown family add

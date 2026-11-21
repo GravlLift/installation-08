@@ -258,6 +258,7 @@ export const WEAPON_SOUND_STEMS: Readonly<Record<string, string>> = {
   hinf_stalker_rifle: 'hinf_stalker_rifle',
   // The four that the initial pack did not have — the game extraction provides them.
   hinf_bandit: 'hinf_bandit',
+  hinf_bandit_evo: 'hinf_bandit',
   hinf_ma5k_avenger: 'hinf_ma5k_avenger',
   hinf_fuel_rod_spnkr: 'hinf_fuel_rod_spnkr',
   hinf_vestige_carbine: 'hinf_vestige_carbine',

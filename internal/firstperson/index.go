@@ -31,7 +31,8 @@ import (
 // 8: the rigs carry the game's vertex normals (himap geometry_normales.go): smooth shading.
 // 9: the effect markers include those of the barrel's firing effect (the Shock Rifle's
 // primary_trigger), where the shot's game effect plays in first person.
-const SchemaFirstPerson = 9
+// 10: weapon rigs use the weapon tag's default model variant.
+const SchemaFirstPerson = 10
 
 // EffectMarker is a marker an idle effect emits at, on the rig: its name (StringID, hex), the bone
 // that carries it (its glTF node name), and its position and rotation (quaternion x, y, z, w) in the

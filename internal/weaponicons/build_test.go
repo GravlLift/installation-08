@@ -24,6 +24,7 @@ func TestWeaponKeyContourFile(t *testing.T) {
 		{"index":0,"style":"contour","file":"contour-00.png","arme":"hinf_br75","source_tag":"bc17adf1"},
 		{"index":0,"style":"silhouette","file":"silhouette-00.png","arme":"hinf_br75","source_tag":"e39747c8"},
 		{"index":0,"style":"killfeed","file":"killfeed-00.png","source_tag":"00000000"}
+		,{"index":33,"style":"contour","file":"contour-33.png","arme":"hinf_bandit","tags_weap":["2fb21c87","6acdc44d"]}
 	]`)
 	if err := os.WriteFile(filepath.Join(dir, "index.json"), raw, 0o600); err != nil {
 		t.Fatal(err)
@@ -32,8 +33,8 @@ func TestWeaponKeyContourFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(m) != 1 || m["hinf_br75"] != "contour-00.png" {
-		t.Fatalf("map = %v, want one contour entry", m)
+	if len(m) != 3 || m["hinf_br75"] != "contour-00.png" || m["hinf_bandit"] != "contour-33.png" || m["hinf_bandit_evo"] != "contour-33.png" {
+		t.Fatalf("map = %v, want both Bandits and BR75", m)
 	}
 }
 
