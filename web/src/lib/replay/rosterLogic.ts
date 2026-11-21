@@ -483,9 +483,15 @@ export interface VitalityPresence {
   health: boolean
 }
 
-/** vitalityPresence measures, once per document, which vitality fields exist. */
+/**
+ * vitalityPresence measures, once per document, which vitality fields exist. The shield also
+ * exists when no point carries one but the decoder read the bipeds' records (`coverage.keyframes`):
+ * the shield lives in those records and is replicated only when it CHANGES
+ * (`tracks_publication.go`), so records read without a single shield value say that nobody's shield
+ * ever moved from its spawn value, full (an aim-training game where nobody shoots back).
+ */
 export function vitalityPresence(doc: ReplayDocumentReady): VitalityPresence {
-  let shield = false
+  let shield = (doc.coverage?.keyframes?.records ?? 0) > 0
   let health = false
   for (const t of doc.tracks) {
     for (const p of t.points) {
