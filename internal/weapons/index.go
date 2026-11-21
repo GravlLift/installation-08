@@ -146,7 +146,8 @@ const EquipmentRuleCurrent = 2
 // error angle, fire recovery): the Shock Rifle's three projectiles per trigger pull. 12: the shot
 // table carries the grenades' flight effects (the plasma grenade's glow, shader 0461c4a7). 13: the
 // weapon and equipment models' pad markers and ground scales (pad_offsets, ground_scales: how a pad holds its item, and at what size).
-const SchemaCurrent = 13
+// 14: weapon models use the weapon tag's default model variant.
+const SchemaCurrent = 14
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).

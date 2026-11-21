@@ -217,7 +217,7 @@ func (r *RigPremierePersonne) assemble(ctx context.Context, a *Arsenal, g *Graph
 }
 
 // modeleDeLArme rend le modele que l'arme dessine : celui de sa vue a la troisieme personne dans sa
-// variante « default » quand c'est le `mode` du bloc « first person », ce `mode` dans son modele par
+// declared weapon variant when it is the `mode` of the first-person block, that `mode` in its
 // defaut sinon.
 func modeleDeLArme(ctx context.Context, a *Arsenal, src SourcesArme) (*modelePose, error) {
 	raw, err := a.geo.Extract(src.Arme)
@@ -225,7 +225,12 @@ func modeleDeLArme(ctx context.Context, a *Arsenal, src SourcesArme) (*modelePos
 		return nil, fmt.Errorf("weapon: %w", err)
 	}
 	if id, _, ok := RefModeleVehicule(ctx, a.geo, raw); ok && id == src.Mode {
-		if mp := modeleDuPlacement(ctx, a.geo, src.Arme, varianteDefaut); mp != nil {
+		// LOCAL-CHANGE (infinite-theater-3d): match the weapon's world model variant.
+		variante, err := varianteParDefautArme(raw)
+		if err != nil {
+			return nil, err
+		}
+		if mp := modeleDuPlacement(ctx, a.geo, src.Arme, variante); mp != nil {
 			return mp, nil
 		}
 	}

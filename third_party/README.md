@@ -1,5 +1,7 @@
 # Upstream modules
 
+- `map-images/himap/armes.go`, `premiere_personne_rig.go` and `premiere_personne_gamefiles_test.go` (LOCAL-CHANGE): weapon world and first-person models select the weapon tag's default model variant; zero leaves the render model's first permutations selected.
+
 The source files below are as of 2026-11-13, with the documented changes noted per module. Each retains its own `go.mod`, license and notices. The listed h1 values are the Go module zip hashes, before the documented omissions. To compare against a future tag, download its module zip with `go mod download`, extract it outside this repository, and compare its module directory with the matching directory here, accounting for these omissions.
 
 | Directory | Upstream | Version | Zip hash | License |
