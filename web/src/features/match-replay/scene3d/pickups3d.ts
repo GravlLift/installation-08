@@ -221,6 +221,7 @@ export interface RackMount {
  */
 export interface CrossedSlot extends RackMount {
   family: string
+  scale?: readonly number[] | null
 }
 
 /**
@@ -231,7 +232,7 @@ export interface CrossedSlot extends RackMount {
 export function crossedSlotsOf(cross: ReplayDocumentReady['mapWeaponPads']): Map<number, CrossedSlot> {
   const out = new Map<number, CrossedSlot>()
   for (const spot of cross?.pads ?? []) {
-    if (!out.has(spot.pad)) out.set(spot.pad, { family: spot.family, forward: spot.forward, up: spot.up })
+    if (!out.has(spot.pad)) out.set(spot.pad, { family: spot.family, forward: spot.forward, up: spot.up, scale: spot.scale })
   }
   return out
 }
@@ -254,6 +255,15 @@ function threeAxis(v: GameAxis): THREE.Vector3 | null {
   if (!v || v.length < 3) return null
   const out = new THREE.Vector3(...toThree(v[0], v[1], v[2]))
   return out.lengthSq() > 1e-8 ? out.normalize() : null
+}
+
+/** A Forge object's forward and up in the weapon model's frame. */
+export function placedWeaponRotation(mount: RackMount): THREE.Quaternion {
+  const forward = threeAxis(mount.forward)!
+  const up = threeAxis(mount.up)!
+  const right = new THREE.Vector3().crossVectors(forward, up).normalize()
+  up.crossVectors(right, forward).normalize()
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(forward, up, right))
 }
 
 /**
@@ -332,6 +342,7 @@ interface PadSpot {
   mounted: boolean
   /** A weapon rack: the weapon is held still on the front of the rack (feet), in this pose. */
   rack?: RackPose
+  placed?: { rotation: THREE.Quaternion; scale: THREE.Vector3 }
   phase: number
   last?: PadDrawn
   /** A floating pad item, turned about its model center: its loaded model and that center offset. */
@@ -376,14 +387,23 @@ function padSpotsOf(ctx: ActionContext, pads: readonly ReplayWeaponPadReady[]): 
     const family = pickupFamilyOf(pad.weapon, ctx.doc.weaponLabels)
     const phase = i * PAD_SPIN_PHASE
     const slot = slots.get(i)
-    if (slot && pad.z !== undefined) {
+    if (slot?.family === 'placed') {
+      const forward = threeAxis(slot.forward)
+      const up = threeAxis(slot.up)
+      if (!forward || !up || new THREE.Vector3().crossVectors(forward, up).lengthSq() < 1e-8) return
+    }
+    if (slot && (pad.z !== undefined || slot.family === 'placed')) {
       // A crossed pad stands at its spawner, to the centimeter: a floor pad kit's origin is its
       // base, a rack's is the middle of its frame. No floor ray: the ground is read once, at
       // construction, before a Forge map's variant layer (its floors and the pad kits) arrives,
       // and a ray from above the spawner could land on whatever is overhead.
-      const feet = new THREE.Vector3(...toThree(pad.x, pad.y, pad.z))
+      const feet = new THREE.Vector3(...toThree(pad.x, pad.y, pad.z ?? 0))
       const rack = slot.family === 'rack' ? { rotation: rackWeaponRotation(slot) } : undefined
-      out.push({ index: i, pad, family, slot: slot.family, feet, mounted: rack !== undefined, rack, phase })
+      const placed = slot.family === 'placed' && threeAxis(slot.forward) && threeAxis(slot.up)
+        ? { rotation: placedWeaponRotation(slot), scale: slot.scale?.length === 3
+          ? new THREE.Vector3(slot.scale[0], slot.scale[2], slot.scale[1]) : new THREE.Vector3(1, 1, 1) }
+        : undefined
+      out.push({ index: i, pad, family, slot: slot.family, feet, mounted: rack !== undefined, rack, placed, phase })
       return
     }
     const floor = ctx.ground.floorY(pad.x, pad.y, pad.z ?? null)
@@ -531,6 +551,18 @@ export class Pickups3dLayer implements ActionLayer3d {
       const state = padStateAt(spot.pad, frame)
       const last: PadDrawn = { state, drawn: null, pos: null }
       spot.last = last
+      if (spot.placed) {
+        if (padBoxLook(state) !== 'solid') continue
+        const source = this.ctx.weaponModel(spot.pad.weapon)
+        if (!source) continue
+        const groundScale = this.ctx.weaponGroundScale?.(spot.pad.weapon)
+        if (groundScale == null) continue
+        const model = this.noShadow(this.paintedObject(spot.pad.weapon, source))
+        const scale = spot.placed.scale.clone().multiplyScalar(groundScale)
+        this.models.add(model, p.copy(spot.feet), spot.placed.rotation, scale)
+        Object.assign(last, { drawn: 'model', pos: p.clone() })
+        continue
+      }
       if (spot.rack) {
         this.paintRack(spot, spot.rack, state, ink, last)
         continue

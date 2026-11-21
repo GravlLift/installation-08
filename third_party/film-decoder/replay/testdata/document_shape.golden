@@ -1,8 +1,8 @@
 # EMPREINTE DE FORME DU DOCUMENT DE REJEU — fige par document_shape_test.go.
 # Ne s'edite JAMAIS a la main : regeneration decrite en tete de ce test.
 schema 130
-empreinte-stockee defd2a6e91034a11
-empreinte-servie defd2a6e91034a11
+empreinte-stockee 25b37c83b7c2436f
+empreinte-servie 25b37c83b7c2436f
 empreinte-cuite 3365cadfd4cc4154
 empreinte-cuite-regle 4
 
@@ -810,6 +810,7 @@ MapWeaponPadDTO
   Family json:"family" string
   Forward json:"forward,omitempty" []float32
   Pad json:"pad" int
+  Scale json:"scale,omitempty" []float32
   Up json:"up,omitempty" []float32
   X json:"x" float32
   Y json:"y" float32

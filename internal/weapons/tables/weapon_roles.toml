@@ -10,6 +10,7 @@
 [roles]
 hinf_br75 = "precision"
 hinf_bandit = "precision"
+hinf_bandit_evo = "precision"
 hinf_ma40_ar = "automatic"
 hinf_ma5k_avenger = "automatic"
 hinf_vk78_commando = "automatic"

@@ -65,6 +65,7 @@ const KIND_BY_KEY: Readonly<Record<string, RecoilKind>> = {
   hinf_br75: 'precision',
   hinf_vk78_commando: 'precision',
   hinf_bandit: 'precision',
+  hinf_bandit_evo: 'precision',
   hinf_sidekick: 'precision',
   hinf_vestige_carbine: 'precision',
   hinf_ma40_ar: 'automatic',

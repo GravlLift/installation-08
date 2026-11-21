@@ -13,6 +13,7 @@ describe('adsOverlayFor', () => {
     expect(adsOverlayFor(null, 'hinf_s7_sniper', SCOPE)?.design).toBe('s7')
     expect(adsOverlayFor(null, 'hinf_br75', SCOPE)?.design).toBe('br75')
     expect(adsOverlayFor(null, 'hinf_bandit', { kind: 'bandit' })?.design).toBe('bandit')
+    expect(adsOverlayFor(null, 'hinf_bandit_evo', { kind: 'bandit' })?.design).toBe('bandit')
     expect(adsOverlayFor(null, 'hinf_vestige_carbine', SCOPE)?.design).toBe('vestige')
   })
 

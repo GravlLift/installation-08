@@ -202,8 +202,40 @@ func enrichReplayDocument(ctx context.Context, root *store.Root, id string, cat 
 	}
 	// The film's pad candidates the map confirms become pads; the rest are not served.
 	doc.WeaponPads = promotePadCandidates(variant, doc.WeaponPads, doc.PadCandidates)
-	doc.PadCandidates = nil
 	doc.MapWeaponPads = mapWeaponPadsFor(ctx, id, keys, variant, doc.WeaponPads)
+	var placed []replay.MapWeaponPadDTO
+	if variant != nil && len(doc.PadCandidates) > 0 {
+		idx, err := openForgeWeapons()
+		if err != nil {
+			slog.WarnContext(ctx, "read Forge weapon definitions", "err", err)
+		} else {
+			resolved := map[uint32]uint32{}
+			resolve := func(id uint32) uint32 {
+				if value, ok := resolved[id]; ok {
+					return value
+				}
+				resolved[id] = 0
+				group, _, ok := idx.Lookup(id)
+				if ok && group == "food" {
+					if tag, err := idx.Extract(id); err == nil {
+						resolved[id] = forgeWeapon(tag)
+					}
+				}
+				return resolved[id]
+			}
+			doc.WeaponPads, placed = placedWeaponCandidates(variant, doc.WeaponPads, doc.PadCandidates, resolve)
+			if err := idx.Close(); err != nil {
+				slog.WarnContext(ctx, "close Forge weapon definitions", "err", err)
+			}
+		}
+	}
+	doc.PadCandidates = nil
+	if len(placed) > 0 {
+		if doc.MapWeaponPads == nil {
+			doc.MapWeaponPads = &replay.MapWeaponPads{}
+		}
+		doc.MapWeaponPads.Pads = append(doc.MapWeaponPads.Pads, placed...)
+	}
 	doc.WeaponTiers = weaponTiersFor(keys.pairName)
 	enrichWeaponLabels(ctx, cat, doc)
 	checkWeaponTierJoin(ctx, id, cat, doc)

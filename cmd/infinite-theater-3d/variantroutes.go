@@ -98,7 +98,7 @@ func buildMatchVariant(ctx context.Context, root *store.Root, id, game, out stri
 		key := variantCacheKey(payload.Info.Map.ID, payload.Info.Map.Version, meta.MapModule, meta.Build, mode, quality, mvar)
 		if key != "" {
 			cache = filepath.Join(root.Dir(), "variant-cache", key+".glb")
-			if glbFormatCurrent(cache) {
+			if glbVariantCurrent(cache) {
 				if err := root.WriteCopy(out, cache); err == nil {
 					info, err := os.Stat(out)
 					if err == nil {

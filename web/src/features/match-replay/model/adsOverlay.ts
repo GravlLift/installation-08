@@ -72,6 +72,7 @@ export const ADS_OVERLAYS: Readonly<Record<string, AdsOverlaySpec>> = {
   hinf_br75: { design: 'br75', levels: [{ label: null }], ammo: false, ownReticle: true, fidelity: 'faithful' },
   hinf_vk78_commando: { design: 'commando', levels: [{ label: '2.0x' }], ammo: true, ownReticle: true, fidelity: 'approximate' },
   hinf_bandit: { design: 'bandit', levels: [{ label: '1.6X' }], ammo: true, ownReticle: true, fidelity: 'faithful' },
+  hinf_bandit_evo: { design: 'bandit', levels: [{ label: '1.6X' }], ammo: true, ownReticle: true, fidelity: 'faithful' },
   hinf_s7_sniper: { design: 's7', levels: [{ label: '5x' }, { label: '10x' }], ammo: false, ownReticle: true, fidelity: 'faithful' },
   hinf_shock_rifle: { design: 'shock', levels: [{ label: null }], ammo: false, ownReticle: true, fidelity: 'approximate' },
   hinf_skewer: { design: 'skewer', levels: [{ label: null }, { label: null }], ammo: false, ownReticle: true, fidelity: 'approximate' },
@@ -86,7 +87,7 @@ const LABEL_BY_MODEL: Readonly<Record<string, string>> = {
   'adb78225': 'hinf_stalker_rifle',
   '2b1824d5': 'hinf_br75',
   fd98554c: 'hinf_vk78_commando',
-  '6acdc44d': 'hinf_bandit',
+  '6acdc44d': 'hinf_bandit_evo',
   '2fb21c87': 'hinf_bandit',
 }
 

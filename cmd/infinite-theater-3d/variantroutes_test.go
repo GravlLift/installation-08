@@ -207,7 +207,7 @@ func TestVariantCacheReusesLayer(t *testing.T) {
 	}
 	key := variantCacheKey("asset", "version", "map", "build", "Slayer", meshjobs.QualityStandard, []byte("variant"))
 	path := filepath.Join(root.Dir(), "variant-cache", key+".glb")
-	if err := root.WriteFile(path, formatGLB(t, mapmesh.BuildFormat, false)); err != nil {
+	if err := root.WriteFile(path, formatGLB(t, mapmesh.BuildFormat, false, map[string]any{mapmesh.VariantRevisionKey: mapmesh.VariantRevision})); err != nil {
 		t.Fatal(err)
 	}
 	out := variantPath(root, "abc", "variant.glb")

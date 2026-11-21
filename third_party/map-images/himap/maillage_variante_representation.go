@@ -45,6 +45,39 @@ func refsRepresentations(tag []byte) map[int32]uint32 {
 	return out
 }
 
+// variantesRepresentations (LOCAL-CHANGE (infinite-theater-3d)) reads, for each object
+// representation of a food (its +0x34 block: a `bloc`, `scen` or `mach` the object spawns as
+// when placed dynamic), the model variant it draws (StringID at record +0x04). Measured on the
+// floor rectangle (2f7d8192): its dynamic representation 0bf1df9c names variant 1f7947cf, which
+// its `hlmt` (4a137f08) maps to the permutation of the same name, the one drawn with the Forge
+// style material (701ac153), where permutation 0 is a fixed orange (2ec996ef). The switches
+// (c32c7958) and screens (d568d27a) name the same variant.
+func variantesRepresentations(tag []byte) map[int32]uint32 {
+	out := map[int32]uint32{}
+	for _, ti := range tagCandidates(tag) {
+		offs, blocks, err := ti.rootBlockRefs()
+		if err != nil {
+			continue
+		}
+		for i, off := range offs {
+			if off != 0x34 {
+				continue
+			}
+			start, size := ti.blockAbs(blocks[i])
+			if start < 0 || size < 0 || start+size > len(tag) || size%0x5c != 0 {
+				continue
+			}
+			for pos := start; pos < start+size; pos += 0x5c {
+				if v := uint32(u32(tag, pos+0x04)); v != 0 && v != 0xbcbcbcbc && v != 0xffffffff {
+					out[int32(u32(tag, pos))] = v
+				}
+			}
+		}
+		return out
+	}
+	return out
+}
+
 // palettesRepresentations (LOCAL-CHANGE (infinite-theater-3d)) reads, for each `rtgo`
 // representation of a food, the palette (`rtmp`) its record names (FieldReference at +0x44,
 // GlobalID there, group tag at +0x50). One `rtgo` serves several representations that differ
@@ -132,7 +165,8 @@ func modelesDesRepresentations(ctx context.Context, objets []mapvar.Object, idx 
 		if err != nil {
 			continue
 		}
-		palettes := palettesRepresentations(tag) // LOCAL-CHANGE (infinite-theater-3d)
+		palettes := palettesRepresentations(tag)  // LOCAL-CHANGE (infinite-theater-3d)
+		variantes := variantesRepresentations(tag) // LOCAL-CHANGE (infinite-theater-3d)
 		for nom, id := range refsRepresentations(tag) {
 			if !noms[nom] {
 				continue
@@ -142,6 +176,7 @@ func modelesDesRepresentations(ctx context.Context, objets []mapvar.Object, idx 
 				continue
 			}
 			ref := refModele{id: id, groupe: groupe}
+			var variante VarianteModele // LOCAL-CHANGE (infinite-theater-3d)
 			if groupe != GroupeRtgo && groupe != GroupeMode {
 				objet, err := idx.Extract(id)
 				if err != nil {
@@ -151,6 +186,8 @@ func modelesDesRepresentations(ctx context.Context, objets []mapvar.Object, idx 
 				if !ok {
 					continue
 				}
+				// LOCAL-CHANGE (infinite-theater-3d): the model variant the representation names.
+				variante = varianteDuPlacement(ctx, idx, objet, variantes[nom])
 			}
 			a, deja := assets[ref.id]
 			if !deja {
@@ -160,7 +197,7 @@ func modelesDesRepresentations(ctx context.Context, objets []mapvar.Object, idx 
 			if a == nil {
 				continue
 			}
-			mv := &modeleVariante{modelePose: lisModelePose(a, ref.groupe, nil), ombre: map[int]bool{}}
+			mv := &modeleVariante{modelePose: lisModelePose(a, ref.groupe, variante), ombre: map[int]bool{}}
 			for _, k := range mv.maillages {
 				mv.ombre[k] = horsPasseVisible(a, k)
 			}
