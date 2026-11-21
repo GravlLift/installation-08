@@ -111,6 +111,11 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 	if err := buildWeapons(ctx, w, opts.Catalog.Keys, &res, announce, rep); err != nil {
 		return res, err
 	}
+	// The tail (other models, the tag passes, the coatings, the index) reports each step to the
+	// runner over the last fifth of the bar, named, and logs how long each step took.
+	tail := &tailProgress{ctx: ctx, rep: rep, next: announce, total: tailSteps}
+	defer tail.finish()
+	announce = tail.step
 	announce("building grenade projectiles")
 	if err := buildGrenades(ctx, a, dir, &res); err != nil {
 		return res, err
@@ -140,6 +145,7 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		return res, err
 	}
 	if coats != nil {
+		announce("finishing the coatings")
 		idx.Coatings, err = coats.Finish(ctx, a, dir)
 		if err != nil {
 			return res, err
@@ -147,11 +153,50 @@ func Build(ctx context.Context, opts Options, announce func(string)) (Result, er
 		res.Coatings = idx.Coatings.Coatings
 		res.Bytes += idx.Coatings.Bytes
 	}
+	announce("writing the index")
 	if err := writeIndex(dir, idx); err != nil {
 		return res, err
 	}
 	res.Seconds = time.Since(start).Seconds()
 	return res, nil
+}
+
+// tailSteps is the number of steps the library build announces after the weapon models (the
+// other models, the tag passes, the coatings, the index); a build that skips some (no coatings)
+// ends before its last share, and the runner sets 1 on success.
+const tailSteps = 14
+
+// tailProgress reports the steps after the weapon models, which used to run under a bar frozen at
+// the last weapon ("192/192"): each step takes the next share of 0.8..1, under its own name, and
+// the time the previous step took is logged.
+type tailProgress struct {
+	ctx   context.Context
+	rep   meshjobs.ProgressReporter
+	next  func(string)
+	total int
+	done  int
+	stage string
+	at    time.Time
+}
+
+func (t *tailProgress) step(stage string) {
+	t.finish()
+	t.stage, t.at = stage, time.Now()
+	if t.rep != nil {
+		frac := 0.8 + 0.2*float64(t.done)/float64(t.total)
+		t.rep.Report(min(frac, 0.99), stage)
+	}
+	t.done++
+	t.next(stage)
+}
+
+// finish logs the running step's duration (nothing before the first step).
+func (t *tailProgress) finish() {
+	if t.stage == "" {
+		return
+	}
+	slog.InfoContext(t.ctx, "weapons library step", "step", t.stage, "seconds", time.Since(t.at).Seconds())
+	t.stage = ""
 }
 
 // vehicleModelKeys are the game chassis used by the replay's vehicle families.
