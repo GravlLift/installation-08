@@ -32,6 +32,7 @@ import { withKtx2 } from './ktx2Textures3d'
 import { measureDuration, measureSince, now, timed, timedSync } from './perf3d'
 import { BAKED_INTENSITY, glowLevel, guardMaterial, imageGlowLevel } from './lighting'
 import { dropMarkerObjects } from './markerObjects3d'
+import { objectDrivenSources } from './objectGlow3d'
 import { readPlacedLights } from './placedLights'
 import { sunAngles } from './probes3d'
 import { buildShadowProxies } from './shadowProxy3d'
@@ -104,6 +105,8 @@ interface MaterialExtras {
   emissionImage?: boolean
   /** The game's animated parameters of its light (`glowAnimation3d`), absent when it is still. */
   emissionAnim?: unknown
+  /** The object inputs that set its light's color (`objectGlow3d`), absent when none does. */
+  emissionObject?: unknown
   /** The game material's GlobalID. */
   id?: number
   /**
@@ -546,9 +549,11 @@ async function prepareSurfaces(buffer: ArrayBuffer, onStep: StepCallback, mergeL
   const ctx: MaterialContext = { mats, owned, layered: new Map(), jobs: [], parser: gltf.parser, glowCopy, animateGlow, seeThroughGlow, tintCopy, tintedGlass: tintedGlassCopy, decalStencil: decalStencilCopy }
   const instanced: THREE.InstancedMesh[] = []
   const geometryOf = geometryPerMaterial()
+  // A placed object that drives its light's color (an equipment pad) gets its own source copy.
+  const drivenSource = objectDrivenSources(gltf.scene)
   timedSync(`${label}:traverse`, () => gltf.scene.traverse((o) => {
     if (!(o instanceof THREE.Mesh)) return
-    const source = o.material as THREE.MeshStandardMaterial
+    const source = o instanceof THREE.InstancedMesh ? (o.material as THREE.MeshStandardMaterial) : drivenSource(o, o.material as THREE.MeshStandardMaterial)
     const extras = (source.userData ?? {}) as MaterialExtras
     const node = o.parent?.name || o.name
     if (node.startsWith('ombre') || (extras.shader !== undefined && SCREEN_EFFECT_SHADERS.has(extras.shader))) {

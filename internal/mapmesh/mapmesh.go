@@ -115,9 +115,10 @@ const (
 	// VariantRevisionKey / VariantRevision: the Forge variant layer's own revision, stamped on
 	// variant GLBs only, so a change to how Forge objects are built rebuilds the variants without
 	// rebuilding every map (1: a dynamic object draws the model variant its representation names;
-	// 2: a style tint keeps its swatch's gradient, teinteTrio).
+	// 2: a style tint keeps its swatch's gradient, teinteTrio; 3: object-driven light mappings,
+	// emissionObject).
 	VariantRevisionKey = "variantRevision"
-	VariantRevision    = 2
+	VariantRevision    = 3
 )
 
 // commonExtras are the extras every map and variant GLB carries: the axis mapping (the
