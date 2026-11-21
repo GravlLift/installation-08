@@ -18,13 +18,33 @@
 // `tailleFichier - max(data_offset+compressedSize)` est FAUSSE dès qu'un module a un
 // compagnon `_hd1` ou du remplissage final (mesuré : 1965/2047 entrées en échec sur
 // any/levels/multi/catalyst, 100 % sur pc/levels/multi/ridgeline).
+//
+// COMPAGNON `.module_hd1` (le fichier haute resolution installe a cote d'une archive : les plus
+// grands niveaux de mip des bitmaps, 5,4 Go pour forge_objects). C'est un fichier SANS en-tete :
+// la suite de la section de donnees de l'archive. Une entree dont le bit 0 des drapeaux (+0x18,
+// 16 bits de poids fort) est arme y vit, a l'offset `data_offset - hd1Delta` (+0x38 de
+// l'en-tete) ; ses blocs se lisent ensuite comme ceux de l'archive (compOff relatif au debut de
+// l'entree, Kraken ou brut selon bCompressed). Regle deterministe, pas de calibration.
+//
+// Mesure le 2026-11-21 sur les 38 compagnons de l'installation PC (toutes archives mohd v53,
+// 6 962 entrees hd1) : sur chacun, la premiere entree hd1 a data_offset == hd1Delta (offset 0
+// du compagnon), chaque entree tient dans le fichier, et la derniere finit EXACTEMENT a la fin
+// du fichier. Le premier octet d'une entree est un en-tete Kraken (0x8C) sur 6 635 entrees, un
+// bloc brut sur les 327 autres ; les 6 962 se decompressent a leur taille declaree. hd1Delta est
+// un multiple de 4 Ko. Meme regle que infinite-rs (Surasia,
+// https://github.com/Surasia/infinite-rs, `module/loader.rs` et `module/file.rs` :
+// `data_offset - hd1_delta` au-dela de la version 52, CampaignFlight). Les candidats d'avant
+// (0, hd1Delta, taille - hd1Delta, hd1Delta aligne) n'etaient bons sur aucun des 38 : le
+// compagnon n'etait jamais ouvert, et 6 930 bitmaps se dessinaient a la moitie de leur taille.
 package himodule
 
 // LOCAL-CHANGE: user-visible strings translated to English.
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
+	"os"
 
 	"github.com/JGtm/halo-infinite-files-reader/ooz"
 )
@@ -51,6 +71,10 @@ const (
 	offHdrStringsSize = 0x24
 	offHdrResCount    = 0x28
 	offHdrDataSize    = 0x40
+	offHdrHd1Delta    = 0x38
+
+	// maxOffset : plus grand data_offset d'une entree (48 bits, cf. File.DataOffset).
+	maxOffset = 1<<48 - 1
 
 	// dataAlign : la section données commence sur une frontière de 4 Ko.
 	dataAlign = 0x1000
@@ -63,16 +87,14 @@ type Module struct {
 	numBlocks int
 	blockOff  int
 	dataBase  int
-	// hd1 est le contenu du compagnon `.module_hd1`, s'il existe. Les entrees dont le
-	// drapeau UseHd1 est arme y pointent -- sur ridgeline c'est un fichier de 206 Mo que
-	// personne n'avait jamais ouvert.
-	hd1     []byte
+	// hd1 est le compagnon `.module_hd1`, ouvert quand l'archive en annonce un et qu'il contient
+	// toutes ses entrees hd1 (cf. loadHd1), nil sinon. hd1Base s'ajoute au data_offset d'une
+	// entree hd1 pour donner sa position dans le fichier.
+	hd1     *os.File
 	hd1Base int
-	// projData / projHd1 : les projections qui portent `data` et `hd1`. Elles ne sont pas
-	// fusionnees avec les tranches parce qu'une projection se RELACHE (cf. Close) alors
-	// qu'une tranche ne fait que la designer.
+	// projData : la projection qui porte `data`. Elle n'est pas fusionnee avec la tranche parce
+	// qu'une projection se RELACHE (cf. Close) alors qu'une tranche ne fait que la designer.
 	projData *projection
-	projHd1  *projection
 }
 
 // File décrit une entrée fichier (tag ou ressource).
@@ -154,7 +176,7 @@ func Open(path string) (*Module, error) {
 	return m, nil
 }
 
-// Close relache les projections de l'archive et de son compagnon.
+// Close relache la projection de l'archive et ferme son compagnon.
 //
 // APPELER Close EST SUR PARCE QU'AUCUN OCTET RENDU N'ALIASE LA PROJECTION : `Extract`
 // decompresse dans un tampon neuf ou fait `copy`, `ResourceBlob` concatene par `append`,
@@ -167,7 +189,10 @@ func Open(path string) (*Module, error) {
 // c'est le cas de `himap.ModuleIndex`, une par carte.
 func (m *Module) Close() error {
 	errData := m.projData.ferme()
-	errHd1 := m.projHd1.ferme()
+	var errHd1 error
+	if m.hd1 != nil {
+		errHd1 = m.hd1.Close()
+	}
 	m.data, m.hd1 = nil, nil
 	if errData != nil {
 		return errData
@@ -175,98 +200,78 @@ func (m *Module) Close() error {
 	return errHd1
 }
 
-// loadHd1 ouvre le compagnon `.module_hd1` et CALIBRE sa base de donnees.
-//
-// La base n'est pas postulee : on essaie les candidats plausibles et on retient celui qui
-// maximise le nombre d'entrees hd1 dont la premiere lecture est DANS les bornes ET dont le
-// premier bloc porte un en-tete Kraken (nibble haut 0x8). Une base fausse echoue en masse,
-// donc le critere separe nettement -- et s'il ne separe pas, on n'active PAS le compagnon
-// plutot que de servir des octets pris au hasard.
+// loadHd1 ouvre le compagnon `.module_hd1` quand l'archive en annonce un (hd1Delta non nul) et
+// porte des entrees hd1. La base est `-hd1Delta` (cf. en-tete du paquet). Le compagnon n'est
+// PAS projete : il fait jusqu'a 5,4 Go, et une projection garderait dans la memoire du processus
+// chaque page lue ; srcFor lit a la demande les octets compresses d'une seule entree (ReadAt).
+// Un compagnon absent, vide, ou qui ne contient pas TOUTES les entrees hd1 n'est pas ouvert :
+// ses entrees rendent alors une erreur plutot que des octets pris ailleurs.
 func (m *Module) loadHd1(path string) {
-	proj, err := projette(path + "_hd1")
+	delta := u64(m.data, offHdrHd1Delta)
+	ents := m.hd1Entries()
+	if delta == 0 || len(ents) == 0 {
+		return
+	}
+	f, err := os.Open(path + "_hd1")
 	if err != nil {
 		return
 	}
-	raw := proj.octets
-	if len(raw) == 0 {
-		_ = proj.ferme()
-		return
-	}
-	ents := m.hd1Probes()
-	if len(ents) == 0 {
-		_ = proj.ferme()
-		return
-	}
-	best, bestN := -1, 0
-	for _, base := range hd1BaseCandidates(m.data, len(raw)) {
-		if n := hd1BaseScore(raw, ents, base); n > bestN {
-			bestN, best = n, base
+	if st, err := f.Stat(); err == nil {
+		if base, err := hd1Base(delta, st.Size(), ents); err == nil {
+			m.hd1, m.hd1Base = f, base
+			return
 		}
 	}
-	// Seuil : la moitie des entrees testees. En dessous, la base n'est pas etablie — et la
-	// projection est relachee tout de suite plutot que gardee pour rien.
-	if best >= 0 && bestN*2 >= len(ents) {
-		m.hd1, m.hd1Base, m.projHd1 = raw, best, proj
-		return
-	}
-	_ = proj.ferme()
+	_ = f.Close()
 }
 
-// hd1Probes rend l'echantillon d'entrees qui sert de temoin a la calibration : les entrees
-// marquees hd1 et non vides, plafonnees a 400 (au-dela, le critere ne separe pas mieux).
-func (m *Module) hd1Probes() []File {
+// hd1Entries rend les entrees dont le drapeau UseHd1 est arme.
+func (m *Module) hd1Entries() []File {
 	var ents []File
-	for i := 0; i < m.fileCount && len(ents) < 400; i++ {
-		if f := m.file(i); f.UseHd1() && f.CompSize > 0 {
+	for i := 0; i < m.fileCount; i++ {
+		if f := m.file(i); f.UseHd1() {
 			ents = append(ents, f)
 		}
 	}
 	return ents
 }
 
-// hd1BaseScore compte, pour une base candidate, les entrees temoins dont la premiere lecture
-// tombe DANS les bornes du compagnon ET dont le premier octet porte un en-tete Kraken
-// (nibble haut 0x8). Une base fausse echoue en masse : c'est ce qui rend le critere separant.
-func hd1BaseScore(raw []byte, ents []File, base int) int {
-	n := 0
+// hd1Base rend la base du compagnon, `-hd1Delta`, apres avoir verifie que chaque entree hd1 tient
+// dans ses hd1Len octets. Une seule entree hors du fichier refuse le compagnon : c'est le signe
+// d'une autre disposition, que la regle mesuree ne couvre pas.
+func hd1Base(delta uint64, hd1Len int64, ents []File) (int, error) {
+	if delta == 0 || delta > maxOffset {
+		return 0, fmt.Errorf("himodule: hd1Delta %d outside the range of a companion", delta)
+	}
+	if hd1Len <= 0 {
+		return 0, errors.New("himodule: empty hd1 companion")
+	}
+	base := -int64(delta)
 	for _, f := range ents {
-		off := base + int(f.DataOffset)
-		if off >= 0 && off+f.CompSize <= len(raw) && raw[off]&0xF0 == 0x80 {
-			n++
+		off := base + f.DataOffset
+		if off < 0 || f.CompSize < 0 || off+int64(f.CompSize) > hd1Len {
+			return 0, fmt.Errorf("himodule: hd1 entry %d outside the companion (offset %d, %d bytes, file of %d)",
+				f.Index, off, f.CompSize, hd1Len)
 		}
 	}
-	return n
+	return int(base), nil
 }
 
-// hd1BaseCandidates enumere les bases plausibles du compagnon : 0, la valeur derivee de
-// hd1Delta (+0x38 de l'en-tete), et l'alignement 4 Ko de cette derniere.
-func hd1BaseCandidates(head []byte, hd1Len int) []int {
-	delta := int(u64(head, 0x38))
-	c := []int{0, delta, hd1Len - delta}
-	if delta > 0 {
-		c = append(c, (delta+dataAlign-1)&^(dataAlign-1))
-	}
-	out := c[:0]
-	seen := map[int]bool{}
-	for _, v := range c {
-		if v >= 0 && v < hd1Len && !seen[v] {
-			seen[v] = true
-			out = append(out, v)
-		}
-	}
-	return out
-}
-
-// srcFor rend le tampon et la base a employer pour une entree : le compagnon si son
-// drapeau UseHd1 est arme et que le compagnon a ete calibre, sinon l'archive principale.
+// srcFor rend le tampon ou lire une entree et la base a laquelle s'ajoute son data_offset : la
+// section de donnees de l'archive, ou, pour une entree hd1, ses seuls octets compresses lus dans
+// le compagnon, avec la base `-data_offset` (l'entree commence a l'octet 0 du tampon).
 func (m *Module) srcFor(f File) ([]byte, int, error) {
-	if f.UseHd1() {
-		if m.hd1 == nil {
-			return nil, 0, fmt.Errorf("himodule: entry in hd1 but companion missing or not calibrated")
-		}
-		return m.hd1, m.hd1Base, nil
+	if !f.UseHd1() {
+		return m.data, m.dataBase, nil
 	}
-	return m.data, m.dataBase, nil
+	if m.hd1 == nil {
+		return nil, 0, errors.New("himodule: entry in hd1 but companion missing or refused")
+	}
+	buf := make([]byte, f.CompSize)
+	if _, err := m.hd1.ReadAt(buf, int64(m.hd1Base)+f.DataOffset); err != nil {
+		return nil, 0, fmt.Errorf("himodule: reading hd1 entry %d: %w", f.Index, err)
+	}
+	return buf, -int(f.DataOffset), nil
 }
 
 // dataBase : début de la section données. `tailleFichier - dataSize` quand l'en-tête

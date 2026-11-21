@@ -15,8 +15,9 @@
 // placements du scenario) et son echelle par axe (+0x90).
 //
 // QUELS KITS SE POSENT : ceux qui comptent une MACHINE parmi leurs objets. Sur les 27 kits, ce
-// sont les cinq generateurs ci-dessus et quatre autres : deux dont la machine `b5683e48` n'a pas
-// de modele lisible, la machine `61f03e87` (absente des cartes mesurees) et `153adfbb`, du seul
+// sont les cinq generateurs ci-dessus et quatre autres : deux dont la machine `b5683e48` (son
+// `mode` `37406072` n'a aucune section : le kit pose les deux `bloc` que la variante de son modele
+// attache, objets_attaches.go), la machine `61f03e87` (absente des cartes mesurees) et `153adfbb`, du seul
 // mode Infection. Les autres kits ne posent que des decors et des caisses : les mises en scene
 // de debut de manche (quatre mannequins `73704db6`, des cameras `07d77f31`/`ec0bd653`), des
 // emetteurs de son, la zone de capture `f95a2c76` (sans geometrie), tous dessines aux materiaux
@@ -192,9 +193,9 @@ func piecesDuFood(ctx context.Context, idx *ModuleIndex, food []byte, assets map
 	}
 	var out []pieceKit
 	for _, o := range objets {
-		if mv := modeleObjetKit(ctx, idx, o, assets); mv != nil {
-			out = append(out, pieceKit{mv: mv, pose: o.pose})
-		}
+		// LOCAL-CHANGE (infinite-theater-3d, from The Library): an object whose model has no section
+		// poses the objects its model variant attaches (objets_attaches.go).
+		out = append(out, modelesObjetKit(ctx, idx, o, assets)...)
 	}
 	return out
 }
