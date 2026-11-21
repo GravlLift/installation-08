@@ -37,6 +37,8 @@ type PadEvent struct {
 	Duration [2]float32         `json:"duration"`
 	Lights   []himap.CheapLight `json:"lights"`
 	Flares   []PadFlare         `json:"flares"`
+	// Volumes: the light volumes the event's generators draw (light_volume.go: the upward cone).
+	Volumes []LightVolume `json:"volumes"`
 }
 
 // PadFlare is one lens flare of the pad: its part's radius modifier, its root and its drawn
@@ -78,6 +80,19 @@ func readPadGlow(ctx context.Context, a *himap.Arsenal, dir string) *PadGlow {
 				continue
 			}
 			pe.Lights = append(pe.Lights, *l)
+		}
+		for _, part := range ev.Generators {
+			raw, err := a.TagGenerateur(part.Type)
+			if err != nil {
+				slog.WarnContext(ctx, "pad generator absent", "efge", fmt.Sprintf("%08x", part.Type), "err", err)
+				continue
+			}
+			vols, err := readLightVolumes(raw)
+			if err != nil {
+				slog.WarnContext(ctx, "pad generator is not a readable light volume", "efge", fmt.Sprintf("%08x", part.Type), "err", err)
+				continue
+			}
+			pe.Volumes = append(pe.Volumes, vols...)
 		}
 		for _, part := range ev.Lenses {
 			if f, ok := padFlare(ctx, a, w, part); ok {

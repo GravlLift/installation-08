@@ -249,13 +249,20 @@ type ShieldGenerator struct {
 // (the shader's $Globals), its textures by the register they bind.
 type generatorTag struct {
 	additive   bool
+	alphaMode  uint8 // the generator material's alpha blend mode (1 additive, 8 add_src_times_dstalpha, ...)
 	constants  []byte
 	properties []byte         // cbPropertiesConstants, raw registers (empty when the tag has none)
 	textures   map[int]uint32 // $Globals register offset -> bitm id
 }
 
-// readGeneratorTag walks an `efge` tag down to its first generator's material.
-func readGeneratorTag(raw []byte) (generatorTag, error) {
+// readGeneratorTag walks an `efge` tag down to its first generator's material, whose constant
+// buffer ($Globals) is `size` bytes (the generator shader's, from its DXIL reflection).
+func readGeneratorTag(raw []byte, size int) (generatorTag, error) {
+	return readGeneratorAt(raw, 0, size)
+}
+
+// readGeneratorAt is readGeneratorTag for the tag's generator `k`.
+func readGeneratorAt(raw []byte, k, size int) (generatorTag, error) {
 	t, err := ekurport.ParseTag(raw)
 	if err != nil {
 		return generatorTag{}, err
@@ -268,10 +275,10 @@ func readGeneratorTag(raw []byte) (generatorTag, error) {
 	if err != nil {
 		return generatorTag{}, err
 	}
-	if gens.Len() < 1 {
-		return generatorTag{}, errors.New("efge: no generator")
+	if gens.Len() <= k {
+		return generatorTag{}, errors.New("efge: no such generator")
 	}
-	g := gens.At(0)
+	g := gens.At(k)
 	alpha, err := g.U8(genOffAlphaBlend)
 	if err != nil {
 		return generatorTag{}, err
@@ -288,14 +295,14 @@ func readGeneratorTag(raw []byte) (generatorTag, error) {
 	if err != nil {
 		return generatorTag{}, err
 	}
-	if consts.Len()*postConstantStride != generatorConstantsSize {
-		return generatorTag{}, fmt.Errorf("efge: %d material constants, want %d", consts.Len(), generatorConstantsSize/postConstantStride)
+	if consts.Len()*postConstantStride != size {
+		return generatorTag{}, fmt.Errorf("efge: %d material constants, want %d", consts.Len(), size/postConstantStride)
 	}
-	c, err := consts.At(0).Bytes(0, generatorConstantsSize)
+	c, err := consts.At(0).Bytes(0, size)
 	if err != nil {
 		return generatorTag{}, err
 	}
-	out := generatorTag{additive: alpha == alphaBlendAdditive, constants: c, textures: map[int]uint32{}}
+	out := generatorTag{additive: alpha == alphaBlendAdditive, alphaMode: alpha, constants: c, textures: map[int]uint32{}}
 	if props, err := p.Block(postOffProperties, postConstantStride); err == nil && props.Len() > 0 {
 		if out.properties, err = props.At(0).Bytes(0, props.Len()*postConstantStride); err != nil {
 			return generatorTag{}, err
@@ -317,6 +324,31 @@ func readGeneratorTag(raw []byte) (generatorTag, error) {
 	return out, nil
 }
 
+// generatorProperty reads the GPU property descriptor (a float4) at `off` in the constants `c`: a
+// constant when bit 21 of the uint of its y is set (the value in x), otherwise a function of the
+// compute shader input named by bits 17..21 of the uint of its w (`inputs`, that shader's list),
+// with its curve from the property buffer `props` when it is a single curve of that input.
+func generatorProperty(c []byte, off int, props []byte, inputs []string) GeneratorProperty {
+	f := func(o int) float32 { return math.Float32frombits(binary.LittleEndian.Uint32(c[o:])) }
+	// The compute shader converts y and w from float to uint before testing their bits.
+	if uint32(f(off+4))&(1<<21) != 0 {
+		v := f(off)
+		return GeneratorProperty{Constant: &v}
+	}
+	in := int(uint32(f(off+12))>>17) & 31
+	p := GeneratorProperty{Input: fmt.Sprintf("#%d", in)}
+	if in < len(inputs) {
+		p.Input = inputs[in]
+	}
+	y, z := uint32(f(off+4)), uint32(f(off+8))
+	// y&31 names a second curve blended in by a second input, z&3 an add or a multiply by another
+	// input: neither is a single curve of the one input. Otherwise the curve is function z>>17.
+	if y&31 == 0 && z&3 == 0 && in < len(inputs) {
+		p.Curve = readCurve(props, int(z>>17)&31)
+	}
+	return p
+}
+
 // decodeGeneratorConstants reads the generator shader's $Globals `c` by the shader's layout, and
 // the function properties' curves from the property buffer `props`. The textures are left to the
 // caller.
@@ -327,25 +359,7 @@ func decodeGeneratorConstants(c, props []byte) (ShieldGenerator, error) {
 	u := func(off int) uint32 { return binary.LittleEndian.Uint32(c[off:]) }
 	f := func(off int) float32 { return math.Float32frombits(u(off)) }
 	i := func(off int) int { return int(int32(u(off))) }
-	prop := func(off int) GeneratorProperty {
-		// The compute shader converts y and w from float to uint before testing their bits.
-		if uint32(f(off+4))&(1<<21) != 0 {
-			v := f(off)
-			return GeneratorProperty{Constant: &v}
-		}
-		in := int(uint32(f(off+12))>>17) & 31
-		p := GeneratorProperty{Input: fmt.Sprintf("#%d", in)}
-		if in < len(generatorInputs) {
-			p.Input = generatorInputs[in]
-		}
-		y, z := uint32(f(off+4)), uint32(f(off+8))
-		// y&31 names a second curve blended in by a second input, z&3 an add or a multiply by another
-		// input: neither is a single curve of the one input. Otherwise the curve is function z>>17.
-		if y&31 == 0 && z&3 == 0 && in < len(generatorInputs) {
-			p.Curve = readCurve(props, int(z>>17)&31)
-		}
-		return p
-	}
+	prop := func(off int) GeneratorProperty { return generatorProperty(c, off, props, generatorInputs[:]) }
 	return ShieldGenerator{
 		TintInsteadOfReplace:      u(12) != 0,
 		EdgeColorMode:             i(16),
@@ -411,7 +425,7 @@ func readShieldHit(ctx context.Context, a *himap.Arsenal, gameRoot, module, dir 
 		slog.WarnContext(ctx, "shield impact generator absent", "efge", fmt.Sprintf("%08x", shieldHitGenerator), "err", err)
 		return nil, nil
 	}
-	gt, err := readGeneratorTag(raw)
+	gt, err := readGeneratorTag(raw, generatorConstantsSize)
 	if err != nil {
 		slog.WarnContext(ctx, "shield impact generator unreadable", "err", err)
 		return nil, nil

@@ -174,15 +174,25 @@ const (
 	effeOffDrapeauxRac = 0x24 // root: flags (u32; bit 6 force looping)
 	groupeLens         = 0x6c656e73
 	groupeGldf         = 0x676c6466
+	groupeEfge         = 0x65666765
 )
 
 // EffectEvent is one event of an effect's first rendering level: when it plays and the lens flares
 // and cheap lights it creates (with each part's radius modifier).
 type EffectEvent struct {
-	Delay    [2]float32   `json:"delay"`
-	Duration [2]float32   `json:"duration"`
-	Lenses   []EffectPart `json:"lenses"`
-	Lights   []EffectPart `json:"lights"`
+	Delay      [2]float32   `json:"delay"`
+	Duration   [2]float32   `json:"duration"`
+	Lenses     []EffectPart `json:"lenses"`
+	Lights     []EffectPart `json:"lights"`
+	Generators []EffectPart `json:"generators"` // effect generators (`efge`)
+}
+
+// TagGenerateur returns the decompressed effect generator (`efge`) tag `id`.
+func (a *Arsenal) TagGenerateur(id uint32) ([]byte, error) {
+	if g, _, ok := a.geo.Lookup(id); !ok || g != "efge" {
+		return nil, fmt.Errorf("himap: %08x is not an efge", id)
+	}
+	return a.geo.Extract(id)
 }
 
 // EffectPart is a part's type and its radius modifier bounds.
@@ -244,6 +254,8 @@ func (a *Arsenal) EffectEventsOf(id uint32) (events []EffectEvent, looping, para
 				ev.Lenses = append(ev.Lenses, part)
 			case groupeGldf:
 				ev.Lights = append(ev.Lights, part)
+			case groupeEfge:
+				ev.Generators = append(ev.Generators, part)
 			}
 		}
 		events = append(events, ev)

@@ -27,6 +27,15 @@
 import * as THREE from 'three'
 
 import { type FetchJson, IndexField, libraryTexture } from './indexField3d'
+import { type LightVolume, LightVolumeMesh, parseLightVolume } from './lightVolume3d'
+
+/**
+ * The cone's axis: world up. The generator stacks its profiles along its emitter's local +X, and
+ * the effect names a location marker (54b94882) the pad's models do not carry, so the emitter's
+ * frame is not read; the game shows the cone pointing up from the pad (an inference from the game,
+ * Jordan's capture of 2026-11-21).
+ */
+const CONE_AXIS = new THREE.Vector3(0, 1, 0)
 
 /** One constant-or-curve property as the build writes it (himap `FonctionParticule`). */
 interface Curve {
@@ -59,6 +68,8 @@ export interface PadEvent {
   delay: [number, number]
   duration: [number, number]
   flares: PadFlare[]
+  /** The light volumes the event's generators draw (the upward cone). */
+  volumes: LightVolume[]
 }
 
 export interface PadGlowData {
@@ -118,9 +129,10 @@ export function parsePadGlow(doc: unknown): PadGlowData | null {
     const delay = pairOf(e.delay)
     const duration = pairOf(e.duration)
     if (!delay || !duration) return null
-    events.push({ delay, duration, flares: parseFlares(e.flares) })
+    const volumes = Array.isArray(e.volumes) ? e.volumes.map(parseLightVolume).filter((v): v is LightVolume => v !== null) : []
+    events.push({ delay, duration, flares: parseFlares(e.flares), volumes })
   }
-  if (!events.some((e) => e.flares.length > 0)) return null
+  if (!events.some((e) => e.flares.length > 0 || e.volumes.length > 0)) return null
   return { looping: g.looping === true, parallel: g.parallel === true, events }
 }
 
@@ -220,6 +232,7 @@ export class PadGlow3d {
   private readonly textures = new Map<string, THREE.Texture>()
   private readonly materials: THREE.SpriteMaterial[] = []
   private drawn: Drawn[] = []
+  private volumes: LightVolumeMesh[] = []
   private sources: THREE.Vector3[] = []
   private built = false
   private data: PadGlowData | null = null
@@ -251,6 +264,7 @@ export class PadGlow3d {
       this.build(data)
     }
     const active = this.data ? activeEvents(this.data, seconds) : []
+    for (const m of this.volumes) m.update(camera, { systemAge: seconds })
     camera.getWorldDirection(this.forward)
     const ndcPerUnit = camera.projectionMatrix.elements[5] // cot(fov / 2): view units at depth 1 per NDC unit
     const hidden = new Map<THREE.Vector3, boolean>()
@@ -277,6 +291,16 @@ export class PadGlow3d {
   private build(data: PadGlowData): void {
     this.built = true
     this.data = data
+    // The cone's generator is created by its event and kept through the loop (an inference: the
+    // game shows it steadily), so it is drawn whatever event plays.
+    for (const source of this.sources) {
+      for (const e of data.events) for (const v of e.volumes) {
+        const m = new LightVolumeMesh(v, source, CONE_AXIS)
+        m.mesh.renderOrder = FLARE_RENDER_ORDER - 1
+        this.root.add(m.mesh)
+        this.volumes.push(m)
+      }
+    }
     for (const source of this.sources) {
       for (const [event, { flares }] of data.events.entries()) for (const flare of flares) {
         for (const reflection of flare.reflections) {
@@ -307,6 +331,11 @@ export class PadGlow3d {
   }
 
   private clear(): void {
+    for (const m of this.volumes) {
+      this.root.remove(m.mesh)
+      m.dispose()
+    }
+    this.volumes = []
     for (const d of this.drawn) this.root.remove(d.sprite)
     for (const m of this.materials) m.dispose()
     this.materials.length = 0

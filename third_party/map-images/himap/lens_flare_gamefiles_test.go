@@ -74,6 +74,10 @@ func TestPadEffectEvents(t *testing.T) {
 	if e0.Delay != [2]float32{0.5, 0.5} || e0.Duration != [2]float32{0.5, 0.5} || e1.Delay != [2]float32{0, 0} || e1.Duration != [2]float32{1, 1} {
 		t.Errorf("timing %+v %+v", e0, e1)
 	}
+	// Event 1 names two generators (507d6b51, 4f0e2d9d) that are in no module of the install.
+	if len(e0.Generators) != 1 || e0.Generators[0].Type != 0x48e03d70 || len(e1.Generators) != 2 {
+		t.Errorf("generators %+v %+v", e0.Generators, e1.Generators)
+	}
 	if len(e0.Lenses) != 1 || e0.Lenses[0].Type != 0xc2f90227 || e0.Lenses[0].Radius != [2]float32{4, 4} || len(e0.Lights) != 1 || e0.Lights[0].Type != 0x92275534 {
 		t.Errorf("event 0 parts %+v", e0)
 	}
