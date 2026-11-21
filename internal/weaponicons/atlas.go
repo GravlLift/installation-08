@@ -2,7 +2,8 @@
 
 // atlas.go — the one exported extraction: one full-color image of one bitm atlas tag,
 // for the builds outside this package that decode a game bitmap the same way the icon
-// builds do (the rank badges).
+// builds do (the rank badges). The pixels are decoded through the shared bitmap decoder,
+// with the format the bitmap's own header declares.
 
 package weaponicons
 
@@ -10,20 +11,9 @@ import (
 	"fmt"
 	"image"
 
+	"github.com/JGtm/halo-infinite-map-images/bitmapdecode"
 	"github.com/JGtm/halo-infinite-map-images/himap"
 )
-
-// DecodeBC7 decodes w x h of BC7 blocks (mip 0, rows of 4x4 blocks of 16 bytes), full color.
-// It is for bitmaps whose pixels sit inside the tag itself, as the CUI HUD bitmaps' do,
-// rather than in the module's resource table that AtlasImage reads.
-func DecodeBC7(data []byte, w, h int) (*image.NRGBA, error) {
-	need := ((w + 3) / 4) * ((h + 3) / 4) * 16
-	if need > len(data) {
-		return nil, fmt.Errorf("BC7 %dx%d needs %d bytes, have %d", w, h, need, len(data))
-	}
-	img, _, _, _ := decodeBC7(data[:need], w, h, nil)
-	return img, nil
-}
 
 // AtlasImage decodes image idx of the bitm tag id from the game install at gameRoot
 // (empty auto-detects it the way the other builds always do), full color, as the game
@@ -37,15 +27,9 @@ func AtlasImage(gameRoot string, id uint32, idx int) (*image.NRGBA, error) {
 	if !ok {
 		return nil, fmt.Errorf("tag %08x not found in the install", id)
 	}
-	blob, px, im, err := resBlob(ix, id, idx)
-	if err != nil {
-		return nil, err
+	im, px, fm, ok := atlasImageInfo(ix, id, idx)
+	if !ok {
+		return nil, fmt.Errorf("atlas image %d of tag %08x not readable", idx, id)
 	}
-	bw, bh := (im.W+3)/4, (im.H+3)/4
-	need := bw * bh * 16
-	if px+need > len(blob) {
-		return nil, fmt.Errorf("mip0 overflows the resource (%d+%d > %d)", px, need, len(blob))
-	}
-	src, _, _, _ := decodeBC7(blob[px:px+need], im.W, im.H, mipGuide(blob, px, im.W, im.H))
-	return src, nil
+	return fm.Decode(px, im.W, im.H, bitmapdecode.Tight)
 }

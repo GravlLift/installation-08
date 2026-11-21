@@ -126,7 +126,7 @@ func buildHudFonts(ctx context.Context, ix *tagIndex, out string) (written, tota
 		if err := ctx.Err(); err != nil {
 			return 0, 0, err
 		}
-		blob, err := resourceBlobOf(ix, r)
+		blob, err := firstResourceBlob(ix, r)
 		if err == errNoResource {
 			continue
 		}

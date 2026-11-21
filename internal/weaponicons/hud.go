@@ -2,12 +2,15 @@
 
 // hud.go — the HUD equipment and grenade icon set.
 //
-// Build the game's grenade and equipment HUD glyphs from their pinned atlases.
+// Build the game's grenade and equipment HUD glyphs from their pinned atlases. Every
+// pixel path goes through the shared bitmap decoder, with the format the bitmap's own
+// header declares (never a format assumed by the caller).
 
 package weaponicons
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"image"
@@ -18,6 +21,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/JGtm/halo-infinite-files-reader/himodule"
+	"github.com/JGtm/halo-infinite-map-images/bitmapdecode"
 	"github.com/JGtm/halo-infinite-map-images/himap"
 )
 
@@ -48,41 +53,26 @@ var hudSources = map[string]hudSource{
 const hudIconSize = 96
 
 // damageArcTag is the `bitm` tag id of the HUD's directional damage indicator: the arc
-// that shows the bearing of an incoming threat. Its pixels sit inside the tag's own bytes
-// (mip 0 at HeaderSize + DataSize of the `ucsh` header), unlike the HUD icon atlases, whose
-// pixels live in the module's resource table. The CUI damage indicator screen `cusc`
+// that shows the bearing of an incoming threat. Its pixels sit inside the tag's own
+// bytes (after the header and the tag data, mip 0 first), unlike the HUD icon atlases,
+// whose pixels live in the entry's resources. The CUI damage indicator screen `cusc`
 // 0583f411 references this bitmap.
 const damageArcTag = 0x41d89be1
 
-// damageArcW and damageArcH are the damage-arc bitmap's dimensions.
-const (
-	damageArcW = 720
-	damageArcH = 390
-)
-
-// shieldChaseTag is the `bitm` tag id of the HUD's shield chase bitmap: the band the shield
-// screen (`cusc` 9299c419, component `shield_chase`) draws over the shield just lost, in the
-// bar's own shape. R = 255, G = 0, B = a left-to-right position ramp 0..255 across the bar
-// (the meter reveals by it), A = the band's shape. Its pixels are NOT inside the tag:
-// they are an uncompressed b8g8r8a8_unorm resource (4 bytes per pixel, byte order B, G,
-// R, A, straight alpha, one mip) in the module's resource table, and only the `pc`
-// variant carries it (the `ds` variant's entry declares no resource).
+// shieldChaseTag is the `bitm` tag id of the HUD's shield chase bitmap: the band the
+// shield screen (`cusc` 9299c419, component `shield_chase`) draws over the shield just
+// lost, in the bar's own shape. R = 255, G = 0, B = a left-to-right position ramp 0..255
+// across the bar (the meter reveals by it), A = the band's shape. Its pixels are NOT
+// inside the tag: they are an uncompressed resource (the format is the bitmap header's,
+// read from the tag) in the entry's resources, and only the `pc` variant carries it
+// (the `ds` variant's entry declares no resource).
 const shieldChaseTag = 0x1a61d06e
-
-// shieldChaseW and shieldChaseH are the shield-chase bitmap's dimensions.
-const (
-	shieldChaseW = 940
-	shieldChaseH = 64
-)
 
 // shieldQuadTag is the `bitm` tag id of the shield bar's main quad: the shape the shield
 // screen (`cusc` 9299c419) draws the meter with. Its pixels are NOT inside the tag: they
-// are in the module's resource table, and the `pc` variant's entry owns the resources
-// from its +0x10 index to (not including) the NEXT entry's +0x10 — on the real install,
-// resources 9958 (25600 bytes) and 9959 (76800 bytes). Resource 9959 is mip 0, BC7,
-// stored 960x80 (240x20 blocks x 16 = 76800 exactly); it decodes at 960x80 to the clean
-// bar. The declared width is 940 and columns 940..959 are empty, so the image is written
-// cropped to 940x80. The stored-width padding is from one sample; reason unknown.
+// are in the entry's resources, mip 0 in the FIRST resource. The declared width is 940
+// while it is stored 960 wide (columns 940..959 empty, one sample; reason unknown), so
+// the image is written cropped to 940x80.
 const shieldQuadTag = 0x1a9b2c75
 
 // shieldQuadStoreW is the stored (padded) width of the quad bitmap; shieldQuadW and
@@ -93,13 +83,12 @@ const (
 	shieldQuadH      = 80
 )
 
-// teamEmblemTag is the `bitm` tag id of the team emblem set: nine 64x64 BC7 emblems, one
-// per resource, white glyph on transparent alpha. Its `pc` entry owns the nine resources
-// (k = 0..8); each payload is the whole mip chain (mip 0 at 64x64 first, then 32x32,
+// teamEmblemTag is the `bitm` tag id of the team emblem set: nine 64x64 emblems, one per
+// resource, white glyph on transparent alpha. Its `pc` entry owns the nine resources
+// (k = 0..8), each the whole mip chain of its emblem (mip 0 at 64x64 first, then 32x32,
 // 16x16, ...). The score bar screen (`cusc` 21a7dab4) shows it with prop_sprite_frame
 // bound to `teamindex`, so resource k is the team index — inferred from the eagle/cobra
-// order, not proven. Decoding mip 0 without a guide leaves gray mode-7 blocks, so the
-// decode passes mipGuide as the witness (as AtlasImage does).
+// order, not proven.
 const (
 	teamEmblemTag   = 0x7df5eede
 	teamEmblemSize  = 64
@@ -108,21 +97,17 @@ const (
 
 // scoreMeterTag is the `bitm` tag id of the score bar's meter: the meter on the center
 // scoreboard screen (`cusc` fb8c6614, a fui_meter_two_tone_quad_widget, 404x60, its meter
-// value bound to the score). Its `pc` entry owns three resources; the one whose payload is
-// exactly 409600 bytes is mip 0, BC7, stored 1600x256 (400x64 blocks x 16 = 409600), and it
-// decodes cleanly at 1600x256 with decodeBC7 and no guide. The tag declares 800x64; why it
-// is stored at twice that is not known (one sample).
-//
-// Its pixels are a channel-packed mask, NOT colors: R is constant (104), B is the bar's
-// rounded-rectangle shape, G is a striped left-to-right ramp the meter value is compared
-// against, and A is 255. The pixels are kept exactly as decoded (no tint, no channel
-// changes): the web code reads B and G.
+// value bound to the score). The tag declares 800x64 while the pixels are stored at
+// twice that (one sample; reason unknown). Its pixels are a channel-packed mask, NOT
+// colors: R is constant (104), B is the bar's rounded-rectangle shape, G is a striped
+// left-to-right ramp the meter value is compared against, and A is 255. The pixels are
+// kept exactly as decoded (no tint, no channel changes): the web code reads B and G.
 const scoreMeterTag = 0x128bc424
 
-// scoreMeterW and scoreMeterH are the score meter bitmap's stored dimensions.
+// scoreMeterW and scoreMeterH are the score meter bitmap's declared dimensions.
 const (
-	scoreMeterW = 1600
-	scoreMeterH = 256
+	scoreMeterW = 800
+	scoreMeterH = 64
 )
 
 // The shield screen (`cusc` 9299c419) draws three more pieces from these bitmaps, all
@@ -130,17 +115,15 @@ const (
 //
 //   - shieldGlowTag: the red glow over the frame while the shield is empty, two 1080x256
 //     quads, the second mirrored, under a container tinted ARGB (1, 1, 0.224, 0.224). Its
-//     pixels are inline in the tag (mip 0, BC7, 512x256, no further mips). It is a
-//     channel-packed mask: R is 255, G is 0, A is the glow (the left half of the frame's
-//     outline, the bitmap's right edge at the screen's center), B a ramp from about 243 at
-//     the top to 3 at the bottom (the two-tone quad's gradient coordinate, inferred).
+//     pixels are inline in the tag. It is a channel-packed mask: R is 255, G is 0, A is
+//     the glow (the left half of the frame's outline, the bitmap's right edge at the
+//     screen's center), B a ramp from about 243 at the top to 3 at the bottom (the
+//     two-tone quad's gradient coordinate, inferred).
 //   - shieldBurstTag: the shield-break burst, a quad that scales out and fades in 766 ms
-//     when the shield empties. Its `pc` entry owns two resources: 131072 bytes, mip 0 (BC7
-//     512x256), and 40960 bytes, mips 1 and 2. Gray (R = G = B, at most 127) on A = 255: an
-//     arc of light, drawn additively (inferred from the black background).
-//   - healthBarTag: the health bar under the shield, 606x64 b8g8r8a8 stored 640 wide (its
-//     second resource, 163840 bytes = 640x64x4; the first holds the smaller mips). R is
-//     255, G is 0, A is the bar's shape (a thin strip with tick marks, rows about 24 to 40),
+//     when the shield empties. Gray (R = G = B, at most 127) on A = 255: an arc of light,
+//     drawn additively (inferred from the black background).
+//   - healthBarTag: the health bar under the shield, 606x64 stored 640 wide. R is 255,
+//     G is 0, A is the bar's shape (a thin strip with tick marks, rows about 24 to 40),
 //     B a left-to-right ramp (the meter coordinate, inferred).
 const (
 	shieldGlowTag  = 0xf47d743f
@@ -194,21 +177,110 @@ func HudSetReady(dataDir string) bool {
 	return true
 }
 
-// inlineBC7Image decodes mip 0 of a `ucsh` tag whose pixels sit inside the tag's own bytes
-// (mip 0 at HeaderSize + DataSize of the header), w x h, full color. It refuses a tag that
-// is not `ucsh` and one whose mip 0 does not fit.
-func inlineBC7Image(tag []byte, w, h int) (*image.NRGBA, error) {
-	hdr, ok := parseTagHeader(tag)
+// decodeBitmapTag decodes a `bitm` tag's first image, mip 0, through the shared bitmap
+// decoder, with the format the tag's own bitmap header declares. The pixels are the tag's
+// inline levels (after the header and the tag data, tight rows) when the entry carries them,
+// the largest mip level of the tag's resources otherwise (its rows 256-byte pitched, the
+// way a resource level is stored); the dimensions are the header's. It is the single-image
+// read the HUD bitmaps need (the damage arc, the shield pieces, the score meter, the health
+// bar): one image whose mip levels, when resource-backed, are the entry's resources.
+func decodeBitmapTag(m *himodule.Module, f himodule.File) (*image.NRGBA, error) {
+	data, err := m.Extract(f)
+	if err != nil {
+		return nil, err
+	}
+	body := data
+	if n := f.HeaderSize + f.TagDataSize; n > 0 && n <= len(data) {
+		body = data[:n]
+	}
+	e, err := readBitmHdr(body)
+	if err != nil {
+		return nil, err
+	}
+	fm, ok := bitmapdecode.Lookup(e.format)
 	if !ok {
-		return nil, fmt.Errorf("not a ucsh tag")
+		return nil, fmt.Errorf("unsupported bitmap format %d", e.format)
 	}
-	off := int(hdr.HeaderSize) + int(hdr.DataSize)
-	need := ((w + 3) / 4) * ((h + 3) / 4) * 16
-	if off < 0 || off+need > len(tag) {
-		return nil, fmt.Errorf("mip 0 of %dx%d needs %d bytes at offset %d, tag is %d", w, h, need, off, len(tag))
+	if f.ActualResourceSize > 0 {
+		// Inline: mip 0 follows the header and the tag data, tight rows.
+		return fm.Decode(f.Donnees(data), e.w, e.h, bitmapdecode.Tight)
 	}
-	img, _, _, _ := decodeBC7(tag[off:off+need], w, h, nil)
-	return img, nil
+	// Resource-backed: the mip levels are the entry's resources, smallest to largest; mip 0
+	// is the largest. Decode it with its own row layout (256-byte pitched when the level
+	// holds the padded size), the read himap's level reader makes.
+	res, err := m.Ressources(f)
+	if err != nil || len(res) == 0 {
+		return nil, fmt.Errorf("entry owns no resource")
+	}
+	var best himodule.File
+	for _, r := range res {
+		if best.UncompSize == 0 || r.UncompSize > best.UncompSize {
+			best = r
+		}
+	}
+	octets, err := m.Extract(best)
+	if err != nil {
+		return nil, err
+	}
+	px := best.Donnees(octets)
+	return fm.Decode(px, e.w, e.h, fm.ResourceLayout(len(px), e.w, e.h))
+}
+
+// decodeBitmapLayer decodes layer `layer` of the FIRST image of a `bitm` tag — a texture
+// array where the first record's `depth` is the number of layers (each a frame) and the
+// inline (or resource) pixels hold them one after another, each its mip 0 (tight rows).
+// The format is the record's own, through the shared decoder. This is the read the
+// navpoint badge's frames need (one frame per layer of its sprite).
+func decodeBitmapLayer(m *himodule.Module, f himodule.File, layer int) (*image.NRGBA, error) {
+	data, err := m.Extract(f)
+	if err != nil {
+		return nil, err
+	}
+	body := data
+	if n := f.HeaderSize + f.TagDataSize; n > 0 && n <= len(data) {
+		body = data[:n]
+	}
+	e, err := readBitmHdr(body)
+	if err != nil {
+		return nil, err
+	}
+	if e.count <= 0 {
+		return nil, fmt.Errorf("bitm: no image declared")
+	}
+	// The first record's `depth` (the u16 at +0x04) is the number of layers.
+	depth := int(binary.LittleEndian.Uint16(body[e.off+4:]))
+	if depth <= 0 {
+		depth = 1
+	}
+	if layer < 0 || layer >= depth {
+		return nil, fmt.Errorf("layer %d outside the %d layers", layer, depth)
+	}
+	fm, ok := bitmapdecode.Lookup(e.format)
+	if !ok {
+		return nil, fmt.Errorf("unsupported bitmap format %d", e.format)
+	}
+	var flat []byte
+	if f.ActualResourceSize > 0 {
+		flat = f.Donnees(data)
+	} else {
+		res, err := m.Ressources(f)
+		if err != nil {
+			return nil, err
+		}
+		for k := len(res) - 1; k >= 0; k-- {
+			octets, err := m.Extract(res[k])
+			if err != nil {
+				continue
+			}
+			flat = append(flat, res[k].Donnees(octets)...)
+		}
+	}
+	level := fm.LevelSize(e.w, e.h)
+	off := layer * level
+	if off+level > len(flat) {
+		return nil, fmt.Errorf("layer %d outside the %d pixel bytes", layer, len(flat))
+	}
+	return fm.Decode(flat[off:off+level], e.w, e.h, bitmapdecode.Tight)
 }
 
 // hudName is one named image of the HUD atlas.
@@ -344,11 +416,15 @@ func buildDamageArc(ctx context.Context, ix *tagIndex, out string) (written, byt
 	if !ok {
 		return 0, 0, fmt.Errorf("damage arc tag %08x not found in the install", damageArcTag)
 	}
-	tag, err := ix.extract(ref)
+	m, err := ix.open(ref.Module)
 	if err != nil {
 		return 0, 0, fmt.Errorf("damage arc tag %08x: %w", damageArcTag, err)
 	}
-	img, err := inlineBC7Image(tag, damageArcW, damageArcH)
+	f, ok := ix.byEntry[ref.Module][ref.Entry]
+	if !ok {
+		return 0, 0, fmt.Errorf("damage arc tag %08x: entry %d out of range", damageArcTag, ref.Entry)
+	}
+	img, err := decodeBitmapTag(m, f)
 	if err != nil {
 		return 0, 0, fmt.Errorf("damage arc tag %08x: %w", damageArcTag, err)
 	}
@@ -363,95 +439,79 @@ func buildDamageArc(ctx context.Context, ix *tagIndex, out string) (written, byt
 	return 1, int(fi.Size()), nil
 }
 
-// errNoResource names a ref whose entry declares no resource: the `ds` variant does this
-// for every pixel-carrying tag, so the reader skips it for the `pc` one.
-var errNoResource = fmt.Errorf("entry declares no resource")
+// errNoResource names a ref whose entry owns no resource: the `ds` variant does this
+// for every pixel-carrying tag, so the readers skip it for the `pc` one.
+var errNoResource = fmt.Errorf("entry owns no resource")
 
-// resourcePayloadOf returns the pixel payload of the entry's FIRST resource: the bytes
-// after the resource blob's `ucsh` header (HeaderSize + DataSize, the same rule as
-// resBlob). It is the narrow reader for the uncompressed resources the block-compressed
-// atlas pairing (alignImages) cannot pair — on the shield chase bitmap's tag, the entry's
-// field at +0x10 is the index into the module's resource table.
-func resourcePayloadOf(ix *tagIndex, r tagRef) ([]byte, error) {
-	blob, err := resourceBlobOf(ix, r)
-	if err != nil {
-		return nil, err
-	}
-	hdr, ok := parseTagHeader(blob)
-	if !ok {
-		return nil, fmt.Errorf("resource of entry %d without a ucsh header", r.Entry)
-	}
-	off := int(hdr.HeaderSize) + int(hdr.DataSize)
-	if off < 0 || off > len(blob) {
-		return nil, fmt.Errorf("resource of entry %d: payload at offset %d out of range (%d bytes)", r.Entry, off, len(blob))
-	}
-	return blob[off:], nil
-}
-
-// resourceBlobOf returns the whole blob (ucsh header included) of the entry's FIRST
-// resource, through the entry's resource index (+0x10) into the module's resource table.
-func resourceBlobOf(ix *tagIndex, r tagRef) ([]byte, error) {
+// firstResourceBlob returns the full extracted bytes (ucsh header included) of the
+// entry's FIRST resource, through the entry's resource index (+0x10) into the module's
+// resource table. The font reader parses the resource's own header, so it needs the whole
+// blob, not the payload past it.
+func firstResourceBlob(ix *tagIndex, r tagRef) ([]byte, error) {
 	m, err := ix.open(r.Module)
 	if err != nil {
 		return nil, err
 	}
-	resIdx := entryResourceIndex(m, r.Entry)
-	if resIdx == 0 {
+	f, ok := ix.byEntry[r.Module][r.Entry]
+	if !ok {
+		return nil, fmt.Errorf("entry %d out of range in %s", r.Entry, r.Module)
+	}
+	res, err := m.Ressources(f)
+	if err != nil || len(res) == 0 {
 		return nil, errNoResource
 	}
-	tab, err := resourceTable(m)
-	if err != nil {
-		return nil, err
-	}
-	if resIdx >= len(tab) {
-		return nil, fmt.Errorf("resource index %d out of table (%d)", resIdx, len(tab))
-	}
-	return m.extract(m.file(int(tab[resIdx])))
+	return m.Extract(res[0])
 }
 
-// resourceBlobAt returns the whole blob (ucsh header included) of the k-th resource
-// OWNED by the entry, through entryResourceRange: k = 0 is the entry's own +0x10 index.
-// It refuses a k outside the owned range.
-func resourceBlobAt(ix *tagIndex, r tagRef, k int) ([]byte, error) {
-	m, err := ix.open(r.Module)
-	if err != nil {
-		return nil, err
+// ownedResources returns the resource entries owned by the tag id's entry, in the
+// module's resource-table order: from the entry's own +0x10 index to (not including) the
+// next entry's (see himodule.Ressources). The `pc` variant carries the pixels, so its
+// refs are tried first; entries that own no resource (the `ds` variant) are skipped. It
+// returns the first resource-carrying variant's resources and errors when the tag is
+// absent or no variant carries one.
+func ownedResourcesWithRef(ctx context.Context, ix *tagIndex, id uint32) (tagRef, []himodule.File, error) {
+	// A copy: the sort below must not reorder the shared index's slice.
+	refs := append([]tagRef(nil), ix.byID[id]...)
+	if len(refs) == 0 {
+		return tagRef{}, nil, fmt.Errorf("tag 0x%08x not found in the install", id)
 	}
-	first, end := entryResourceRange(m, r.Entry)
-	if k < 0 || k >= end-first {
-		return nil, fmt.Errorf("resource %d outside the entry's owned range [%d, %d)", k, first, end)
+	sort.SliceStable(refs, func(i, j int) bool {
+		return strings.Contains(filepath.ToSlash(refs[i].Module), "/pc/") &&
+			!strings.Contains(filepath.ToSlash(refs[j].Module), "/pc/")
+	})
+	for _, r := range refs {
+		if err := ctx.Err(); err != nil {
+			return tagRef{}, nil, err
+		}
+		m, err := ix.open(r.Module)
+		if err != nil {
+			return tagRef{}, nil, fmt.Errorf("tag 0x%08x: %w", id, err)
+		}
+		f, ok := ix.byEntry[r.Module][r.Entry]
+		if !ok {
+			return tagRef{}, nil, fmt.Errorf("tag 0x%08x: entry %d out of range", id, r.Entry)
+		}
+		res, err := m.Ressources(f)
+		if err != nil {
+			return tagRef{}, nil, fmt.Errorf("tag 0x%08x: %w", id, err)
+		}
+		if len(res) == 0 {
+			continue // the entry owns no resource (the `ds` variant)
+		}
+		return r, res, nil
 	}
-	tab, err := resourceTable(m)
-	if err != nil {
-		return nil, err
-	}
-	ixRes := first + k
-	if ixRes >= len(tab) {
-		return nil, fmt.Errorf("resource index %d out of table (%d)", ixRes, len(tab))
-	}
-	return m.extract(m.file(int(tab[ixRes])))
+	return tagRef{}, nil, fmt.Errorf("tag 0x%08x: no variant carries its pixel resources", id)
 }
 
-// bgraToNRGBA converts a flat b8g8r8a8_unorm payload (byte order B, G, R, A, straight
-// alpha) to a straight-alpha NRGBA image of w x h. It refuses a payload that is not
-// exactly w*h*4 bytes.
-func bgraToNRGBA(payload []byte, w, h int) (*image.NRGBA, error) {
-	need := w * h * 4
-	if len(payload) != need {
-		return nil, fmt.Errorf("payload is %d bytes, want exactly %d for a %dx%d b8g8r8a8 image", len(payload), need, w, h)
-	}
-	img := image.NewNRGBA(image.Rect(0, 0, w, h))
-	for i := 0; i < w*h; i++ {
-		b, g, r, a := payload[4*i], payload[4*i+1], payload[4*i+2], payload[4*i+3]
-		img.Pix[4*i], img.Pix[4*i+1], img.Pix[4*i+2], img.Pix[4*i+3] = r, g, b, a
-	}
-	return img, nil
+func ownedResources(ctx context.Context, ix *tagIndex, id uint32) ([]himodule.File, error) {
+	_, res, err := ownedResourcesWithRef(ctx, ix, id)
+	return res, err
 }
 
 // buildShieldChase writes ShieldChase.png, the shield chase bitmap, from its tag
-// (shieldChaseTag) into out: the tag's first resource, an uncompressed b8g8r8a8 payload
-// in the `pc` variant. It returns the number of files written (0 or 1) and the file's
-// byte count.
+// (shieldChaseTag) into out: the tag's first resource, an uncompressed payload in the
+// `pc` variant, decoded with the format the bitmap header declares. It returns the
+// number of files written (0 or 1) and the file's byte count.
 func buildShieldChase(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
 	// A copy: the sort below must not reorder the shared index's slice.
 	refs := append([]tagRef(nil), ix.byID[shieldChaseTag]...)
@@ -459,7 +519,7 @@ func buildShieldChase(ctx context.Context, ix *tagIndex, out string) (written, b
 		return 0, 0, fmt.Errorf("shield chase tag %08x not found in the install", shieldChaseTag)
 	}
 	// The `pc` variant carries the pixels; try its refs first so the read is
-	// deterministic (the `ds` ones declare no resource and are skipped).
+	// deterministic (the `ds` ones own no resource and are skipped).
 	sort.SliceStable(refs, func(i, j int) bool {
 		return strings.Contains(filepath.ToSlash(refs[i].Module), "/pc/") &&
 			!strings.Contains(filepath.ToSlash(refs[j].Module), "/pc/")
@@ -468,14 +528,18 @@ func buildShieldChase(ctx context.Context, ix *tagIndex, out string) (written, b
 		if err := ctx.Err(); err != nil {
 			return 0, 0, err
 		}
-		payload, err := resourcePayloadOf(ix, r)
-		if err == errNoResource {
-			continue
-		}
+		m, err := ix.open(r.Module)
 		if err != nil {
 			return 0, 0, fmt.Errorf("shield chase tag %08x: %w", shieldChaseTag, err)
 		}
-		img, err := bgraToNRGBA(payload, shieldChaseW, shieldChaseH)
+		f, ok := ix.byEntry[r.Module][r.Entry]
+		if !ok {
+			return 0, 0, fmt.Errorf("shield chase tag %08x: entry %d out of range", shieldChaseTag, r.Entry)
+		}
+		img, err := decodeBitmapTag(m, f)
+		if err == errNoResource {
+			continue
+		}
 		if err != nil {
 			return 0, 0, fmt.Errorf("shield chase tag %08x: %w", shieldChaseTag, err)
 		}
@@ -492,34 +556,95 @@ func buildShieldChase(ctx context.Context, ix *tagIndex, out string) (written, b
 	return 0, 0, fmt.Errorf("shield chase tag %08x: no variant carries its pixel resource", shieldChaseTag)
 }
 
-// shieldQuadBytes is the byte count of the quad's stored mip 0: 240x20 BC7 blocks.
-const shieldQuadBytes = ((shieldQuadStoreW + 3) / 4) * ((shieldQuadH + 3) / 4) * 16
-
-// resourcePayloadBytes returns a resource blob's pixel payload: the blob itself when it
-// is a raw image, the bytes after the `ucsh` header when it carries one (the same rule
-// as resourcePayloadOf, which requires the header — the shield-quad resources are raw).
-// It returns nil when the header is present but its payload offset is out of range.
-func resourcePayloadBytes(blob []byte) []byte {
-	hdr, ok := parseTagHeader(blob)
+// ownedBitmapEntry returns the entry of the tag id that carries its pixels: the `pc`
+// variant's ref when it is found (it is the one that owns the resources), the first ref
+// otherwise. It errors when the tag is absent from the install.
+func ownedBitmapEntry(ix *tagIndex, id uint32) (tagRef, error) {
+	refs := ix.byID[id]
+	if len(refs) == 0 {
+		return tagRef{}, fmt.Errorf("tag 0x%08x not found in the install", id)
+	}
+	r, ok := pickRef(refs)
 	if !ok {
-		return blob
+		return tagRef{}, fmt.Errorf("tag 0x%08x not found in the install", id)
 	}
-	off := int(hdr.HeaderSize) + int(hdr.DataSize)
-	if off < 0 || off > len(blob) {
-		return nil
-	}
-	return blob[off:]
+	return r, nil
 }
 
-// pickPayloadOfLen selects, among the entry's owned resource payloads, the one that is
-// exactly n bytes long. It returns -1 when none fits.
-func pickPayloadOfLen(payloads [][]byte, n int) int {
-	for k, p := range payloads {
-		if len(p) == n {
-			return k
-		}
+// bitmapFormatOf returns the format the tag id's own bitmap header declares.
+func bitmapFormatOf(ix *tagIndex, id uint32) (bitmapdecode.Format, error) {
+	r, err := ownedBitmapEntry(ix, id)
+	if err != nil {
+		return bitmapdecode.Format{}, err
 	}
-	return -1
+	m, err := ix.open(r.Module)
+	if err != nil {
+		return bitmapdecode.Format{}, err
+	}
+	f, ok := ix.byEntry[r.Module][r.Entry]
+	if !ok {
+		return bitmapdecode.Format{}, fmt.Errorf("tag 0x%08x: entry %d out of range", id, r.Entry)
+	}
+	data, err := m.Extract(f)
+	if err != nil {
+		return bitmapdecode.Format{}, err
+	}
+	body := data
+	if n := f.HeaderSize + f.TagDataSize; n > 0 && n <= len(data) {
+		body = data[:n]
+	}
+	e, err := readBitmHdr(body)
+	if err != nil {
+		return bitmapdecode.Format{}, err
+	}
+	fm, ok := bitmapdecode.Lookup(e.format)
+	if !ok {
+		return bitmapdecode.Format{}, fmt.Errorf("tag 0x%08x: unsupported bitmap format %d", id, e.format)
+	}
+	return fm, nil
+}
+
+// decodeMip0 decodes a w x h mip 0 held at the start of px through the shared decoder,
+// tight rows. It refuses a payload shorter than the level.
+func decodeMip0(px []byte, fm bitmapdecode.Format, w, h int) (*image.NRGBA, error) {
+	need := fm.LevelSize(w, h)
+	if len(px) < need {
+		return nil, fmt.Errorf("payload is %d bytes, want at least %d for a %dx%d mip 0", len(px), need, w, h)
+	}
+	return fm.Decode(px, w, h, bitmapdecode.Tight)
+}
+
+// buildShieldQuad writes ShieldQuad.png, the shield bar's main quad, from its tag
+// (shieldQuadTag) into out: the pixels of its tag, cropped to the declared 940x80 (the
+// stored width carries empty columns). Returns the number of files written (0 or 1) and
+// the file's byte count.
+func buildShieldQuad(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
+	ref, err := ownedBitmapEntry(ix, shieldQuadTag)
+	if err != nil {
+		return 0, 0, err
+	}
+	m, err := ix.open(ref.Module)
+	if err != nil {
+		return 0, 0, fmt.Errorf("shield quad tag %08x: %w", shieldQuadTag, err)
+	}
+	f, ok := ix.byEntry[ref.Module][ref.Entry]
+	if !ok {
+		return 0, 0, fmt.Errorf("shield quad tag %08x: entry %d out of range", shieldQuadTag, ref.Entry)
+	}
+	img, err := decodeBitmapTag(m, f)
+	if err != nil {
+		return 0, 0, fmt.Errorf("shield quad tag %08x: %w", shieldQuadTag, err)
+	}
+	img = cropNRGBALeft(img, shieldQuadW, shieldQuadH)
+	path := filepath.Join(out, "ShieldQuad.png")
+	if err := writePNG(path, img); err != nil {
+		return 0, 0, fmt.Errorf("write ShieldQuad.png: %w", err)
+	}
+	fi, err := os.Stat(path)
+	if err != nil {
+		return 0, 0, err
+	}
+	return 1, int(fi.Size()), nil
 }
 
 // cropNRGBALeft crops a full-canvas NRGBA image to w x h, keeping the left edge (the
@@ -534,108 +659,61 @@ func cropNRGBALeft(src *image.NRGBA, w, h int) *image.NRGBA {
 	return dst
 }
 
-// ownedPayloads returns the pixel payloads of every resource the tag id's entry owns, in
-// the module's resource-table order. Ownership: an entry's u32 at +0x10 is its FIRST
-// resource index, and it owns resources up to (not including) the NEXT entry's +0x10 (see
-// entryResourceRange). Each payload is one owned resource after resourcePayloadBytes (a
-// raw image, or the bytes after its `ucsh` header). The `pc` variant carries the pixels,
-// so its refs are tried first; entries that declare no resource (first == 0, the `ds`
-// variant) are skipped. It returns the first resource-carrying variant's payloads and
-// errors when the tag is absent or no variant carries a resource.
-func ownedPayloads(ctx context.Context, ix *tagIndex, id uint32) ([][]byte, error) {
-	// A copy: the sort below must not reorder the shared index's slice.
-	refs := append([]tagRef(nil), ix.byID[id]...)
-	if len(refs) == 0 {
-		return nil, fmt.Errorf("tag 0x%08x not found in the install", id)
+// max1 is a value clamped to at least 1 (the mip chain halves down to 1).
+func max1(v int) int {
+	if v < 1 {
+		return 1
 	}
-	// The `pc` variant carries the resources; try its refs first so the read is
-	// deterministic (the `ds` ones declare no resource and are skipped).
-	sort.SliceStable(refs, func(i, j int) bool {
-		return strings.Contains(filepath.ToSlash(refs[i].Module), "/pc/") &&
-			!strings.Contains(filepath.ToSlash(refs[j].Module), "/pc/")
-	})
-	for _, r := range refs {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		m, err := ix.open(r.Module)
-		if err != nil {
-			return nil, fmt.Errorf("tag 0x%08x: %w", id, err)
-		}
-		first, end := entryResourceRange(m, r.Entry)
-		if first == 0 {
-			continue // the entry declares no resource (the `ds` variant)
-		}
-		payloads := make([][]byte, 0, end-first)
-		for k := 0; k < end-first; k++ {
-			blob, err := resourceBlobAt(ix, r, k)
-			if err != nil {
-				return nil, fmt.Errorf("tag 0x%08x: %w", id, err)
-			}
-			payloads = append(payloads, resourcePayloadBytes(blob))
-		}
-		return payloads, nil
-	}
-	return nil, fmt.Errorf("tag 0x%08x: no variant carries its pixel resources", id)
+	return v
 }
 
-// buildShieldQuad writes ShieldQuad.png, the shield bar's main quad, from its tag
-// (shieldQuadTag) into out: among the `pc` variant's owned resources (the entry's +0x10
-// index to the next entry's), the one whose payload is exactly the stored 960x80 BC7
-// size; it is decoded at 960x80 and cropped to 940x80. Returns the number of files
-// written (0 or 1) and the file's byte count.
-func buildShieldQuad(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
-	payloads, err := ownedPayloads(ctx, ix, shieldQuadTag)
+// resourceLevelPayload returns the pixel payload of the k-th resource owned by the tag
+// id's entry (the bytes past the resource's own `ucsh` header, when it carries one).
+func resourceLevelPayload(m *himodule.Module, res []himodule.File, k int) ([]byte, error) {
+	if k < 0 || k >= len(res) {
+		return nil, fmt.Errorf("resource %d outside the entry's %d", k, len(res))
+	}
+	blob, err := m.Extract(res[k])
 	if err != nil {
-		return 0, 0, err
+		return nil, err
 	}
-	k := pickPayloadOfLen(payloads, shieldQuadBytes)
-	if k < 0 {
-		return 0, 0, fmt.Errorf("shield quad tag %08x: no owned resource of the stored BC7 size", shieldQuadTag)
-	}
-	img, _, _, _ := decodeBC7(payloads[k], shieldQuadStoreW, shieldQuadH, nil)
-	img = cropNRGBALeft(img, shieldQuadW, shieldQuadH)
-	path := filepath.Join(out, "ShieldQuad.png")
-	if err := writePNG(path, img); err != nil {
-		return 0, 0, fmt.Errorf("write ShieldQuad.png: %w", err)
-	}
-	fi, err := os.Stat(path)
-	if err != nil {
-		return 0, 0, err
-	}
-	return 1, int(fi.Size()), nil
-}
-
-// decodeTeamEmblem decodes one team emblem payload's mip 0 (a 64x64 BC7 image) to a
-// straight-alpha NRGBA. It refuses a payload shorter than mip 0 and decodes with
-// mipGuide as the mode-7 witness, so the emblem's alpha is not lost to a flat fill.
-func decodeTeamEmblem(payload []byte) (*image.NRGBA, error) {
-	need := bcSize(teamEmblemSize, teamEmblemSize)
-	if len(payload) < need {
-		return nil, fmt.Errorf("team emblem payload is %d bytes, want at least %d for a %dx%d mip 0",
-			len(payload), need, teamEmblemSize, teamEmblemSize)
-	}
-	img, _, _, _ := decodeBC7(payload, teamEmblemSize, teamEmblemSize, mipGuide(payload, 0, teamEmblemSize, teamEmblemSize))
-	return img, nil
+	return res[k].Donnees(blob), nil
 }
 
 // buildTeamEmblems writes TeamEmblem0.png .. TeamEmblem8.png, the nine team emblems, from
 // their tag (teamEmblemTag) into out: the tag's nine owned resources, each decoded at
-// 64x64 and written unscaled. It refuses a tag that owns fewer than nine resources.
-// Returns the number of files written (0 or 9) and total bytes.
+// 64x64 with the format the bitmap header declares, written unscaled. It refuses a tag
+// that owns fewer than nine resources. Returns the number of files written (0 or 9) and
+// total bytes.
 func buildTeamEmblems(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
 	if err := ctx.Err(); err != nil {
 		return 0, 0, err
 	}
-	payloads, err := ownedPayloads(ctx, ix, teamEmblemTag)
+	ref, err := ownedBitmapEntry(ix, teamEmblemTag)
 	if err != nil {
 		return 0, 0, err
 	}
-	if len(payloads) < teamEmblemCount {
-		return 0, 0, fmt.Errorf("team emblem tag %08x owns %d resources, want %d", teamEmblemTag, len(payloads), teamEmblemCount)
+	res, err := ownedResources(ctx, ix, teamEmblemTag)
+	if err != nil {
+		return 0, 0, err
+	}
+	if len(res) < teamEmblemCount {
+		return 0, 0, fmt.Errorf("team emblem tag %08x owns %d resources, want %d", teamEmblemTag, len(res), teamEmblemCount)
+	}
+	fm, err := bitmapFormatOf(ix, teamEmblemTag)
+	if err != nil {
+		return 0, 0, err
+	}
+	m, err := ix.open(ref.Module)
+	if err != nil {
+		return 0, 0, err
 	}
 	for k := 0; k < teamEmblemCount; k++ {
-		img, err := decodeTeamEmblem(payloads[k])
+		px, err := resourceLevelPayload(m, res, k)
+		if err != nil {
+			return 0, 0, fmt.Errorf("team emblem %d: %w", k, err)
+		}
+		img, err := decodeMip0(px, fm, teamEmblemSize, teamEmblemSize)
 		if err != nil {
 			return 0, 0, fmt.Errorf("team emblem %d: %w", k, err)
 		}
@@ -654,24 +732,26 @@ func buildTeamEmblems(ctx context.Context, ix *tagIndex, out string) (written, b
 	return written, bytes, nil
 }
 
-// scoreMeterBytes is the byte count of the meter's stored mip 0: 400x64 BC7 blocks.
-const scoreMeterBytes = ((scoreMeterW + 3) / 4) * ((scoreMeterH + 3) / 4) * 16
-
 // buildScoreMeter writes ScoreMeter.png, the score bar's meter bitmap, from its tag
-// (scoreMeterTag) into out: among the `pc` variant's owned resources (the entry's +0x10
-// index to the next entry's), the one whose payload is exactly the stored 1600x256 BC7
-// size (scoreMeterBytes); it is decoded at 1600x256 and written as-is. Returns the number
-// of files written (0 or 1) and the file's byte count.
+// (scoreMeterTag) into out, decoded at the dimensions its bitmap header declares.
+// Returns the number of files written (0 or 1) and the file's byte count.
 func buildScoreMeter(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
-	payloads, err := ownedPayloads(ctx, ix, scoreMeterTag)
+	ref, err := ownedBitmapEntry(ix, scoreMeterTag)
 	if err != nil {
 		return 0, 0, err
 	}
-	k := pickPayloadOfLen(payloads, scoreMeterBytes)
-	if k < 0 {
-		return 0, 0, fmt.Errorf("score meter tag %08x: no owned resource of the stored BC7 size", scoreMeterTag)
+	m, err := ix.open(ref.Module)
+	if err != nil {
+		return 0, 0, err
 	}
-	img, _, _, _ := decodeBC7(payloads[k], scoreMeterW, scoreMeterH, nil)
+	f, ok := ix.byEntry[ref.Module][ref.Entry]
+	if !ok {
+		return 0, 0, fmt.Errorf("score meter tag %08x: entry %d out of range", scoreMeterTag, ref.Entry)
+	}
+	img, err := decodeBitmapTag(m, f)
+	if err != nil {
+		return 0, 0, fmt.Errorf("score meter tag %08x: %w", scoreMeterTag, err)
+	}
 	path := filepath.Join(out, "ScoreMeter.png")
 	if err := writePNG(path, img); err != nil {
 		return 0, 0, fmt.Errorf("write ScoreMeter.png: %w", err)
@@ -697,70 +777,68 @@ func writeHudFile(out, name string, img image.Image) (written, bytes int, err er
 }
 
 // buildShieldGlow writes ShieldGlow.png, the empty-shield glow (shieldGlowTag), from the
-// pixels inline in its tag: mip 0, BC7 512x256, kept as decoded (the web code reads A).
+// pixels of its tag, kept as decoded (the web code reads A).
 func buildShieldGlow(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
 	if err := ctx.Err(); err != nil {
 		return 0, 0, err
 	}
-	ref, ok := pickRef(ix.byID[shieldGlowTag])
-	if !ok {
-		return 0, 0, fmt.Errorf("shield glow tag %08x not found in the install", shieldGlowTag)
+	ref, err := ownedBitmapEntry(ix, shieldGlowTag)
+	if err != nil {
+		return 0, 0, err
 	}
-	tag, err := ix.extract(ref)
+	m, err := ix.open(ref.Module)
 	if err != nil {
 		return 0, 0, fmt.Errorf("shield glow tag %08x: %w", shieldGlowTag, err)
 	}
-	img, err := inlineBC7Image(tag, shieldGlowW, shieldGlowH)
+	f, ok := ix.byEntry[ref.Module][ref.Entry]
+	if !ok {
+		return 0, 0, fmt.Errorf("shield glow tag %08x: entry %d out of range", shieldGlowTag, ref.Entry)
+	}
+	img, err := decodeBitmapTag(m, f)
 	if err != nil {
 		return 0, 0, fmt.Errorf("shield glow tag %08x: %w", shieldGlowTag, err)
 	}
 	return writeHudFile(out, "ShieldGlow.png", img)
 }
 
-// burstChain returns the burst's mip chain, mip 0 followed by the smaller mips, from its
-// owned payloads (mip 0 is the payload of exactly the 512x256 BC7 size; the smaller mips
-// are the other payload), or nil when mip 0 is not there. The chain feeds mipGuide.
-func burstChain(payloads [][]byte) []byte {
-	k := pickPayloadOfLen(payloads, bcSize(shieldBurstW, shieldBurstH))
-	if k < 0 {
-		return nil
-	}
-	chain := append([]byte(nil), payloads[k]...)
-	for i, p := range payloads {
-		if i != k {
-			chain = append(chain, p...)
-		}
-	}
-	return chain
-}
-
-// buildShieldBurst writes ShieldBurst.png, the shield-break burst (shieldBurstTag): mip 0,
-// BC7 512x256, decoded with mip 1 as the mode-7 witness.
+// buildShieldBurst writes ShieldBurst.png, the shield-break burst (shieldBurstTag), from
+// the pixels of its tag.
 func buildShieldBurst(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
-	payloads, err := ownedPayloads(ctx, ix, shieldBurstTag)
+	ref, err := ownedBitmapEntry(ix, shieldBurstTag)
 	if err != nil {
 		return 0, 0, err
 	}
-	chain := burstChain(payloads)
-	if chain == nil {
-		return 0, 0, fmt.Errorf("shield burst tag %08x: no owned resource of the mip 0 BC7 size", shieldBurstTag)
+	m, err := ix.open(ref.Module)
+	if err != nil {
+		return 0, 0, fmt.Errorf("shield burst tag %08x: %w", shieldBurstTag, err)
 	}
-	img, _, _, _ := decodeBC7(chain, shieldBurstW, shieldBurstH, mipGuide(chain, 0, shieldBurstW, shieldBurstH))
+	f, ok := ix.byEntry[ref.Module][ref.Entry]
+	if !ok {
+		return 0, 0, fmt.Errorf("shield burst tag %08x: entry %d out of range", shieldBurstTag, ref.Entry)
+	}
+	img, err := decodeBitmapTag(m, f)
+	if err != nil {
+		return 0, 0, fmt.Errorf("shield burst tag %08x: %w", shieldBurstTag, err)
+	}
 	return writeHudFile(out, "ShieldBurst.png", img)
 }
 
-// buildHealthBar writes HealthBar.png, the health bar (healthBarTag): the owned payload of
-// exactly 640x64x4 bytes, b8g8r8a8, cropped to the declared 606x64.
+// buildHealthBar writes HealthBar.png, the health bar (healthBarTag): the pixels of its
+// tag, cropped to the declared 606x64 (the stored width carries empty columns).
 func buildHealthBar(ctx context.Context, ix *tagIndex, out string) (written, bytes int, err error) {
-	payloads, err := ownedPayloads(ctx, ix, healthBarTag)
+	ref, err := ownedBitmapEntry(ix, healthBarTag)
 	if err != nil {
 		return 0, 0, err
 	}
-	k := pickPayloadOfLen(payloads, healthBarStoreW*healthBarH*4)
-	if k < 0 {
-		return 0, 0, fmt.Errorf("health bar tag %08x: no owned resource of the stored b8g8r8a8 size", healthBarTag)
+	m, err := ix.open(ref.Module)
+	if err != nil {
+		return 0, 0, fmt.Errorf("health bar tag %08x: %w", healthBarTag, err)
 	}
-	img, err := bgraToNRGBA(payloads[k], healthBarStoreW, healthBarH)
+	f, ok := ix.byEntry[ref.Module][ref.Entry]
+	if !ok {
+		return 0, 0, fmt.Errorf("health bar tag %08x: entry %d out of range", healthBarTag, ref.Entry)
+	}
+	img, err := decodeBitmapTag(m, f)
 	if err != nil {
 		return 0, 0, fmt.Errorf("health bar tag %08x: %w", healthBarTag, err)
 	}
@@ -775,12 +853,12 @@ func writeHudAtlas(ctx context.Context, ix *tagIndex, entries []hudName, out str
 		if err := ctx.Err(); err != nil {
 			return 0, 0, nil, err
 		}
-		cropped, _, im, err := decodeAlphaGlyph(ix, e.Atlas, e.Index)
+		cropped, im, err := decodeAlphaGlyph(ix, e.Atlas, e.Index)
 		if err != nil {
 			return 0, 0, nil, fmt.Errorf("hud icon %s (index %d): %w", e.File, e.Index, err)
 		}
-		if !imageVerified(ix, e.Atlas, e.Index) || cropped.Bounds().Dx() < 2 || cropped.Bounds().Dy() < 2 {
-			return 0, 0, nil, fmt.Errorf("hud icon %s: unverified or empty source", e.File)
+		if cropped.Bounds().Dx() < 2 || cropped.Bounds().Dy() < 2 {
+			return 0, 0, nil, fmt.Errorf("hud icon %s: empty source", e.File)
 		}
 		scaled := scaleToFit(cropped, hudIconSize)
 		if err := writePNG(filepath.Join(out, e.File), scaled); err != nil {
@@ -821,6 +899,26 @@ func scaleToFit(src *image.NRGBA, size int) *image.NRGBA {
 		}
 	}
 	return dst
+}
+
+// fitDown halves src until its longest edge is at most size (the cote semantics: a frame
+// smaller than the cote passes through at its own size, never upscaled). Nearest-neighbor.
+func fitDown(src *image.NRGBA, size int) *image.NRGBA {
+	img := src
+	for max(img.Bounds().Dx(), img.Bounds().Dy()) > size && img.Bounds().Dx() > 1 && img.Bounds().Dy() > 1 {
+		b := img.Bounds()
+		dst := image.NewNRGBA(image.Rect(0, 0, b.Dx()/2, b.Dy()/2))
+		for y := 0; y < b.Dy()/2; y++ {
+			sy := 2*y + b.Min.Y
+			so := src.PixOffset(b.Min.X, sy)
+			do := dst.PixOffset(0, y)
+			for x := 0; x < b.Dx()/2; x++ {
+				copy(dst.Pix[do+x*4:do+x*4+4], src.Pix[so+(2*x)*4:so+(2*x)*4+4])
+			}
+		}
+		img = dst
+	}
+	return img
 }
 
 // hudIndexEntry is one index.json line of the HUD set.
