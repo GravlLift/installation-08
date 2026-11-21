@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/llampwall/infinite-theater-3d/internal/announcer"
 	"github.com/llampwall/infinite-theater-3d/internal/refdata"
 	"github.com/llampwall/infinite-theater-3d/internal/wwise"
 )
@@ -69,18 +70,21 @@ func (b *builder) shots() error {
 				found[c] = true
 			}
 		}
+		var snd uint32
 		switch len(found) {
 		case 0:
 			b.res.Silent[ShotNone] = append(b.res.Silent[ShotNone], key)
 			continue
 		case 1:
+			for s := range found {
+				snd = s
+			}
 		default:
-			b.res.Silent[ShotAmbiguous] = append(b.res.Silent[ShotAmbiguous], key)
-			continue
-		}
-		var snd uint32
-		for s := range found {
-			snd = s
+			snd = b.primaryShot(ids, found)
+			if snd == 0 {
+				b.res.Silent[ShotAmbiguous] = append(b.res.Silent[ShotAmbiguous], key)
+				continue
+			}
 		}
 		f, err := b.soundTakes(snd)
 		if err != nil && b.loops[snd] {
@@ -121,6 +125,11 @@ func (b *builder) shots() error {
 // tag of the weapon holds a shot. The Needler's and the Sentinel Beam's loops pass the same layer
 // test but start held sounds (83 ms grains, 3 s beam loops) that would be wrong played once a
 // shot, and the game's loop flag is not decoded to tell them apart, so they are not listed.
+//
+// The automatic rifles (MA40, MA5K, Commando) fire through looping sounds too, but their loops
+// switch between first-round, sustained and tail containers on game states not decoded here (the
+// MA40's shooter pool mixes 83 ms grains with 3 s tails, the Commando's two layer sets share
+// takes), so they are not listed either.
 var loopShots = map[string]bool{"hinf_shock_rifle": true}
 
 // shotCandidates lists the sound tags a weapon tag depends on whose event reads as a shot. A
@@ -159,6 +168,83 @@ func (b *builder) shotCandidates(weapon uint32, key string) ([]uint32, error) {
 		}
 	}
 	return nil, nil
+}
+
+// The weapon tag's fire sounds table, measured on the Sidekick, Plasma Pistol, Ravager, Mutilator
+// and Bandit (2026-11-20): a block at root +0x1100 of one 96-B element per fire mode, the first
+// the weapon's normal fire (the Plasma Pistol's, Ravager's and Mutilator's second is the charged
+// or alternate shot). An element's +0xc is a block of 28-B entries, each a shot sound reference at
+// +0; the Sidekick's and the Plasma Pistol's first mode list three, the Bandit's one.
+const (
+	fireTableOff  = 0x1100
+	fireModeShots = 0xc
+)
+
+// primaryShot resolves a weapon key with several shot candidates to the first shot its tags'
+// first fire mode lists, among the candidates; 0 when none does. INFERRED: the game draws among a
+// mode's listed shots (the entries carry no weight or condition); one of them plays here, at its
+// exact layer levels, rather than a mix of the three.
+func (b *builder) primaryShot(ids []uint32, found map[uint32]bool) uint32 {
+	for _, id := range ids {
+		tag, err := b.tag(id)
+		if err != nil {
+			continue
+		}
+		for _, snd := range firstModeShots(tag) {
+			if found[snd] {
+				return snd
+			}
+		}
+	}
+	return 0
+}
+
+// firstModeShots lists, in order, the shot sounds of the first element of a weapon tag's fire
+// sounds table.
+func firstModeShots(t *announcer.Tag) []uint32 {
+	root := -1
+	for _, s := range t.Structs {
+		if s.FieldBlock == -1 && s.Target >= 0 {
+			root = s.Target
+			break
+		}
+	}
+	table := childBlock(t, root, fireTableOff)
+	list := childBlock(t, table, fireModeShots)
+	if list < 0 {
+		return nil
+	}
+	byOff := map[int]uint32{}
+	var offs []int
+	for _, r := range t.Refs {
+		if r.FieldBlock != list || r.Dep < 0 || r.Dep >= len(t.Deps) {
+			continue
+		}
+		if g := t.Deps[r.Dep].Group; g != "snd!" && g != "lsnd" {
+			continue
+		}
+		byOff[r.FieldOffset] = t.Deps[r.Dep].GlobalID
+		offs = append(offs, r.FieldOffset)
+	}
+	sort.Ints(offs)
+	out := make([]uint32, 0, len(offs))
+	for _, o := range offs {
+		out = append(out, byOff[o])
+	}
+	return out
+}
+
+// childBlock returns the block the field at (owner, field) points to, or -1.
+func childBlock(t *announcer.Tag, owner, field int) int {
+	if owner < 0 {
+		return -1
+	}
+	for _, s := range t.Structs {
+		if s.FieldBlock == owner && s.FieldOffset == field && s.Target >= 0 {
+			return s.Target
+		}
+	}
+	return -1
 }
 
 // isShot reports whether a sound tag's third-person event plays a layer container whose layers

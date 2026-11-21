@@ -3,6 +3,7 @@
 ## Unreleased
 
 - The Shock Rifle fires with the game's own shot instead of the old single file. Other players' shots play its near, mid and far layers, each fading with distance. Your own shots play the version the shooter hears. The first start after updating extracts the sounds once more.
+- The Sidekick, Plasma Pistol and Ravager fire with the game's own shot too, near, mid and far layers for other players and the shooter's version for yours. Each uses its normal fire mode's shot: the Plasma Pistol's and Ravager's charged shots still play the normal one. The automatic rifles (MA40, MA5K, Commando), the Needler, the Sentinel Beam and the melee weapons keep their current sounds.
 
 ## 0.1.2-test.2
 

@@ -23,7 +23,8 @@ const ManifestName = "footsteps.json"
 
 // ManifestVersion is the manifest's format version; a manifest of an older version is stale and
 // the extraction runs again. 6: the Shock Rifle's shot, read from its looping sound (shots.go).
-const ManifestVersion = 6
+// 7: the Sidekick's, Plasma Pistol's, Ravager's and Mutilator's, from their first fire mode.
+const ManifestVersion = 7
 
 // takeFile is the name of every take file a manifest lists: foot_<media id, 8 hex digits>.ogg.
 // A rebuild removes the ones its manifest no longer lists, and no other file.

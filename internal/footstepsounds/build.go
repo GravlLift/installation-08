@@ -24,6 +24,8 @@ const (
 	SkippedNotRandom  = "event_not_container" // the event targets no media container
 	SkippedNotVorbis  = "media_not_vorbis"    // a media is not Wwise Vorbis
 	SkippedTagMissing = "tag_missing"         // the tag is not in the module index
+	// SkippedMediaMissing: a fire loop's media in no bank and no package of this install.
+	SkippedMediaMissing = "media_missing"
 )
 
 // mediaContainers are the HIRC target types that carry takes: a sound, a random sequence, and
@@ -217,6 +219,12 @@ func (b *builder) eventTakes(id uint32, firstPerson bool) (Footstep, error) {
 	at := map[uint32]int{}
 	for _, media := range b.media.EventMedia(bk, event) {
 		t, ok, err := b.extract(bk, media)
+		if err != nil && b.loops[id] {
+			// A fire loop's grain this install lacks (the Commando's 950584736): the layer keeps
+			// its other takes.
+			b.res.Silent[SkippedMediaMissing] = append(b.res.Silent[SkippedMediaMissing], fmt.Sprintf("%d", media))
+			continue
+		}
 		if err != nil {
 			return Footstep{}, err
 		}
