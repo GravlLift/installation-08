@@ -591,15 +591,6 @@ func (r *Runner) snapshotLocked(module string) Snapshot {
 	if pos, ok := r.queuePosition(module); ok {
 		return Snapshot{State: StateQueued, ModuleKey: module, QueuePosition: pos}
 	}
-	// A terminal outcome this process recorded for this module (a failed or a cancelled
-	// build) wins over the file on disk: the old file is still there, so the outdated and
-	// ready checks would otherwise re-derive a state the job itself has already settled.
-	if r.cancelled[module] {
-		return Snapshot{State: StateCancelled, ModuleKey: module}
-	}
-	if errText, ok := r.failed[module]; ok {
-		return Snapshot{State: StateFailed, ModuleKey: module, Error: errText}
-	}
 	if r.outdated != nil && r.outdated(module) {
 		return Snapshot{State: StateOutdated, ModuleKey: module}
 	}
@@ -615,6 +606,12 @@ func (r *Runner) snapshotLocked(module string) Snapshot {
 			s.Progress = p.frac
 		}
 		return s
+	}
+	if r.cancelled[module] {
+		return Snapshot{State: StateCancelled, ModuleKey: module}
+	}
+	if errText, ok := r.failed[module]; ok {
+		return Snapshot{State: StateFailed, ModuleKey: module, Error: errText}
 	}
 	return Snapshot{State: StateAbsent, ModuleKey: module}
 }

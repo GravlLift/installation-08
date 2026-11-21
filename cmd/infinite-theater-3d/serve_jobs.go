@@ -387,10 +387,10 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 		module, _ = meshjobs.SplitQuality(module)
 		if id, ok := recodeJobID(module); ok {
 			// A match's document re-decode: the stored film is decoded again by the current
-			// decoder (in this process, on the job's own context, see buildMatchRecode). The
-			// document it writes is the job's own output; a failure leaves the stored document
-			// in place.
-			result, err := buildMatchRecode(ctx, root, id)
+			// decoder, in a child process (recodeInProcess -> recodeInChild), so the decoder's
+			// memory guard stops the child, not the server. The child's progress lines reach
+			// the runner's reporter; a failure leaves the stored document in place.
+			result, err := recodeInProcess(ctx, root, id)
 			if err != nil {
 				noteRecodeFailed(id, err)
 				slog.Warn("match re-code failed, serving the stored document", "id", id, "err", err)

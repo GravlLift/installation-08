@@ -439,22 +439,26 @@ func (h serverHandlers) waitForRecode(ctx context.Context, id string) {
 		return
 	}
 	for {
+		// The build closure records a failed re-code before it returns the error (noteRecode
+		// Failed), so the moment it is set the job is done: the stored document is served
+		// as-is. Checked on every iteration because the runner reports a re-code job whose
+		// old document is still on disk as "outdated" (the runner's disk-derived state), not
+		// the failure it just recorded — the in-process flag is the re-code's own truth.
+		if recodeFailedInProcess(id) {
+			slog.Warn("match re-code failed, serving the stored document", "match_id", id)
+			return
+		}
 		snap := h.jobs.Snapshot(key)
 		switch snap.State {
 		case meshjobs.StateReady:
 			return // the new document is written and on disk: serve it.
-		case meshjobs.StateFailed:
-			// The job failed: the stored document is served as-is (it was never touched;
-			// the re-code writes to a temp file and renames only on success).
-			noteRecodeFailed(id, errors.New(snap.Error))
-			slog.Warn("match re-code failed, serving the stored document", "match_id", id, "err", snap.Error)
-			return
 		case meshjobs.StateCancelled:
 			// The build was cancelled (a server shutdown in flight): the stored document is
 			// served as-is; the next opener re-queues the job.
 			return
 		}
-		// Queued, building, or (StateAbsent) not started yet: wait, bounded by the request.
+		// Queued, building, outdated (a failed re-code's old document is still on disk), or
+		// (StateAbsent) not started yet: wait, bounded by the request.
 		select {
 		case <-ctx.Done():
 			return // the client left; the job keeps running for the next opener.

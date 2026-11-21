@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
-	"github.com/llampwall/infinite-theater-3d/internal/build"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 )
@@ -148,11 +147,17 @@ func recodeDestFor(root *store.Root) func(string) string {
 	}
 }
 
-// TestRecodeJobFailedLeavesDocument — a re-code job whose build fails leaves the stored
-// document in place (it is never left half-written), and the match records the failure in
-// this process (so the next open serves the stored document without re-queuing).
+// TestRecodeJobFailedLeavesDocument — a re-code whose decode fails leaves the stored
+// document byte-identical (it is never left half-written) and ends the open's wait: the
+// build closure records the failure in this process (noteRecodeFailed), and the runner
+// reports the job as "outdated" (its old document is still on disk), so the wait ends on
+// the in-process flag, not the runner's state.
 func TestRecodeJobFailedLeavesDocument(t *testing.T) {
 	root := fakeRecodeStore(t)
+	before, err := os.ReadFile(func() string { p, _ := root.MatchReplayPath("abc"); return p }())
+	if err != nil {
+		t.Fatal(err)
+	}
 	// A build that fails on purpose: the stored document must survive it. The fake stands in
 	// for the server's build closure, so it records the failure the way serve_jobs.go does
 	// (noteRecodeFailed), which is the behavior the test asserts.
@@ -175,26 +180,35 @@ func TestRecodeJobFailedLeavesDocument(t *testing.T) {
 	if _, ok := h.recodeMatch("abc"); !ok {
 		t.Fatal("enqueued")
 	}
-	// Wait for the job to fail.
-	deadline := time.Now().Add(5 * time.Second)
-	var snap meshjobs.Snapshot
-	for time.Now().Before(deadline) {
-		snap = jobs.Snapshot(recodeJobKey("abc"))
-		if snap.State == meshjobs.StateFailed {
-			break
-		}
-		time.Sleep(20 * time.Millisecond)
+	// The open waits on the job; it must end (not wait forever) once the re-code has failed,
+	// even though the runner reports the job as "outdated" (the old document is still on
+	// disk). This is what the test proves: a failed re-code ends the wait.
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		h.waitForRecode(ctx, "abc")
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("the open waited on a failed re-code")
 	}
-	if snap.State != meshjobs.StateFailed {
-		t.Fatalf("state = %s, want failed", snap.State)
-	}
-	// The stored document is still the old one, untouched.
-	sv, ok := storedReplaySchemaVersion(root, "abc")
-	if !ok || sv != replay.SchemaVersion-1 {
-		t.Fatalf("document after a failed re-code: sv = %d ok = %v, want %d true", sv, ok, replay.SchemaVersion-1)
-	}
+	// The failed re-code is recorded in this process.
 	if !recodeFailedInProcess("abc") {
 		t.Fatal("the failed re-code is recorded in this process")
+	}
+	// The stored document is still the old one, byte-identical.
+	after, err := os.ReadFile(func() string { p, _ := root.MatchReplayPath("abc"); return p }())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatal("a failed re-code touched the stored document")
+	}
+	if sv, ok := storedReplaySchemaVersion(root, "abc"); !ok || sv != replay.SchemaVersion-1 {
+		t.Fatalf("document after a failed re-code: sv = %d ok = %v, want %d true", sv, ok, replay.SchemaVersion-1)
 	}
 }
 
@@ -248,7 +262,6 @@ func TestRecodeWaitServesStoredOnCancel(t *testing.T) {
 // and a match whose film is missing is named as skipped, not failed.
 func TestRecodeAllSkipsCurrentAndNamesMissing(t *testing.T) {
 	root := fakeRecodeStore(t)
-	// "abc" has no film at all (no chunks folder): it is skipped, not failed.
 	// A second match with a current document: it is left alone, not even named.
 	if err := root.SaveMatchMeta("def", store.Match{
 		MatchID: "def", MapName: "M2", MapModule: "modb", ImportedAt: "2026-01-01T00:00:00Z",
@@ -260,8 +273,8 @@ func TestRecodeAllSkipsCurrentAndNamesMissing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// "abc" has no chunks folder at all: recode-all skips it (the film is missing).
-	// Remove the chunks folder fakeRecodeStore made, so the skip is the honest case.
+	// "abc" has no chunks folder at all: recode-all skips it (the film is missing). Remove
+	// the chunks folder fakeRecodeStore made, so the skip is the honest case.
 	chunks, _ := root.MatchChunksDir("abc")
 	if err := os.Remove(chunks); err != nil && !os.IsNotExist(err) {
 		t.Fatal(err)
@@ -305,12 +318,12 @@ func captureRunRecodeAll(t *testing.T, dataDir string) string {
 	return out.String()
 }
 
-// TestRecodeJobWritesNewDocument — a re-code job whose build succeeds writes the new
-// document at the current schema (a fake build that stands in for the decoder).
+// TestRecodeJobWritesNewDocument — a re-code job whose decode succeeds writes the new
+// document at the current schema (a fake build that stands in for the decoder child).
 func TestRecodeJobWritesNewDocument(t *testing.T) {
 	root := fakeRecodeStore(t)
-	// A fake decoder: it writes the document the way buildStored would (a temp file and a
-	// rename, via the store), at the current schema.
+	// A fake decoder: it writes the document the way the child's buildStored would (a temp
+	// file and a rename, via the store), at the current schema.
 	fake := func(ctx context.Context, module, game, out string) (meshjobs.BuildResult, error) {
 		if _, ok := recodeJobID(module); !ok {
 			return meshjobs.BuildResult{}, os.ErrNotExist
@@ -379,6 +392,3 @@ func TestRecodeMatchNoRunner(t *testing.T) {
 		t.Fatal("no runner: nothing is enqueued")
 	}
 }
-
-// build is imported for its error in the fake builds; silence the linter.
-var _ = build.ErrUnreadable

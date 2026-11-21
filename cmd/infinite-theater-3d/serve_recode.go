@@ -4,10 +4,12 @@
 // current decoder. When a match is opened and its stored replay.json.gz records a schema
 // version older than replay.SchemaVersion, the server re-decodes the film from the stored
 // chunks as a job on the mesh build runner (the viewer sees it in the Optimizing assets
-// banner), and the open waits on that job with its progress (the map build's own behavior:
-// the old document is not served while the new one is still missing). A match whose chunks
-// are missing or fail to decode keeps its old document (a warning is logged); the document
-// is written to a temp file and renamed, so it is never left half-written.
+// banner), and the open waits on that job (the map build's own behavior: the old document is
+// not served while the new one is still missing). The decode runs in a child process
+// (decodechild.go): the decoder's memory guard stops the child, never the server. A match
+// whose chunks are missing or that fails to decode keeps its stored document (a warning is
+// logged, once per process); the document is written to a temp file and renamed, so it is
+// never left half-written.
 
 package main
 
@@ -24,7 +26,6 @@ import (
 	"sync"
 
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
-	"github.com/llampwall/infinite-theater-3d/internal/build"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 )
@@ -105,57 +106,26 @@ func storedReplaySchemaVersion(root *store.Root, id string) (int, bool) {
 // (the document is now current and the ready check answers before the map is consulted).
 var recodeAttempted sync.Map
 
-// buildMatchRecode is the runner's build for a recode:<id> job: it re-decodes the match's
-// film from its stored chunks (the build.Build pipeline, in process; the job's context is
-// the runner's, so the decode's memory guard and its context are the job's own, not the
-// server's), reports its progress through the runner's context reporter (the viewer's
-// Optimizing assets banner reads it via GET /api/builds), and writes the new document and
-// its sidecars. A failure (missing film, an unreadable chunk, a decoder error) leaves the
-// stored document in place: the write is a temp file and a rename (store.WriteFile), and
-// it happens only after the build succeeded.
-func buildMatchRecode(ctx context.Context, root *store.Root, id string) (meshjobs.BuildResult, error) {
+// recodeInProcess is the runner's build for a recode:<id> job: it re-decodes the match's
+// film in a child process (recodeInChild), so the decoder's memory guard stops the child,
+// not the server, and the child's progress lines are forwarded to the runner's reporter
+// (the viewer's Optimizing assets banner reads them via GET /api/builds). A failure
+// (missing film, an unreadable chunk, a decoder error) leaves the stored document in place:
+// the child writes to a temp file and renames only on success.
+func recodeInProcess(ctx context.Context, root *store.Root, id string) (meshjobs.BuildResult, error) {
 	reporter := meshjobs.ProgressFromContext(ctx)
 	rep := func(frac float64, stage string) {
 		if reporter != nil {
 			reporter.Report(frac, stage)
 		}
 	}
-	meta, err := root.MatchMeta(id)
-	if err != nil {
-		return meshjobs.BuildResult{}, err
-	}
-	chunks, err := root.MatchChunksDir(id)
-	if err != nil {
-		return meshjobs.BuildResult{}, err
-	}
-	if _, err := os.Stat(chunks); err != nil {
-		return meshjobs.BuildResult{}, err
-	}
 	rep(0.05, "decoding")
-	_, zone, err := matchObjectiveCatalog(root, id)
-	if err != nil {
-		slog.Warn("derive build objectives", "id", id, "err", err)
-	}
-	doc, report, err := build.Build(ctx, build.Input{
-		ChunkDir:     chunks,
-		Zone:         zone,
-		ManifestPath: optionalPath(root.MatchManifestPath(id)),
-		StatsPath:    optionalPath(root.MatchStatsPath(id)),
-		MatchID:      id,
-		MapName:      meta.MapName,
-		MatchMap:     storedMapLink(root, id),
-		ForgeMap:     storedForgeMap(root, id),
-	})
-	if err != nil {
-		return meshjobs.BuildResult{}, err
-	}
-	rep(0.9, "writing")
-	if err := writeRecodeDocument(root, id, doc, report); err != nil {
+	if err := recodeInChild(ctx, root, id, rep); err != nil {
 		return meshjobs.BuildResult{}, err
 	}
 	rep(1.0, "done")
 	// Confirm the document landed at the current schema before the job reports success: a
-	// build that wrote an older one (a regression in the decoder) is not ready.
+	// decode that wrote an older one (a regression in the decoder) is not ready.
 	sv, ok := storedReplaySchemaVersion(root, id)
 	if !ok || sv < replay.SchemaVersion {
 		return meshjobs.BuildResult{}, os.ErrNotExist
@@ -164,9 +134,10 @@ func buildMatchRecode(ctx context.Context, root *store.Root, id string) (meshjob
 }
 
 // refreshMatchSummaryAfterRecode re-derives the match summary's players from the new
-// document, preserving the stored summary's other fields. It re-uses the import's own
-// projection (rosterOf, which applies the stored stats' names where they exist), so a
-// re-code never names a player differently than an import of the same match would.
+// document, preserving the stored summary's other fields (including the ImportedAt the
+// child's re-code left in place). It re-uses the import's own projection (rosterOf, which
+// applies the stored stats' names where they exist), so a re-code never names a player
+// differently than an import of the same match would.
 func refreshMatchSummaryAfterRecode(root *store.Root, id string, meta store.Match) error {
 	raw, err := root.LoadReplay(id)
 	if err != nil {
@@ -242,8 +213,10 @@ func noteRecodeFailed(id string, err error) {
 
 // runRecodeAll is the `recode-all` subcommand: it re-decodes every stored match whose
 // document is behind the decoder, in order, and prints one line per match (the same
-// wording as `rebuild`). A match whose chunks are missing or fail to decode keeps its
-// document; its line names the reason.
+// wording as `rebuild`). It runs as its own CLI process, so it decodes in process
+// (buildStored, exactly as `rebuild` does): the memory guard here would stop only this
+// command, not a server. A match whose chunks are missing or that fails to decode keeps
+// its document; its line names the reason.
 func runRecodeAll(args []string) error {
 	fs := flag.NewFlagSet("recode-all", flag.ContinueOnError)
 	data := fs.String("data", "", dataDirHelp)
@@ -277,29 +250,17 @@ func runRecodeAll(args []string) error {
 			fmtRecodeLine(id, "skipped (film chunks missing)")
 			continue
 		}
-		zone, err := objectiveZoneForRecode(root, id)
-		if err != nil {
-			slog.Warn("derive build objectives", "id", id, "err", err)
-		}
-		doc, report, err := build.Build(context.Background(), build.Input{
-			ChunkDir:     chunks,
-			Zone:         zone,
-			ManifestPath: optionalPath(root.MatchManifestPath(id)),
-			StatsPath:    optionalPath(root.MatchStatsPath(id)),
-			MatchID:      id,
-			MapName:      meta.MapName,
-			MatchMap:     storedMapLink(root, id),
-			ForgeMap:     storedForgeMap(root, id),
-		})
-		if err != nil {
+		// Decode in process (this is a standalone command, not a server): rebuild true leaves
+		// the summary's ImportedAt in place; the line below refreshes the players.
+		if err := buildStored(root, id, importFlags{mapName: meta.MapName, rebuild: true}); err != nil {
 			fmtRecodeLine(id, "failed: "+err.Error())
 			continue
 		}
-		if err := writeRecodeDocument(root, id, doc, report); err != nil {
+		if err := refreshMatchSummaryAfterRecode(root, id, meta); err != nil {
 			fmtRecodeLine(id, "failed: "+err.Error())
 			continue
 		}
-		fmtRecodeLine(id, "re-coded (map "+report.MapName+", schema "+fmt.Sprintf("%d", doc.SchemaVersion)+")")
+		fmtRecodeLine(id, "re-coded")
 	}
 	return nil
 }
@@ -309,47 +270,3 @@ func fmtRecodeLine(id, what string) { fmt.Println(id + ": " + what) }
 
 // fileGone says whether path (a folder) is absent (the error a stat reports for it).
 func fileGone(path string) bool { _, err := os.Stat(path); return os.IsNotExist(err) }
-
-// objectiveZoneForRecode is the zone input a re-code derives for a stored match (the same
-// derivation an import uses, matchObjectiveCatalog, without its error surfacing to the
-// caller's own report).
-func objectiveZoneForRecode(root *store.Root, id string) (replay.ZoneInput, error) {
-	_, zone, err := matchObjectiveCatalog(root, id)
-	return zone, err
-}
-
-// writeRecodeDocument writes the new document and its sidecars (kill-details.json,
-// events.json) exactly as buildStored does (temp file + rename, via the store), and
-// refreshes the match summary's players the way a re-code should (the roster may have
-// changed under the new decoder).
-func writeRecodeDocument(root *store.Root, id string, doc replay.ReplayDocument, report build.Report) error {
-	gz, err := writeGzip(doc)
-	if err != nil {
-		return err
-	}
-	replayPath, _ := root.MatchReplayPath(id)
-	if err := root.WriteFile(replayPath, gz); err != nil {
-		return err
-	}
-	details, err := json.Marshal(report.KillDetails)
-	if err != nil {
-		return err
-	}
-	if err := root.WriteFile(variantPath(root, id, "kill-details.json"), details); err != nil {
-		return err
-	}
-	events, err := json.Marshal(report.Events)
-	if err != nil {
-		return err
-	}
-	if err := root.WriteFile(variantPath(root, id, "events.json"), events); err != nil {
-		return err
-	}
-	meta, err := root.MatchMeta(id)
-	if err == nil {
-		if err := refreshMatchSummaryAfterRecode(root, id, meta); err != nil {
-			slog.Warn("match summary refresh after re-code failed", "match_id", id, "err", err)
-		}
-	}
-	return nil
-}
