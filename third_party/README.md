@@ -1,5 +1,7 @@
 # Upstream modules
 
+- `film-decoder/replay/map_weapon_pads.go` (LOCAL-CHANGE): publish the local scale of a directly placed Forge weapon in the served map-pad overlay.
+
 The source files below are as of 2026-11-13, with the documented changes noted per module. Each retains its own `go.mod`, license and notices. The listed h1 values are the Go module zip hashes, before the documented omissions. To compare against a future tag, download its module zip with `go mod download`, extract it outside this repository, and compare its module directory with the matching directory here, accounting for these omissions.
 
 | Directory | Upstream | Version | Zip hash | License |

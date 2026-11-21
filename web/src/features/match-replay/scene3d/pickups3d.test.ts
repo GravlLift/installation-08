@@ -38,6 +38,7 @@ import {
   prepareWeaponPads,
   rackMountsOf,
   rackWeaponRotation,
+  placedWeaponRotation,
   shownGroundWeapons,
   type GroundSources,
 } from './pickups3d'
@@ -84,6 +85,14 @@ function groundWeapon(over: Partial<ReplayGroundWeapon> = {}): ReplayGroundWeapo
 
 /** A flat floor at z = 0 under every point. */
 const FLAT_FLOOR: Pick<Ground, 'floorY'> = { floorY: () => 0 }
+
+describe('placedWeaponRotation', () => {
+  it('maps the model forward and up to the Forge object axes', () => {
+    const q = placedWeaponRotation({ forward: [0, 0, 1], up: [-1, 0, 0] })
+    expect(new THREE.Vector3(1, 0, 0).applyQuaternion(q).distanceTo(new THREE.Vector3(0, 1, 0))).toBeLessThan(1e-6)
+    expect(new THREE.Vector3(0, 1, 0).applyQuaternion(q).distanceTo(new THREE.Vector3(-1, 0, 0))).toBeLessThan(1e-6)
+  })
+})
 
 describe('prepareWeaponPads', () => {
   it('places the pad at the map\'s slot when the server crossed them', () => {
@@ -315,6 +324,7 @@ describe('Pickups3dLayer', () => {
     floor: Pick<Ground, 'floorY'> = FLAT_FLOOR,
     ink: THREE.Color = new THREE.Color(0xff8c1a),
     armory: ActionContext['armory'] = () => null,
+    groundScale = 1,
   ): { layer: Pickups3dLayer; counts: () => number[]; root: THREE.Group } {
     const root = new THREE.Group()
     const doc = {
@@ -342,6 +352,7 @@ describe('Pickups3dLayer', () => {
       playerFeet: () => null,
       slotState: () => null,
       weaponModel,
+      weaponGroundScale: () => groundScale,
       flagModel: () => null,
       grenadeModel: () => null,
       spartanModel: () => null,
@@ -392,6 +403,24 @@ describe('Pickups3dLayer', () => {
   const RACK_AT = { x: 20, y: -12.03, z: 4.92 }
   const rackCross = (family: string) =>
     ({ catalogN: 1, pads: [{ ...RACK_AT, pad: 0, family, forward: [0, -1, 0], up: [0, 0, 1] }] }) as ReplayDocumentReady['mapWeaponPads']
+
+  it('draws a placed weapon at its film origin with its Forge axes and scale', () => {
+    const model = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1))
+    const mapWeaponPads = { catalogN: 0, pads: [{ ...RACK_AT, pad: 0, family: 'placed', forward: [1, 0, 0], up: [0, 0, 1], scale: [2, 3, 4] }] }
+    const { layer, root } = buildLayer({ ...show, groundWeapons: false }, () => model,
+      { weaponPads: [padFixture(RACK_AT)], mapWeaponPads }, FLAT_FLOOR, undefined, undefined, 1.5)
+    layer.update(15)
+    const copy = root.children[2]
+    expect(copy.position.toArray()).toEqual([20, 4.92, 12.03])
+    expect(copy.scale.toArray()).toEqual([3, 6, 4.5])
+    expect(new THREE.Vector3(1, 0, 0).applyQuaternion(copy.quaternion).distanceTo(new THREE.Vector3(1, 0, 0))).toBeLessThan(1e-6)
+    const rotation = copy.quaternion.clone()
+    layer.update(19)
+    expect(copy.quaternion.angleTo(rotation)).toBeCloseTo(0)
+    layer.update(60)
+    expect(copy.visible).toBe(false)
+    layer.dispose()
+  })
 
   it('hangs a rack weapon still on the front of the rack, upright, by the pad state', () => {
     const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02))

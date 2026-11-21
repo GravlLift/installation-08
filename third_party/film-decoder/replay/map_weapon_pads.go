@@ -84,6 +84,8 @@ type MapWeaponPadDTO struct {
 	// the rack upright and faces it along +X.
 	Forward []float32 `json:"forward,omitempty"`
 	Up      []float32 `json:"up,omitempty"`
+	// Scale (LOCAL-CHANGE (infinite-theater-3d)) is a placed Forge weapon's local scale.
+	Scale []float32 `json:"scale,omitempty"`
 }
 
 // BuildMapWeaponPads croise les emplacements d'une carte avec les socles d'un match.

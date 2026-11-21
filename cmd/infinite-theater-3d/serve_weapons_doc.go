@@ -108,7 +108,7 @@ func mapWeaponPadsFor(ctx context.Context, id string, keys matchMapKeys, variant
 // promotePadCandidates returns the match's pads followed by the film's pad candidates (items
 // that appeared once at rest and were never taken, so the film's recurrence rule cannot call them
 // pads) that the map confirms: a pad location (`PadSpots`) within the confirmation radius, or,
-// for an equipment item, an equipment spawn point. A site an existing pad already stands on
+// for equipment or weapons, a matching spawn point. A site an existing pad already stands on
 // confirms no candidate, and each site confirms at most one. Appended after the existing pads,
 // so `padPickups[].pad` keeps its meaning. Without a map variant, the pads unchanged.
 func promotePadCandidates(variant *mapvar.Variant, pads, candidates []replay.WeaponPad) []replay.WeaponPad {
@@ -116,8 +116,9 @@ func promotePadCandidates(variant *mapvar.Variant, pads, candidates []replay.Wea
 		return pads
 	}
 	type site struct {
-		pos       mapvar.Vec3
-		equipOnly bool
+		pos        mapvar.Vec3
+		equipOnly  bool
+		weaponOnly bool
 	}
 	var sites []site
 	for _, s := range mapvar.PadSpots(variant) {
@@ -126,6 +127,9 @@ func promotePadCandidates(variant *mapvar.Variant, pads, candidates []replay.Wea
 	for _, p := range mapvar.SpawnPoints(variant) {
 		if p.Kind == mapvar.SpawnKindEquipment {
 			sites = append(sites, site{pos: p.Pos, equipOnly: true})
+		} else if uint32(p.TypeID) == 0x5f3fa667 {
+			// AIMBOTZ V2: weapon candidates coincide with this spawn type within 7 mm.
+			sites = append(sites, site{pos: p.Pos, weaponOnly: true})
 		}
 	}
 	near := func(a mapvar.Vec3, p replay.WeaponPad) bool {
@@ -143,7 +147,8 @@ func promotePadCandidates(variant *mapvar.Variant, pads, candidates []replay.Wea
 	out := pads
 	for _, c := range candidates {
 		for i, s := range sites {
-			if claimed[i] || (s.equipOnly && !isEquipmentPadItem(c.Weapon)) || !near(s.pos, c) {
+			_, weapon := replay.PadWeaponFamilyKey(c.Weapon)
+			if claimed[i] || (s.equipOnly && !isEquipmentPadItem(c.Weapon)) || (s.weaponOnly && !weapon) || !near(s.pos, c) {
 				continue
 			}
 			claimed[i] = true

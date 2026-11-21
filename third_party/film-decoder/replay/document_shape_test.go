@@ -1,5 +1,7 @@
 package replay
 
+// LOCAL-CHANGE (infinite-theater-3d): the served map pad overlay includes Forge object scale.
+
 // document_shape_test.go — L'EMPREINTE DE FORME DU DOCUMENT, MIROIR DE CELLE DU DECODEUR.
 //
 // CE QU'IL ATTRAPE, ET RIEN D'AUTRE : « j'ai change un champ et oublie le numero ». La forme
