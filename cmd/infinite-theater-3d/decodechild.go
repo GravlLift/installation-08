@@ -177,25 +177,7 @@ func stageOfProgress(frac float64) string {
 // copies its output into this process's log, and turns a failed exit into an error that says
 // what happened.
 func runDecodeChild(ctx context.Context, exe string, args, extraEnv []string) error {
-	cmd := exec.CommandContext(ctx, exe, args...)
-	cmd.Env = append(append(os.Environ(), decodeChildEnv+"=1"), extraEnv...)
-	hideChildConsole(cmd)
-	out := &childOutput{log: os.Stderr}
-	cmd.Stdout = out
-	cmd.Stderr = out
-	err := cmd.Run()
-	out.flush()
-	if err == nil {
-		return nil
-	}
-	if ctx.Err() != nil {
-		return ctx.Err()
-	}
-	var exit *exec.ExitError
-	if !errors.As(err, &exit) {
-		return fmt.Errorf("start the film decoder: %w", err)
-	}
-	return out.failure(exit.ExitCode())
+	return runDecodeChildWithOut(ctx, exe, args, extraEnv, &childOutput{log: os.Stderr})
 }
 
 // childOutput receives a decode child's stdout and stderr: it copies them to the log and keeps
