@@ -18,11 +18,4 @@ func TestPadNavpointFromGame(t *testing.T) {
 	if got.IconWidth != 96 || got.IconHeight != 96 || got.IconAlpha != 1 || got.TimerSize != 32 || got.TimerOffsetY != -40 || got.TimerFormat != 1 || got.PowerColor != 0xcb2b3e43 || got.NumericTimerSize != 38 || got.NumericTimerOffsetY != 45 {
 		t.Fatalf("unexpected navpoint: %+v", got)
 	}
-	// The icon offset is fitted to the screenshot (not from the tag).
-	if got.IconOffsetY != 44 {
-		t.Fatalf("unexpected iconOffsetY: %g", got.IconOffsetY)
-	}
-	if got.Version != padNavpointVersion {
-		t.Fatalf("unexpected version: %d", got.Version)
-	}
 }

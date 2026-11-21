@@ -19,16 +19,7 @@ type PadNavpoint struct {
 	PowerColor          uint32  `json:"powerColor"`
 	NumericTimerSize    uint32  `json:"numericTimerSize"`
 	NumericTimerOffsetY float32 `json:"numericTimerOffsetY"`
-	// Icon offset above the anchor, in nvpt UI units (the game's line element
-	// is not in this tag; the offset is fitted to the in-game screenshot).
-	IconOffsetY float32 `json:"iconOffsetY"`
-	// The version stamp: bumped when the served schema changes so the stored
-	// asset set rebuilds.
-	Version uint32 `json:"version"`
 }
-
-// padNavpointVersion is the current schema version of the served pad-navpoint JSON.
-const padNavpointVersion = 2
 
 // ReadPadNavpoint reads the candidate's icon and timer fields, checking their identities.
 func ReadPadNavpoint(tag []byte) (PadNavpoint, error) {
@@ -70,13 +61,6 @@ func ReadPadNavpoint(tag []byte) (PadNavpoint, error) {
 		PowerColor:          u(ia + 2*0x5c + 0x18),
 		NumericTimerSize:    u(ta + 0x44),
 		NumericTimerOffsetY: f(ga + 4*0xa8 + 0x10),
-		// The icon offset above the anchor is not in the nvpt tag: the game's
-		// line element is in the Template Navpoint (which is null in this tag)
-		// or in the CUI. Fitted to the in-game screenshot (F2): the icon sits
-		// about 20-25 px above the item at 720p, which is about 44 UI units
-		// (20-25 px / 720 * 2160).
-		IconOffsetY: 44,
-		Version:     padNavpointVersion,
 	}
 	if math.IsNaN(float64(result.IconWidth)) || math.IsNaN(float64(result.IconHeight)) || result.IconWidth <= 0 || result.IconHeight <= 0 {
 		return PadNavpoint{}, fmt.Errorf("invalid navpoint dimensions")

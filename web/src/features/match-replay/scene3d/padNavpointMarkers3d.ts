@@ -7,7 +7,7 @@
  * `CSS2DObject` per pad, positioned imperatively each frame.
  *
  * ON SCREEN: the icon sits ABOVE the item's anchor, with a thin vertical line from the icon
- * down to the item (F2). The icon is raised by `iconOffsetY` nvpt UI units (fitted to the
+ * down to the item (F2). The icon is raised by `ICON_OFFSET_UI` nvpt UI units (fitted to the
  * in-game screenshot; the game's line element is in the Template Navpoint, which is null in
  * the pad nvpt tag).
  *
@@ -47,6 +47,14 @@ const LINE_WIDTH_PX = 1
 /** The distance (world units) at which docked icons are placed in front of the camera. */
 const DOCK_DISTANCE = 50
 
+/**
+ * The raised-icon offset above the anchor, in nvpt UI units (2160-unit screen).
+ * Fitted to the in-game screenshot (F2): at 15-20 m the icon sits about 20-25 px
+ * above the item at 720p, which is about 44 UI units (20-25 / 720 * 2160). The
+ * game's line element is in the Template Navpoint, which is null in the pad nvpt tag.
+ */
+const ICON_OFFSET_UI = 44
+
 /** The served pad-navpoint presentation (`padnavpoint.json`, the `nvpt` tag). */
 interface NavpointStyle {
   iconWidth: number
@@ -54,8 +62,6 @@ interface NavpointStyle {
   iconAlpha: number
   numericTimerSize: number
   numericTimerOffsetY: number
-  iconOffsetY: number
-  version: number
 }
 
 /** One marker: its projected element and the DOM the timer and the icon update per frame. */
@@ -141,12 +147,12 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     // The line: a thin vertical strip from the icon's bottom edge down to the anchor.
     // Its height is the icon offset (the distance from the icon to the anchor).
     const line = document.createElement('div')
-    line.style.cssText = `position:absolute;left:50%;top:100%;transform:translateX(-50%);width:${LINE_WIDTH_PX}px;height:${cq(style.iconOffsetY)};background:var(--replay-hud-weapon,#c7ebfa);opacity:0.7;pointer-events:none;`
+    line.style.cssText = `position:absolute;left:50%;top:100%;transform:translateX(-50%);width:${LINE_WIDTH_PX}px;height:${cq(ICON_OFFSET_UI)};background:var(--replay-hud-weapon,#c7ebfa);opacity:0.7;pointer-events:none;`
     box.appendChild(line)
 
     // The timer: below the line, at the game's offset from the anchor.
     const timer = document.createElement('span')
-    timer.style.cssText = `position:absolute;left:50%;top:calc(100% + ${cq(style.iconOffsetY)});transform:translateX(-50%);font-size:${cq(style.numericTimerSize)};font-weight:700;line-height:1;font-variant-numeric:tabular-nums;color:var(--replay-hud-weapon,#c7ebfa);text-shadow:0 1px 2px var(--replay-hud-shadow,rgba(0,0,0,0.7));pointer-events:none;white-space:nowrap;`
+    timer.style.cssText = `position:absolute;left:50%;top:calc(100% + ${cq(ICON_OFFSET_UI)});transform:translateX(-50%);font-size:${cq(style.numericTimerSize)};font-weight:700;line-height:1;font-variant-numeric:tabular-nums;color:var(--replay-hud-weapon,#c7ebfa);text-shadow:0 1px 2px var(--replay-hud-shadow,rgba(0,0,0,0.7));pointer-events:none;white-space:nowrap;`
     box.appendChild(timer)
 
     point.appendChild(box)
