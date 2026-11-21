@@ -473,23 +473,21 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       // Returns its left edge so the next item sits to its left.
       // The slot's size and its icon box come from `HUD_CORNER`, shared with the live HUD: the
       // icon and the count are centered together in the slot, `gap` apart.
+      const slotY = h * 0.86, slotHeight = size * HUD_CORNER.slotHeight
       const box = (right: number, cy: number, text: string, img: string | undefined, tinted: boolean, num: number | null, alpha: number, minWidth: number, iconBox: readonly [number, number]): number => {
         ctx.font = `700 ${size * HUD_CORNER.countEm}px ${HUD_FONT_FAMILY}`
         const count = num != null ? String(num) : '', countWidth = ctx.measureText(count).width
-        const width = size * iconBox[0], iconHeight = size * iconBox[1], height = size * HUD_CORNER.slotHeight
+        const width = size * iconBox[0], iconHeight = size * iconBox[1]
         const gap = count ? size * 0.15 : 0
         const hasIcon = !!img && images.has(img)
         const labelWidth = hasIcon ? width : text ? ctx.measureText(text).width : 0
         const boxWidth = Math.max(size * minWidth, labelWidth + gap + countWidth + size * 0.4)
         ctx.save(); ctx.globalAlpha = alpha; ctx.textAlign = 'left'
-        // The game's slot: an outline only, no backdrop (`HUD_RULE_ALPHA`).
-        ctx.save(); ctx.globalAlpha = alpha * HUD_RULE_ALPHA; ctx.lineWidth = rule
-        ctx.strokeStyle = weaponInk; ctx.strokeRect(right - boxWidth, cy - height / 2, boxWidth, height)
-        ctx.restore()
         const contentX = right - boxWidth / 2 - (labelWidth + gap + countWidth) / 2
         ctx.fillStyle = weaponInk
         if (!icon(ctx, img, weaponInk, tinted, false, contentX, cy - iconHeight / 2, width, iconHeight) && text) ctx.fillText(text, contentX, cy)
-        ctx.fillText(count, contentX + labelWidth + gap, cy)
+        // The count sits above the slot's middle (`HUD_CORNER.countLift`).
+        ctx.fillText(count, contentX + labelWidth + gap, cy - size * HUD_CORNER.countLift)
         ctx.restore()
         return right - boxWidth
       }
@@ -498,13 +496,32 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       let left = right
       if (ath.equipment) {
         const label = doc.abilityLabels?.[String(ath.equipment.rank)]
-        left = box(left, h * 0.86, catalogText(label, locale) ?? `rank ${ath.equipment.rank}`, label?.img, !!label?.tinted, ath.equipment.uses, ath.equipment.uses === 0 ? 0.45 : 1, HUD_CORNER.equipmentSlotWidth, HUD_CORNER.equipmentIcon) - size * HUD_CORNER.slotGap
+        left = box(left, slotY, catalogText(label, locale) ?? `rank ${ath.equipment.rank}`, label?.img, !!label?.tinted, ath.equipment.uses, ath.equipment.uses === 0 ? 0.45 : 1, HUD_CORNER.equipmentSlotWidth, HUD_CORNER.equipmentIcon)
       } else {
-        left = box(left, h * 0.86, '', undefined, false, null, 1, HUD_CORNER.equipmentSlotWidth, HUD_CORNER.equipmentIcon) - size * HUD_CORNER.slotGap
+        left = box(left, slotY, '', undefined, false, null, 1, HUD_CORNER.equipmentSlotWidth, HUD_CORNER.equipmentIcon)
       }
-      // The one grenade box the game draws at a time (`ath.grenade`).
+      const divider = left
+      // The one grenade box the game draws at a time (`ath.grenade`); with none carried, the
+      // slot stays empty (no icon, no 0).
       const grenadeLabel = doc.grenadeLabels?.[ath.grenade.rank]
-      left = box(left, h * 0.86, ath.grenade.name, grenadeLabel?.img, !!grenadeLabel?.tinted, ath.grenade.count, 1, HUD_CORNER.grenadeSlotWidth, HUD_CORNER.grenadeIcon) - size * HUD_CORNER.awayGap
+      left = ath.grenade.count > 0
+        ? box(left, slotY, ath.grenade.name, grenadeLabel?.img, !!grenadeLabel?.tinted, ath.grenade.count, 1, HUD_CORNER.grenadeSlotWidth, HUD_CORNER.grenadeIcon)
+        : box(left, slotY, '', undefined, false, null, 1, HUD_CORNER.grenadeSlotWidth, HUD_CORNER.grenadeIcon)
+      // The slots' rules, as the live HUD draws them: the outer uprights and the one divider at the
+      // rule's strength, the top and bottom rules nearly invisible; no backdrop.
+      {
+        const top = slotY - slotHeight / 2, bottom = slotY + slotHeight / 2
+        ctx.save(); ctx.lineWidth = rule; ctx.strokeStyle = weaponInk
+        const line = (share: number, x0: number, y0: number, x1: number, y1: number) => {
+          ctx.globalAlpha = HUD_RULE_ALPHA * share
+          ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke()
+        }
+        for (const x of [left, divider, right]) line(1, x, top, x, bottom)
+        line(HUD_CORNER.slotTopRule, left, top, right, top)
+        line(HUD_CORNER.slotBottomRule, left, bottom, right, bottom)
+        ctx.restore()
+      }
+      left -= size * HUD_CORNER.awayGap
       // The away weapon: dimmed, the silhouette the same way the in-hand icon is painted.
       const awayIcon = ath.away?.label?.img ? weaponFullIcon(ath.away.label.img) : null
       if (awayIcon) {

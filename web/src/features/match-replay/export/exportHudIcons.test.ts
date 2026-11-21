@@ -21,7 +21,7 @@ vi.mock('../model/hud3d_logic', () => ({
   NAME_TAG_PAD_Y: 0.2,
   KILL_FEED_TOP_SHARE: 0.524,
   HUD_RULE_ALPHA: 0.75,
-  HUD_CORNER: { magEm: 0.7, magWeight: 500, reserveEm: 0.42, countEm: 0.42, slotHeight: 1.06, grenadeSlotWidth: 1.67, equipmentSlotWidth: 1.8, slotGap: 0.05, grenadeIcon: [0.5, 0.76], equipmentIcon: [0.84, 0.54], awayIcon: [2.4, 0.55], awayGap: 0.65, weaponIcon: [3.6, 0.95], weaponGap: 0.6 },
+  HUD_CORNER: { magEm: 0.7, magWeight: 500, reserveEm: 0.42, countEm: 0.42, slotHeight: 1.06, grenadeSlotWidth: 1.67, equipmentSlotWidth: 1.8, slotTopRule: 0.07, slotBottomRule: 0.2, grenadeIcon: [0.8, 0.8], equipmentIcon: [0.86, 0.86], countLift: 0.19, awayIcon: [2.4, 0.55], awayGap: 0.65, weaponIcon: [3.6, 0.95], weaponGap: 0.6 },
   prepareHud: () => ({}),
   readScoreHud: () => null,
   hudClock: () => 0,
@@ -85,18 +85,26 @@ it('preloads and paints HUD icons, using a short label when an image is unavaila
   // The equipment icon is actually PAINTED (not only preloaded): the tinted canvas of
   // /equip.png goes through drawImage, one pass per frame.
   expect(draws.some((args) => (args[0] as { src?: string })?.src === '/equip.png')).toBe(true)
-  // The upper row is laid out from the right edge leftward: the grenade box sits to the LEFT
-  // of the equipment box (its right edge at the equipment box's left edge minus the gap).
-  // With no score, the two slot outlines, painted twice (two frames).
+  // The upper row is laid out from the right edge leftward: the grenade slot sits to the LEFT
+  // of the equipment slot, the two sharing ONE upright rule, with no backdrop fill.
   const size = Math.max(19, Math.min(39, 7.7 + 540 * 0.0287))
   const boxHeight = size * 1.06
-  // The slots are outlines (strokeRect), with no backdrop fill.
   expect(rects.some((r) => Math.abs(r.h - boxHeight) < 0.001)).toBe(false)
-  const boxes = named('strokeRect').map(([x, y, w, h]) => ({ x: x as number, y: y as number, w: w as number, h: h as number })).filter((r) => Math.abs(r.h - boxHeight) < 0.001)
-  expect(boxes).toHaveLength(4) // two boxes, two frames
-  // First frame: boxes[0] is the equipment box (rightmost, painted first), boxes[1] the grenade.
-  const equipmentBox = boxes[0], grenadeBox = boxes[1]
-  expect(grenadeBox.x + grenadeBox.w).toBeCloseTo(equipmentBox.x - size * 0.05, 5)
+  expect(named('strokeRect').some(([, , , h]) => Math.abs((h as number) - boxHeight) < 0.001)).toBe(false)
+  // The uprights: a moveTo then a lineTo straight down the slot's height, three per frame (the
+  // grenade slot's left edge, the shared divider, the equipment slot's right edge).
+  const segments: { x0: number; y0: number; x1: number; y1: number }[] = []
+  ops.forEach((o, i) => {
+    const next = ops[i + 1]
+    if (o.op === 'moveTo' && next?.op === 'lineTo') segments.push({ x0: o.args![0] as number, y0: o.args![1] as number, x1: next.args![0] as number, y1: next.args![1] as number })
+  })
+  const uprights = segments.filter((s) => s.x0 === s.x1 && Math.abs(s.y1 - s.y0 - boxHeight) < 0.001)
+  expect(uprights).toHaveLength(6) // three uprights, two frames
+  const [grenadeLeft, divider, equipmentRight] = uprights.slice(0, 3).map((s) => s.x0).sort((a, b) => a - b)
+  expect(equipmentRight - divider).toBeCloseTo(size * 1.8, 5)
+  expect(divider - grenadeLeft).toBeCloseTo(size * 1.67, 5)
+  // The top and bottom rules span both slots.
+  expect(segments.filter((s) => s.y0 === s.y1 && Math.abs(s.x1 - s.x0 - (equipmentRight - grenadeLeft)) < 0.001)).toHaveLength(4)
   const texts = (named('fillText') as unknown[][]).map((args) => args[0])
   expect(texts).toContain('Bandit Evo')
   expect(texts).not.toContain('Bandit Evo / M392 Bandit')

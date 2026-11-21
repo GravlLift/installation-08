@@ -43,11 +43,19 @@ void ensureHudColors()
 const HUD_STYLE = { color: tokenCssVar('replay-hud-on-dark'), fontFamily: HUD_FONT_FAMILY, fontSize: 'clamp(19px, calc(7.7px + 2.87cqh), 39px)', textShadow: '0 1px 2px var(--replay-hud-shadow)' }
 
 /** The weapon corner's thin rules (`HUD_RULE_ALPHA`): the weapon ink, partly see-through. */
-const RULE = `max(1px, 0.05em) solid color-mix(in srgb, currentColor ${HUD_RULE_ALPHA * 100}%, transparent)`
-/** A grenade or equipment slot: the game's outline, with no backdrop. */
-const SLOT_STYLE = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.15em', height: `${HUD_CORNER.slotHeight}em`, boxSizing: 'border-box', padding: '0 0.2em', border: RULE } as const
-/** A slot's count (`HUD_CORNER.countEm`). */
-const COUNT_STYLE = { fontSize: `${HUD_CORNER.countEm}em`, fontWeight: 700, fontVariantNumeric: 'tabular-nums' } as const
+const ruleAt = (share: number) => `max(1px, 0.05em) solid color-mix(in srgb, currentColor ${HUD_RULE_ALPHA * share * 100}%, transparent)`
+const RULE = ruleAt(1)
+/**
+ * The grenade and equipment slots together: no backdrop, the outer uprights at the rule's strength,
+ * the top and bottom rules nearly invisible (`HUD_CORNER.slotTopRule`, `slotBottomRule`).
+ */
+const SLOTS_STYLE = { display: 'flex', height: `${HUD_CORNER.slotHeight}em`, boxSizing: 'border-box', borderLeft: RULE, borderRight: RULE, borderTop: ruleAt(HUD_CORNER.slotTopRule), borderBottom: ruleAt(HUD_CORNER.slotBottomRule) } as const
+/** One slot inside them: its icon and count centered together. */
+const SLOT_STYLE = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.15em', height: '100%', boxSizing: 'border-box', padding: '0 0.2em' } as const
+/** A slot's count (`HUD_CORNER.countEm`), raised above the slot's middle (`HUD_CORNER.countLift`). */
+const COUNT_STYLE = { fontSize: `${HUD_CORNER.countEm}em`, fontWeight: 700, fontVariantNumeric: 'tabular-nums', position: 'relative', top: `${-HUD_CORNER.countLift / HUD_CORNER.countEm}em` } as const
+/** An item's name, written in its slot when its icon is missing: centered, unlike the count. */
+const NAME_STYLE = { fontSize: `${HUD_CORNER.countEm}em`, fontWeight: 700 } as const
 const em = ([w, h]: readonly [number, number]) => ({ width: `${w}em`, height: `${h}em` })
 
 /** The game's damage-arc bitmap, loaded once; the canvas layer below paints with it when it is ready. */
@@ -203,12 +211,16 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
         hangs out of the column's flow (absolute, below the box) so the corner never shifts when
         the tag appears or fades away. */}
     {ath && <div style={{ position: 'absolute', right: '3%', bottom: '6%', display: 'flex', flexDirection: 'column', alignItems: 'end', gap: '0.35em', lineHeight: 1, color: tokenCssVar('replay-hud-weapon') }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: `${HUD_CORNER.slotGap}em` }}>
-        {awayIcon && away && <WeaponIcon imageUrl={awayIcon.url} tinted={away.label?.tinted} label={catalogText(away.label, locale) ?? ''} {...em(HUD_CORNER.awayIcon)} style={{ ...(awayIcon.mirrored ? {} : MIRROR_STYLE), opacity: 0.5, marginRight: `${HUD_CORNER.awayGap - HUD_CORNER.slotGap}em` }} />}
-        <span style={{ ...SLOT_STYLE, minWidth: `${HUD_CORNER.grenadeSlotWidth}em` }}>{grenadeLabel?.img ? <WeaponIcon imageUrl={grenadeLabel.img} tinted={grenadeLabel.tinted} label={ath.grenade.name} {...em(HUD_CORNER.grenadeIcon)} /> : <span style={COUNT_STYLE}>{ath.grenade.name}</span>}<span style={COUNT_STYLE}>{ath.grenade.count}</span></span>
-        {ath.equipment
-          ? <EquipmentHud3d doc={doc} rank={ath.equipment.rank} uses={ath.equipment.uses} locale={locale} />
-          : <span aria-hidden="true" data-hud-equipment="none" style={{ ...SLOT_STYLE, width: `${HUD_CORNER.equipmentSlotWidth}em` }} />}
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        {awayIcon && away && <WeaponIcon imageUrl={awayIcon.url} tinted={away.label?.tinted} label={catalogText(away.label, locale) ?? ''} {...em(HUD_CORNER.awayIcon)} style={{ ...(awayIcon.mirrored ? {} : MIRROR_STYLE), opacity: 0.5, marginRight: `${HUD_CORNER.awayGap}em` }} />}
+        <div style={SLOTS_STYLE}>
+          {/* The grenade slot, parted from the equipment by the one upright rule. No grenade
+              carried, the slot stays empty: the game writes no 0 and draws no icon. */}
+          <span data-hud-grenade={ath.grenade.count > 0 ? ath.grenade.rank : 'none'} style={{ ...SLOT_STYLE, minWidth: `${HUD_CORNER.grenadeSlotWidth}em`, borderRight: RULE }}>{ath.grenade.count > 0 && <>{grenadeLabel?.img ? <WeaponIcon imageUrl={grenadeLabel.img} tinted={grenadeLabel.tinted} label={ath.grenade.name} {...em(HUD_CORNER.grenadeIcon)} /> : <span style={NAME_STYLE}>{ath.grenade.name}</span>}<span style={COUNT_STYLE}>{ath.grenade.count}</span></>}</span>
+          {ath.equipment
+            ? <EquipmentHud3d doc={doc} rank={ath.equipment.rank} uses={ath.equipment.uses} locale={locale} />
+            : <span aria-hidden="true" data-hud-equipment="none" style={{ ...SLOT_STYLE, width: `${HUD_CORNER.equipmentSlotWidth}em` }} />}
+        </div>
       </div>
       {/* The ammo and weapon row between the game's two rules, the magazine count and the reserve
           parted by its upright rule (`HUD_RULE_ALPHA`). */}
@@ -234,7 +246,7 @@ function EquipmentHud3d({ doc, rank, uses, locale }: { doc: ReplayDocumentReady;
   const label = doc.abilityLabels?.[String(rank)]
   const name = catalogText(label, locale) ?? `rank ${rank}`
   return <span role="img" aria-label={uses === null ? name : `${name} ${uses}`} data-hud-equipment={label?.family ?? rank} style={{ ...SLOT_STYLE, minWidth: `${HUD_CORNER.equipmentSlotWidth}em`, opacity: uses === 0 ? 0.45 : 1 }}>
-    {label?.img ? <WeaponIcon imageUrl={label.img} tinted={label.tinted} label={name} {...em(HUD_CORNER.equipmentIcon)} /> : <span style={COUNT_STYLE}>{name}</span>}
+    {label?.img ? <WeaponIcon imageUrl={label.img} tinted={label.tinted} label={name} {...em(HUD_CORNER.equipmentIcon)} /> : <span style={NAME_STYLE}>{name}</span>}
     {uses !== null && <span style={COUNT_STYLE}>{uses}</span>}
   </span>
 }

@@ -251,14 +251,27 @@ export const HUD_CORNER = {
   /** The reserve and the slots' counts: their digits are 0.29 of the slot height. */
   reserveEm: 0.42,
   countEm: 0.42,
-  /** The slots: the grenade 1.58 and the equipment 1.70 slot heights wide, nearly touching. */
+  /**
+   * The slots: the grenade 1.58 and the equipment 1.70 slot heights wide, sharing ONE upright rule
+   * between them (owner's captures of 2026-11-21: the outer uprights and that divider are drawn at
+   * the rule's strength, the top rule at about 7% of it and the bottom rule at about 20%, measured
+   * against the wall behind the empty slots).
+   */
   slotHeight: 1.06,
   grenadeSlotWidth: 1.67,
   equipmentSlotWidth: 1.8,
-  slotGap: 0.05,
-  /** The grenade icon is 0.72 of the slot height tall, the equipment icon 0.49. */
-  grenadeIcon: [0.5, 0.76],
-  equipmentIcon: [0.84, 0.54],
+  slotTopRule: 0.07,
+  slotBottomRule: 0.2,
+  /**
+   * The slot icons, as square boxes: the HUD bitmaps are 96x96 with the glyph inside its own
+   * margins, and the game draws the whole bitmap square. Measured on the owner's capture of
+   * 2026-11-21 (a 41 px slot): the frag, whose glyph fills its bitmap's height, stands 31 px tall
+   * (0.76 slot heights); Shroud Screen, whose glyph fills its bitmap's width, is 33 px wide (0.81).
+   */
+  grenadeIcon: [0.8, 0.8],
+  equipmentIcon: [0.86, 0.86],
+  /** The slots' counts sit above the slot's middle: their center 0.18 slot heights higher (same capture). */
+  countLift: 0.19,
   /** The away weapon: 2.2 by 0.47 slot heights, its right end 0.63 slot heights before the grenade slot. */
   awayIcon: [2.4, 0.55],
   awayGap: 0.65,
@@ -288,7 +301,7 @@ export function nameTagOpacity(ageMs: number): number | null {
  * read in the life), the box shows frag (rank 0) with its count, or the lowest carried rank when
  * no frag is carried (owner's call, 2026-11-19: a plain grenade box blends in during those rare
  * moments, where generic text stood out). A null box (counters not read, or nothing carried)
- * keeps the rank-0 counter, as before.
+ * keeps the rank-0 counter at 0, and a count of 0 is drawn as the game draws it: an empty slot.
  */
 export interface HudGrenade {
   rank: number

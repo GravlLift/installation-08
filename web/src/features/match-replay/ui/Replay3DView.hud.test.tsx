@@ -15,11 +15,12 @@ import { prepareCallouts } from '../model/mapCallouts'
 
 const frameRef = { current: 0 } as const
 
-function hudDoc() {
+function hudDoc(frags = 2) {
   return testReplayDoc({
     frameIntervalMs: 100,
     tracks: [{ slot: 512, xuid: 'A', team: -1, startFrame: 0, endFrame: 100, points: [{ t: 0, x: 0, y: 0 }, { t: 100, x: 0, y: 0 }] }],
-    inventory: [{ t: 0, slot: 512, d: 0, am: [{ mag: 13, res: 42 }], g: [2] }],
+    inventory: [{ t: 0, slot: 512, d: 0, am: [{ mag: 13, res: 42 }], g: [frags] }],
+    grenadeLabels: [{ en: 'Frag', fr: 'Fragmentation' }],
     loadouts: [{ t: 0, slot: 512, w: ['hinf_ma40_ar'] }],
     roster: [{ filmIndex: 0, xuid: 'A', name: 'Alpha', team: 0 }],
     abilityLabels: { '12': { en: 'Threat Seeker', fr: 'traqueur de menaces', family: 'threat_seeker' } },
@@ -31,9 +32,9 @@ function hudDoc() {
 
 const callouts = prepareCallouts({ version: 1, source: 'level', zones: [{ en: 'Overhang', polygon: [[-1, -1], [1, -1], [1, 1], [-1, 1]], zBottom: -1, zTop: 2 }] })
 
-function renderHud(hud?: HudLevel, withCallouts = false) {
+function renderHud(hud?: HudLevel, withCallouts = false, frags = 2) {
   return render(
-    <ReplayHud3d doc={hudDoc()} xuid="A" frameRef={frameRef} locale="en" kills={[]} playWindow={null} timeLimitMs={null} hud={hud} callouts={withCallouts ? callouts : null} />,
+    <ReplayHud3d doc={hudDoc(frags)} xuid="A" frameRef={frameRef} locale="en" kills={[]} playWindow={null} timeLimitMs={null} hud={hud} callouts={withCallouts ? callouts : null} />,
   ).container
 }
 
@@ -56,6 +57,15 @@ describe('ReplayHud3d at each HUD level', () => {
       expect(renderHud(hud).querySelector('[data-hud-equipment="threat_seeker"]')?.getAttribute('aria-label')).toBe('Threat Seeker 2')
     }
     expect(renderHud('spectator').querySelector('[data-hud-equipment]')).toBeNull()
+  })
+
+  it('the grenade slot shows the carried grenade and its count, and stays empty with none', () => {
+    const carried = renderHud('full').querySelector('[data-hud-grenade]')
+    expect(carried?.getAttribute('data-hud-grenade')).toBe('0')
+    expect(carried?.textContent).toBe('Frag2')
+    const empty = renderHud('full', false, 0).querySelector('[data-hud-grenade]')
+    expect(empty?.getAttribute('data-hud-grenade')).toBe('none')
+    expect(empty?.textContent).toBe('')
   })
 
   it('third person: no reticle', () => {
