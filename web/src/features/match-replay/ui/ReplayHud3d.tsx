@@ -7,7 +7,7 @@ import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import { REPLAY_TEXT, type ReplayLocale } from '../i18n/i18n'
 import { catalogText } from '../i18n/catalogLabel'
 import type { ReplayKill } from '../model/killFeedLogic'
-import { hudClock, readHud, readKillFeed, readKillPopups, readScoreHud, prepareHud, HUD_RULE_ALPHA, NAME_TAG_EM, NAME_TAG_PAD_X, NAME_TAG_PAD_Y } from '../model/hud3d_logic'
+import { hudClock, readHud, readKillFeed, readKillPopups, readScoreHud, prepareHud, HUD_CORNER, HUD_RULE_ALPHA, NAME_TAG_EM, NAME_TAG_PAD_X, NAME_TAG_PAD_Y } from '../model/hud3d_logic'
 import { magsForWeapon } from '../model/scopeLogic'
 import { adsAmmoText } from '../model/adsOverlay'
 import { aimHudAt, heldModelKey, RETICLE_DOT_R, RETICLE_HALO_OPACITY, RETICLE_HALO_STROKE, RETICLE_HEIGHT_SHARE, RETICLE_KILL_STROKE, RETICLE_MIN_PX, RETICLE_STROKE, reticleGeometry, segmentsPath } from '../model/aimHud'
@@ -42,7 +42,10 @@ const HUD_STYLE = { color: tokenCssVar('replay-hud-on-dark'), fontFamily: HUD_FO
 /** The weapon corner's thin rules (`HUD_RULE_ALPHA`): the weapon ink, partly see-through. */
 const RULE = `max(1px, 0.05em) solid color-mix(in srgb, currentColor ${HUD_RULE_ALPHA * 100}%, transparent)`
 /** A grenade or equipment slot: the game's outline, with no backdrop. */
-const SLOT_STYLE = { display: 'flex', alignItems: 'center', padding: '0.2em 0.4em', border: RULE } as const
+const SLOT_STYLE = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.15em', height: `${HUD_CORNER.slotHeight}em`, boxSizing: 'border-box', padding: '0 0.2em', border: RULE } as const
+/** A slot's count (`HUD_CORNER.countEm`). */
+const COUNT_STYLE = { fontSize: `${HUD_CORNER.countEm}em`, fontWeight: 700, fontVariantNumeric: 'tabular-nums' } as const
+const em = ([w, h]: readonly [number, number]) => ({ width: `${w}em`, height: `${h}em` })
 
 /** The game's damage-arc bitmap, loaded once; the canvas layer below paints with it when it is ready. */
 const damageArcImage = new Image()
@@ -197,22 +200,22 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
         hangs out of the column's flow (absolute, below the box) so the corner never shifts when
         the tag appears or fades away. */}
     {ath && <div style={{ position: 'absolute', right: '3%', bottom: '6%', display: 'flex', flexDirection: 'column', alignItems: 'end', gap: '0.35em', lineHeight: 1, color: tokenCssVar('replay-hud-weapon') }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.25em', fontSize: '0.6em' }}>
-        {awayIcon && away && <WeaponIcon imageUrl={awayIcon.url} tinted={away.label?.tinted} label={catalogText(away.label, locale) ?? ''} width="2.8em" height="1.1em" style={awayIcon.mirrored ? { opacity: 0.5 } : { ...MIRROR_STYLE, opacity: 0.5 }} />}
-        <span style={{ ...SLOT_STYLE, gap: '0.25em', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{grenadeLabel?.img ? <WeaponIcon imageUrl={grenadeLabel.img} tinted={grenadeLabel.tinted} label={ath.grenade.name} width="1.3em" height="1.3em" /> : ath.grenade.name}<span>{ath.grenade.count}</span></span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: `${HUD_CORNER.slotGap}em` }}>
+        {awayIcon && away && <WeaponIcon imageUrl={awayIcon.url} tinted={away.label?.tinted} label={catalogText(away.label, locale) ?? ''} {...em(HUD_CORNER.awayIcon)} style={{ ...(awayIcon.mirrored ? {} : MIRROR_STYLE), opacity: 0.5, marginRight: `${HUD_CORNER.awayGap - HUD_CORNER.slotGap}em` }} />}
+        <span style={{ ...SLOT_STYLE, minWidth: `${HUD_CORNER.grenadeSlotWidth}em` }}>{grenadeLabel?.img ? <WeaponIcon imageUrl={grenadeLabel.img} tinted={grenadeLabel.tinted} label={ath.grenade.name} {...em(HUD_CORNER.grenadeIcon)} /> : <span style={COUNT_STYLE}>{ath.grenade.name}</span>}<span style={COUNT_STYLE}>{ath.grenade.count}</span></span>
         {ath.equipment
           ? <EquipmentHud3d doc={doc} rank={ath.equipment.rank} uses={ath.equipment.uses} locale={locale} />
-          : <span aria-hidden="true" data-hud-equipment="none" style={{ ...SLOT_STYLE, width: '1.3em', height: '1.3em', boxSizing: 'content-box' }} />}
+          : <span aria-hidden="true" data-hud-equipment="none" style={{ ...SLOT_STYLE, width: `${HUD_CORNER.equipmentSlotWidth}em` }} />}
       </div>
       {/* The ammo and weapon row between the game's two rules, the magazine count and the reserve
           parted by its upright rule (`HUD_RULE_ALPHA`). */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3em', padding: '0.25em 0 0.25em 0.5em', borderTop: RULE, borderBottom: RULE }}>
-        <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: tokenCssVar('replay-hud-weapon-mag') }}>{ath.ammo?.mag}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3em', padding: '0.35em 0 0.35em 0.5em', borderTop: RULE, borderBottom: RULE }}>
+        <span style={{ fontSize: `${HUD_CORNER.magEm}em`, fontWeight: HUD_CORNER.magWeight, fontVariantNumeric: 'tabular-nums', color: tokenCssVar('replay-hud-weapon-mag') }}>{ath.ammo?.mag}</span>
         {ath.ammo?.res != null && <>
-          {ath.ammo?.mag != null && <span aria-hidden="true" style={{ alignSelf: 'stretch', width: 0, margin: '0.05em 0.15em', borderLeft: RULE }} />}
-          <span style={{ fontSize: '0.6em', fontVariantNumeric: 'tabular-nums' }}>{ath.ammo.res}</span>
+          {ath.ammo?.mag != null && <span aria-hidden="true" style={{ alignSelf: 'stretch', width: 0, margin: '0.15em 0', borderLeft: RULE }} />}
+          <span style={{ fontSize: `${HUD_CORNER.reserveEm}em`, fontVariantNumeric: 'tabular-nums' }}>{ath.ammo.res}</span>
         </>}
-        {icon && <WeaponIcon imageUrl={icon.url} tinted={ath.label?.tinted} label={catalogText(ath.label, locale) ?? ''} width="2.8em" height="1.1em" style={icon.mirrored ? undefined : MIRROR_STYLE} />}
+        {icon && <WeaponIcon imageUrl={icon.url} tinted={ath.label?.tinted} label={catalogText(ath.label, locale) ?? ''} {...em(HUD_CORNER.weaponIcon)} style={{ ...(icon.mirrored ? {} : MIRROR_STYLE), marginLeft: `${HUD_CORNER.weaponGap - 0.3}em` }} />}
       </div>
       {ath.nameTag && <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '0.35em', fontSize: `${NAME_TAG_EM}em`, fontWeight: 600, letterSpacing: '0.08em', lineHeight: 1, padding: `${NAME_TAG_PAD_Y}em ${NAME_TAG_PAD_X}em`, background: 'rgba(0, 0, 0, 0.55)', color: '#fff', opacity: ath.nameTag.opacity }}>{ath.nameTag.text}</div>}
     </div>}
@@ -227,9 +230,9 @@ export function ReplayHud3d({ doc, xuid, frameRef, locale, kills, nameOfXuid, pl
 function EquipmentHud3d({ doc, rank, uses, locale }: { doc: ReplayDocumentReady; rank: number; uses: number | null; locale: ReplayLocale }) {
   const label = doc.abilityLabels?.[String(rank)]
   const name = catalogText(label, locale) ?? `rank ${rank}`
-  return <span role="img" aria-label={uses === null ? name : `${name} ${uses}`} data-hud-equipment={label?.family ?? rank} style={{ ...SLOT_STYLE, gap: '0.25em', fontWeight: 700, fontVariantNumeric: 'tabular-nums', opacity: uses === 0 ? 0.45 : 1 }}>
-    {label?.img ? <WeaponIcon imageUrl={label.img} tinted={label.tinted} label={name} width="1.3em" height="1.3em" /> : name}
-    {uses !== null && <span>{uses}</span>}
+  return <span role="img" aria-label={uses === null ? name : `${name} ${uses}`} data-hud-equipment={label?.family ?? rank} style={{ ...SLOT_STYLE, minWidth: `${HUD_CORNER.equipmentSlotWidth}em`, opacity: uses === 0 ? 0.45 : 1 }}>
+    {label?.img ? <WeaponIcon imageUrl={label.img} tinted={label.tinted} label={name} {...em(HUD_CORNER.equipmentIcon)} /> : <span style={COUNT_STYLE}>{name}</span>}
+    {uses !== null && <span style={COUNT_STYLE}>{uses}</span>}
   </span>
 }
 

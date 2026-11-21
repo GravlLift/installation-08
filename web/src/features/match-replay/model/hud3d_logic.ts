@@ -238,6 +238,36 @@ export const NAME_TAG_PAD_X = 0.45
 export const HUD_RULE_ALPHA = 0.75
 
 /**
+ * The weapon corner's proportions, in ems of the HUD's font size, shared by the live HUD
+ * (`ReplayHud3d`) and the export painter (`exportHud`). Measured in pixels off the owner's in-game
+ * capture (2026-11-20, a custom game on a bot training map), scaled so the grenade and equipment
+ * slots keep the height they had (1.06 em); the game's ratios to that slot height are in the
+ * comments. Icon sizes are boxes: our silhouettes keep their own aspect inside them.
+ */
+export const HUD_CORNER = {
+  /** The magazine count: its digits are 0.49 of the slot height, in the medium weight. */
+  magEm: 0.7,
+  magWeight: 500,
+  /** The reserve and the slots' counts: their digits are 0.29 of the slot height. */
+  reserveEm: 0.42,
+  countEm: 0.42,
+  /** The slots: the grenade 1.58 and the equipment 1.70 slot heights wide, nearly touching. */
+  slotHeight: 1.06,
+  grenadeSlotWidth: 1.67,
+  equipmentSlotWidth: 1.8,
+  slotGap: 0.05,
+  /** The grenade icon is 0.72 of the slot height tall, the equipment icon 0.49. */
+  grenadeIcon: [0.5, 0.76],
+  equipmentIcon: [0.84, 0.54],
+  /** The away weapon: 2.2 by 0.47 slot heights, its right end 0.63 slot heights before the grenade slot. */
+  awayIcon: [2.4, 0.55],
+  awayGap: 0.65,
+  /** The in-hand weapon: 3.4 by 0.86 slot heights, 0.58 slot heights right of the reserve. */
+  weaponIcon: [3.6, 0.95],
+  weaponGap: 0.6,
+} as const
+
+/**
  * The kill feed's top edge, as a share of the view height. The feed hangs from there and grows
  * down, newest row last: the kill feed screen (`cusc` 49050c80, `eventfeeddc`) aligns its list to
  * the top (vertical alignment -1), and on the owner's two reference frames (751 and 753 px tall)
