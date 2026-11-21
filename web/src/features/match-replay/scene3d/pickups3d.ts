@@ -51,6 +51,7 @@ import { padFamilyOf, type PadFamily } from '../model/weaponPadFamilies'
 import { padStateAt, type PadState } from '../model/weaponPadTime'
 import { InstancePool, type Ground } from './actionKit'
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
+import { addPickupOutline } from './itemOutline3d'
 import { toThree } from './tracks3d'
 import { WeaponModelPool, weaponModelKey } from './weaponModels3d'
 import { centerOffset, faceMountOffset, groundWeaponPose, standingItemCorrection } from './groundWeaponPose3d'
@@ -328,6 +329,32 @@ interface PadDrawn {
   state: PadState
   drawn: 'model' | 'box' | 'ghost' | null
   pos: THREE.Vector3 | null
+  /** The world height (three y) of the top of the floating item's model, when one was drawn. */
+  top?: number | null
+}
+
+/** Per source model: its bounds in its own frame (before its own position, turn and scale). */
+const localBoxes = new WeakMap<THREE.Object3D, THREE.Box3>()
+const _corner = new THREE.Vector3()
+
+/**
+ * itemTopY — the world height of the top of `model` posed at `position`, turned by `rotation`,
+ * at `scale` times its own scale (as `WeaponModelPool.add` poses it).
+ */
+export function itemTopY(model: THREE.Object3D, position: THREE.Vector3, rotation: THREE.Quaternion, scale: number): number {
+  let box = localBoxes.get(model)
+  if (!box) {
+    model.updateMatrixWorld(true)
+    box = new THREE.Box3().setFromObject(model).applyMatrix4(model.matrixWorld.clone().invert())
+    localBoxes.set(model, box)
+  }
+  let top = -Infinity
+  for (let k = 0; k < 8; k++) {
+    _corner.set(k & 1 ? box.max.x : box.min.x, k & 2 ? box.max.y : box.min.y, k & 4 ? box.max.z : box.min.z)
+    _corner.multiply(model.scale).multiplyScalar(scale).applyQuaternion(rotation)
+    top = Math.max(top, _corner.y)
+  }
+  return position.y + top
 }
 
 /** A baked pad: its data, its nature, its foot (three axes), its kind (floor or wall rack). */
@@ -646,6 +673,7 @@ export class Pickups3dLayer implements ActionLayer3d {
       const groundScale = this.ctx.weaponGroundScale?.(spot.pad.weapon) ?? null
       const standing = look === 'solid' && model && spot.slot === 'equipment' ? this.standingOf(model) : null
       padItemCenter(spot, frame, look, model, offset, groundScale, standing, p)
+      let top: number | null = null
       if (model && offset) {
         // The game's own hold: the item turned so its `weapon_pad_offset` marker is upright on the
         // pad, weapons and equipment alike, and turning about up through the center of its
@@ -655,6 +683,7 @@ export class Pickups3dLayer implements ActionLayer3d {
         q.copy(padItemRotation(offset, q, q))
         if (spot.item?.model !== model) spot.item = { model, offset: centerOffset(model) }
         this.models.add(this.glowOf(model, this.ctx.ink.of(ink[spot.family])), p, q, groundScale ?? 1)
+        top = itemTopY(model, p, q, groundScale ?? 1)
       } else if (model) {
         q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
         if (spot.slot === 'equipment' && standing) {
@@ -670,11 +699,12 @@ export class Pickups3dLayer implements ActionLayer3d {
           if (spot.item?.model !== model) spot.item = { model, offset: centerOffset(model) }
         }
         this.models.add(this.glowOf(model, this.ctx.ink.of(ink[spot.family])), p, q)
+        top = itemTopY(model, p, q, 1)
       } else {
         q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
         this.poolOf(look).add(p, q, 1, this.ctx.ink.of(ink[spot.family]))
       }
-      Object.assign(last, { drawn: model ? 'model' : look === 'solid' ? 'box' : 'ghost', pos: p.clone() })
+      Object.assign(last, { drawn: model ? 'model' : look === 'solid' ? 'box' : 'ghost', pos: p.clone(), top })
     }
   }
 
@@ -707,6 +737,8 @@ export class Pickups3dLayer implements ActionLayer3d {
         o.castShadow = false
         o.material = Array.isArray(o.material) ? o.material.map(tint) : tint(o.material)
       })
+      // The game's pickup outline around the floating item (`itemOutline3d`).
+      addPickupOutline(glow)
       this.glows.set(model, glow)
     }
     return glow
