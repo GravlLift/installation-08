@@ -73,6 +73,8 @@ and whose aoTuV packed codebook library it embeds unmodified. See
 
 ## Changes from upstream v1.3.6 (film-decoder)
 
+- `internal/grammar/score_keyframe_probe_test.go` (LOCAL-CHANGE): an opt-in probe of the score components in a local test film.
+
 The film-decoder module carries the LevelUp `feat/replay-3d` port on upstream v1.3.6.
 Document schema 125, facts schema 23. Local steps 113–122 were renumbered 116–125
 after upstream schema 115; see [the rebase inventory](REBASE-v1.3.6.md). Kept capabilities:
