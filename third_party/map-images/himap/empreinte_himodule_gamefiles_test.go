@@ -23,7 +23,7 @@ package himap
 //
 // LE CHOIX DES MODULES N'EST PAS ESTHETIQUE. `academy_weapon_drills` et `fo05_desert` portent
 // un compagnon `.module_hd1` du meme ordre de taille que l'archive : ils exercent la
-// calibration de la base hd1, la partie la plus fragile du lecteur. `chasm` porte un compagnon
+// lecture des entrees hd1 (offset `data_offset - hd1Delta` dans le compagnon). `chasm` porte un compagnon
 // marginal (6 Mo pour 83 Mo) : il exerce le chemin ordinaire. Trois petits modules valent mieux
 // qu'un gros — le harnais doit rester jouable en quelques secondes, sinon on ne le joue pas.
 //
@@ -59,16 +59,23 @@ var modulesEmpreinte = []string{"academy_weapon_drills", "fo05_desert", "chasm"}
 // Si l'une change, ce n'est PAS a mettre a jour a la legere : cela veut dire que le lecteur
 // rend d'autres octets, donc que la geometrie, les tags et les sons ont bouge. La mise a jour
 // se justifie par ecrit, avec la raison du changement.
+//
+// Mise a jour du 2026-11-21 (academy_weapon_drills, fo05_desert ; chasm inchange) : le lecteur
+// lit desormais les entrees hd1 a `data_offset - hd1Delta` dans le compagnon (cf. en-tete de
+// filesreader/himodule/module.go) au lieu de rendre une erreur. Avant ce changement, le lecteur
+// de main rendait deja d'autres empreintes que celles du 2026-09-05 (3faf3e09... et 66a9a300...,
+// hd1 en erreur) ; une empreinte recalculee en remplacant chaque entree hd1 par l'ancienne erreur
+// redonne exactement ces deux valeurs, donc seules les entrees hd1 ont change.
 var empreintesAttendues = map[string]string{
-	"academy_weapon_drills": "31f5f339e2ecf19e81a25a4d1c521c8da94e9f425e42bf1b78ff11e1f78c3d8f",
-	"fo05_desert":           "5d76a8e3b22e78d0f2d6c15ef4ec0b4fcc2e60d8c20cd9b464ba4ab3922c2582",
+	"academy_weapon_drills": "aee95b2ba2998bea0bf12be68ef026c23419ca6ffe2670d9da70da5cdea93de8",
+	"fo05_desert":           "310c4e4354c4e8d09badb4aae6225bed3ea65258af3a9d8a9019f1b5239e373d",
 	"chasm":                 "f097593a0827f8f33957e79e2f61c255beecb1b3f0ed266a901f80675e55539a",
 }
 
 // TestEmpreinteLecteurDeModules — les octets rendus par himodule ne bougent pas.
 //
 // Mutation qui doit le faire rougir : decaler d'un octet la base de donnees d'un module, ou
-// changer la calibration hd1.
+// la base du compagnon hd1.
 func TestEmpreinteLecteurDeModules(t *testing.T) {
 	dir, err := LevelsDir("pc")
 	if err != nil {

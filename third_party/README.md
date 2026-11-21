@@ -214,6 +214,7 @@ All module testdata totals are below 50 MiB. The decoder includes pseudonymized 
 - `map-images/himap/armes.go`: expose the existing object-model extraction for vehicle tags to the replay model library (LOCAL-CHANGE).
 - `map-images/himap/couches.go`: read the inferred base gradient of Breaker's frigate shader; its additional atlas masks remain undecoded (LOCAL-CHANGE).
 - `map-images/himap/lens_flare.go` (new, with `lens_flare_gamefiles_test.go`): read an effect's lens flares (`lens`: root fades and angles, occlusion offset, reflections with their curves) and cheap lights (`gldf`), for the equipment pad's glow (LOCAL-CHANGE).
+- `files-reader/himodule/module.go`, `projection.go` (with `hd1_test.go`, new): read a `.module_hd1` companion's entries at `data_offset - hd1Delta` (header +0x38), refuse a companion any hd1 entry falls outside of, and read an entry's bytes with ReadAt instead of mapping the companion (up to 5.4 GB). The former calibration fit none of the 38 installed companions, so 6930 bitmaps drew at half size or less. Ported from The Library's 2026-11-21 fix; `himap/empreinte_himodule_gamefiles_test.go` takes its new fingerprints for the two modules whose hd1 entries now read (LOCAL-CHANGE).
 
 These two modules are modified copies. The changes come from the LevelUp 3D replay work
 (three-way merge against the LevelUp fork point, no conflicts):

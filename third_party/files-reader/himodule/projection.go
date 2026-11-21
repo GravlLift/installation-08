@@ -44,7 +44,8 @@ func (p *projection) ferme() error {
 // projette ouvre un fichier en lecture seule et rend son contenu.
 //
 // UN FICHIER VIDE N'EST PAS PROJETE : les deux systemes refusent une projection de taille
-// nulle, et l'appelant (`loadHd1`) traite deja le cas « compagnon vide » comme une absence.
+// nulle, et l'appelant (`Open`) refuse deja une archive plus courte que son en-tete. Le compagnon
+// `.module_hd1` n'est pas projete (cf. `loadHd1`).
 func projette(chemin string) (*projection, error) {
 	octets, fermer, err := projetteFichier(chemin)
 	if err != nil {
