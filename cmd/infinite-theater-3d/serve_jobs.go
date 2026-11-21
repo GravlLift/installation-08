@@ -38,6 +38,9 @@ import (
 // either.
 func jobModuleReady(root *store.Root, module string) bool {
 	module, quality := meshjobs.SplitQuality(module)
+	if id, ok := recodeJobID(module); ok {
+		return recodeReady(root, id)
+	}
 	if id, ok := variantJobID(module); ok {
 		p := variantPath(root, id, variantGLBName(quality))
 		if _, err := os.Stat(p); err != nil {
@@ -76,6 +79,20 @@ func jobModuleReady(root *store.Root, module string) bool {
 // it in place.
 func jobModuleOutdated(root *store.Root, module string) bool {
 	module, quality := meshjobs.SplitQuality(module)
+	if id, ok := recodeJobID(module); ok {
+		// A document behind the decoder is not ready (recodeReady answered false for it),
+		// so it is the module's "outdated" state: the runner reports it as an update to be
+		// rebuilt, and the build flow re-codes it in place. A match with no document at all
+		// is not "outdated" (there is nothing to re-code): absent, as for every other job.
+		p, err := root.MatchReplayPath(id)
+		if err != nil {
+			return false
+		}
+		if _, err := os.Stat(p); err != nil {
+			return false
+		}
+		return !recodeReady(root, id)
+	}
 	if id, ok := variantJobID(module); ok {
 		p := variantPath(root, id, variantGLBName(quality))
 		if _, err := os.Stat(p); err != nil {
@@ -312,6 +329,9 @@ func coatingLibraryFolder(module string) (string, bool) {
 // outputs mapmesh.BuildFormat stamps (the libraries, icons and sounds are folders).
 func glbModule(key string) bool {
 	module, _ := meshjobs.SplitQuality(key)
+	if _, ok := recodeJobID(module); ok {
+		return false
+	}
 	if _, ok := variantJobID(module); ok {
 		return true
 	}
@@ -332,6 +352,10 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 	ready := func(module string) bool { return jobModuleReady(root, module) }
 	dest := func(module string) string {
 		module, quality := meshjobs.SplitQuality(module)
+		if id, ok := recodeJobID(module); ok {
+			p, _ := root.MatchReplayPath(id)
+			return p
+		}
 		if id, ok := variantJobID(module); ok {
 			return variantPath(root, id, variantGLBName(quality))
 		}
@@ -360,6 +384,19 @@ func meshJobsFor(root *store.Root, gameRoot string, weaponKeys weapons.Catalog) 
 		return p
 	}
 	build := func(ctx context.Context, module, game, out string) (meshjobs.BuildResult, error) {
+		module, _ = meshjobs.SplitQuality(module)
+		if id, ok := recodeJobID(module); ok {
+			// A match's document re-decode: the stored film is decoded again by the current
+			// decoder, in a child process (recodeInProcess -> recodeInChild), so the decoder's
+			// memory guard stops the child, not the server. The child's progress lines reach
+			// the runner's reporter; a failure leaves the stored document in place.
+			result, err := recodeInProcess(ctx, root, id)
+			if err != nil {
+				noteRecodeFailed(id, err)
+				slog.Warn("match re-code failed, serving the stored document", "id", id, "err", err)
+			}
+			return result, err
+		}
 		baseModule, _ := meshjobs.SplitQuality(module)
 		if glbModule(module) && baseModule != "ctf_breaker" {
 			// A map or variant GLB of format 2 or 3 is upgraded in place (images realigned,

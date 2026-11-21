@@ -28,6 +28,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/JGtm/halo-infinite-film-decoder/replay"
 	"github.com/llampwall/infinite-theater-3d/internal/meshjobs"
 	"github.com/llampwall/infinite-theater-3d/internal/store"
 	"github.com/llampwall/infinite-theater-3d/internal/weapons"
@@ -367,13 +368,18 @@ func (h serverHandlers) matchlistAccountName() string {
 }
 
 // handleReplay answers /api/matches/{id}/replay with the document: gzip-encoded as stored
-// when the client accepts it, otherwise decompressed.
+// when the client accepts it, otherwise decompressed. A document behind the decoder is
+// re-coded first (see serve_recode.go): the request waits on that job, the way the map
+// build's state is waited on, and answers with the new document only once it is written.
+// A match that cannot be re-coded (no runner, film gone, or a re-code this process already
+// failed) serves its stored document as-is.
 func (h serverHandlers) handleReplay(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	if !store.MatchIDValid(id) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid match id"})
 		return
 	}
+	h.waitForRecode(r.Context(), id)
 	raw, err := h.root.LoadReplay(id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
@@ -405,6 +411,60 @@ func (h serverHandlers) handleReplay(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(doc)
+}
+
+// waitForRecode re-codes a match whose stored document is behind the decoder, in place of
+// the old document, before the document is served. It follows the map build's own flow:
+// the open does not get an old document and a "reopen later" promise; it waits on the job
+// (the viewer's Optimizing assets banner shows it in the meantime, through GET
+// /api/builds) and the answer is the new document, or, when the re-code cannot run or
+// fails, the stored document as-is (never a half-written one: the write is a temp file
+// and a rename). It honors the request's cancellation: a client that leaves stops waiting
+// and the re-code keeps running for the next opener.
+func (h serverHandlers) waitForRecode(ctx context.Context, id string) {
+	if h.jobs == nil {
+		return
+	}
+	// A current document (or one this process already re-coded) is served without a job.
+	if sv, ok := storedReplaySchemaVersion(h.root, id); ok && sv >= replay.SchemaVersion {
+		return
+	}
+	// A re-code this process already failed: serving it again would only fail the same way;
+	// the stored document is served as-is (the warning was logged when it failed).
+	if recodeFailedInProcess(id) {
+		return
+	}
+	key, ok := h.recodeMatch(id)
+	if !ok {
+		return
+	}
+	for {
+		// The build closure records a failed re-code before it returns the error (noteRecode
+		// Failed), so the moment it is set the job is done: the stored document is served
+		// as-is. Checked on every iteration because the runner reports a re-code job whose
+		// old document is still on disk as "outdated" (the runner's disk-derived state), not
+		// the failure it just recorded — the in-process flag is the re-code's own truth.
+		if recodeFailedInProcess(id) {
+			slog.Warn("match re-code failed, serving the stored document", "match_id", id)
+			return
+		}
+		snap := h.jobs.Snapshot(key)
+		switch snap.State {
+		case meshjobs.StateReady:
+			return // the new document is written and on disk: serve it.
+		case meshjobs.StateCancelled:
+			// The build was cancelled (a server shutdown in flight): the stored document is
+			// served as-is; the next opener re-queues the job.
+			return
+		}
+		// Queued, building, outdated (a failed re-code's old document is still on disk), or
+		// (StateAbsent) not started yet: wait, bounded by the request.
+		select {
+		case <-ctx.Done():
+			return // the client left; the job keeps running for the next opener.
+		case <-time.After(300 * time.Millisecond):
+		}
+	}
 }
 
 // originAllowed says whether a state-changing request may come from r's Origin. A request

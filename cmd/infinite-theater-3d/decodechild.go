@@ -42,8 +42,12 @@ const (
 // peakBytesRE reads the peak footprint from the memory guard's stop line.
 var peakBytesRE = regexp.MustCompile(`peak_bytes=(\d+)`)
 
-// runBuildReplay is the hidden `build-replay <match-id> [--data <dir>]` command, the child
-// side: it builds the stored match's replay exactly as an in-process build would.
+// runBuildReplay is the hidden `build-replay <match-id> [--data <dir>] [--recode]` command,
+// the child side: it builds the stored match's replay exactly as an in-process build would.
+// --recode marks a re-decode of a match whose document is behind the decoder (serve_recode.go):
+// the film is decoded by the current decoder, but the match summary's ImportedAt is preserved
+// (buildStored's rebuild flag leaves the summary untouched), and the child reports its progress
+// as `progress=<frac>` lines on its output (the parent forwards them to the build runner).
 func runBuildReplay(args []string) error {
 	if len(args) == 0 || !store.MatchIDValid(args[0]) {
 		return fmt.Errorf("build-replay requires a valid match id")
@@ -51,6 +55,7 @@ func runBuildReplay(args []string) error {
 	id := args[0]
 	fs := flag.NewFlagSet("build-replay", flag.ContinueOnError)
 	data := fs.String("data", "", dataDirHelp)
+	recode := fs.Bool("recode", false, "")
 	if err := fs.Parse(args[1:]); err != nil {
 		return err
 	}
@@ -65,6 +70,22 @@ func runBuildReplay(args []string) error {
 	if err != nil {
 		return err
 	}
+	if *recode {
+		meta, err := root.MatchMeta(id)
+		if err != nil {
+			return err
+		}
+		// A re-decode is one decode with two bookkeeping steps around it: report the decode
+		// starting, decode (rebuild true leaves the summary's ImportedAt in place), then report
+		// the document written. The parent forwards these to the runner's progress reporter.
+		fmt.Println("progress=0.05")
+		err = buildStored(root, id, importFlags{mapName: meta.MapName, rebuild: true})
+		if err != nil {
+			return err
+		}
+		fmt.Println("progress=0.9")
+		return nil
+	}
 	return buildStored(root, id, importFlags{})
 }
 
@@ -77,14 +98,43 @@ func buildStoredInChild(ctx context.Context, root *store.Root, id string) error 
 	return runDecodeChild(ctx, exe, []string{"build-replay", id, "--data", root.Dir()}, nil)
 }
 
-// runDecodeChild runs exe with args (and extraEnv) as a decode child with no console window,
-// copies its output into this process's log, and turns a failed exit into an error that says
-// what happened.
-func runDecodeChild(ctx context.Context, exe string, args, extraEnv []string) error {
+// recodeInChild re-decodes a stored match's film in a child process: the decode runs on the
+// current decoder, the match summary's ImportedAt is preserved (the child's --recode flag), and
+// the child's `progress=<frac>` lines are forwarded to report (the runner's reporter, so the
+// viewer's Optimizing assets banner shows the re-decode, like a map build). The memory guard
+// stops the child, never the server (the file comment). After the child succeeds, the parent
+// re-derives the summary's players from the new document (refreshMatchSummaryAfterRecode keeps
+// every other field, including the preserved ImportedAt).
+func recodeInChild(ctx context.Context, root *store.Root, id string, report func(frac float64, stage string)) error {
+	meta, err := root.MatchMeta(id)
+	if err != nil {
+		return err
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("find the app executable: %w", err)
+	}
+	out := &childOutput{log: os.Stderr}
+	out.progressLine = func(line string) {
+		if frac, ok := parseProgressLine(line); ok && report != nil {
+			report(frac, stageOfProgress(frac))
+		}
+	}
+	err = runDecodeChildWithOut(ctx, exe, []string{"build-replay", id, "--recode", "--data", root.Dir()}, nil, out)
+	if err == nil {
+		if rerr := refreshMatchSummaryAfterRecode(root, id, meta); rerr != nil {
+			return rerr
+		}
+	}
+	return err
+}
+
+// runDecodeChildWithOut is runDecodeChild with the parent's choice of output receiver (the
+// re-code child reports progress through it; a fetch's child uses the plain childOutput).
+func runDecodeChildWithOut(ctx context.Context, exe string, args, extraEnv []string, out *childOutput) error {
 	cmd := exec.CommandContext(ctx, exe, args...)
 	cmd.Env = append(append(os.Environ(), decodeChildEnv+"=1"), extraEnv...)
 	hideChildConsole(cmd)
-	out := &childOutput{log: os.Stderr}
 	cmd.Stdout = out
 	cmd.Stderr = out
 	err := cmd.Run()
@@ -102,6 +152,34 @@ func runDecodeChild(ctx context.Context, exe string, args, extraEnv []string) er
 	return out.failure(exit.ExitCode())
 }
 
+// parseProgressLine reads a `progress=<frac>` line into a 0..1 fraction (ok false otherwise).
+func parseProgressLine(line string) (float64, bool) {
+	v, ok := strings.CutPrefix(line, "progress=")
+	if !ok {
+		return 0, false
+	}
+	frac, err := strconv.ParseFloat(v, 64)
+	if err != nil || frac < 0 || frac > 1 {
+		return 0, false
+	}
+	return frac, true
+}
+
+// stageOfProgress names the stage a fraction is in (the banner shows the stage, not the number).
+func stageOfProgress(frac float64) string {
+	if frac < 0.9 {
+		return "decoding"
+	}
+	return "writing"
+}
+
+// runDecodeChild runs exe with args (and extraEnv) as a decode child with no console window,
+// copies its output into this process's log, and turns a failed exit into an error that says
+// what happened.
+func runDecodeChild(ctx context.Context, exe string, args, extraEnv []string) error {
+	return runDecodeChildWithOut(ctx, exe, args, extraEnv, &childOutput{log: os.Stderr})
+}
+
 // childOutput receives a decode child's stdout and stderr: it copies them to the log and keeps
 // what explains a failure (the last lines, the first line of a crash, the memory stop line).
 type childOutput struct {
@@ -111,6 +189,9 @@ type childOutput struct {
 	last    []string
 	crash   string
 	memory  string
+	// progressLine, when set, receives each output line: the re-code child's
+	// `progress=<frac>` lines are parsed from it (serve_recode.go) and no others.
+	progressLine func(string)
 }
 
 // Write copies p to the log (a failing log never fails the child) and records its lines.
@@ -162,6 +243,9 @@ func (o *childOutput) note(line string) {
 	}
 	if strings.Contains(line, build.MemoryExceededMessage) {
 		o.memory = line
+	}
+	if o.progressLine != nil {
+		o.progressLine(line)
 	}
 	o.last = append(o.last, line)
 	if len(o.last) > childTailLines {
