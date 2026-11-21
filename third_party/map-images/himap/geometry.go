@@ -127,10 +127,17 @@ func NewRenderModelAsset(tag, resourceBlob []byte) (*RuntimeGeoAsset, error) {
 	return nouvelAsset(tag, resourceBlob, modeGeoFromTagInfo, GroupeMode)
 }
 
+// nouvelAsset decodes the first header candidate that reads; when none does, the error names the
+// first candidate's reason (ErrSansSections among them). LOCAL-CHANGE (infinite-theater-3d), ported
+// from The Library.
 func nouvelAsset(tag, blob []byte, decode func(tagInfo) (RuntimeGeo, error), groupe string) (*RuntimeGeoAsset, error) {
+	var premiere error
 	for _, ti := range tagCandidates(tag) {
 		geo, err := decode(ti)
 		if err != nil {
+			if premiere == nil {
+				premiere = err
+			}
 			continue
 		}
 		a := &RuntimeGeoAsset{info: ti, geo: geo, blob: blob}
@@ -138,7 +145,10 @@ func nouvelAsset(tag, blob []byte, decode func(tagInfo) (RuntimeGeo, error), gro
 		a.indexDescs = a.findDescTable(indexDescStride, decodeIndexDesc)
 		return a, nil
 	}
-	return nil, fmt.Errorf("himap: unreadable tag %s", groupe)
+	if premiere == nil {
+		return nil, fmt.Errorf("himap: unreadable tag %s", groupe)
+	}
+	return nil, fmt.Errorf("himap: unreadable tag %s: %w", groupe, premiere)
 }
 
 // findDescTable retient le data-block qui est un tableau COHERENT de descripteurs.

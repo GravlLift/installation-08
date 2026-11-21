@@ -14,6 +14,7 @@ package himap
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 )
 
@@ -39,6 +40,13 @@ const (
 // bboxStride / bboxOffBounds : un enregistrement `BoundingBoxBlock` (84 o) porte les paires
 // (min, max) ENTRELACEES des axes X/Y/Z a partir de +4 — la ou le per-mesh du rtgo range
 // les trois minima puis les trois maxima (cf. meshOffBoundsMin/Max).
+// ErrSansSections reports a `mode` whose Sections field (root +192) points to no data block: a
+// render model with no geometry of its own (no Mesh Resource Groups either, root +324 count 0).
+// MEASURED 2026-11-21 (The Library): 11 of the 6076 `mode` tags of the whole installation. What the
+// game draws for one is what its model variant attaches, when it attaches anything
+// (objets_attaches.go). LOCAL-CHANGE (infinite-theater-3d), ported from The Library.
+var ErrSansSections = errors.New("himap: mode without sections")
+
 const (
 	bboxStride    = 84
 	bboxOffBounds = 4
@@ -165,6 +173,9 @@ func modeGeoFromTagInfo(ti tagInfo) (RuntimeGeo, error) {
 	if !ok {
 		return RuntimeGeo{}, fmt.Errorf("himap: no Sections tag-block at offset %d (offsets seen: %v)",
 			modeOffSections, offs)
+	}
+	if sections < 0 {
+		return RuntimeGeo{}, ErrSansSections
 	}
 	absS, sizeS := ti.blockAbs(sections)
 	if absS < 0 || sizeS <= 0 || sizeS%sectionStride != 0 || absS+sizeS > len(ti.tag) {
