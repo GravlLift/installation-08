@@ -102,19 +102,7 @@ func (a *Arsenal) objet(ctx context.Context, id uint32, groupe string) (*Maillag
 	if g, _, ok := a.geo.Lookup(id); !ok || g != groupe {
 		return nil, fmt.Errorf("%w: %08x is not a %q tag", ErrSansModele, id, groupe)
 	}
-	// LOCAL-CHANGE (infinite-theater-3d): weapons choose their own default variant.
-	variante := varianteDefaut
-	if groupe == GroupeArme {
-		raw, err := a.geo.Extract(id)
-		if err != nil {
-			return nil, err
-		}
-		variante, err = varianteParDefautArme(raw)
-		if err != nil {
-			return nil, err
-		}
-	}
-	mp := modeleDuPlacement(ctx, a.geo, id, variante)
+	mp := modeleDuPlacement(ctx, a.geo, id, varianteDefaut)
 	if mp == nil {
 		return nil, fmt.Errorf("%w : %08x", ErrSansModele, id)
 	}
@@ -133,21 +121,4 @@ func (a *Arsenal) objet(ctx context.Context, id uint32, groupe string) (*Maillag
 		"materiaux", len(m.Materiaux), "materiauxIllisibles", m.MateriauxIllisibles,
 		"textures", len(m.TexturesCouches), "texturesIllisibles", m.TexturesCouchesIllisibles)
 	return m, nil
-}
-
-// LOCAL-CHANGE (infinite-theater-3d): read the weapon's declared default model variant.
-func varianteParDefautArme(raw []byte) (uint32, error) {
-	ti, err := meilleurTagInfo(raw)
-	if err != nil {
-		return 0, err
-	}
-	root, err := ti.rootBlockIndex()
-	if err != nil {
-		return 0, err
-	}
-	abs, size := ti.blockAbs(root)
-	if abs < 0 || size < 116 || abs+size > len(raw) {
-		return 0, fmt.Errorf("weapon root too short for model variant")
-	}
-	return uint32(u32(raw, abs+112)), nil
 }

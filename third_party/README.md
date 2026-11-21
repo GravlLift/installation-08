@@ -1,7 +1,6 @@
 # Upstream modules
 
 - `film-decoder/replay/map_weapon_pads.go` (LOCAL-CHANGE): publish the local scale of a directly placed Forge weapon in the served map-pad overlay.
-- `map-images/himap/armes.go`, `premiere_personne_rig.go` and `premiere_personne_gamefiles_test.go` (LOCAL-CHANGE): weapon world and first-person models select the weapon tag's default model variant; zero leaves the render model's first permutations selected.
 - `map-images/himap/bandit_strings_gamefiles_test.go` (LOCAL-CHANGE): checks the game's English and French Bandit names in the global localized strings.
 
 The source files below are as of 2026-11-13, with the documented changes noted per module. Each retains its own `go.mod`, license and notices. The listed h1 values are the Go module zip hashes, before the documented omissions. To compare against a future tag, download its module zip with `go mod download`, extract it outside this repository, and compare its module directory with the matching directory here, accounting for these omissions.

@@ -10,42 +10,6 @@ import (
 	"testing"
 )
 
-// LOCAL-CHANGE (infinite-theater-3d): the two Bandits select different scope meshes.
-func TestBanditWeaponModelVariant(t *testing.T) {
-	a := ouvreArsenalRecharge(t)
-	for _, tc := range []struct {
-		id    uint32
-		scope bool
-	}{{0x2fb21c87, false}, {0x6acdc44d, true}} {
-		src, err := a.SourcesArme(tc.id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		mp, err := modeleDeLArme(context.Background(), a, src)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if got := slices.Contains(mp.maillages, 226); got != tc.scope {
-			t.Errorf("%08x first-person scope section: got %v want %v", tc.id, got, tc.scope)
-		}
-		raw, err := a.geo.Extract(tc.id)
-		if err != nil {
-			t.Fatal(err)
-		}
-		variant, err := varianteParDefautArme(raw)
-		if err != nil {
-			t.Fatal(err)
-		}
-		world := modeleDuPlacement(context.Background(), a.geo, tc.id, variant)
-		if world == nil {
-			t.Fatal("world model missing")
-		}
-		if got := slices.Contains(world.maillages, 226); got != tc.scope {
-			t.Errorf("%08x world scope section: got %v want %v", tc.id, got, tc.scope)
-		}
-	}
-}
-
 // armeFP : une arme du bac a sable arene, son `weap`, son graphe a la premiere personne et son
 // modele (mesures sur le jeu installe ; le contenu du jeu ne bouge plus).
 type armeFP struct {
