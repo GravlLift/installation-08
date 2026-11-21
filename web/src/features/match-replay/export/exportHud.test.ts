@@ -646,11 +646,11 @@ describe('createExportHud', () => {
       })
     }
 
-    /** A canvas whose 2d context is a fake: `getImageData` serves a fully-shaped mask (G and B
+    /** A canvas whose 2d context is a fake: `getImageData` serves a fully-shaped mask (B and A
      * high everywhere), so `readScoreMeterMask` returns a real mask and `paintScoreMeter` runs. */
     function maskCanvasStub() {
-      const buffer = new Uint8ClampedArray(400 * 64 * 4)
-      for (let i = 0; i < buffer.length; i += 4) { buffer[i + 1] = 255; buffer[i + 2] = 255 } // G ramp, B shape
+      const buffer = new Uint8ClampedArray(800 * 64 * 4)
+      for (let i = 0; i < buffer.length; i += 4) { buffer[i + 2] = 255; buffer[i + 3] = 255 } // B ramp, A shape
       const octx = {
         clearRect: () => {},
         drawImage: () => {},
