@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/llampwall/infinite-theater-3d/internal/weaponicons"
 )
 
 // TestIconName — the badge file names: the context's own naming rule, Onyx without a
@@ -85,6 +87,12 @@ func TestSetReady(t *testing.T) {
 		if err := os.WriteFile(filepath.Join(dir, name), []byte("x"), 0o600); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if SetReady(dataDir) {
+		t.Fatal("SetReady(full set, no decoder stamp) = true")
+	}
+	if err := weaponicons.WriteDecoderStamp(dir); err != nil {
+		t.Fatal(err)
 	}
 	if !SetReady(dataDir) {
 		t.Fatal("SetReady(full set) = false")

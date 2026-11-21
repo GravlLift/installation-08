@@ -76,8 +76,12 @@ func OutDir(dataDir string) string {
 	return filepath.Join(dataDir, "assets", "ranks", "halo_infinite")
 }
 
-// SetReady says whether the badge set is built: every badge file is on disk.
+// SetReady says whether the badge set is built: every badge file is on disk, decoded by the
+// current bitmap decoder (weaponicons.DecoderStampCurrent).
 func SetReady(dataDir string) bool {
+	if !weaponicons.DecoderStampCurrent(OutDir(dataDir)) {
+		return false
+	}
 	for _, name := range Names() {
 		if _, err := os.Stat(filepath.Join(OutDir(dataDir), name)); err != nil {
 			return false
@@ -108,6 +112,9 @@ func Build(ctx context.Context, gameRoot, dataDir string) (int, int, error) {
 		if fi, err := os.Stat(filepath.Join(out, name)); err == nil {
 			total += int(fi.Size())
 		}
+	}
+	if err := weaponicons.WriteDecoderStamp(out); err != nil {
+		return 0, 0, err
 	}
 	slog.InfoContext(ctx, "rank badge set built", "files", len(names), "bytes", total, "out", out)
 	return len(names), total, nil

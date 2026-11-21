@@ -166,10 +166,14 @@ func HudFileNames() []string {
 // ShieldChase.png, ShieldQuad.png, ScoreMeter.png, ShieldGlow.png, ShieldBurst.png,
 // HealthBar.png, the last team emblem (TeamEmblem8.png), AND the HUD's default font are all
 // present in the output folder. A set built before one of those was added is missing it,
-// so it is not ready and gets rebuilt once.
+// so it is not ready and gets rebuilt once; so is a set decoded by an older decoder
+// (DecoderStampCurrent).
 func HudSetReady(dataDir string) bool {
 	dir := HudOutDir(dataDir)
-	for _, name := range []string{"index.json", "pad-navpoint.json", "hud-colors.json", "NavpointFill.png", "NavpointGlyph-weapon.png","DamageArc.png", "ShieldChase.png", "ShieldQuad.png", "ScoreMeter.png", "ShieldGlow.png", "ShieldBurst.png", "HealthBar.png", "TeamEmblem8.png", hudFontRequired} {
+	if !DecoderStampCurrent(dir) {
+		return false
+	}
+	for _, name := range []string{"index.json", "pad-navpoint.json", "hud-colors.json", "NavpointFill.png", "NavpointGlyph-weapon.png", "DamageArc.png", "ShieldChase.png", "ShieldQuad.png", "ScoreMeter.png", "ShieldGlow.png", "ShieldBurst.png", "HealthBar.png", "TeamEmblem8.png", hudFontRequired} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			return false
 		}
@@ -398,6 +402,9 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 	written += fontFiles
 	total += fontBytes
 	if err := os.WriteFile(filepath.Join(out, "pad-navpoint.json"), append(navJSON, '\n'), 0o600); err != nil {
+		return 0, 0, 0, err
+	}
+	if err := WriteDecoderStamp(out); err != nil {
 		return 0, 0, 0, err
 	}
 	slog.InfoContext(ctx, "hud icon set built", "files", written, "named", len(entries),

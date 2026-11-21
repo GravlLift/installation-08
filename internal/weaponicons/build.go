@@ -43,10 +43,11 @@ func OutDir(dataDir string) string {
 	return filepath.Join(dataDir, "assets", "weapons-icons", "halo_infinite", "jeu")
 }
 
-// SetReady says whether the icon set is built: index.json is present in the output folder.
+// SetReady says whether the icon set is built: index.json is present in the output folder
+// and the set was decoded by the current decoder (DecoderStampCurrent).
 func SetReady(dataDir string) bool {
 	_, err := os.Stat(filepath.Join(OutDir(dataDir), "index.json"))
-	return err == nil
+	return err == nil && DecoderStampCurrent(OutDir(dataDir))
 }
 
 // iconEntry describes one extracted icon, as written in index.json.
@@ -128,6 +129,9 @@ func Build(ctx context.Context, gameRoot, dataDir string) (entries, bytes int, e
 	if fi, err := os.Stat(filepath.Join(out, "index.json")); err == nil {
 		total += int(fi.Size())
 	}
+	if err := WriteDecoderStamp(out); err != nil {
+		return 0, 0, err
+	}
 	slog.InfoContext(ctx, "weapon icon set built", "entries", len(all), "bytes", total, "out", out)
 	return len(all), total, nil
 }
@@ -201,7 +205,7 @@ func entryFor(at atlasTag, name string, keyByIndex map[int]string,
 		GameName: gameName, NameUnverified: unverified,
 		SourceTag: fmt.Sprintf("%08x", at.ID),
 		SourceW:   im.W, SourceH: im.H,
-		CroppedW:  img.Bounds().Dx(), CroppedH: img.Bounds().Dy(),
+		CroppedW: img.Bounds().Dx(), CroppedH: img.Bounds().Dy(),
 		BC7Format: im.Format,
 		Noise:     fmt.Sprintf("%.4f", alphaNoise(img)),
 	}
