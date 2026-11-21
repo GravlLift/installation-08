@@ -8,9 +8,9 @@
  * events one after the other (`activeEvents`): after a 0.5 s delay, event 0's flare for 0.5 s, then
  * event 1's bluer flare for 1 s; a flare shows only while its event plays. What the tags fix and
  * this draws:
- * - every reflection is drawn in screen space (flag bit 11 unset), its radius not scaled by
- *   distance (bit 1 unset), centered on the source (axis offset 0), its texture turned by its
- *   rotation offset (degrees);
+ * - every reflection faces the camera (flag bit 11, world space, unset), centered on the source
+ *   (axis offset 0), its texture turned by its rotation offset (degrees), hidden by what stands
+ *   nearer the camera;
  * - its size is its radius curve times its X / Y scale curves (the effect part's radius modifier
  *   is not applied, `PAD_LENS_RADIUS_MODIFIER`);
  * - its light is its color curve times its intensity curve (linear RGB) through the view's
@@ -19,7 +19,8 @@
  *   cutoff angles off the view axis (65 to 80 degrees), linearly;
  * - it is hidden when the map stands between the camera and the source (no "no occlusion test"
  *   flag; the occlusion offset is 0).
- * Inferred, not read: the radius unit is the screen's half height (NDC), and the source sits at
+ * Inferred, not read: the radius unit is world units (as a share of the screen, the flare stayed
+ * as large on a far pad as on a near one and buried the pad, unlike the game), and the source sits at
  * the top center of the pad object's box (the effect plays at the device's origin, which the
  * object table does not publish). The game's occlusion is a pixel count around the source; this
  * test is one sight line. The reflections' modulation and tint power are not drawn (no external
@@ -206,10 +207,10 @@ const ADD_LIGHT: Partial<THREE.SpriteMaterialParameters> = {
   blendSrc: THREE.OneFactor,
   blendDst: THREE.OneFactor,
   blendEquation: THREE.AddEquation,
-  depthTest: false,
+  depthTest: true,
   depthWrite: false,
   transparent: true,
-  sizeAttenuation: false,
+  sizeAttenuation: true,
   fog: false,
 }
 
@@ -268,7 +269,6 @@ export class PadGlow3d {
     const active = this.data ? activeEvents(this.data, seconds) : []
     for (const m of this.volumes) m.update(camera, { systemAge: seconds })
     camera.getWorldDirection(this.forward)
-    const ndcPerUnit = camera.projectionMatrix.elements[5] // cot(fov / 2): view units at depth 1 per NDC unit
     const hidden = new Map<THREE.Vector3, boolean>()
     for (const d of this.drawn) {
       this.toSource.subVectors(d.source, camera.position)
@@ -284,8 +284,10 @@ export class PadGlow3d {
       if (w <= 0) continue
       const r = d.reflection
       const radius = r.radius.max * PAD_LENS_RADIUS_MODIFIER
-      // A unit sprite without size attenuation spans `scale * ndcPerUnit / 2` NDC either side.
-      d.sprite.scale.set((2 * radius * r.scaleX.max) / ndcPerUnit, (2 * radius * r.scaleY.max) / ndcPerUnit, 1)
+      // World units: the sprite spans its scale. It stands its own radius toward the camera so the
+      // pad's surface does not cut it, while whatever is nearer (the held weapon, a wall) hides it.
+      d.sprite.scale.set(2 * radius * r.scaleX.max, 2 * radius * r.scaleY.max, 1)
+      d.sprite.position.copy(d.source).addScaledVector(this.toSource, -Math.min(radius, distance / 2) / Math.max(distance, 1e-6))
       ;(d.sprite.material as THREE.SpriteMaterial).color.copy(d.light).multiplyScalar(w)
     }
   }
