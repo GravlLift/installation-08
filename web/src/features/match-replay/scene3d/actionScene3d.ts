@@ -153,6 +153,20 @@ export interface ActionContext {
   scriptShockLook?: () => ShockLook
   /** The rendering camera's world position, written in `out` (the game effects' camera distance input). */
   cameraPosition?: (out: THREE.Vector3) => THREE.Vector3 | null
+  /**
+   * Projects a world point to normalised screen coordinates [0-1, 0-1] (origin top-left),
+   * or returns null when the point is behind the camera. Used by the pad navpoint markers
+   * for off-screen docking.
+   */
+  projectToScreen?: (point: readonly [number, number, number]) => [number, number] | null
+  /** The view size in CSS pixels: [width, height]. */
+  viewSize?: () => [number, number]
+  /**
+   * Unprojects a normalised screen point (0-1, origin top-left) at the given world distance
+   * in front of the camera into a world position, written in `out`. Used by the pad navpoint
+   * markers to place docked icons at a fixed distance from the camera.
+   */
+  screenToWorld?: (sx: number, sy: number, distance: number, out: THREE.Vector3) => void
   /** The brief flash lights: the set opens and closes them around the layers. */
   readonly flashes: FlashLights
   /** The map's baked light (`lighting.takeGameLight`), grafted onto players' armor. */
