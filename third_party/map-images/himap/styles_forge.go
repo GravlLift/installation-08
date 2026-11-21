@@ -205,7 +205,7 @@ func teinteCouche(k *Couche, l mapvar.StyleLayer) *Couche {
 		return nil
 	}
 	t := *k
-	t.Haut, t.Milieu, t.Bas = rgbCatalogue(k.Haut[:], l), rgbCatalogue(k.Milieu[:], l), rgbCatalogue(k.Bas[:], l)
+	t.Haut, t.Milieu, t.Bas = teinteTrio(k.Haut[:], k.Milieu[:], k.Bas[:], l)
 	return &t
 }
 
@@ -222,11 +222,9 @@ func (c coucheCatalogue) couche(l mapvar.StyleLayer) *Couche {
 		Bitmap:      uint32(c.GradientBitmap),
 		Transfo:     transfoCatalogue(c.GradientXform),
 		Opacite:     1,
-		Haut:        rgbCatalogue(c.TopJSON, l),
-		Milieu:      rgbCatalogue(c.MidJSON, l),
-		Bas:         rgbCatalogue(c.BotJSON, l),
 		Matiere:     &MatiereCouche{Blanc: c.RoughnessWhite, Noir: c.RoughnessBlack, Metal: c.Metallic},
 	}
+	k.Haut, k.Milieu, k.Bas = teinteTrio(c.TopJSON, c.MidJSON, c.BotJSON, l)
 	if c.NormalBitmap != 0 && c.NormalBitmap != -1 && c.NormalBitmap != normaleVide {
 		k.Normale, k.TransfoNormale = uint32(c.NormalBitmap), transfoCatalogue(c.NormalXform)
 	}
@@ -244,23 +242,52 @@ func transfoCatalogue(x [2]float32) Transfo {
 	return t
 }
 
-// rgbCatalogue : a catalog color moved toward l's color (Tint) by its intensity (Scalar, Ekur's
-// color_intensity), bounded to [0, 1]. Ekur reads but never draws these (forge_level_reader.py),
-// so the rule is ours: the colors are dark linear values (Fortress: 0.05 at intensity 0.2 to
-// 0.6), which a product would turn black.
-func rgbCatalogue(c []float32, l mapvar.StyleLayer) [3]float32 {
+// teinteTrio : a swatch's top, middle and bottom colors tinted by the style layer l. Ekur reads
+// the tint (Tint) and its intensity (Scalar, Ekur's color_intensity) but never draws them
+// (forge_level_reader.py), so the rule is ours, an inference: each color keeps its brightness
+// relative to the middle color and takes the tint's hue, target_k = Tint x lum(c_k) / lum(c_mid)
+// (Rec. 709 luminance on the linear values; the tint itself when the middle is black), and moves
+// toward that target by the intensity, bounded to [0, 1]. A product would turn the dark linear
+// colors black (Fortress: 0.05 at intensity 0.2 to 0.6); moving all three colors onto the tint
+// erased the gradient: Design Grid's lines are its top color over bottom-colored cells (gradient
+// 96e51f62's red channel), and on AIMBOTZ V2, where every grid is tinted grey at intensity 1, the
+// game draws the lines about 1.35x lighter than the cells while that rule drew them flat.
+func teinteTrio(haut, milieu, bas []float32, l mapvar.StyleLayer) (h, m, b [3]float32) {
+	h, m, b = rgbBorne(haut), rgbBorne(milieu), rgbBorne(bas)
+	if l.Tint == nil || l.Scalar <= 0 {
+		return h, m, b
+	}
+	teinte := [3]float32{float32(l.Tint.X), float32(l.Tint.Y), float32(l.Tint.Z)}
+	force := min(float32(l.Scalar), 1)
+	lm := luminance(m)
+	vers := func(c [3]float32) [3]float32 {
+		cible := teinte
+		if lm > 0 {
+			r := luminance(c) / lm
+			cible = [3]float32{teinte[0] * r, teinte[1] * r, teinte[2] * r}
+		}
+		var out [3]float32
+		for i := range out {
+			out[i] = min(max(c[i]+(cible[i]-c[i])*force, 0), 1)
+		}
+		return out
+	}
+	return vers(h), vers(m), vers(b)
+}
+
+// rgbBorne : a catalog color as three components bounded to [0, 1] (black when it has not three).
+func rgbBorne(c []float32) [3]float32 {
 	var out [3]float32
 	if len(c) != 3 {
 		return out
 	}
-	var teinte [3]float32
-	force := float32(0)
-	if l.Tint != nil && l.Scalar > 0 {
-		teinte = [3]float32{float32(l.Tint.X), float32(l.Tint.Y), float32(l.Tint.Z)}
-		force = min(float32(l.Scalar), 1)
-	}
 	for i := range out {
-		out[i] = min(max(c[i]+(teinte[i]-c[i])*force, 0), 1)
+		out[i] = min(max(c[i], 0), 1)
 	}
 	return out
+}
+
+// luminance : the Rec. 709 relative luminance of a linear color.
+func luminance(c [3]float32) float32 {
+	return 0.2126*c[0] + 0.7152*c[1] + 0.0722*c[2]
 }

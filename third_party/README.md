@@ -505,6 +505,11 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
       nothing and leave the zone to the material: Fortress's Forerunner Platform panels in the
       blue tower name Blank in near-black brown on Mask0 R and drew the material's pale
       blue-grey there. A Blank layer without a color still leaves the zone to the material.
+    - `himap/styles_forge.go` (`teinteTrio`, replacing `rgbCatalogue`): a style tint keeps its
+      swatch's gradient. Each of the bottom, middle and top colors keeps its brightness relative
+      to the middle and takes the tint's hue (an inference, Ekur never draws these colors).
+      Moving all three onto the tint erased Design Grid's lines on AIMBOTZ V2's grey floors and
+      walls (tint at intensity 1), where the game draws them lighter than the cells.
     Covered by `himap/styles_forge_test.go`, `representation_test.go` (modified),
     `styles_forge_gamefiles_test.go` (new) and `representation_gamefiles_test.go` (modified).
   - `files-reader/mapvar/mapvar.go` (LOCAL-CHANGE): `Variant.Lighting` reads the variant's
