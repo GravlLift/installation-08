@@ -2,9 +2,10 @@
 /**
  * padNavpointMarkers3d.ts — THE GAME'S PAD NAVPOINTS IN THE 3D SCENE, one marker per pad.
  *
- * The game marks every weapon pad with a small icon and, while the pad is empty, a numeric
- * countdown to the weapon's return. This layer draws the same markers in the 3D view: one
- * `CSS2DObject` per pad, positioned imperatively each frame.
+ * The game marks every weapon pad with a small icon. It writes no countdown under it (Jordan,
+ * 2026-11-21: the pad's ring fills as the item's return nears, and the navpoint shows no number),
+ * although the `nvpt` tag carries a numeric timer element. This layer draws the same markers in
+ * the 3D view: one `CSS2DObject` per pad, positioned imperatively each frame.
  *
  * ON SCREEN: the icon sits ABOVE the item's anchor, with a thin vertical line from the icon
  * down to the item (F2). The icon is raised by `ICON_OFFSET_UI` nvpt UI units (fitted to the
@@ -17,7 +18,7 @@
  * the upper-left and upper-right when the player faces away from all pads.
  *
  * THE SIZES ARE THE GAME'S, FROM THE `nvpt` NAVPOINT TAG (`padnavpoint.json`): the icon's
- * width and height, its alpha, and the numeric timer's size and offset, in the game's UI units,
+ * width and height and its alpha, in the game's UI units,
  * scaled to the view through `cqh` (1cqh = 1% of the view height).
  *
  * THE COLOR is the 3D HUD's weapon ink (`--replay-hud-weapon`): the icon is a mask filled with
@@ -28,10 +29,8 @@ import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
 
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { padItemCenter, type PadSpot, type Pickups3dLayer } from './pickups3d'
-import { navpointStateAt } from './padNavpoint3d'
 import { padIconRefFor } from '../layers/useReplayWeaponPads'
 import { HUD_FONT_FAMILY } from '../ui/hudFonts'
-import { frameToMs } from '@/lib/replay/replayLogic'
 import { ovalAngle, ovalPoint, DOCK_CENTER_X, DOCK_CENTER_Y } from './padNavpointMath3d'
 
 /**
@@ -107,7 +106,7 @@ function spriteEl(s: BadgeSprite): HTMLDivElement {
   return el
 }
 
-/** One marker: its projected element and the DOM the timer and the icon update per frame. */
+/** One marker: its projected element and the DOM the icon updates per frame. */
 interface Marker {
   spot: PadSpot
   obj: CSS2DObject
@@ -117,9 +116,6 @@ interface Marker {
   box: HTMLDivElement
   /** The line from the icon down to the anchor. */
   line: HTMLDivElement
-  timer: HTMLSpanElement
-  timerText: string
-  timerShown: boolean
   /** Whether the icon was docked last frame (to avoid redundant style writes). */
   wasDocked: boolean
   /** The oval parameter angle (radians) for docked markers, null when on screen. */
@@ -167,7 +163,6 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
   private readonly root: THREE.Object3D
   private readonly spots: readonly PadSpot[]
   private readonly markers: Marker[] = []
-  private readonly frameMs: number
   private ready = false
   private shown = false
   private style: NavpointStyle | null = null
@@ -176,7 +171,6 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     this.ctx = ctx
     this.root = ctx.root
     this.spots = pickups.spots
-    this.frameMs = frameToMs(1, ctx.doc)
     void this.loadStyle()
   }
 
@@ -187,7 +181,7 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
       const res = await fetch('/static/weapons-assets/halo_infinite/hud/pad-navpoint.json')
       if (res.ok) {
         const data = (await res.json()) as NavpointStyle | null
-        if (data && data.iconWidth > 0 && data.iconHeight > 0 && data.numericTimerSize > 0) style = { ...data, badge: badgeOf(data.badge) }
+        if (data && data.iconWidth > 0 && data.iconHeight > 0) style = { ...data, badge: badgeOf(data.badge) }
       }
     } catch {
       // The set may predate the navpoint asset: no markers, never an error.
@@ -210,7 +204,7 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     this.ready = true
   }
 
-  /** buildMarker makes one marker's element and its DOM (the icon, the line, the timer) once. */
+  /** buildMarker makes one marker's element and its DOM (the icon, the line) once. */
   private buildMarker(spot: PadSpot, icon: { url: string; mirrored: boolean }, style: NavpointStyle): Marker {
     const point = document.createElement('div')
     point.style.cssText = 'width:0;height:0;'
@@ -232,17 +226,12 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     line.style.cssText = `position:absolute;left:50%;top:100%;transform:translateX(-50%);transform-origin:50% 0;width:${LINE_WIDTH_PX}px;height:${cq(ICON_OFFSET_UI)};background:var(--replay-hud-weapon,#c7ebfa);opacity:0.7;pointer-events:none;`
     box.appendChild(line)
 
-    // The timer: below the line, at the game's offset from the anchor.
-    const timer = document.createElement('span')
-    timer.style.cssText = `position:absolute;left:50%;top:calc(100% + ${cq(ICON_OFFSET_UI)});transform:translateX(-50%);font-size:${cq(style.numericTimerSize)};font-weight:700;line-height:1;font-variant-numeric:tabular-nums;color:var(--replay-hud-weapon,#c7ebfa);text-shadow:0 1px 2px var(--replay-hud-shadow,rgba(0,0,0,0.7));pointer-events:none;white-space:nowrap;`
-    box.appendChild(timer)
-
     point.appendChild(box)
     const arrow = this.style?.badge ? this.arrowEl(this.style.badge, point) : null
     const obj = new CSS2DObject(point)
     obj.visible = false
     this.root.add(obj)
-    return { spot, obj, icon: { url: icon.url, mirrored: icon.mirrored }, box, line, timer, timerText: '', timerShown: false, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: false, hidden: false, scale: 1, lineCqh: -1, lineAngle: 0 }
+    return { spot, obj, icon: { url: icon.url, mirrored: icon.mirrored }, box, line, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: false, hidden: false, scale: 1, lineCqh: -1, lineAngle: 0 }
   }
 
   /** arrowEl adds the off-screen arrow to a marker, hidden until the marker docks. */
@@ -264,15 +253,14 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     point.appendChild(box)
     const arrow = this.arrowEl(badge, point)
     const line = document.createElement('div')
-    const timer = document.createElement('span')
     const obj = new CSS2DObject(point)
     obj.visible = false
     this.root.add(obj)
-    return { spot, obj, icon: null, box, line, timer, timerText: '', timerShown: false, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: true, hidden: false, scale: 1, lineCqh: -1, lineAngle: 0 }
+    return { spot, obj, icon: null, box, line, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: true, hidden: false, scale: 1, lineCqh: -1, lineAngle: 0 }
   }
 
   /**
-   * update places each marker at its pad's drawn point and refreshes its timer, once per frame.
+   * update places each marker at its pad's drawn point, once per frame.
    * When the item is off screen or behind the camera, the icon is docked on the oval.
    * Docked icons are spread along the oval so they do not pile up.
    */
@@ -356,7 +344,7 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
       }
     }
 
-    // Third pass: toggle lines, update timers, set visibility.
+    // Third pass: toggle lines and arrows, set visibility.
     for (const m of this.markers) {
       if (m.hidden) {
         m.obj.visible = false
@@ -371,22 +359,6 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
       }
       // The arrow's frame points down (+y on screen): turn it toward the item.
       if (docked && m.arrow) m.arrow.style.transform = `translate(-50%,-50%) rotate(${m.dockDir - Math.PI / 2}rad)`
-      if (m.badge) {
-        m.obj.visible = true
-        continue
-      }
-
-      const reading = navpointStateAt(m.spot.pad, frame, this.frameMs)
-      const text = reading.seconds != null ? String(Math.ceil(reading.seconds)) : ''
-      if (text !== m.timerText) {
-        m.timer.textContent = text
-        m.timerText = text
-      }
-      const timerShown = text !== ''
-      if (timerShown !== m.timerShown) {
-        m.timer.style.display = timerShown ? '' : 'none'
-        m.timerShown = timerShown
-      }
       m.obj.visible = true
     }
   }
@@ -422,8 +394,6 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     if (Math.abs(lineCqh - m.lineCqh) > 0.05 || Math.abs(angle - m.lineAngle) > 0.005) {
       m.line.style.height = `${lineCqh.toFixed(2)}cqh`
       m.line.style.transform = `translateX(-50%) rotate(${angle.toFixed(4)}rad)`
-      m.timer.style.top = `calc(100% + ${dy.toFixed(2)}cqh)`
-      m.timer.style.left = `calc(50% + ${dx.toFixed(2)}cqh)`
       m.lineCqh = lineCqh
       m.lineAngle = angle
     }
