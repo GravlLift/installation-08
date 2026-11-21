@@ -35,6 +35,14 @@ func TestBanditModelVariantsFromGame(t *testing.T) {
 		if got := binary.LittleEndian.Uint32(tag[abs+112:]); got != want {
 			t.Errorf("%08x default model variant: %08x, want %08x", id, got, want)
 		}
+		_, sprite, _ := uiBlockOffsets()
+		ui, _, _, ok := findUIBlock(w, tag, weapBlocks[pathUIDisplayInfo].at[fieldSprite])
+		if !ok || ui+sprite+4 > len(tag) {
+			t.Fatalf("%08x icon block missing", id)
+		}
+		if got := binary.LittleEndian.Uint32(tag[ui+sprite:]); got != 33 {
+			t.Errorf("%08x icon index %d, want 33", id, got)
+		}
 	}
 	hlmt, err := r.Tag(0xfd84e103)
 	if err != nil {
@@ -60,6 +68,11 @@ func TestBanditModelVariantsFromGame(t *testing.T) {
 			if len(region.Permutations) == 0 || region.Permutations[0].Name != 0x3e62c641 {
 				t.Fatalf("scope permutations: %+v", region.Permutations)
 			}
+			names, err := StringIDNames(map[uint32]bool{region.Permutations[0].Name: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("scope permutation %08x name %q", region.Permutations[0].Name, names[region.Permutations[0].Name])
 			return
 		}
 	}

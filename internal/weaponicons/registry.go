@@ -26,7 +26,8 @@ type weaponFamily struct {
 // weaponFamilyTable: the installed game's filmshell weapon ids, first id seen per family.
 var weaponFamilyTable = []weaponFamily{
 	{"hinf_br75", 0x2b1824d5},            // BR75
-	{"hinf_bandit", 0x2fb21c87},          // Bandit (Evo: 0x6acdc44d)
+	{"hinf_bandit", 0x2fb21c87},          // Bandit
+	{"hinf_bandit_evo", 0x6acdc44d},      // Bandit Evo
 	{"hinf_ma40_ar", 0x48c19d2d},         // MA40
 	{"hinf_ma5k_avenger", 0xf5c335df},    // MA5K Avenger
 	{"hinf_vk78_commando", 0xfd98554c},   // VK78 Commando

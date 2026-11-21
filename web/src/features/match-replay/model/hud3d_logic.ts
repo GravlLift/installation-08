@@ -19,7 +19,7 @@ import { pickupAmmoAt, pickupAmmoIndex } from './pickupAmmo'
 
 export function reticleShape(key: string | undefined): 'circle' | 'precision' | 'pistol' | 'dot' | 'large' | 'default' {
   if (!key) return 'default'
-  if (['hinf_br75', 'hinf_vk78_commando', 'hinf_bandit', 'hinf_shock_rifle'].includes(key)) return 'precision'
+  if (['hinf_br75', 'hinf_vk78_commando', 'hinf_bandit', 'hinf_bandit_evo', 'hinf_shock_rifle'].includes(key)) return 'precision'
   if (['hinf_s7_sniper'].includes(key)) return 'dot'
   if (['hinf_cqs48_bulldog', 'hinf_heatwave', 'hinf_cindershot'].includes(key) || weaponClassOfKey(key) === 'missile') return 'large'
   if (weaponClassOfKey(key) === 'pistol') return 'pistol'

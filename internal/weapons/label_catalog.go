@@ -118,6 +118,10 @@ func (c LabelCatalog) ModelKeysForWeaponName(name string) []string {
 	if name == "" {
 		return nil
 	}
+	// GameCMS gives both Bandits the same M392 weapon core and coating theme.
+	if name == "m392 bandit" {
+		return []string{"2fb21c87", "6acdc44d"}
+	}
 	if key, ok := c.namesByWeapon[name]; ok {
 		return c.familiesOfKey(key)
 	}

@@ -8,6 +8,19 @@ import (
 	"github.com/JGtm/halo-infinite-film-decoder/replay"
 )
 
+func TestBanditLabels(t *testing.T) {
+	c := Labels()
+	for id, want := range map[uint32]struct{ key, en, fr string }{
+		0x2fb21c87: {"hinf_bandit", "M392 Bandit", "Bandit M392"},
+		0x6acdc44d: {"hinf_bandit_evo", "Bandit Evo", "Bandit Evo"},
+	} {
+		label := c.Weapons[id]
+		if c.Keys[id] != want.key || label.Text["en"] != want.en || label.Text["fr"] != want.fr || label.Fx != "ballistic" || c.Icons[id].URL == "" {
+			t.Errorf("%08x: key %s label %+v icon %+v", id, c.Keys[id], label, c.Icons[id])
+		}
+	}
+}
+
 // TestLabelCatalogEmbedded — the embedded label catalog parses, is non-empty, and carries
 // the expected tables: weapon names joined to families, grenade labels in rank order,
 // ability palettes with markers, shot effects/tints/impacts, equipment families,
