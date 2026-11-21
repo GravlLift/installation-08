@@ -419,3 +419,16 @@ func TestPromotePadCandidates(t *testing.T) {
 		t.Fatalf("without a variant: %+v", got)
 	}
 }
+
+func TestPromoteWeaponSpawnCandidate(t *testing.T) {
+	variant := &mapvar.Variant{Objects: []mapvar.Object{
+		{Pos: mapvar.Vec3{X: 4.9, Y: 7.9, Z: 59.1}, TypeID: 0x5f3fa667},
+	}}
+	candidates := []replay.WeaponPad{{X: 4.9, Y: 7.9, Z: 59.1, Weapon: "0x2AC9C2FF", Spawns: []int{0}}}
+	if got := promotePadCandidates(variant, nil, candidates); len(got) != 1 || got[0].Weapon != candidates[0].Weapon {
+		t.Fatalf("weapon spawn candidate: %+v", got)
+	}
+	if got := promotePadCandidates(variant, nil, []replay.WeaponPad{{X: 4.9, Y: 7.9, Z: 59.1, Weapon: "repulsor"}}); len(got) != 0 {
+		t.Fatalf("equipment on weapon spawn: %+v", got)
+	}
+}
