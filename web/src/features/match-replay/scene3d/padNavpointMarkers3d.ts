@@ -32,7 +32,7 @@ import { navpointStateAt } from './padNavpoint3d'
 import { padIconRefFor } from '../layers/useReplayWeaponPads'
 import { HUD_FONT_FAMILY } from '../ui/hudFonts'
 import { frameToMs } from '@/lib/replay/replayLogic'
-import { dockOnOval, DOCK_CENTER_X, DOCK_CENTER_Y } from './padNavpointMath3d'
+import { ovalAngle, ovalPoint, spreadDocked, DOCK_CENTER_X, DOCK_CENTER_Y } from './padNavpointMath3d'
 
 /**
  * One navpoint UI unit as a share of the view height. The navpoint's units are those of a
@@ -54,6 +54,14 @@ const DOCK_DISTANCE = 50
  * game's line element is in the Template Navpoint, which is null in the pad nvpt tag.
  */
 const ICON_OFFSET_UI = 44
+
+/**
+ * The minimum arc-length gap between neighbouring docked icons, in normalised
+ * screen coordinates. Not read from the game (the uihg "Docked 2D Spacing" is
+ * not decoded yet): one icon width (96 UI units = 96/2160 of the screen height)
+ * plus a small margin (20% extra).
+ */
+const DOCK_GAP_FALLBACK = (96 / 2160) * 1.2
 
 /** The served pad-navpoint presentation (`padnavpoint.json`, the `nvpt` tag). */
 interface NavpointStyle {
@@ -79,6 +87,8 @@ interface Marker {
   timerShown: boolean
   /** Whether the icon was docked last frame (to avoid redundant style writes). */
   wasDocked: boolean
+  /** The oval parameter angle (radians) for docked markers, null when on screen. */
+  dockAngle: number | null
 }
 
 /** Scratch vectors for per-frame projection (avoids allocation). */
@@ -159,12 +169,13 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     const obj = new CSS2DObject(point)
     obj.visible = false
     this.root.add(obj)
-    return { spot, obj, icon: { url: icon.url, mirrored: icon.mirrored }, box, line, timer, timerText: '', timerShown: false, wasDocked: false }
+    return { spot, obj, icon: { url: icon.url, mirrored: icon.mirrored }, box, line, timer, timerText: '', timerShown: false, wasDocked: false, dockAngle: null }
   }
 
   /**
    * update places each marker at its pad's drawn point and refreshes its timer, once per frame.
    * When the item is off screen or behind the camera, the icon is docked on the oval.
+   * Docked icons are spread along the oval so they do not pile up.
    */
   update(frame: number): void {
     const shown = this.ctx.inputs().show.weaponPads
@@ -177,52 +188,69 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     const project = this.ctx.projectToScreen
     const screenToWorld = this.ctx.screenToWorld
 
-    for (const m of this.markers) {
-      // The anchor: the item's still center.
+    // First pass: project each marker and collect the docked ones with their angles.
+    const dockedAngles: number[] = []
+    const dockedIdx: number[] = []
+
+    for (let i = 0; i < this.markers.length; i++) {
+      const m = this.markers[i]
       padItemCenter(m.spot, frame, null, null, null, null, null, _worldPos)
 
-      let docked = false
-      if (project && screenToWorld) {
-        const screen = project([_worldPos.x, _worldPos.y, _worldPos.z])
-        if (!screen) {
-          // Behind the camera: dock in the mirrored direction.
-          docked = true
-          this.ctx.cameraPosition?.(_camPos)
-          const dx = _worldPos.x - _camPos.x
-          const dy = _worldPos.y - _camPos.y
-          const dz = _worldPos.z - _camPos.z
-          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz)
-          if (dist > 0.001) {
-            // Direction from camera to item. For behind-camera, mirror the vertical
-            // component so the icon appears on the correct side of the oval.
-            const [ox, oy] = dockOnOval(dx / dist, -(dy / dist))
-            screenToWorld(ox, oy, DOCK_DISTANCE, _dockedWorld)
-            m.obj.position.copy(_dockedWorld)
-          }
-        } else if (screen[0] < -0.02 || screen[0] > 1.02 || screen[1] < -0.02 || screen[1] > 1.02) {
-          // Off screen: dock on the oval in the item's direction from the oval centre.
-          docked = true
-          const dirX = screen[0] - DOCK_CENTER_X
-          const dirY = screen[1] - DOCK_CENTER_Y
-          const [ox, oy] = dockOnOval(dirX, dirY)
-          screenToWorld(ox, oy, DOCK_DISTANCE, _dockedWorld)
-          m.obj.position.copy(_dockedWorld)
-        } else {
-          // On screen: the CSS2DRenderer projects the world position.
-          m.obj.position.copy(_worldPos)
-        }
-      } else {
-        // No projection available: fall back to the world position.
+      if (!project || !screenToWorld) {
         m.obj.position.copy(_worldPos)
+        m.dockAngle = null
+        continue
       }
 
-      // Toggle the line's visibility based on docking.
+      const screen = project([_worldPos.x, _worldPos.y, _worldPos.z])
+      if (!screen) {
+        // Behind the camera: dock in the mirrored direction.
+        this.ctx.cameraPosition?.(_camPos)
+        const dx = _worldPos.x - _camPos.x
+        const dy = _worldPos.y - _camPos.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        if (dist > 0.001) {
+          const angle = ovalAngle(dx / dist, -(dy / dist))
+          m.dockAngle = angle
+          dockedAngles.push(angle)
+          dockedIdx.push(i)
+        } else {
+          m.dockAngle = null
+        }
+      } else if (screen[0] < -0.02 || screen[0] > 1.02 || screen[1] < -0.02 || screen[1] > 1.02) {
+        // Off screen: dock on the oval in the item's direction from the oval centre.
+        const dirX = screen[0] - DOCK_CENTER_X
+        const dirY = screen[1] - DOCK_CENTER_Y
+        const angle = ovalAngle(dirX, dirY)
+        m.dockAngle = angle
+        dockedAngles.push(angle)
+        dockedIdx.push(i)
+      } else {
+        // On screen: the CSS2DRenderer projects the world position.
+        m.obj.position.copy(_worldPos)
+        m.dockAngle = null
+      }
+    }
+
+    // Second pass: spread the docked angles and place them.
+    if (dockedAngles.length > 0 && screenToWorld) {
+      const spread = spreadDocked(dockedAngles, DOCK_GAP_FALLBACK)
+      for (let k = 0; k < dockedIdx.length; k++) {
+        const m = this.markers[dockedIdx[k]]
+        const [ox, oy] = ovalPoint(spread[k])
+        screenToWorld(ox, oy, DOCK_DISTANCE, _dockedWorld)
+        m.obj.position.copy(_dockedWorld)
+      }
+    }
+
+    // Third pass: toggle lines, update timers, set visibility.
+    for (const m of this.markers) {
+      const docked = m.dockAngle !== null
       if (docked !== m.wasDocked) {
         m.line.style.display = docked ? 'none' : ''
         m.wasDocked = docked
       }
 
-      // Update the timer.
       const reading = navpointStateAt(m.spot.pad, frame, this.frameMs)
       const text = reading.seconds != null ? String(Math.ceil(reading.seconds)) : ''
       if (text !== m.timerText) {

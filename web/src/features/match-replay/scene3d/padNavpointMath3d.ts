@@ -51,3 +51,92 @@ export function dockOnOval(dirX: number, dirY: number): [number, number] {
     DOCK_CENTER_Y + DOCK_RADIUS_Y * ny,
   ]
 }
+
+/**
+ * ovalAngle — the parameter angle (radians) on the docking oval for a screen
+ * direction (unit vector from the oval centre).
+ */
+export function ovalAngle(dirX: number, dirY: number): number {
+  const len = Math.sqrt(dirX * dirX + dirY * dirY)
+  if (len < 1e-8) return 0
+  return Math.atan2((dirY / len) / DOCK_RADIUS_Y, (dirX / len) / DOCK_RADIUS_X)
+}
+
+/**
+ * ovalPoint — the normalised screen position on the docking oval at parameter
+ * angle `angle` (radians).
+ */
+export function ovalPoint(angle: number): [number, number] {
+  return [
+    DOCK_CENTER_X + DOCK_RADIUS_X * Math.cos(angle),
+    DOCK_CENTER_Y + DOCK_RADIUS_Y * Math.sin(angle),
+  ]
+}
+
+/**
+ * ovalRadius — the local radius of the docking oval at parameter angle `angle`
+ * (radians), in normalised screen coordinates.
+ */
+export function ovalRadius(angle: number): number {
+  const cx = DOCK_RADIUS_X * Math.cos(angle)
+  const cy = DOCK_RADIUS_Y * Math.sin(angle)
+  const sx = -DOCK_RADIUS_X * Math.sin(angle)
+  const sy = DOCK_RADIUS_Y * Math.cos(angle)
+  const s = Math.sqrt(sx * sx + sy * sy)
+  if (s < 1e-12) return DOCK_RADIUS_X
+  return Math.sqrt(cx * cx + cy * cy) / s
+}
+
+/**
+ * spreadDocked — given the parameter angles (radians) of docked icons on the
+ * oval, returns adjusted angles so that neighbouring icons are at least
+ * `minGap` apart along the oval (arc length = angle × local radius), keeping
+ * their order and keeping the group centred on its original mean angle.
+ *
+ * `minGap` is the minimum arc-length gap between neighbouring icons, in the
+ * same units as the oval's radii (normalised screen coordinates).
+ *
+ * The algorithm: sort by angle, build a forward-pass chain with the gap
+ * enforced, and centre it on the mean (the mean of a centred chain equals the
+ * target). When the wrap gap (last-to-first around 2π) is violated, the chain
+ * is compressed to the span that leaves exactly `minGap` for the wrap, and the
+ * result is re-centred on the mean.
+ */
+export function spreadDocked(angles: number[], minGap: number): number[] {
+  const n = angles.length
+  if (n <= 1) return angles.slice()
+  const mean = angles.reduce((s, a) => s + a, 0) / n
+  const sorted = angles.map((a, i) => ({ a, i })).sort((x, y) => x.a - y.a)
+
+  // Forward pass: chain positions relative to the first, gap enforced.
+  const chain = new Array<number>(n)
+  chain[0] = 0
+  for (let k = 1; k < n; k++) {
+    chain[k] = Math.max(sorted[k].a - sorted[0].a, chain[k - 1] + minGap)
+  }
+  const span = chain[n - 1]
+
+  // Centre the chain on the mean.
+  let pos = new Array<number>(n)
+  for (let k = 0; k < n; k++) {
+    pos[k] = chain[k] + (mean - span / 2)
+  }
+
+  // Wrap gap: angular gap from last to first around 2π.
+  const wrap = Math.PI * 2 - span
+  if (wrap < minGap) {
+    // Compress to the span that leaves exactly minGap for the wrap.
+    const maxSpan = Math.PI * 2 - minGap
+    const scale = maxSpan / span
+    pos = new Array<number>(n)
+    for (let k = 0; k < n; k++) {
+      pos[k] = chain[k] * scale + (mean - maxSpan / 2)
+    }
+  }
+
+  const res = new Array<number>(n)
+  for (let k = 0; k < n; k++) {
+    res[sorted[k].i] = pos[k]
+  }
+  return res
+}
