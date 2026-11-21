@@ -155,6 +155,7 @@ export const EN_TEXT = {
     grapple: 'Grappleshot',
     sensor: 'Threat sensor',
     thruster: 'Thruster',
+    shroud_screen: 'Shroud screen',
   },
   layerModeObjectives: 'Mode objectives',
   layerModeObjectivesHint:
