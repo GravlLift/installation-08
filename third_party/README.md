@@ -612,3 +612,6 @@ These two modules are modified copies. The changes come from the LevelUp 3D repl
 
 Tests: `map-images` passes. `files-reader/hinavmesh` fails before and after the merge
 because its game-derived fixtures are not shipped here.
+
+- `himap/emissif_fonctions.go`, `emissif.go`, `materiaux.go`, `glb.go` (LOCAL-CHANGE): retain
+  object-driven emissive color mapping bytes and their input StringID in GLB material extras.

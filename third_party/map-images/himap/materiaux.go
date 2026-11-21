@@ -243,6 +243,7 @@ func litPostprocess(m *Materiau, ti tagInfo, tag []byte, cible int, shaders Lect
 	}
 	if m.Emissif != nil {
 		m.Emissif.Animations = animationsEmissives(m.Emissif, pp) // LOCAL-CHANGE (infinite-theater-3d)
+		m.Emissif.Objets = objetsEmissifs(m.Emissif, pp)          // LOCAL-CHANGE (infinite-theater-3d)
 		m.Emissif.Images = imagesEmissives(pp)                    // LOCAL-CHANGE (infinite-theater-3d)
 	}
 	m.Pochoir = pochoirDuShader(m.Shader, shaders(m.Shader), pp.constantes)

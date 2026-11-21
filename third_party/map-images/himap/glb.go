@@ -356,6 +356,10 @@ func (e *ecrivainMateriaux) appliqueImages(g *gltfMaterial, mat Materiau, brute 
 		if len(mat.Emissif.Animations) > 0 && g.EmissiveFactor != nil {
 			g.Extras["emissionAnim"] = mat.Emissif.Animations
 		}
+		// LOCAL-CHANGE (infinite-theater-3d): preserve object-input mappings separately from time animations.
+		if len(mat.Emissif.Objets) > 0 && g.EmissiveFactor != nil {
+			g.Extras["emissionObject"] = mat.Emissif.Objets
+		}
 	}
 	aDecoupe := mat.Decoupe != nil
 	var masque *Texture
