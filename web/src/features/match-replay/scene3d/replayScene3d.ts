@@ -42,6 +42,7 @@ import { placeTag } from './nameTags3d'
 import { FreeFly } from './freeFly3d'
 import { attachRenderer, detachRenderer, getSessionKtx2Loader } from './sessionRenderer3d'
 import { farthestCorner, Lighting } from './lighting'
+import { PadGlow3d } from './padGlow3d'
 import { creerCiel, setCloudClock } from './ciel3d'
 import type { Look3d } from './look3d'
 import type { BakedLight } from './bakedLightShader'
@@ -173,6 +174,8 @@ export class ReplayScene3d implements Replay3DExportSource {
   private holdsCache: { script: CameraScript | null; sMs: number; holds: Map<string, Hold> } | null = null
   private fps = 30
   private weaponModels: WeaponModels | null = null
+  /** The equipment pads' lens flares (`padGlow3d`), made once the weapon library is known. */
+  private padGlow: PadGlow3d | null = null
   private armory: SpartanArmory | null = null
   /** The followed player's first-person weapon (key and name), null with no key; `rig`: the arms+weapon rig is what's drawn. */
   inView: { key: string; name: string; rig: boolean } | null = null
@@ -460,6 +463,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.ground?.setPickables(this.groundSurfaces())
     this.remeasureFloorDrop()
     this.top?.sync(this.ciel, this.mapRoots())
+    this.padGlow?.setObjects(layerObjects(layer.root))
     return true
   }
 
@@ -481,6 +485,21 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.remeasureFloorDrop()
     this.top?.sync(this.ciel, this.mapRoots())
     this.lighting.releaseLayer(layer.surfaces)
+    this.padGlow?.setObjects(null)
+  }
+
+  /** placePadGlow sets the pads' lens flares for the camera as placed (made on the library's arrival). */
+  private placePadGlow(top: boolean, seconds: number): void {
+    if (!this.padGlow) {
+      const base = this.weaponModels?.base
+      if (!base) return
+      this.padGlow = new PadGlow3d(this.scene, base)
+      this.padGlow.setObjects(this.layer ? layerObjects(this.layer.root) : null)
+    }
+    this.padGlow.root.visible = !top // screen-space light: none in the top-down view
+    if (top) return
+    const forward = this.camera.getWorldDirection(new THREE.Vector3())
+    this.padGlow.update(this.camera, seconds, (target) => this.sightBlockedAt(target, forward) !== null)
   }
 
   /** setLook applies the drawer's lighting settings: shadows, reflections, ambient occlusion, bloom. */
@@ -782,6 +801,7 @@ export class ReplayScene3d implements Replay3DExportSource {
     const top = this.view === 'top' ? this.top : null
     this.orbit.enabled = this.mode === 'free' && !top && !this.cameraPlacement.scripted() // the top-down view has its own gestures on the canvas
     if (!top) this.lighting.updateShadows(frame) // seen from above the sun casts no shadow (`topDownStage3d`)
+    this.placePadGlow(top !== null, (frame * this.msPerFrame) / 1000)
     t = markStep(p, 3, t)
     // Every other frame with bloom drawn, its pass is timed alone and the frame's timer rests: two
     // timer queries cannot nest. The frame time still counts the bloom on the frames it measures.
@@ -1050,6 +1070,8 @@ export class ReplayScene3d implements Replay3DExportSource {
       a.tag.element.remove()
     }
     this.detachLayer()
+    this.padGlow?.dispose()
+    this.padGlow = null
     this.top?.dispose()
     if (this.ciel) { this.scene.remove(this.ciel); this.ciel.geometry.dispose(); this.ciel.material.dispose(); this.ciel = null }
     // The map itself is session-cached by its served path (`sessionAssetCache3d`): only removed from
@@ -1279,6 +1301,15 @@ export class ReplayScene3d implements Replay3DExportSource {
     this.feetDrop = measureOriginAboveFloor(tracks.players.flatMap((p) => tracks.allPoints(p.xuid)), this.groundSurfaces(), this.raycaster)
     this.originAboveFloor = this.povXuid ? measureOriginAboveFloor(tracks.allPoints(this.povXuid), this.groundSurfaces(), this.raycaster) : 0
   }
+}
+
+/** layerObjects: a variant layer's object table (`levelupObjects`, game axes), null without one. */
+function layerObjects(root: THREE.Object3D): unknown {
+  let found: unknown = null
+  root.traverse((o) => {
+    if (found === null && Array.isArray(o.userData?.levelupObjects)) found = o.userData.levelupObjects
+  })
+  return found
 }
 
 /**

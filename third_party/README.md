@@ -213,6 +213,7 @@ All module testdata totals are below 50 MiB. The decoder includes pseudonymized 
 - `map-images/himap/effet_arme.go`: add the flow-mapped billboard particle shader 0461c4a7 (the plasma grenade's flight effect) to the read layouts, from its DXIL reflection (LOCAL-CHANGE).
 - `map-images/himap/armes.go`: expose the existing object-model extraction for vehicle tags to the replay model library (LOCAL-CHANGE).
 - `map-images/himap/couches.go`: read the inferred base gradient of Breaker's frigate shader; its additional atlas masks remain undecoded (LOCAL-CHANGE).
+- `map-images/himap/lens_flare.go` (new, with `lens_flare_gamefiles_test.go`): read an effect's lens flares (`lens`: root fades and angles, occlusion offset, reflections with their curves) and cheap lights (`gldf`), for the equipment pad's glow (LOCAL-CHANGE).
 
 These two modules are modified copies. The changes come from the LevelUp 3D replay work
 (three-way merge against the LevelUp fork point, no conflicts):

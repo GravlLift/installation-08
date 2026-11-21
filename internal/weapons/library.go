@@ -240,6 +240,8 @@ func readTagFields(ctx context.Context, a *himap.Arsenal, src tagSource, idx *In
 	if idx.ShieldHit, err = readShieldHit(ctx, a, src.gameRoot, src.module, src.dir); err != nil {
 		return fmt.Errorf("shield impact: %w", err)
 	}
+	announce("reading the equipment pad glow")
+	idx.PadGlow = readPadGlow(ctx, a, src.dir)
 	announce("reading pad offsets")
 	keys := append([]string{}, idx.WeapKeys...)
 	for _, k := range idx.Equipment {

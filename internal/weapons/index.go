@@ -105,6 +105,9 @@ type Index struct {
 	// ShieldHit: the Spartan shield's impact generator (shield_hit.go), its parameters and the
 	// fx-* textures it samples; null when the game holds no readable one (the view draws no hit).
 	ShieldHit *ShieldGenerator `json:"shield_hit"`
+	// PadGlow: the equipment pad's glow (pad_glow.go): its cheap lights and lens flares, with the
+	// fx-* textures; null when the game holds no readable one.
+	PadGlow *PadGlow `json:"pad_glow"`
 	// Equipment: per equipment family of the title's manifest whose pad items share one model, the
 	// model key of that model (equipment.go), for the items a power-up or equipment pad publishes
 	// by family. Always written, empty included: an index without the field predates it and is
@@ -146,8 +149,9 @@ const EquipmentRuleCurrent = 2
 // error angle, fire recovery): the Shock Rifle's three projectiles per trigger pull. 12: the shot
 // table carries the grenades' flight effects (the plasma grenade's glow, shader 0461c4a7). 13: the
 // weapon and equipment models' pad markers and ground scales (pad_offsets, ground_scales: how a pad holds its item, and at what size).
-// 14: weapon models use the weapon tag's default model variant.
-const SchemaCurrent = 14
+// 14: weapon models use the weapon tag's default model variant. 15: the equipment pad's glow
+// (pad_glow: its cheap lights and lens flares).
+const SchemaCurrent = 15
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).
