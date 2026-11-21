@@ -445,6 +445,9 @@ export class ReplayScene3d implements Replay3DExportSource {
     }
     this.lighting.setStaticCasters(this.mapRoots())
     this.lighting.lightLayer(layer.surfaces)
+    // The probes were captured before the layer existed: capture them again so they see it (a
+    // Forge map's look is its layer; the canvas alone is an open, empty sky).
+    this.lighting.recaptureProbes()
     // See `attach`: a layer reused from the session cache keeps its previous match's probe copies
     // until this reset.
     layer.glowAnimation.resetCopies()

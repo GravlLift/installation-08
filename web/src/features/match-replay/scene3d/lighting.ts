@@ -307,8 +307,39 @@ export class Lighting {
    */
   captureProbes(eyes: readonly THREE.Vector3[], meshes: readonly THREE.Mesh[]): number {
     this.spots = chooseProbes(eyes, PROBE_MAX, PROBE_SPACING)
+    this.probes = this.captureAll()
+    if (this.probes.length === 0) return 0
+    this.assignProbes(meshes)
+    this.applyReflections()
+    return this.probes.length
+  }
+
+  /**
+   * recaptureProbes captures the probes again at the same spots, with what the scene holds now
+   * (the map AND the layer posed on it), and swaps each new capture in for the old one on every
+   * material that used it: the surfaces keep their probe, only its picture changes. Without it, a
+   * Forge map's surfaces took their indirect light from the bare canvas captured before its
+   * variant layer existed: AIMBOTZ's closed white arena was lit by an open blue-grey sky.
+   */
+  recaptureProbes(): void {
+    if (this.probes.length === 0) return
+    const old = this.probes
+    this.probes = this.captureAll()
+    const swap = new Map(old.map((t, k) => [t, this.probes[k]]))
+    for (const [m, t] of this.envOf) {
+      const next = swap.get(t)
+      if (next) this.envOf.set(m, next)
+    }
+    for (const t of old) t.dispose()
+    this.applyReflections()
+  }
+
+  /** captureAll captures one probe per spot, the scene set up the way every capture sees it. */
+  private captureAll(): THREE.Texture[] {
     // Every capture sees the map with no environment: no probe reflects into another.
     this.scene.environment = null
+    const own = [...this.envOf.keys()].filter((m) => m.envMap)
+    for (const m of own) m.envMap = null
     // And with no haze: it belongs to the eye, not to light given back.
     this.scene.fog = null
     // Without baked light, the sky seen by the probes is the sky's share of the sun's light, not
@@ -318,14 +349,12 @@ export class Lighting {
       this.scene.background = background.clone().multiplyScalar(captureSkyScale(this.sun.intensity, background))
     }
     const pmrem = new THREE.PMREMGenerator(this.renderer)
-    this.probes = this.spots.map((spot) => this.capture(spot, pmrem))
+    const probes = this.spots.map((spot) => this.capture(spot, pmrem))
     pmrem.dispose()
     this.scene.background = background
     this.scene.fog = this.haze
-    if (this.probes.length === 0) return 0
-    this.assignProbes(meshes)
-    this.applyReflections()
-    return this.probes.length
+    for (const m of own) this.reflect(m)
+    return probes
   }
 
   /**
