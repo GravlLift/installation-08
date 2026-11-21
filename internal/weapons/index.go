@@ -113,6 +113,14 @@ type Index struct {
 	// EquipmentRule: the rule the Equipment table was derived by (EquipmentRuleCurrent). An index
 	// written by an older rule (absent: 0) lacks families the current one maps, and is stale.
 	EquipmentRule int `json:"equipment_rule"`
+	// PadOffsets: per weapon and equipment model key, the model's `weapon_pad_offset` marker
+	// (pad_offsets.go), the frame a pad holds the item by; a key without a readable marker is
+	// absent. Always written, empty included.
+	PadOffsets map[string]PadOffset `json:"pad_offsets"`
+	// GroundScales: per weapon and equipment model key, the item's ground scale (the scale the game
+	// draws it at while it lies in the world or floats on a pad, `weaponicons.ReadGroundScale`); a
+	// key whose tag does not read is absent. Always written, empty included.
+	GroundScales map[string]float64 `json:"ground_scales"`
 }
 
 // EquipmentRuleCurrent is the current Equipment rule: 2 maps a family named by several pickup
@@ -136,15 +144,16 @@ const EquipmentRuleCurrent = 2
 // may be a periodic function (himap effet_arme.go), so idle effects gain the systems it had left out.
 // 11: a weapon shot carries its barrel's burst (shots per fire, rate of fire, projectiles per shot,
 // error angle, fire recovery): the Shock Rifle's three projectiles per trigger pull. 12: the shot
-// table carries the grenades' flight effects (the plasma grenade's glow, shader 0461c4a7).
-const SchemaCurrent = 12
+// table carries the grenades' flight effects (the plasma grenade's glow, shader 0461c4a7). 13: the
+// weapon and equipment models' pad markers and ground scales (pad_offsets, ground_scales: how a pad holds its item, and at what size).
+const SchemaCurrent = 13
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).
 func NewIndex(weaponKeys []string, generator string) Index {
 	return Index{Schema: SchemaCurrent, Generator: generator, WeapKeys: weaponKeys, SpartanKey: KeySpartan,
 		ReticleRanges: map[string]ReticleRange{}, Banners: map[string]Banner{}, Equipment: map[string]string{},
-		IdleEffects: map[string][]IdleEffect{}, EquipmentRule: EquipmentRuleCurrent}
+		IdleEffects: map[string][]IdleEffect{}, EquipmentRule: EquipmentRuleCurrent, PadOffsets: map[string]PadOffset{}, GroundScales: map[string]float64{}}
 }
 
 // IndexCurrent says whether a library index.json carries every field the view reads from it: the

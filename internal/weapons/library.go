@@ -240,6 +240,16 @@ func readTagFields(ctx context.Context, a *himap.Arsenal, src tagSource, idx *In
 	if idx.ShieldHit, err = readShieldHit(ctx, a, src.gameRoot, src.module, src.dir); err != nil {
 		return fmt.Errorf("shield impact: %w", err)
 	}
+	announce("reading pad offsets")
+	keys := append([]string{}, idx.WeapKeys...)
+	for _, k := range idx.Equipment {
+		keys = append(keys, k)
+	}
+	idx.PadOffsets = readPadOffsets(ctx, a, keys)
+	announce("reading ground scales")
+	if idx.GroundScales, err = readGroundScales(ctx, src.gameRoot, src.module, keys); err != nil {
+		return fmt.Errorf("ground scales: %w", err)
+	}
 	return nil
 }
 
