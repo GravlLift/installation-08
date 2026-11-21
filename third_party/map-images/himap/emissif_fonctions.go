@@ -84,6 +84,26 @@ type ParametreAnime struct {
 	Plage    uint32
 	Periode  float32
 	Fonction FonctionJeu
+	// LOCAL-CHANGE (infinite-theater-3d): preserve the mapping for object-driven lights.
+	Donnees []byte
+}
+
+// ObjetEmissif retains an object input and its original color mapping for the viewer.
+// LOCAL-CHANGE (infinite-theater-3d): object inputs are not time animations.
+type ObjetEmissif struct {
+	Entree  uint32 `json:"entree"`
+	Donnees []byte `json:"donnees"`
+}
+
+// LOCAL-CHANGE (infinite-theater-3d): retain only mappings routed to the light's color.
+func objetsEmissifs(e *Emissif, pp postprocessLu) []ObjetEmissif {
+	var out []ObjetEmissif
+	for _, p := range pp.animes {
+		if !p.SurTemps() && p.Sorte == AnimeCouleur && p.Octet == e.octets.couleur && len(p.Donnees) > 0 {
+			out = append(out, ObjetEmissif{Entree: p.Entree, Donnees: p.Donnees})
+		}
+	}
+	return out
 }
 
 // SurTemps: the parameter follows time (no object input such as a weapon's power).
@@ -326,6 +346,7 @@ func (ti tagInfo) parametresAnimes(bloc int) []ParametreAnime {
 			Plage:    uint32(u32(ti.tag, rec+8)),
 			Periode:  fini(math.Float32frombits(uint32(u32(ti.tag, rec+20)))),
 			Fonction: f,
+			Donnees:  append([]byte(nil), donnees[k*fonctionStride+fonctionOffDonnees]...), // LOCAL-CHANGE (infinite-theater-3d)
 		})
 	}
 	return out

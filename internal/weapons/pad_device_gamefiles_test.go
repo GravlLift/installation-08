@@ -47,6 +47,12 @@ func padIndexes(t *testing.T) (*himap.ModuleIndex, *himap.ModuleIndex) {
 }
 
 func TestPadDeviceMaterialsFromGame(t *testing.T) {
+	names, err := weaponicons.StringIDNames(map[uint32]bool{0x4a2c3a6a: true})
+	if err != nil {
+		t.Logf("input name lookup: %v", err)
+	} else {
+		t.Logf("input 4a2c3a6a name: %q", names[0x4a2c3a6a])
+	}
 	geo, mats := padIndexes(t)
 	raw, err := geo.Extract(0x58f5b4af)
 	if err != nil {
@@ -55,6 +61,19 @@ func TestPadDeviceMaterialsFromGame(t *testing.T) {
 	id, group, ok := himap.RefModeleVehicule(context.Background(), geo, raw)
 	if !ok || group != "mode" || id != 0xec6cf1a4 {
 		t.Fatalf("device model %s %08x %v", group, id, ok)
+	}
+	gameRoot, err := himap.DeployRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	a, err := himap.OuvreArsenal(gameRoot, filepath.Join(gameRoot, "pc", "levels", "multi", "sgh_blueprint", "sgh_blueprint-rtx-new.module"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = a.Close() })
+	markers, err := a.MarqueursDuModele(id, map[uint32]bool{0x54b94882: true})
+	if err != nil || len(markers) != 0 {
+		t.Fatalf("effect marker on device: %+v, %v", markers, err)
 	}
 	functions, err := weaponicons.ReadObjectFunctions(raw)
 	if err != nil {
@@ -135,6 +154,10 @@ func TestPadDeviceMaterialsFromGame(t *testing.T) {
 		b, _ := hex.DecodeString(mapping)
 		if !bytes.Contains(raw, b) {
 			t.Errorf("%08x color mapping changed", id)
+		}
+		e := table[id].Emissif
+		if e == nil || len(e.Objets) != 1 || e.Objets[0].Entree != 0x4a2c3a6a || !bytes.Equal(e.Objets[0].Donnees, b) {
+			t.Errorf("%08x exported object mapping: %+v", id, e)
 		}
 	}
 }
