@@ -150,8 +150,9 @@ const EquipmentRuleCurrent = 2
 // table carries the grenades' flight effects (the plasma grenade's glow, shader 0461c4a7). 13: the
 // weapon and equipment models' pad markers and ground scales (pad_offsets, ground_scales: how a pad holds its item, and at what size).
 // 14: weapon models use the weapon tag's default model variant. 15: the equipment pad's glow
-// (pad_glow: its cheap lights and lens flares).
-const SchemaCurrent = 15
+// (pad_glow: its cheap lights and lens flares). 16: the pad glow's light volumes (its upward
+// cone), and textures read through the shared bitmap decoder (_hd1 mips, BC6H, row pitch).
+const SchemaCurrent = 16
 
 // NewIndex builds the library index for the built model keys (weapon families only; the Spartan
 // is always present by its fixed key).
