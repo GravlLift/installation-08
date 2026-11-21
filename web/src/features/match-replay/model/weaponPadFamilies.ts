@@ -148,6 +148,7 @@ export type PadEquipmentFamilyKey =
   | 'grapple'
   | 'sensor'
   | 'thruster'
+  | 'shroud_screen'
 
 /**
  * THE TABLE. Its keys are the families published by the document, and the POWER-UPS among
@@ -170,6 +171,7 @@ export const PAD_EQUIPMENT_FAMILIES: Readonly<Record<PadEquipmentFamilyKey, PadE
   grapple: { icon: 'Grappleshot' },
   sensor: { icon: 'ThreatSensor' },
   thruster: { icon: 'Thruster' },
+  shroud_screen: { icon: 'ShroudScreen' },
 }
 
 /**

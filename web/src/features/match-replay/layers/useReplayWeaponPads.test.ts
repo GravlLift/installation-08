@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest'
 
 import { REPLAY_TEXT } from '../i18n/i18n'
 import { displayKeyOf, padEquipmentFamilyOf } from '../model/weaponPadFamilies'
-import { isWeaponHexIdentifier, padNameFor, weaponLabelKeyOf } from './useReplayWeaponPads'
+import { isWeaponHexIdentifier, padIconRefFor, padNameFor, weaponLabelKeyOf } from './useReplayWeaponPads'
 
 /** A document whose catalog names nothing: the fallbacks are then the only answer. */
 const NO_LABELS: undefined = undefined
@@ -26,6 +26,7 @@ describe('padEquipmentFamilyOf', () => {
       'grapple',
       'sensor',
       'thruster',
+      'shroud_screen',
       'powerup_camo',
       'powerup_overshield',
     ]) {
@@ -48,6 +49,7 @@ describe('padNameFor', () => {
     expect(padNameFor('grapple', NO_LABELS, REPLAY_TEXT.en, 'en')).toBe('Grappleshot')
     expect(padNameFor('sensor', NO_LABELS, REPLAY_TEXT.en, 'en')).toBe('Threat sensor')
     expect(padNameFor('thruster', NO_LABELS, REPLAY_TEXT.en, 'en')).toBe('Thruster')
+    expect(padNameFor('shroud_screen', NO_LABELS, REPLAY_TEXT.en, 'en')).toBe('Shroud screen')
     expect(padNameFor('powerup_camo', NO_LABELS, REPLAY_TEXT.en, 'en')).toBe('Active camouflage')
     expect(padNameFor('powerup_overshield', NO_LABELS, REPLAY_TEXT.en, 'en')).toBe('Overshield')
   })
@@ -66,6 +68,10 @@ describe('padNameFor', () => {
   it('shows the readable writing of an unknown non-hex key, never the raw key', () => {
     expect(padNameFor('some_future_key', NO_LABELS, REPLAY_TEXT.en, 'en')).toBe('Some Future Key')
   })
+})
+
+it('uses the Shroud Screen HUD icon for its pad', () => {
+  expect(padIconRefFor('shroud_screen', NO_LABELS, 'halo_infinite')?.url).toContain('/hud/ShroudScreen.png')
 })
 
 describe('displayKeyOf', () => {
