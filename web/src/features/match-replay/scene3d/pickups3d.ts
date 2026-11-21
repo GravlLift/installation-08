@@ -55,6 +55,7 @@ import { toThree } from './tracks3d'
 import { WeaponModelPool, weaponModelKey } from './weaponModels3d'
 import { centerOffset, faceMountOffset, groundWeaponPose, standingItemCorrection } from './groundWeaponPose3d'
 import { applyWeaponCoating } from './avatar3d'
+import { padItemRotation } from './padOffsets3d'
 
 /** The weapon box: length, height, width (u). */
 const BOX_LENGTH = 0.5
@@ -456,12 +457,13 @@ export class Pickups3dLayer implements ActionLayer3d {
   /**
    * paintedObject — the painted form of a loaded map-item `model` (its default-style coat, one per
    * model key, `armory.objectCoat`); the bare model while the coat is pending. A map item is
-   * painted before its glow copy, so the glow keeps the paint's shader hooks. Equipment objects
-   * and a scene with no weapon library stay bare.
+   * painted before its glow copy, so the glow keeps the paint's shader hooks. An equipment item
+   * (a pad's `shroud_screen`) paints by its pickup object's key; a scene with no weapon library
+   * stays bare.
    */
   private paintedObject(id: string, model: THREE.Object3D): THREE.Object3D {
     const armory = this.ctx.armory?.()
-    const key = weaponModelKey(id)
+    const key = this.modelKeyOf(id)
     const coat = armory && key ? armory.objectCoat(key, model) : null
     if (!coat) return model
     const cache = this.painted.get(model)
@@ -486,6 +488,11 @@ export class Pickups3dLayer implements ActionLayer3d {
     return item
   }
 
+  /** modelKeyOf — the library key of a pad or ground item: a weapon's family, an equipment family's pickup object. */
+  private modelKeyOf(id: string): string | null {
+    return this.ctx.weaponModelKeyOf ? this.ctx.weaponModelKeyOf(id) : weaponModelKey(id)
+  }
+
   update(frame: number): void {
     const { show, inks } = this.ctx.inputs()
     // Loaded map objects get painted in the background with their default style (once per model
@@ -505,11 +512,11 @@ export class Pickups3dLayer implements ActionLayer3d {
   /**
    * prepareObject requests the default-style paint of object `id` in the background once its
    * model is loaded: the armory caches the paint by model key (ten pads of the same weapon paint
-   * once). An equipment object (no model key) or a scene with no weapon library: nothing.
+   * once). An object with no model key (yet) or a scene with no weapon library: nothing.
    */
   private prepareObject(id: string): void {
     const armory = this.ctx.armory?.()
-    const key = weaponModelKey(id)
+    const key = this.modelKeyOf(id)
     if (!armory || !key) return
     if (this.paintRequested.has(key)) return
     const model = this.ctx.weaponModel(id)
@@ -546,7 +553,18 @@ export class Pickups3dLayer implements ActionLayer3d {
       const source = look === 'solid' ? this.ctx.weaponModel(spot.pad.weapon) : null
       let model: THREE.Object3D | null = null
       if (source) model = this.noShadow(this.paintedObject(spot.pad.weapon, source))
-      if (model) {
+      const offset = model ? this.ctx.weaponPadOffset?.(spot.pad.weapon) ?? null : null
+      if (model && offset) {
+        // The game's own hold: the item turned so its `weapon_pad_offset` marker is upright on the
+        // pad, weapons and equipment alike, and turning about up through the center of its
+        // bounds (the Grapple's marker sits at its back end; the game spins it about its middle).
+        // At the item's ground scale (weapons 1.3, the Grapple 2.75), as the game draws it.
+        const scale = this.ctx.weaponGroundScale?.(spot.pad.weapon) ?? 1
+        padItemRotation(offset, q, q)
+        if (spot.item?.model !== model) spot.item = { model, offset: centerOffset(model) }
+        p.add(this.scratch.o.copy(spot.item.offset).multiplyScalar(scale).applyQuaternion(q))
+        this.models.add(this.glowOf(model, this.ctx.ink.of(ink[spot.family])), p, q, scale)
+      } else if (model) {
         if (spot.slot === 'equipment') {
           // An equipment GLB is not authored with the weapon's up: stand the item on its thinnest
           // bounding-box edge (a disc stands on its edge) BEFORE the spin about world up, and

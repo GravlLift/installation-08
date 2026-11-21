@@ -32,6 +32,7 @@ import type { HeldWeapon3d } from './heldWeapon3d'
 import { Motion3d } from './motion3d'
 import { actionsBySlot, reloadEpisodesBySlot } from './filmActions3d'
 import { indexShotTimes, type SlotShots } from './recoilShots3d'
+import type { PadOffset } from './padOffsets3d'
 import { prepareFirstPersonEvents } from './firstPersonEvents3d'
 import type { WeaponSwitch, FirstPersonFrameEvents } from './firstPersonActions3d'
 import type { ReloadEpisode } from './firstPersonReload3d'
@@ -63,6 +64,15 @@ export interface ActionContext {
   slotState(slot: number, frame: number): PlayerState3d | null
   /** The game's model of weapon `id` (to clone), null until it is loaded (`weaponModels3d`). */
   weaponModel(id: string): THREE.Object3D | null
+  /**
+   * The library key of `weaponModel(id)`'s model: a weapon's family, or an equipment family's
+   * pickup object (a pad's `shroud_screen`); null when it has none. Absent: weapons only.
+   */
+  weaponModelKeyOf?(id: string): string | null
+  /** How a pad holds the model of `weaponModel(id)` (its `weapon_pad_offset` marker), null when not known. */
+  weaponPadOffset?(id: string): PadOffset | null
+  /** The ground scale of `weaponModel(id)`'s item (its size on a pad), null when not known. */
+  weaponGroundScale?(id: string): number | null
   /**
    * The game's model of the flag `id` (to clone) dressed with the banner of team `team`, its cloth
    * tinted `ink` (`flagBannerInk`; null: the effect's white), the bare model while the banner is

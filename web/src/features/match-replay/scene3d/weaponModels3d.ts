@@ -30,6 +30,7 @@ import { rawMaps } from './armorLibrary3d'
 import { clipsOf, registerSpartanClips, type GltfAnimationJson, type WeaponClips } from './clips3d'
 import { measureSyncPhases } from './clipSample3d'
 import { EquipmentKeys } from './equipmentKeys3d'
+import { PadOffsets, type PadOffset } from './padOffsets3d'
 import { drawRecorder } from './drawRecorder3d'
 import { darkMetalFallback } from './fallbackMetal3d'
 import { FlagBanners } from './flagBanner3d'
@@ -79,6 +80,8 @@ export class WeaponModels {
   private readonly banners: FlagBanners
   /** The model key of each equipment family of the library's index (a power-up pad's item). */
   private readonly equipment: EquipmentKeys
+  /** How a pad holds each model (its `weapon_pad_offset` marker), from the library's index. */
+  private readonly pads: PadOffsets
   /** The renderer's KTX2 loader (ktx2Textures3d); null = load PNG only (older cache). */
   private readonly ktx2: KTX2Loader | null
   /** Called after a weapon/Spartan/grenade GLB finishes loading: `loadedBytes()` just grew, so
@@ -101,6 +104,7 @@ export class WeaponModels {
     this.reticles = reticles
     this.banners = banners
     this.equipment = equipment
+    this.pads = new PadOffsets(base)
     this.ktx2 = ktx2
     this.onGrowth = onGrowth
   }
@@ -124,8 +128,25 @@ export class WeaponModels {
    * `powerup_camo`) and resolves through the index's equipment table.
    */
   model(id: string): THREE.Object3D | null {
-    const key = weaponModelKey(id) ?? this.equipment.key(id)
+    const key = this.modelKey(id)
     return key ? this.byKey(key) : null
+  }
+
+  /** padOffset: how a pad holds the model of weapon or equipment family id, null when not known (yet). */
+  padOffset(id: string): PadOffset | null {
+    const key = this.modelKey(id)
+    return key ? this.pads.of(key) : null
+  }
+
+  /** groundScale: the ground scale of weapon or equipment family `id`'s item (its size in the world and on a pad), null when not known (yet). */
+  groundScale(id: string): number | null {
+    const key = this.modelKey(id)
+    return key ? this.pads.groundScale(key) : null
+  }
+
+  /** modelKey: the library key of weapon `id`, or of equipment family `id` (`model`'s resolution); null when it has none (yet). */
+  modelKey(id: string): string | null {
+    return weaponModelKey(id) ?? this.equipment.key(id)
   }
 
   /**
@@ -171,6 +192,7 @@ export class WeaponModels {
     this.reticles.dispose()
     this.banners.dispose()
     this.equipment.dispose()
+    this.pads.dispose()
     for (const root of this.owned) {
       root.traverse((o) => {
         if (!(o instanceof THREE.Mesh)) return
@@ -264,7 +286,8 @@ export class WeaponModelPool {
   }
 
   /** add places a copy of `model` at `position`, oriented by `rotation`. */
-  add(model: THREE.Object3D, position: THREE.Vector3, rotation: THREE.Quaternion): void {
+  /** add poses a copy of `model`; `scale` multiplies the model's own scale (an item's ground scale). */
+  add(model: THREE.Object3D, position: THREE.Vector3, rotation: THREE.Quaternion, scale = 1): void {
     let list = this.free.get(model)
     if (!list) {
       list = []
@@ -278,6 +301,7 @@ export class WeaponModelPool {
     }
     copy.position.copy(position)
     copy.quaternion.copy(rotation)
+    copy.scale.copy(model.scale).multiplyScalar(scale)
     copy.visible = true
     this.used.push(copy)
     drawRecorder.adds++
