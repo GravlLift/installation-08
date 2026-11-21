@@ -12,14 +12,20 @@ import { Flights3dLayer } from './flights3d'
 import { HeldWeapons3d } from './heldWeapon3d'
 import { Objectives3dLayer } from './objectives3d'
 import { Pickups3dLayer } from './pickups3d'
+import { PadNavpoints3dLayer } from './padNavpointMarkers3d'
 import { Shots3dLayer } from './shots3d'
 import { Vehicles3dLayer } from './vehicles3d'
 import { WeaponIdleEffects3dLayer } from './weaponIdleEffects3d'
 
 export function buildActionScene(ctx: ActionContext): ActionScene3d {
+  // The pickups layer is built first: the pad navpoint markers read what it drew (`spot.last`)
+  // in the same frame, so they must follow it.
+  const pickups = new Pickups3dLayer(ctx)
   const layers = [
     new Vehicles3dLayer(ctx),
-    new Pickups3dLayer(ctx),
+    pickups,
+    // The pad navpoints anchor on the item the pickups layer just drew (its icon and countdown).
+    new PadNavpoints3dLayer(ctx, pickups),
     new Equipment3dLayer(ctx),
     // Allegiance and per-family toggles are re-read every frame (point of view, drawer panel).
     new Objectives3dLayer(ctx, {

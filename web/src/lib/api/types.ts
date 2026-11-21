@@ -3308,7 +3308,6 @@ interface ReplayDocumentDeltaLayers {
   weaponChanges?: ReplayWeaponChange[] | null
   equipmentChanges?: ReplayEquipmentChange[] | null
   groundWeapons?: ReplayGroundWeapon[] | null
-  padCandidates?: ReplayWeaponPad[] | null
 }
 
 export type ReplayDocument = components['schemas']['ReplayDocument'] &

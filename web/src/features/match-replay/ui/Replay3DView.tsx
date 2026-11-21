@@ -57,7 +57,6 @@ import { useReplay3dFov } from '../settings/useReplay3dFov'
 import { useReplay3dLook } from '../settings/useReplay3dLook'
 import type { ReplayWindowBounds } from '../model/replayWindow'
 import { ReplayHud3d } from './ReplayHud3d'
-import { PadNavpoints3d } from './PadNavpoints3d'
 import { listenerOfCamera } from '../scene3d/soundListener3d'
 import type { SoundListener } from '../sound/soundSpatial'
 import { ReplayCadence3d } from './ReplayCadence3d'
@@ -587,7 +586,6 @@ export function Replay3DView({
   return (
     <div className="absolute inset-0 overflow-hidden bg-background" style={{ width, height, containerType: 'size' }}>
       <div ref={hostRef} className="absolute inset-0" onClick={surface.onClick} />
-      {ready && active && view === '3d' && <PadNavpoints3d doc={doc} sceneRef={sceneRef} frameRef={frameRef} />}
       {/* How much of the HUD each view draws: `hudLevelOf` (first person all, third person no aim, free view score and feed, 2D score). */}
       {ready && active && pov && <ReplayHud3d doc={doc} xuid={pov} frameRef={frameRef} locale={locale} kills={action.kills} nameOfXuid={action.nameOfXuid} playWindow={playWindow} timeLimitMs={timeLimitMs} sceneRef={sceneRef} hud={hudLevelOf(view, mode)} callouts={callouts} />}
       {surface.probe && (
