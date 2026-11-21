@@ -185,7 +185,7 @@ func HudFileNames() []string {
 // so it is not ready and gets rebuilt once.
 func HudSetReady(dataDir string) bool {
 	dir := HudOutDir(dataDir)
-	for _, name := range []string{"index.json", "DamageArc.png", "ShieldChase.png", "ShieldQuad.png", "ScoreMeter.png", "ShieldGlow.png", "ShieldBurst.png", "HealthBar.png", "TeamEmblem8.png", hudFontRequired} {
+	for _, name := range []string{"index.json", "pad-navpoint.json", "DamageArc.png", "ShieldChase.png", "ShieldQuad.png", "ScoreMeter.png", "ShieldGlow.png", "ShieldBurst.png", "HealthBar.png", "TeamEmblem8.png", hudFontRequired} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			return false
 		}
@@ -234,6 +234,22 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 
 	ix := buildIndex("")
 	slog.InfoContext(ctx, "module index built", "archives", ix.nMods, "entries", ix.nEntry)
+	ref, ok := pickRef(ix.byID[0x259f5148])
+	if !ok {
+		return 0, 0, 0, fmt.Errorf("navpoint tag 259f5148 not found")
+	}
+	tag, err := ix.extract(ref)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	navpoint, err := ReadPadNavpoint(tag)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	navJSON, err := json.Marshal(navpoint)
+	if err != nil {
+		return 0, 0, 0, err
+	}
 
 	var entries []hudName
 	for stem, source := range hudSources {
@@ -245,6 +261,8 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 	if err != nil {
 		return 0, 0, 0, err
 	}
+	written++
+	total += len(navJSON) + 1
 	if err := writeHudIndex(out, entries, decoded); err != nil {
 		return 0, 0, 0, err
 	}
@@ -295,6 +313,9 @@ func BuildHud(ctx context.Context, gameRoot, dataDir string) (files, named, byte
 	}
 	written += fontFiles
 	total += fontBytes
+	if err := os.WriteFile(filepath.Join(out, "pad-navpoint.json"), append(navJSON, '\n'), 0o600); err != nil {
+		return 0, 0, 0, err
+	}
 	slog.InfoContext(ctx, "hud icon set built", "files", written, "named", len(entries),
 		"bytes", total, "out", out)
 	return written, len(entries), total, nil

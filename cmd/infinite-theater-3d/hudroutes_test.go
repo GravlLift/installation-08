@@ -45,6 +45,9 @@ func hudFixtureSet(t *testing.T, dataDir string) {
 	if err := os.WriteFile(filepath.Join(dir, "index.json"), []byte(`[]`), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(dir, "pad-navpoint.json"), []byte(`{}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // TestHudRouteServesBuiltFile — a built file is served with its content type.
@@ -217,5 +220,17 @@ func TestHudStartupSkipsReady(t *testing.T) {
 		meshjobs.JobFirstPerson, meshjobs.JobSpartanPieces}
 	if got := rr.modules(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("queued = %v, want %v", got, want)
+	}
+}
+
+func TestHudRouteServesPadNavpoint(t *testing.T) {
+	root := newFakeStore(t)
+	hudFixtureSet(t, root.Dir())
+	if err := os.WriteFile(filepath.Join(weaponicons.HudOutDir(root.Dir()), "pad-navpoint.json"), []byte(`{"iconWidth":96}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rec := get(t, newTestHandlers(root, nil), hudRoute+"pad-navpoint.json", nil)
+	if rec.Code != http.StatusOK || rec.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf("status %d type %s", rec.Code, rec.Header().Get("Content-Type"))
 	}
 }
