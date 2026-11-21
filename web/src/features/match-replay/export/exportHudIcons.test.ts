@@ -20,6 +20,8 @@ vi.mock('../model/hud3d_logic', () => ({
   NAME_TAG_PAD_X: 0.45,
   NAME_TAG_PAD_Y: 0.2,
   KILL_FEED_TOP_SHARE: 0.524,
+  HUD_RULE_ALPHA: 0.75,
+  HUD_CORNER: { magEm: 0.7, magWeight: 500, reserveEm: 0.42, countEm: 0.42, slotHeight: 1.06, grenadeSlotWidth: 1.67, equipmentSlotWidth: 1.8, slotGap: 0.05, grenadeIcon: [0.5, 0.76], equipmentIcon: [0.84, 0.54], awayIcon: [2.4, 0.55], awayGap: 0.65, weaponIcon: [3.6, 0.95], weaponGap: 0.6 },
   prepareHud: () => ({}),
   readScoreHud: () => null,
   hudClock: () => 0,
@@ -85,14 +87,16 @@ it('preloads and paints HUD icons, using a short label when an image is unavaila
   expect(draws.some((args) => (args[0] as { src?: string })?.src === '/equip.png')).toBe(true)
   // The upper row is laid out from the right edge leftward: the grenade box sits to the LEFT
   // of the equipment box (its right edge at the equipment box's left edge minus the gap).
-  // With no score, the only fillRects are the two boxes, painted twice (two frames).
+  // With no score, the two slot outlines, painted twice (two frames).
   const size = Math.max(19, Math.min(39, 7.7 + 540 * 0.0287))
-  const boxHeight = size * 0.78
-  const boxes = rects.filter((r) => Math.abs(r.h - boxHeight) < 0.001)
+  const boxHeight = size * 1.06
+  // The slots are outlines (strokeRect), with no backdrop fill.
+  expect(rects.some((r) => Math.abs(r.h - boxHeight) < 0.001)).toBe(false)
+  const boxes = named('strokeRect').map(([x, y, w, h]) => ({ x: x as number, y: y as number, w: w as number, h: h as number })).filter((r) => Math.abs(r.h - boxHeight) < 0.001)
   expect(boxes).toHaveLength(4) // two boxes, two frames
   // First frame: boxes[0] is the equipment box (rightmost, painted first), boxes[1] the grenade.
   const equipmentBox = boxes[0], grenadeBox = boxes[1]
-  expect(grenadeBox.x + grenadeBox.w).toBeCloseTo(equipmentBox.x - size * 0.3, 5)
+  expect(grenadeBox.x + grenadeBox.w).toBeCloseTo(equipmentBox.x - size * 0.05, 5)
   const texts = (named('fillText') as unknown[][]).map((args) => args[0])
   expect(texts).toContain('Bandit Evo')
   expect(texts).not.toContain('Bandit Evo / M392 Bandit')

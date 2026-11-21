@@ -3,7 +3,7 @@ import { resolveToken } from '@/lib/accessibility/resolveToken'
 import { formatClock, frameToMs } from '@/lib/replay/replayLogic'
 import type { ReplayDocumentReady } from '@/lib/replay/replayNormalize'
 import type { ReplayLocale } from '../i18n/i18n'
-import { hudClock, readHud, readKillFeed, readScoreHud, prepareHud, KILL_FEED_TOP_SHARE, NAME_TAG_EM, NAME_TAG_PAD_X, NAME_TAG_PAD_Y } from '../model/hud3d_logic'
+import { hudClock, readHud, readKillFeed, readScoreHud, prepareHud, HUD_CORNER, HUD_RULE_ALPHA, KILL_FEED_TOP_SHARE, NAME_TAG_EM, NAME_TAG_PAD_X, NAME_TAG_PAD_Y } from '../model/hud3d_logic'
 import { SHIELD_CHASE_INK, SHIELD_CHASE_URL, SHIELD_QUAD_URL, shieldFlash } from '../model/shieldHud'
 import { hexRgb, shieldFloodAt, shieldFloodTint } from '../model/shieldFlood'
 import { SHIELD_BLOOM_BLUR, SHIELD_BLOOM_LAYERS, shieldBloomIntensity, shieldBloomSource } from '../model/shieldBloom'
@@ -466,53 +466,79 @@ export async function createExportHud(doc: ReplayDocumentReady, xuid: string, ki
       // the mag | reserve and the in-hand weapon below; the in-hand weapon's name under it, only
       // right after a swap, fading as the game fades it.
       const right = w * 0.97
+      // The corner's thin rules (slot outlines, the rows' rules, the mag | reserve divider).
+      const rule = Math.max(1, size * 0.05)
       // One bordered box of the upper row: an icon (or its name when the image is not loaded),
       // a trailing number; laid out from its right edge leftward, its center line at `cy`.
       // Returns its left edge so the next item sits to its left.
-      const box = (right: number, cy: number, text: string, img: string | undefined, tinted: boolean, num: number | null, alpha: number): number => {
-        ctx.font = `700 ${size * 0.6}px ${HUD_FONT_FAMILY}`
+      // The slot's size and its icon box come from `HUD_CORNER`, shared with the live HUD: the
+      // icon and the count are centered together in the slot, `gap` apart.
+      const box = (right: number, cy: number, text: string, img: string | undefined, tinted: boolean, num: number | null, alpha: number, minWidth: number, iconBox: readonly [number, number]): number => {
+        ctx.font = `700 ${size * HUD_CORNER.countEm}px ${HUD_FONT_FAMILY}`
         const count = num != null ? String(num) : '', countWidth = ctx.measureText(count).width
-        const width = size * 0.78, height = size * 0.78
+        const width = size * iconBox[0], iconHeight = size * iconBox[1], height = size * HUD_CORNER.slotHeight
+        const gap = count ? size * 0.15 : 0
         const hasIcon = !!img && images.has(img)
-        const labelWidth = hasIcon ? width : ctx.measureText(text).width
-        const boxWidth = countWidth + labelWidth + size * 0.45
-        ctx.save(); ctx.globalAlpha = alpha; ctx.textAlign = 'right'
-        ctx.fillStyle = 'rgba(0,0,0,.8)'; ctx.fillRect(right - boxWidth, cy - height / 2, boxWidth, height)
+        const labelWidth = hasIcon ? width : text ? ctx.measureText(text).width : 0
+        const boxWidth = Math.max(size * minWidth, labelWidth + gap + countWidth + size * 0.4)
+        ctx.save(); ctx.globalAlpha = alpha; ctx.textAlign = 'left'
+        // The game's slot: an outline only, no backdrop (`HUD_RULE_ALPHA`).
+        ctx.save(); ctx.globalAlpha = alpha * HUD_RULE_ALPHA; ctx.lineWidth = rule
         ctx.strokeStyle = weaponInk; ctx.strokeRect(right - boxWidth, cy - height / 2, boxWidth, height)
-        ctx.fillStyle = weaponInk; ctx.fillText(count, right - size * 0.12, cy)
-        const iconX = right - countWidth - size * 0.15
-        if (!icon(ctx, img, weaponInk, tinted, false, iconX - width, cy - height / 2, width, height)) ctx.fillText(text, iconX, cy)
+        ctx.restore()
+        const contentX = right - boxWidth / 2 - (labelWidth + gap + countWidth) / 2
+        ctx.fillStyle = weaponInk
+        if (!icon(ctx, img, weaponInk, tinted, false, contentX, cy - iconHeight / 2, width, iconHeight) && text) ctx.fillText(text, contentX, cy)
+        ctx.fillText(count, contentX + labelWidth + gap, cy)
         ctx.restore()
         return right - boxWidth
       }
-      // The carried equipment, rightmost: the icon and its uses left, dimmed when spent.
+      // The carried equipment, rightmost: the icon and its uses left, dimmed when spent; with
+      // none carried, the game's empty slot.
       let left = right
       if (ath.equipment) {
         const label = doc.abilityLabels?.[String(ath.equipment.rank)]
-        left = box(left, h * 0.86, catalogText(label, locale) ?? `rank ${ath.equipment.rank}`, label?.img, !!label?.tinted, ath.equipment.uses, ath.equipment.uses === 0 ? 0.45 : 1) - size * 0.3
+        left = box(left, h * 0.86, catalogText(label, locale) ?? `rank ${ath.equipment.rank}`, label?.img, !!label?.tinted, ath.equipment.uses, ath.equipment.uses === 0 ? 0.45 : 1, HUD_CORNER.equipmentSlotWidth, HUD_CORNER.equipmentIcon) - size * HUD_CORNER.slotGap
+      } else {
+        left = box(left, h * 0.86, '', undefined, false, null, 1, HUD_CORNER.equipmentSlotWidth, HUD_CORNER.equipmentIcon) - size * HUD_CORNER.slotGap
       }
       // The one grenade box the game draws at a time (`ath.grenade`).
       const grenadeLabel = doc.grenadeLabels?.[ath.grenade.rank]
-      left = box(left, h * 0.86, ath.grenade.name, grenadeLabel?.img, !!grenadeLabel?.tinted, ath.grenade.count, 1) - size * 0.3
-      // The away weapon: small (60% of the in-hand icon), dimmed, the silhouette the same way
-      // the in-hand icon is painted.
+      left = box(left, h * 0.86, ath.grenade.name, grenadeLabel?.img, !!grenadeLabel?.tinted, ath.grenade.count, 1, HUD_CORNER.grenadeSlotWidth, HUD_CORNER.grenadeIcon) - size * HUD_CORNER.awayGap
+      // The away weapon: dimmed, the silhouette the same way the in-hand icon is painted.
       const awayIcon = ath.away?.label?.img ? weaponFullIcon(ath.away.label.img) : null
       if (awayIcon) {
-        const awayWidth = size * 1.68, awayHeight = size * 0.66
+        const awayWidth = size * HUD_CORNER.awayIcon[0], awayHeight = size * HUD_CORNER.awayIcon[1]
         ctx.save(); ctx.globalAlpha = 0.5; ctx.textAlign = 'right'
-        if (!icon(ctx, awayIcon.url, weaponInk, !!ath.away?.label?.tinted, !awayIcon.mirrored, left - awayWidth, h * 0.86 - awayHeight / 2, awayWidth, awayHeight)) ctx.fillText(catalogText(ath.away?.label, locale) ?? '', left - size * 0.2, h * 0.86)
+        if (!icon(ctx, awayIcon.url, weaponInk, !!ath.away?.label?.tinted, !awayIcon.mirrored, left - awayWidth, h * 0.86 - awayHeight / 2, awayWidth, awayHeight)) ctx.fillText(catalogText(ath.away?.label, locale) ?? '', left, h * 0.86)
         ctx.restore()
       }
+      const rowY = h * 0.92
       const weapon = ath.label?.img ? weaponFullIcon(ath.label.img) : null
-      const iconWidth = size * 2.8, iconHeight = size * 1.1
-      const hasWeapon = weapon && icon(ctx, weapon.url, weaponInk, !!ath.label?.tinted, !weapon.mirrored, w * 0.97 - iconWidth, h * 0.94 - iconHeight, iconWidth, iconHeight)
-      ctx.textAlign = 'right'; ctx.font = `700 ${size}px ${HUD_FONT_FAMILY}`
-      // "mag | reserve": the reserve in the weapon ink, the magazine count left of it, brighter.
-      const ammoX = w * 0.97 - (hasWeapon ? iconWidth + size * 0.3 : 0)
+      const iconWidth = size * HUD_CORNER.weaponIcon[0], iconHeight = size * HUD_CORNER.weaponIcon[1]
+      const hasWeapon = weapon && icon(ctx, weapon.url, weaponInk, !!ath.label?.tinted, !weapon.mirrored, w * 0.97 - iconWidth, rowY - iconHeight / 2, iconWidth, iconHeight)
+      ctx.textAlign = 'right'
+      // "mag | reserve": the reserve in the weapon ink, the magazine count left of it, brighter
+      // and larger, the game's thin upright rule between them.
+      const ammoX = w * 0.97 - (hasWeapon ? iconWidth + size * HUD_CORNER.weaponGap : 0)
       const mag = ath.ammo?.mag != null ? String(ath.ammo.mag) : null
-      const reserve = ath.ammo?.res != null ? (mag != null ? ` | ${ath.ammo.res}` : String(ath.ammo.res)) : ''
-      if (reserve) { ctx.fillStyle = weaponInk; ctx.fillText(reserve, ammoX, h * 0.92) }
-      if (mag != null) { ctx.fillStyle = magInk; ctx.fillText(mag, ammoX - (reserve ? ctx.measureText(reserve).width : 0), h * 0.92) }
+      const reserve = ath.ammo?.res != null ? String(ath.ammo.res) : ''
+      const magFont = `${HUD_CORNER.magWeight} ${size * HUD_CORNER.magEm}px ${HUD_FONT_FAMILY}`
+      ctx.font = `400 ${size * HUD_CORNER.reserveEm}px ${HUD_FONT_FAMILY}`
+      const reserveWidth = reserve ? ctx.measureText(reserve).width : 0
+      const dividerX = ammoX - reserveWidth - size * 0.3
+      if (reserve) { ctx.fillStyle = weaponInk; ctx.fillText(reserve, ammoX, rowY) }
+      const magRight = reserve && mag != null ? dividerX - size * 0.3 : ammoX
+      ctx.font = magFont
+      if (mag != null) { ctx.fillStyle = magInk; ctx.fillText(mag, magRight, rowY) }
+      const rowLeft = mag != null ? magRight - ctx.measureText(mag).width : ammoX - reserveWidth
+      ctx.save(); ctx.globalAlpha = HUD_RULE_ALPHA; ctx.strokeStyle = weaponInk; ctx.lineWidth = rule
+      ctx.beginPath()
+      if (reserve && mag != null) { ctx.moveTo(dividerX, rowY - size * 0.33); ctx.lineTo(dividerX, rowY + size * 0.33) }
+      // The game's rules above and below the ammo and weapon row, from just left of the count to
+      // the weapon's right end.
+      for (const y of [rowY - size * 0.83, rowY + size * 0.83]) { ctx.moveTo(rowLeft - size * 0.5, y); ctx.lineTo(right, y) }
+      ctx.stroke(); ctx.restore()
       // The in-hand weapon's name tag, under the in-hand row, right-aligned, fading with the game:
       // a dark translucent plate behind the letters, the whole thing at the tag's opacity.
       if (ath.nameTag) {
