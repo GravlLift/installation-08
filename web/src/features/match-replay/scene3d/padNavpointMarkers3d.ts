@@ -32,7 +32,7 @@ import { navpointStateAt } from './padNavpoint3d'
 import { padIconRefFor } from '../layers/useReplayWeaponPads'
 import { HUD_FONT_FAMILY } from '../ui/hudFonts'
 import { frameToMs } from '@/lib/replay/replayLogic'
-import { ovalAngle, ovalPoint, spreadDocked, DOCK_CENTER_X, DOCK_CENTER_Y } from './padNavpointMath3d'
+import { ovalAngle, ovalPoint, DOCK_CENTER_X, DOCK_CENTER_Y } from './padNavpointMath3d'
 
 /**
  * One navpoint UI unit as a share of the view height. The navpoint's units are those of a
@@ -55,13 +55,24 @@ const DOCK_DISTANCE = 50
  */
 const ICON_OFFSET_UI = 44
 
+/** One served frame of the navpoint's badge sprites (Go `NavpointSprite`). */
+interface BadgeSprite {
+  frame: number
+  width: number
+  height: number
+  file: string
+}
+
 /**
- * The minimum arc-length gap between neighbouring docked icons, in normalised
- * screen coordinates. Not read from the game (the uihg "Docked 2D Spacing" is
- * not decoded yet): one icon width (96 UI units = 96/2160 of the screen height)
- * plus a small margin (20% extra).
+ * The navpoint's hex badge (Go `NavpointBadge`, read from `nvpt` 259f5148 and its animations):
+ * a filled hex, a hex outline and the item type's glyph; the arrow shows off screen only.
  */
-const DOCK_GAP_FALLBACK = (96 / 2160) * 1.2
+interface NavpointBadge {
+  fill: BadgeSprite
+  outline: BadgeSprite
+  glyphs: Record<string, BadgeSprite>
+  arrow: BadgeSprite
+}
 
 /** The served pad-navpoint presentation (`padnavpoint.json`, the `nvpt` tag). */
 interface NavpointStyle {
@@ -70,6 +81,27 @@ interface NavpointStyle {
   iconAlpha: number
   numericTimerSize: number
   numericTimerOffsetY: number
+  badge?: NavpointBadge
+}
+
+const HUD_SET = '/static/weapons-assets/halo_infinite/hud/'
+
+function isSprite(v: unknown): v is BadgeSprite {
+  const s = v as BadgeSprite | null
+  return !!s && typeof s.file === 'string' && s.file !== '' && s.width > 0 && s.height > 0
+}
+
+function badgeOf(v: unknown): NavpointBadge | undefined {
+  const b = v as NavpointBadge | null
+  if (!b || !isSprite(b.fill) || !isSprite(b.outline) || !isSprite(b.arrow) || !b.glyphs || !isSprite(b.glyphs.weapon)) return undefined
+  return b
+}
+
+/** A layer of the marker drawn from one served sprite, centred on the marker. */
+function spriteEl(s: BadgeSprite): HTMLDivElement {
+  const el = document.createElement('div')
+  el.style.cssText = `position:absolute;left:0;top:0;transform:translate(-50%,-50%);width:${cq(s.width)};height:${cq(s.height)};background:url("${HUD_SET}${s.file}") center / contain no-repeat;pointer-events:none;`
+  return el
 }
 
 /** One marker: its projected element and the DOM the timer and the icon update per frame. */
@@ -89,6 +121,12 @@ interface Marker {
   wasDocked: boolean
   /** The oval parameter angle (radians) for docked markers, null when on screen. */
   dockAngle: number | null
+  /** The screen direction (radians, y down) from the screen centre toward the item, when docked. */
+  dockDir: number
+  /** The off-screen arrow (the navpoint's rotated element), null without a served badge. */
+  arrow: HTMLDivElement | null
+  /** A rack weapon's marker: the hex badge alone, at the item, without the raised icon or line. */
+  badge: boolean
 }
 
 /** Scratch vectors for per-frame projection (avoids allocation). */
@@ -122,7 +160,7 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
       const res = await fetch('/static/weapons-assets/halo_infinite/hud/pad-navpoint.json')
       if (res.ok) {
         const data = (await res.json()) as NavpointStyle | null
-        if (data && data.iconWidth > 0 && data.iconHeight > 0 && data.numericTimerSize > 0) style = data
+        if (data && data.iconWidth > 0 && data.iconHeight > 0 && data.numericTimerSize > 0) style = { ...data, badge: badgeOf(data.badge) }
       }
     } catch {
       // The set may predate the navpoint asset: no markers, never an error.
@@ -131,6 +169,12 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     this.style = style
     const titleSlug = this.ctx.doc.titleSlug ?? 'halo_infinite'
     for (const spot of this.spots) {
+      // A rack weapon shows the navpoint's badge state (3d319069): the item's icon faded out, the
+      // hex outline in, the "weapon" glyph.
+      if ((spot.rack || spot.mounted) && style.badge) {
+        this.markers.push(this.buildBadge(spot, style.badge))
+        continue
+      }
       const icon = padIconRefFor(spot.pad.weapon, this.ctx.doc.weaponLabels, titleSlug)
       if (!icon) continue // no game icon for this item: the marker is not drawn, nothing is invented.
       this.markers.push(this.buildMarker(spot, icon, style))
@@ -166,10 +210,37 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     box.appendChild(timer)
 
     point.appendChild(box)
+    const arrow = this.style?.badge ? this.arrowEl(this.style.badge, point) : null
     const obj = new CSS2DObject(point)
     obj.visible = false
     this.root.add(obj)
-    return { spot, obj, icon: { url: icon.url, mirrored: icon.mirrored }, box, line, timer, timerText: '', timerShown: false, wasDocked: false, dockAngle: null }
+    return { spot, obj, icon: { url: icon.url, mirrored: icon.mirrored }, box, line, timer, timerText: '', timerShown: false, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: false }
+  }
+
+  /** arrowEl adds the off-screen arrow to a marker, hidden until the marker docks. */
+  private arrowEl(badge: NavpointBadge, point: HTMLDivElement): HTMLDivElement {
+    const arrow = spriteEl(badge.arrow)
+    arrow.style.display = 'none'
+    point.appendChild(arrow)
+    return arrow
+  }
+
+  /** buildBadge makes a rack weapon's marker: the filled hex, the outline, the weapon glyph. */
+  private buildBadge(spot: PadSpot, badge: NavpointBadge): Marker {
+    const point = document.createElement('div')
+    point.style.cssText = 'width:0;height:0;'
+    const box = document.createElement('div')
+    box.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;'
+    // Draw order: fill (0), outline (3), glyph (5).
+    for (const s of [badge.fill, badge.outline, badge.glyphs.weapon]) box.appendChild(spriteEl(s))
+    point.appendChild(box)
+    const arrow = this.arrowEl(badge, point)
+    const line = document.createElement('div')
+    const timer = document.createElement('span')
+    const obj = new CSS2DObject(point)
+    obj.visible = false
+    this.root.add(obj)
+    return { spot, obj, icon: null, box, line, timer, timerText: '', timerShown: false, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: true }
   }
 
   /**
@@ -212,6 +283,7 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
         if (dist > 0.001) {
           const angle = ovalAngle(dx / dist, -(dy / dist))
           m.dockAngle = angle
+          m.dockDir = Math.atan2(-(dy / dist), dx / dist)
           dockedAngles.push(angle)
           dockedIdx.push(i)
         } else {
@@ -223,6 +295,7 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
         const dirY = screen[1] - DOCK_CENTER_Y
         const angle = ovalAngle(dirX, dirY)
         m.dockAngle = angle
+        m.dockDir = Math.atan2(dirY, dirX)
         dockedAngles.push(angle)
         dockedIdx.push(i)
       } else {
@@ -232,12 +305,13 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
       }
     }
 
-    // Second pass: spread the docked angles and place them.
+    // Second pass: place the docked markers on the oval, each in its item's direction. The game
+    // stacks them there (Jordan's capture of 2026-11-21: rack badges overlap at the upper left and
+    // right); nothing in its data spreads them apart.
     if (dockedAngles.length > 0 && screenToWorld) {
-      const spread = spreadDocked(dockedAngles, DOCK_GAP_FALLBACK)
       for (let k = 0; k < dockedIdx.length; k++) {
         const m = this.markers[dockedIdx[k]]
-        const [ox, oy] = ovalPoint(spread[k])
+        const [ox, oy] = ovalPoint(dockedAngles[k])
         screenToWorld(ox, oy, DOCK_DISTANCE, _dockedWorld)
         m.obj.position.copy(_dockedWorld)
       }
@@ -247,8 +321,15 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     for (const m of this.markers) {
       const docked = m.dockAngle !== null
       if (docked !== m.wasDocked) {
-        m.line.style.display = docked ? 'none' : ''
+        if (!m.badge) m.line.style.display = docked ? 'none' : ''
+        if (m.arrow) m.arrow.style.display = docked ? '' : 'none'
         m.wasDocked = docked
+      }
+      // The arrow's frame points down (+y on screen): turn it toward the item.
+      if (docked && m.arrow) m.arrow.style.transform = `translate(-50%,-50%) rotate(${m.dockDir - Math.PI / 2}rad)`
+      if (m.badge) {
+        m.obj.visible = true
+        continue
       }
 
       const reading = navpointStateAt(m.spot.pad, frame, this.frameMs)
