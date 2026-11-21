@@ -43,6 +43,7 @@ func TestPadEffectFromGame(t *testing.T) {
 			group  string
 			id     uint32
 		}{
+			{0x107c, "gldf", 0x92275534}, {0x1220, "gldf", 0x5443c497},
 			{0x1108, "lens", 0xc2f90227}, {0x1338, "lens", 0x37393001},
 			{0x1398, "prt3", 0xcfecb502}, {0x1dc0, "lsnd", 0x0338979c},
 		}},
@@ -52,6 +53,20 @@ func TestPadEffectFromGame(t *testing.T) {
 			id     uint32
 		}{
 			{0x3d8, "shdv", 0x7e36462d}, {0x538, "bitm", 0x4a769081}, {0x570, "bitm", 0x88361a52},
+		}},
+		{0x000024a6, 5492, []struct {
+			offset int
+			group  string
+			id     uint32
+		}{
+			{0x1318, "osgd", 0x023bc98e}, {0x1334, "hsgd", 0x394f1a04},
+		}},
+		{0x023bc98e, 704, []struct {
+			offset int
+			group  string
+			id     uint32
+		}{
+			{0x1b8, "ostd", 0xbc1c7256},
 		}},
 	} {
 		raw, err := idx.Extract(tag.id)
