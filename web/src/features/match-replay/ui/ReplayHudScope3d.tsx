@@ -238,16 +238,14 @@ function Commando({ id, level, ammo, reticle }: DrawProps) {
  * inner radius 30) that run to y = +-109 down the sides and to x = +-294 along the top and bottom,
  * joined by a thin edge (4). The blue is rgb(64, 87, 114) over near-black, read here as
  * BANDIT_RIM at BANDIT_RIM_OPACITY. Outside the window the scene keeps 0.3 of its light (top
- * and bottom-left edges, measured), so the shade is 0.7.
+ * and bottom-left edges, measured), so the shade is 0.7. The capture also showed light bands
+ * outside the window and thin vertical lines through the readouts; the owner had both removed
+ * (2026-11-21), so they are not drawn.
  */
 const BANDIT = { hw: 374, hh: 247, r: 45, side: 24, top: 21, innerR: 30, cornerY: 109, cornerX: 294, thin: 4 } as const
 const BANDIT_SHADE = 0.7
 const BANDIT_RIM = 'rgb(100, 150, 215)'
 const BANDIT_RIM_OPACITY = 0.6
-/** The three light bars outside the window (y from, to), out to x = +-589 where they fade, measured
- *  as about rgb(95, 140, 185) at 0.25 over the shade. */
-const BANDIT_BARS: readonly (readonly [number, number])[] = [[-172, -155], [-29, 29], [155, 173]]
-const BANDIT_BAR_END = 589
 /** The reticle's brackets read lighter than the readouts: a pale yellow (inferred from 2 px lines
  *  over a known background, about rgb(255, 255, 190) at partial coverage). */
 const BANDIT_BRACKET = '#fbf59b'
@@ -266,20 +264,12 @@ function Bandit({ id, level, ammo, reticle }: DrawProps) {
         <clipPath id={`${id}-corners`}>
           {corners.map(({ sx, sy }) => <rect key={`${sx}${sy}`} x={sx < 0 ? -B.hw - 10 : B.cornerX} y={sy < 0 ? -B.hh - 10 : B.cornerY} width={B.hw + 10 - B.cornerX} height={B.hh + 10 - B.cornerY} />)}
         </clipPath>
-        <linearGradient id={`${id}-barL`} gradientUnits="userSpaceOnUse" x1={-BANDIT_BAR_END} x2={-BANDIT_BAR_END + 24} y1="0" y2="0">
-          <stop offset="0" stopColor="rgb(95, 140, 185)" stopOpacity="0" />
-          <stop offset="1" stopColor="rgb(95, 140, 185)" stopOpacity="0.25" />
-        </linearGradient>
       </defs>
       <Shade id={id} window={win} opacity={BANDIT_SHADE} soft={2} />
-      {/* The light bars outside, mirrored. */}
-      {BANDIT_BARS.map(([y0, y1]) => <Sym key={y0} d={`M${-BANDIT_BAR_END},${y0}H${-B.hw + 2}V${y1}H${-BANDIT_BAR_END}Z`} style={{ fill: `url(#${id}-barL)` }} />)}
       {/* The housing: thick corners, thin edge between them, a soft glow. */}
       <path d={thick} fillRule="evenodd" clipPath={`url(#${id}-corners)`} filter={blur(id, 2)} style={{ fill: BANDIT_RIM, opacity: 0.35 }} />
       <path d={thick} fillRule="evenodd" clipPath={`url(#${id}-corners)`} style={{ fill: BANDIT_RIM, opacity: BANDIT_RIM_OPACITY }} />
       <path d={thin} fillRule="evenodd" style={{ fill: BANDIT_RIM, opacity: BANDIT_RIM_OPACITY }} />
-      {/* The inner vertical lines, through the readouts. */}
-      <path d={`M-316,${-B.hh + B.top}V${B.hh - B.top} M316,${-B.hh + B.top}V${B.hh - B.top}`} style={line(WHITE, 1.5, 0.45)} />
       {/* Readouts: a dim filled tab with its label, the box's top and bottom lines, the thick post. */}
       <Sym d="M-365,-39H-284V-25H-365Z M-365,34H-284V39H-365Z" style={{ fill: amber, opacity: 0.35 }} />
       <Sym d="M-365,-25H-284 M-365,34H-284" style={line(amber, 1, 1)} />
