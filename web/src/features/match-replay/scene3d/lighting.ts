@@ -23,6 +23,7 @@ import { FlashLights } from './flash3d'
 import { ShadowSplit } from './shadowSplit3d'
 import type { Look3d } from './look3d'
 import { chooseProbes, nearestProbe, probeParts, splitByProbe, type ProbePart } from './probes3d'
+import { filterAnisotropically, specularAntialias } from './specularAA3d'
 import { graftTopShade } from './topDownShade3d'
 
 const SHADOW_SIZE = 4096
@@ -181,16 +182,20 @@ export function shadesFaceted(geometry: THREE.BufferGeometry): boolean {
  *   invisible on screen, a few of them in the environment capture are enough to poison the
  *   whole prefilter, and so every reflection.
  * - The flat light of the top-down views (`topDownShade3d`), off outside them.
+ * - Anisotropic filtering of its textures and specular antialiasing (`specularAA3d`).
  */
 export function guardMaterial(material: THREE.Material | undefined): void {
   if (!material || guarded.has(material)) return
   guarded.add(material)
   giveFiniteNormal(material)
+  filterAnisotropically(material)
   const previous = material.onBeforeCompile
+  const previousKey = material.customProgramCacheKey.bind(material)
+  material.customProgramCacheKey = () => `${previousKey()}|guard-specaa1`
   material.onBeforeCompile = (shader, renderer) => {
     previous.call(material, shader, renderer)
     graftTopShade(shader)
-    shader.fragmentShader = shader.fragmentShader.replace(
+    shader.fragmentShader = specularAntialias(shader.fragmentShader).replace(
       '#include <dithering_fragment>',
       '#include <dithering_fragment>\nif (any(isnan(gl_FragColor)) || any(isinf(gl_FragColor))) gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);',
     )
