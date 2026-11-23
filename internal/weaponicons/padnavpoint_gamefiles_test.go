@@ -15,7 +15,7 @@ func TestPadNavpointFromGame(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.IconWidth != 96 || got.IconHeight != 96 || got.IconAlpha != 1 || got.TimerSize != 32 || got.TimerOffsetY != -40 || got.TimerFormat != 1 || got.PowerColor != 0xcb2b3e43 || got.NumericTimerSize != 38 || got.NumericTimerOffsetY != 45 {
+	if got.IconWidth != 96 || got.IconHeight != 96 || got.IconAlpha != 1 || got.TimerSize != 32 || got.TimerOffsetY != -40 || got.TimerFormat != 1 || got.PowerColor != 0xcb2b3e43 || got.NumericTimerSize != 38 || got.NumericTimerOffsetY != 45 || got.NameTextSize != 32 {
 		t.Fatalf("unexpected navpoint: %+v", got)
 	}
 }

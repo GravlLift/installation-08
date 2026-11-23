@@ -23,14 +23,22 @@
  *
  * THE COLOR is the 3D HUD's weapon ink (`--replay-hud-weapon`): the icon is a mask filled with
  * it, as `WeaponIcon` tints its icons.
+ *
+ * A POWER WEAPON'S PAD shows the navpoint's hex badge, not the weapon's icon, with the weapon's
+ * name and its distance stacked above it (the tag's group 2: "name_text" in Industry Demi, the
+ * distance number in Normative Pro Bold Italic; Jordan's capture of 2026-11-22: "53.8m" over
+ * "SHOCK RIFLE" over the hex). Equipment and power-up pads keep the item's icon. Racks and loose
+ * weapons get no navpoint at all: only power weapons, which spawn on pads, carry one (Jordan,
+ * 2026-11-22).
  */
 import * as THREE from 'three'
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
 
 import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { padItemCenter, type PadSpot, type Pickups3dLayer } from './pickups3d'
-import { padIconRefFor } from '../layers/useReplayWeaponPads'
+import { padIconRefFor, padNameFor } from '../layers/useReplayWeaponPads'
 import { HUD_FONT_FAMILY } from '../ui/hudFonts'
+import { REPLAY_TEXT } from '../i18n/i18n'
 import { ovalAngle, ovalPoint, DOCK_CENTER_X, DOCK_CENTER_Y } from './padNavpointMath3d'
 
 /**
@@ -78,9 +86,32 @@ interface NavpointStyle {
   iconWidth: number
   iconHeight: number
   iconAlpha: number
+  /** The text group's offset (UI units, negative up): the name's center, from the icon's top edge. */
+  timerOffsetY: number
+  /** The distance number's font size. */
+  timerSize: number
+  /** The name's font size; absent from sets built before 2026-11-22. */
+  nameTextSize?: number
   numericTimerSize: number
   numericTimerOffsetY: number
   badge?: NavpointBadge
+}
+
+/**
+ * The navpoint's text sizes are font sizes; drawn, a size-32 line's capitals stand about 31 UI
+ * units tall (Jordan's capture of 2026-11-22: 6 px of 418). Both faces' capitals are 0.7 em (their
+ * OS/2 tables), so the em is the size times this factor (32 x 1.4 x 0.7 = 31). Inferred from that
+ * one capture, not read from the game.
+ */
+const NAV_TEXT_EM_PER_SIZE = 1.4
+/** The pitch of the name and distance lines, in ems: 46 UI units between their centers in the same capture. */
+const NAV_TEXT_LINE_EM = 1.05
+/** Halo world units to meters (1 u = 3.048 m, `replayScene3d`). */
+const METERS_PER_UNIT = 3.048
+
+/** The distance line for `units` world units: meters with one decimal and a unit, "53.8m". */
+export function navpointDistanceText(units: number): string {
+  return `${(units * METERS_PER_UNIT).toFixed(1)}m`
 }
 
 const HUD_SET = '/static/weapons-assets/halo_infinite/hud/'
@@ -124,8 +155,11 @@ interface Marker {
   dockDir: number
   /** The off-screen arrow (the navpoint's rotated element), null without a served badge. */
   arrow: HTMLDivElement | null
-  /** A rack weapon's marker: the hex badge alone, at the item, without the raised icon or line. */
-  badge: boolean
+  /** A power weapon's marker: the hex badge, at full size at any distance, with its distance line. */
+  power: boolean
+  /** The distance line of a power weapon's marker, and the text last written to it. */
+  distance: HTMLDivElement | null
+  distanceText: string
   /** Off screen with nowhere to dock (equipment): not drawn this frame. */
   hidden: boolean
   /** The icon's last written scale and line length (cqh), to skip redundant style writes. */
@@ -190,11 +224,12 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     this.style = style
     const titleSlug = this.ctx.doc.titleSlug ?? 'halo_infinite'
     for (const spot of this.spots) {
-      // Only the pads (power weapon, powerup, equipment spawners) show their item's icon; any other
-      // weapon (racks, uncrossed spots) shows the navpoint's badge state (3d319069): the icon faded
-      // out, the hex outline in, the "weapon" glyph.
-      if (!ICON_SLOTS.has(spot.slot ?? '') && style.badge) {
-        this.markers.push(this.buildBadge(spot, style.badge))
+      // Only the pads (power weapon, powerup, equipment spawners) carry a navpoint; racks and loose
+      // weapons have none.
+      if (!ICON_SLOTS.has(spot.slot ?? '')) continue
+      // A power weapon shows the hex badge with its name and distance, never its own icon.
+      if (spot.slot === 'power' && style.badge) {
+        this.markers.push(this.buildPower(spot, style, style.badge))
         continue
       }
       const icon = padIconRefFor(spot.pad.weapon, this.ctx.doc.weaponLabels, titleSlug)
@@ -231,7 +266,49 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     const obj = new CSS2DObject(point)
     obj.visible = false
     this.root.add(obj)
-    return { spot, obj, icon: { url: icon.url, mirrored: icon.mirrored }, box, line, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: false, hidden: false, scale: 1, lineCqh: -1, lineAngle: 0 }
+    return { spot, obj, icon: { url: icon.url, mirrored: icon.mirrored }, box, line, wasDocked: false, dockAngle: null, dockDir: 0, arrow, power: false, distance: null, distanceText: '', hidden: false, scale: 1, lineCqh: -1, lineAngle: 0 }
+  }
+
+  /**
+   * buildPower makes a power weapon's marker: in the icon's box, the filled hex, its outline and
+   * the "weapon" glyph (draw order 0, 3, 5); above the box, the weapon's name and over it the
+   * distance; below it, the line to the item.
+   */
+  private buildPower(spot: PadSpot, style: NavpointStyle, badge: NavpointBadge): Marker {
+    const point = document.createElement('div')
+    point.style.cssText = 'width:0;height:0;'
+    const box = document.createElement('div')
+    box.style.cssText = `position:absolute;left:0;top:0;transform:translate(-50%,-100%);width:${cq(style.iconWidth)};height:${cq(style.iconHeight)};pointer-events:none;`
+    const hex = document.createElement('div')
+    hex.style.cssText = 'position:absolute;left:50%;top:50%;width:0;height:0;'
+    for (const s of [badge.fill, badge.outline, badge.glyphs.weapon]) hex.appendChild(spriteEl(s))
+    box.appendChild(hex)
+
+    // The text group: its first line (the name) centered `timerOffsetY` above the box's top edge,
+    // the distance one line above it.
+    const nameEm = (style.nameTextSize ?? style.timerSize) * NAV_TEXT_EM_PER_SIZE
+    const distanceEm = style.timerSize * NAV_TEXT_EM_PER_SIZE
+    const textLine = (font: string, em: number, lift: number): HTMLDivElement => {
+      const el = document.createElement('div')
+      el.style.cssText = `position:absolute;left:50%;top:${cq(style.timerOffsetY - lift)};transform:translate(-50%,-50%);white-space:nowrap;line-height:1;color:#fff;font:${font};font-size:${cq(em)};text-transform:uppercase;pointer-events:none;`
+      box.appendChild(el)
+      return el
+    }
+    const name = textLine(`600 1em Industry, ${HUD_FONT_FAMILY}`, nameEm, 0)
+    name.textContent = padNameFor(spot.pad.weapon, this.ctx.doc.weaponLabels, REPLAY_TEXT.en, 'en').split(/\s*\/\s*/)[0]
+    const distance = textLine(`italic 700 1em 'Normative Pro', ${HUD_FONT_FAMILY}`, distanceEm, NAV_TEXT_LINE_EM * nameEm)
+    distance.style.textTransform = 'none'
+
+    const line = document.createElement('div')
+    line.style.cssText = `position:absolute;left:50%;top:100%;transform:translateX(-50%);transform-origin:50% 0;width:${LINE_WIDTH_PX}px;height:${cq(ICON_OFFSET_UI)};background:var(--replay-hud-weapon,#c7ebfa);opacity:0.7;pointer-events:none;`
+    box.appendChild(line)
+
+    point.appendChild(box)
+    const arrow = this.arrowEl(badge, point)
+    const obj = new CSS2DObject(point)
+    obj.visible = false
+    this.root.add(obj)
+    return { spot, obj, icon: null, box, line, wasDocked: false, dockAngle: null, dockDir: 0, arrow, power: true, distance, distanceText: '', hidden: false, scale: 1, lineCqh: -1, lineAngle: 0 }
   }
 
   /** arrowEl adds the off-screen arrow to a marker, hidden until the marker docks. */
@@ -240,23 +317,6 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     arrow.style.display = 'none'
     point.appendChild(arrow)
     return arrow
-  }
-
-  /** buildBadge makes a rack weapon's marker: the filled hex, the outline, the weapon glyph. */
-  private buildBadge(spot: PadSpot, badge: NavpointBadge): Marker {
-    const point = document.createElement('div')
-    point.style.cssText = 'width:0;height:0;'
-    const box = document.createElement('div')
-    box.style.cssText = 'position:absolute;left:0;top:0;width:0;height:0;'
-    // Draw order: fill (0), outline (3), glyph (5).
-    for (const s of [badge.fill, badge.outline, badge.glyphs.weapon]) box.appendChild(spriteEl(s))
-    point.appendChild(box)
-    const arrow = this.arrowEl(badge, point)
-    const line = document.createElement('div')
-    const obj = new CSS2DObject(point)
-    obj.visible = false
-    this.root.add(obj)
-    return { spot, obj, icon: null, box, line, wasDocked: false, dockAngle: null, dockDir: 0, arrow, badge: true, hidden: false, scale: 1, lineCqh: -1, lineAngle: 0 }
   }
 
   /**
@@ -282,6 +342,7 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     for (let i = 0; i < this.markers.length; i++) {
       const m = this.markers[i]
       padItemCenter(m.spot, frame, null, null, null, null, null, _worldPos)
+      if (m.distance) this.writeDistance(m, _worldPos)
 
       if (!project || !screenToWorld) {
         m.obj.position.copy(_worldPos)
@@ -293,7 +354,7 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
       const offScreen = !screen || screen[0] < -0.02 || screen[0] > 1.02 || screen[1] < -0.02 || screen[1] > 1.02
       // Only weapons dock at the screen's edge; an equipment item's navpoint is simply not drawn
       // off screen (Jordan, 2026-11-21).
-      m.hidden = offScreen && !m.badge && m.spot.slot !== 'power'
+      m.hidden = offScreen && m.spot.slot !== 'power'
       if (m.hidden) {
         m.dockAngle = null
         continue
@@ -322,10 +383,6 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
         m.dockDir = Math.atan2(dirY, dirX)
         dockedAngles.push(angle)
         dockedIdx.push(i)
-      } else if (m.badge) {
-        // On screen: the CSS2DRenderer projects the world position.
-        m.obj.position.copy(_worldPos)
-        m.dockAngle = null
       } else {
         m.dockAngle = null
         this.placeRaised(m, _worldPos, project)
@@ -333,8 +390,8 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     }
 
     // Second pass: place the docked markers on the oval, each in its item's direction. The game
-    // stacks them there (Jordan's capture of 2026-11-21: rack badges overlap at the upper left and
-    // right); nothing in its data spreads them apart.
+    // stacks them there (Jordan's capture of 2026-11-21 on Aimbotz: pad badges overlap at the upper
+    // left and right); nothing in its data spreads them apart.
     if (dockedAngles.length > 0 && screenToWorld) {
       for (let k = 0; k < dockedIdx.length; k++) {
         const m = this.markers[dockedIdx[k]]
@@ -351,9 +408,9 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
         continue
       }
       const docked = m.dockAngle !== null
-      if (docked && !m.badge && m.scale !== 1) this.setIconScale(m, 1)
+      if (docked && m.scale !== 1) this.setIconScale(m, 1)
       if (docked !== m.wasDocked) {
-        if (!m.badge) m.line.style.display = docked ? 'none' : ''
+        m.line.style.display = docked ? 'none' : ''
         if (m.arrow) m.arrow.style.display = docked ? '' : 'none'
         m.wasDocked = docked
       }
@@ -374,9 +431,13 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     const top = m.spot.last?.top ?? center.y
     _anchor.set(center.x, Math.max(top + ICON_TOP_GAP, feetY + ICON_HEIGHT_FACTOR * (center.y - feetY)), center.z)
     m.obj.position.copy(_anchor)
-    this.ctx.cameraPosition?.(_camPos)
-    const distance = _camPos.distanceTo(_anchor)
-    this.setIconScale(m, Math.max(ICON_MIN_SCALE, Math.min(1, ICON_FULL_SIZE_DISTANCE / Math.max(distance, 1e-3))))
+    // An item's icon shrinks with its distance; a power weapon's hex stays at the navpoint's size
+    // (Jordan's capture of 2026-11-22: 100 UI units tall at 53.8 m).
+    if (!m.power) {
+      this.ctx.cameraPosition?.(_camPos)
+      const distance = _camPos.distanceTo(_anchor)
+      this.setIconScale(m, Math.max(ICON_MIN_SCALE, Math.min(1, ICON_FULL_SIZE_DISTANCE / Math.max(distance, 1e-3))))
+    }
     // The line runs from the icon's bottom center to the item's top as projected: with the camera
     // pitched, that point is not straight below the icon.
     const a = project([_anchor.x, _anchor.y, _anchor.z])
@@ -396,6 +457,21 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
       m.line.style.transform = `translateX(-50%) rotate(${angle.toFixed(4)}rad)`
       m.lineCqh = lineCqh
       m.lineAngle = angle
+    }
+  }
+
+  /**
+   * writeDistance writes a power weapon's distance from the camera to its item, in meters with one
+   * decimal ("53.8m"), when it changed. The camera stands in for the player's eye (inferred: the
+   * game measures from the player).
+   */
+  private writeDistance(m: Marker, item: THREE.Vector3): void {
+    if (!m.distance || !this.ctx.cameraPosition) return
+    this.ctx.cameraPosition(_camPos)
+    const text = navpointDistanceText(_camPos.distanceTo(item))
+    if (text !== m.distanceText) {
+      m.distance.textContent = text
+      m.distanceText = text
     }
   }
 
