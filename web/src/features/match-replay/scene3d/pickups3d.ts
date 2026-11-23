@@ -57,6 +57,7 @@ import { WeaponModelPool, weaponModelKey } from './weaponModels3d'
 import { centerOffset, groundWeaponPose, standingItemCorrection } from './groundWeaponPose3d'
 import { applyWeaponCoating } from './avatar3d'
 import { padItemRotation, type PadOffset } from './padOffsets3d'
+import { frameToMs } from '@/lib/replay/replayLogic'
 
 /** The weapon box: length, height, width (u). */
 const BOX_LENGTH = 0.5
@@ -64,10 +65,23 @@ const BOX_HEIGHT = 0.08
 const BOX_WIDTH = 0.12
 /** Gap between a floor pad's feet and the underside of the weapon floating above it (u). */
 const PAD_BOX_LIFT = 0.28
-/** A full pad's box rotation speed (radians per frame). */
-const PAD_SPIN_PER_FRAME = 0.02
-/** Phase offset from one pad to the next, so the boxes don't all turn in lockstep (radians). */
+/**
+ * One full turn of a floating pad item, seconds. The game's own: the power pad's animation graph
+ * (jmad 03e2398d, under Rani e647e90e of mach fca8a400) holds a 120-frame, 30 fps clip (b56ddd4e)
+ * that turns the pad's weapon-mount node (58c3647e, marker 630cde8c, 0.3 u up) once about the
+ * pad's up, counterclockwise seen from above, at a constant 3 degrees a frame, with no bob.
+ */
+export const PAD_SPIN_PERIOD_S = 4
+/**
+ * Phase offset from one pad to the next, so the items don't all turn in lockstep (radians). Not
+ * the game's: when each pad's clip starts is not known.
+ */
 const PAD_SPIN_PHASE = 0.7
+
+/** padSpinPerFrame — a floating pad item's turn per film frame (radians), from the film's frame interval. */
+export function padSpinPerFrame(frameMs: number): number {
+  return frameMs > 0 ? (2 * Math.PI * frameMs) / (PAD_SPIN_PERIOD_S * 1000) : 0
+}
 /** A lying weapon's orientation: the golden angle, which scatters headings with no visible pattern. */
 const GROUND_YAW_STEP = Math.PI * (3 - Math.sqrt(5))
 /**
@@ -382,6 +396,8 @@ export interface PadSpot {
   rack?: RackPose
   placed?: { rotation: THREE.Quaternion; scale: THREE.Vector3 }
   phase: number
+  /** The floating item's turn per film frame (radians, `padSpinPerFrame`). */
+  spin: number
   last?: PadDrawn
   /** A floating pad item, turned about its model center: its loaded model and that center offset. */
   item?: { model: THREE.Object3D; offset: THREE.Vector3 }
@@ -406,7 +422,7 @@ export function padItemCenter(
   standing: { rotation: THREE.Quaternion; center: THREE.Vector3 } | null,
   out: THREE.Vector3,
 ): THREE.Vector3 {
-  const q = new THREE.Quaternion().setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
+  const q = new THREE.Quaternion().setFromAxisAngle(Y_AXIS, frame * spot.spin + spot.phase)
   const base = out.copy(spot.feet)
   if (spot.placed) {
     // A placed weapon stands at its spawner; the icon anchors on the spawner.
@@ -473,6 +489,7 @@ function feetOf(ground: Ground, x: number, y: number, z: number | undefined): TH
 function padSpotsOf(ctx: ActionContext, pads: readonly ReplayWeaponPadReady[]): PadSpot[] {
   const out: PadSpot[] = []
   const slots = crossedSlotsOf(ctx.doc.mapWeaponPads)
+  const spin = padSpinPerFrame(frameToMs(1, ctx.doc))
   pads.forEach((pad, i) => {
     if (padOutOfBounds(ctx.doc.bounds, pad.x, pad.y)) return
     const family = pickupFamilyOf(pad.weapon, ctx.doc.weaponLabels)
@@ -494,14 +511,14 @@ function padSpotsOf(ctx: ActionContext, pads: readonly ReplayWeaponPadReady[]): 
         ? { rotation: placedWeaponRotation(slot), scale: slot.scale?.length === 3
           ? new THREE.Vector3(slot.scale[0], slot.scale[2], slot.scale[1]) : new THREE.Vector3(1, 1, 1) }
         : undefined
-      out.push({ index: i, pad, family, slot: slot.family, feet, mounted: rack !== undefined, rack, placed, phase })
+      out.push({ index: i, pad, family, slot: slot.family, feet, mounted: rack !== undefined, rack, placed, phase, spin })
       return
     }
     const floor = ctx.ground.floorY(pad.x, pad.y, pad.z ?? null)
     const mounted = padMountOf(pad.z, floor) === 'mounted'
     // A rack holds at the published z (the pad's box is absent); a floor pad settles onto the floor.
     const feet = mounted ? new THREE.Vector3(...toThree(pad.x, pad.y, pad.z!)) : feetOf(ctx.ground, pad.x, pad.y, pad.z)
-    if (feet) out.push({ index: i, pad, family, slot: slot?.family ?? null, feet, mounted, phase })
+    if (feet) out.push({ index: i, pad, family, slot: slot?.family ?? null, feet, mounted, phase, spin })
   })
   return out
 }
@@ -669,7 +686,7 @@ export class Pickups3dLayer implements ActionLayer3d {
         const source = this.ctx.weaponModel(spot.pad.weapon)
         if (!source) continue
         const model = this.noShadow(this.paintedObject(spot.pad.weapon, source))
-        q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
+        q.setFromAxisAngle(Y_AXIS, frame * spot.spin + spot.phase)
         this.models.add(this.glowOf(model, this.ctx.ink.of(ink[spot.family])), p.copy(spot.feet), q)
         Object.assign(last, { drawn: 'model', pos: p.clone() })
         continue
@@ -691,13 +708,13 @@ export class Pickups3dLayer implements ActionLayer3d {
         // pad, weapons and equipment alike, and turning about up through the center of its
         // bounds (the Grapple's marker sits at its back end; the game spins it about its middle).
         // At the item's ground scale (weapons 1.3, the Grapple 2.75), as the game draws it.
-        q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
+        q.setFromAxisAngle(Y_AXIS, frame * spot.spin + spot.phase)
         q.copy(padItemRotation(offset, q, q))
         if (spot.item?.model !== model) spot.item = { model, offset: centerOffset(model) }
         this.models.add(this.glowOf(model, this.ctx.ink.of(ink[spot.family])), p, q, groundScale ?? 1)
         top = itemTopY(model, p, q, groundScale ?? 1)
       } else if (model) {
-        q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
+        q.setFromAxisAngle(Y_AXIS, frame * spot.spin + spot.phase)
         if (spot.slot === 'equipment' && standing) {
           // An equipment GLB is not authored with the weapon's up: stand the item on its thinnest
           // bounding-box edge (a disc stands on its edge) BEFORE the spin about world up, and
@@ -713,7 +730,7 @@ export class Pickups3dLayer implements ActionLayer3d {
         this.models.add(this.glowOf(model, this.ctx.ink.of(ink[spot.family])), p, q)
         top = itemTopY(model, p, q, 1)
       } else {
-        q.setFromAxisAngle(Y_AXIS, frame * PAD_SPIN_PER_FRAME + spot.phase)
+        q.setFromAxisAngle(Y_AXIS, frame * spot.spin + spot.phase)
         this.poolOf(look).add(p, q, 1, this.ctx.ink.of(ink[spot.family]))
       }
       Object.assign(last, { drawn: model ? 'model' : look === 'solid' ? 'box' : 'ghost', pos: p.clone(), top })

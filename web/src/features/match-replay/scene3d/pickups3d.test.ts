@@ -41,6 +41,8 @@ import {
   rackWeaponOffset,
   rackWeaponRotation,
   placedWeaponRotation,
+  padSpinPerFrame,
+  PAD_SPIN_PERIOD_S,
   shownGroundWeapons,
   type GroundSources,
 } from './pickups3d'
@@ -259,6 +261,19 @@ describe('rackWeaponOffset', () => {
     expect(RACK_WEAPON_MOUNT).toBeCloseTo(0.0516)
     const o = rackWeaponOffset({ forward: [0, -1, 0], up: [0, 0, 1] })
     expect(o.distanceTo(new THREE.Vector3(0, 0, RACK_WEAPON_MOUNT))).toBeCloseTo(0, 6)
+  })
+})
+
+describe('padSpinPerFrame', () => {
+  it('turns a floating item once every 4 s whatever the film frame rate (the pad clip b56ddd4e)', () => {
+    expect(PAD_SPIN_PERIOD_S).toBe(4)
+    for (const frameMs of [1000 / 60, 1000 / 30, 100]) {
+      const framesPerTurn = (PAD_SPIN_PERIOD_S * 1000) / frameMs
+      expect(padSpinPerFrame(frameMs) * framesPerTurn).toBeCloseTo(2 * Math.PI, 9)
+    }
+    // The game's clip: 3 degrees a frame at 30 fps.
+    expect((padSpinPerFrame(1000 / 30) * 180) / Math.PI).toBeCloseTo(3, 9)
+    expect(padSpinPerFrame(0)).toBe(0)
   })
 })
 
