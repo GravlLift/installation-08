@@ -8,9 +8,9 @@
  *    layer (`variantLayer.ts`); this layer draws only the weapon it holds. Full, a weapon box in its
  *    family ink (`padFamilyOf`) floats above the pad and turns slowly; uncertain, the box is a ghost;
  *    empty, nothing is drawn (`padStateAt`). A WEAPON RACK (the map spawner the server crossed the
- *    pad with is a `rack`, `rackMountsOf`) holds its weapon still, on the front of its shut doors,
- *    in the rack's own orientation (`rackWeaponRotation`): no lift, no spin, same full / uncertain /
- *    empty states. Every crossed pad stands at its spawner's position, never at a floor ray read at
+ *    pad with is a `rack`, `rackMountsOf`) holds its weapon still, inside the rack at the rack
+ *    model's own mount marker (`rackWeaponOffset`, `rackWeaponRotation`), outlined like a pickup:
+ *    no lift, no spin, same full / uncertain / empty states. Every crossed pad stands at its spawner's position, never at a floor ray read at
  *    construction. Without that crossing, a pad above the floor (`padMountOf`) keeps the earlier
  *    fallback: only the game's weapon model is posed, at its height. `window.__it3dPickups` reads
  *    what each pad drew (`debugRows`). A pad outside the map's bounds (`padOutOfBounds`) is not
@@ -54,7 +54,7 @@ import type { ActionContext, ActionLayer3d } from './actionScene3d'
 import { addPickupOutline } from './itemOutline3d'
 import { toThree } from './tracks3d'
 import { WeaponModelPool, weaponModelKey } from './weaponModels3d'
-import { centerOffset, faceMountOffset, groundWeaponPose, standingItemCorrection } from './groundWeaponPose3d'
+import { centerOffset, groundWeaponPose, standingItemCorrection } from './groundWeaponPose3d'
 import { applyWeaponCoating } from './avatar3d'
 import { padItemRotation, type PadOffset } from './padOffsets3d'
 
@@ -81,11 +81,13 @@ const FLOOR_SNAP = 0.3
  */
 const PAD_MOUNT_THRESHOLD = 0.25
 /**
- * How far in front of a rack's spawner its weapon hangs, along the rack's forward (u): the front of
- * the rack kit's shut doors (+0.068 u, measured on the kit mesh of Live Fire's variant layer; the
- * kit's box is the same 0.25 x 0.17 x 0.46 u on every measured map) plus a small gap.
+ * Where a rack holds its weapon, along the rack's forward from its spawner (u): the rack's render
+ * model (`mode 630f65b3`, placed at identity by its Forge kit `foki 2497072f`) carries the marker
+ * `630cde8c` on its tray bone (`03e84948`) at +0.0201, and the rack's open clip (jmad `8542a522`,
+ * reached through the machine's `Rani 51bd09f2`) slides that tray +0.0315 forward as the doors
+ * part. Open, the weapon's origin sits at +0.0516, inside the rack (its front is at +0.065).
  */
-const RACK_FACE = 0.073
+export const RACK_WEAPON_MOUNT = 0.0201 + 0.0315
 /** A pad past this margin outside the map's bounds is not drawn (u). */
 const PAD_OUT_OF_BOUNDS_MARGIN = 5
 /** Pool cap: a few hundred objects at most. */
@@ -267,14 +269,8 @@ export function placedWeaponRotation(mount: RackMount): THREE.Quaternion {
   return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(forward, up, right))
 }
 
-/**
- * rackWeaponRotation — the still pose of a weapon on a rack. The weapon model's frame is three's
- * (X toward the muzzle, Y up); on the rack it stands upright, muzzle along the rack's up, its side
- * facing out along the rack's forward, so it fills the rack's tall, narrow frame (the kit's box is
- * 0.46 u tall, 0.25 u wide, 0.17 u deep on every measured map). Without published axes the rack is
- * upright and faces +X.
- */
-export function rackWeaponRotation(mount: RackMount): THREE.Quaternion {
+/** The rack's forward and up in three axes, squared; upright facing +X without published axes. */
+function rackAxes(mount: RackMount): { forward: THREE.Vector3; up: THREE.Vector3 } {
   const up = threeAxis(mount.up) ?? new THREE.Vector3(0, 1, 0)
   let forward = threeAxis(mount.forward)
   if (forward) forward.addScaledVector(up, -forward.dot(up))
@@ -282,17 +278,32 @@ export function rackWeaponRotation(mount: RackMount): THREE.Quaternion {
     forward = new THREE.Vector3(1, 0, 0).addScaledVector(up, -up.x)
     if (forward.lengthSq() < 1e-8) forward.set(0, 0, 1).addScaledVector(up, -up.z)
   }
-  forward.normalize()
-  // Model X (muzzle) -> rack up, model Z (side) -> rack forward, model Y -> forward x up.
-  const top = new THREE.Vector3().crossVectors(forward, up)
-  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(up, top, forward))
+  return { forward: forward.normalize(), up }
 }
 
-/** The still pose of a rack weapon: its rotation, and the face-mount offset of its loaded model. */
+/**
+ * rackWeaponRotation — the still pose of a weapon in a rack, the rack marker `630cde8c`'s own
+ * (quaternion -0.5, -0.5, -0.5, 0.5 in the rack's frame): the weapon's muzzle along the rack's up,
+ * its left side facing out along the rack's forward, its top toward the rack's left. In three's
+ * axes (model X muzzle, Y up, Z right): X -> up, Y -> up x forward (the rack's left), Z -> -forward.
+ * Jordan's Vacancy capture (2026-11-22) shows the VK78 that way: muzzle up, grip to the viewer's
+ * left. Without published axes the rack is upright and faces +X.
+ */
+export function rackWeaponRotation(mount: RackMount): THREE.Quaternion {
+  const { forward, up } = rackAxes(mount)
+  const left = new THREE.Vector3().crossVectors(up, forward)
+  return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(up, left, forward.clone().negate()))
+}
+
+/** rackWeaponOffset — the weapon's origin from the rack's spawner, three axes (`RACK_WEAPON_MOUNT`). */
+export function rackWeaponOffset(mount: RackMount): THREE.Vector3 {
+  return rackAxes(mount).forward.multiplyScalar(RACK_WEAPON_MOUNT)
+}
+
+/** The still pose of a rack weapon: its rotation and its origin from the spawner (`rackWeaponOffset`). */
 interface RackPose {
   rotation: THREE.Quaternion
-  model?: THREE.Object3D
-  offset?: THREE.Vector3
+  offset: THREE.Vector3
 }
 
 /**
@@ -402,9 +413,8 @@ export function padItemCenter(
     return base
   }
   if (spot.rack) {
-    // A rack holds its weapon still on the front of the shut doors; the icon anchors there.
-    if (model && spot.rack.offset) return base.add(spot.rack.offset)
-    return base.add(new THREE.Vector3(0, 0, RACK_FACE + BOX_WIDTH / 2).applyQuaternion(spot.rack.rotation))
+    // A rack holds its weapon still at its mount marker, inside the open rack.
+    return base.add(spot.rack.offset)
   }
   if (spot.mounted) {
     // A wall rack (no crossing): the weapon is posed at its height; the icon anchors at the feet.
@@ -479,7 +489,7 @@ function padSpotsOf(ctx: ActionContext, pads: readonly ReplayWeaponPadReady[]): 
       // construction, before a Forge map's variant layer (its floors and the pad kits) arrives,
       // and a ray from above the spawner could land on whatever is overhead.
       const feet = new THREE.Vector3(...toThree(pad.x, pad.y, pad.z ?? 0))
-      const rack = slot.family === 'rack' ? { rotation: rackWeaponRotation(slot) } : undefined
+      const rack = slot.family === 'rack' ? { rotation: rackWeaponRotation(slot), offset: rackWeaponOffset(slot) } : undefined
       const placed = slot.family === 'placed' && threeAxis(slot.forward) && threeAxis(slot.up)
         ? { rotation: placedWeaponRotation(slot), scale: slot.scale?.length === 3
           ? new THREE.Vector3(slot.scale[0], slot.scale[2], slot.scale[1]) : new THREE.Vector3(1, 1, 1) }
@@ -526,6 +536,8 @@ export class Pickups3dLayer implements ActionLayer3d {
   private readonly standings = new Map<THREE.Object3D, { rotation: THREE.Quaternion; center: THREE.Vector3 }>()
   /** Per source model: the glow copy (its materials cloned and emissive); drawn for floating pad items. */
   private readonly glows = new Map<THREE.Object3D, THREE.Object3D>()
+  /** Per source model: the outlined copy a rack's weapon is drawn with (`outlinedOf`). */
+  private readonly outlined = new Map<THREE.Object3D, THREE.Object3D>()
   /** The glow materials, disposed with the layer (shared by a glow copy's pool clones). */
   private readonly glowMaterials: THREE.Material[] = []
   private filterKey = ''
@@ -745,9 +757,26 @@ export class Pickups3dLayer implements ActionLayer3d {
   }
 
   /**
-   * A weapon rack: the weapon held still in the rack's pose, by the pad's state; no lift, no spin.
-   * In the game the rack's doors open on the weapon inside; the variant layer draws the kit with
-   * its doors shut, so the weapon is hung just in front of them (`RACK_FACE`) to be seen.
+   * outlinedOf — `model` with the pickup outline (`itemOutline3d`) and no glow: a rack's weapon is
+   * drawn in its own paint, outlined like every pickup (Jordan's Vacancy capture, 2026-11-22). The
+   * copy shares the painted model's materials.
+   */
+  private outlinedOf(model: THREE.Object3D): THREE.Object3D {
+    let copy = this.outlined.get(model)
+    if (!copy) {
+      copy = model.clone()
+      addPickupOutline(copy)
+      this.outlined.set(model, copy)
+    }
+    return copy
+  }
+
+  /**
+   * A weapon rack: the weapon held still at the rack's mount marker (`rackWeaponOffset`,
+   * `rackWeaponRotation`), inside the open rack, while the pad's state holds it; no lift, no spin.
+   * At the weapon's ground scale, like a pad's weapon: in the capture the VK78 spans about 0.37 u
+   * of the 0.46 u rack, its length at 1.3. The rack's doors are the variant layer's (baked shut
+   * until their clips are exported); the weapon inside is hidden behind shut doors.
    */
   private paintRack(
     spot: PadSpot,
@@ -759,19 +788,16 @@ export class Pickups3dLayer implements ActionLayer3d {
     const look = padBoxLook(state)
     if (!look) return
     const { p } = this.scratch
+    p.copy(spot.feet).add(rack.offset)
     const source = look === 'solid' ? this.ctx.weaponModel(spot.pad.weapon) : null
     const model = source ? this.noShadow(this.paintedObject(spot.pad.weapon, source)) : null
     if (model) {
-      if (rack.model !== model || !rack.offset) {
-        rack.model = model
-        rack.offset = faceMountOffset(model, rack.rotation, RACK_FACE)
-      }
-      this.models.add(model, p.copy(spot.feet).add(rack.offset), rack.rotation)
+      const scale = this.ctx.weaponGroundScale?.(spot.pad.weapon) ?? 1
+      this.models.add(this.outlinedOf(model), p, rack.rotation, scale)
       Object.assign(last, { drawn: 'model', pos: p.clone() })
       return
     }
-    // The stand-in box (its width runs along the model's Z), hung on the same face.
-    p.copy(spot.feet).add(new THREE.Vector3(0, 0, RACK_FACE + BOX_WIDTH / 2).applyQuaternion(rack.rotation))
+    // The stand-in box (its length along the muzzle), at the same mount.
     this.poolOf(look).add(p, rack.rotation, 1, this.ctx.ink.of(ink[spot.family]))
     Object.assign(last, { drawn: look === 'solid' ? 'box' : 'ghost', pos: p.clone() })
   }

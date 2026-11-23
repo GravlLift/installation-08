@@ -37,13 +37,15 @@ import {
   Pickups3dLayer,
   prepareWeaponPads,
   rackMountsOf,
+  RACK_WEAPON_MOUNT,
+  rackWeaponOffset,
   rackWeaponRotation,
   placedWeaponRotation,
   shownGroundWeapons,
   type GroundSources,
 } from './pickups3d'
 import { standingItemCorrection } from './groundWeaponPose3d'
-import type { Tracks3d } from './tracks3d'
+import { toThree, type Tracks3d } from './tracks3d'
 
 const SNIPER = '0x00000001'
 const RIFLE = '0x00000002'
@@ -215,24 +217,48 @@ describe('rackMountsOf', () => {
 describe('rackWeaponRotation', () => {
   const axis = (q: THREE.Quaternion, x: number, y: number, z: number) => new THREE.Vector3(x, y, z).applyQuaternion(q)
 
-  it('stands the weapon muzzle up with its side facing out along the rack forward', () => {
+  it('poses the weapon as the rack marker 630cde8c does: muzzle up, left side out, top to the rack left', () => {
     // Game forward -Y is three +Z (toThree(x, y, z) = [x, z, -y]).
     const q = rackWeaponRotation({ forward: [0, -1, 0], up: [0, 0, 1] })
     expect(axis(q, 1, 0, 0).distanceTo(new THREE.Vector3(0, 1, 0))).toBeCloseTo(0)
-    expect(axis(q, 0, 0, 1).distanceTo(new THREE.Vector3(0, 0, 1))).toBeCloseTo(0)
+    // Model Z is the weapon's right: it faces into the rack, so its left faces out (+Z).
+    expect(axis(q, 0, 0, 1).distanceTo(new THREE.Vector3(0, 0, -1))).toBeCloseTo(0)
+    // The rack's left, game (forward x up) rotated: facing game -Y, left is game +X = three +X.
+    expect(axis(q, 0, 1, 0).distanceTo(new THREE.Vector3(1, 0, 0))).toBeCloseTo(0)
+  })
+
+  it('matches the marker quaternion (-0.5, -0.5, -0.5, 0.5) on a rack facing game +X', () => {
+    const q = rackWeaponRotation({ forward: [1, 0, 0], up: [0, 0, 1] })
+    // The marker in game axes: weapon x -> rack up, y -> rack forward, z -> rack left.
+    const marker = new THREE.Quaternion(-0.5, -0.5, -0.5, 0.5)
+    const game = (v: THREE.Vector3) => new THREE.Vector3(...toThree(v.x, v.y, v.z))
+    for (const v of [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)]) {
+      // A game-frame weapon axis, through the marker, then to three; vs the same axis in three, through q.
+      const expected = game(v.clone().applyQuaternion(marker))
+      const got = game(v).applyQuaternion(q)
+      expect(got.distanceTo(expected)).toBeCloseTo(0)
+    }
   })
 
   it('follows a diagonal rack and squares a tilted forward against up', () => {
     const q = rackWeaponRotation({ forward: [0.71, -0.71, 0.2], up: [0, 0, 1] })
     const side = axis(q, 0, 0, 1)
     expect(side.y).toBeCloseTo(0)
-    expect(side.distanceTo(new THREE.Vector3(1, 0, 1).normalize())).toBeCloseTo(0)
+    expect(side.distanceTo(new THREE.Vector3(-1, 0, -1).normalize())).toBeCloseTo(0)
   })
 
   it('stays upright facing +X without published axes', () => {
     const q = rackWeaponRotation({ forward: undefined, up: null })
     expect(axis(q, 1, 0, 0).distanceTo(new THREE.Vector3(0, 1, 0))).toBeCloseTo(0)
-    expect(axis(q, 0, 0, 1).distanceTo(new THREE.Vector3(1, 0, 0))).toBeCloseTo(0)
+    expect(axis(q, 0, 0, 1).distanceTo(new THREE.Vector3(-1, 0, 0))).toBeCloseTo(0)
+  })
+})
+
+describe('rackWeaponOffset', () => {
+  it('holds the weapon at the open tray marker, 0.0516 u along the rack forward, inside its 0.065 u front', () => {
+    expect(RACK_WEAPON_MOUNT).toBeCloseTo(0.0516)
+    const o = rackWeaponOffset({ forward: [0, -1, 0], up: [0, 0, 1] })
+    expect(o.distanceTo(new THREE.Vector3(0, 0, RACK_WEAPON_MOUNT))).toBeCloseTo(0, 6)
   })
 })
 
@@ -422,7 +448,7 @@ describe('Pickups3dLayer', () => {
     layer.dispose()
   })
 
-  it('hangs a rack weapon still on the front of the rack, upright, by the pad state', () => {
+  it('holds a rack weapon still inside the rack at its mount marker, upright, by the pad state', () => {
     const model = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.02))
     const { layer, counts, root } = buildLayer(
       { ...show, groundWeapons: false },
@@ -434,11 +460,10 @@ describe('Pickups3dLayer', () => {
     const copie = root.children[2]
     expect(copie).toBeDefined()
     const pose = { p: copie.position.clone(), q: copie.quaternion.clone() }
-    // At the spawner's height, not lifted off the floor under the rack; out in front of the shut
-    // doors (+0.068 u) along the rack forward (game -Y, three +Z): its back 0.073 u out, and its
-    // origin half its 0.02 u thickness further.
+    // At the spawner's height, not lifted off the floor under the rack; its origin on the open
+    // tray's marker, 0.0516 u along the rack forward (game -Y, three +Z), inside the rack.
     const spawner = new THREE.Vector3(RACK_AT.x, RACK_AT.z, -RACK_AT.y)
-    expect(pose.p.distanceTo(spawner.clone().add(new THREE.Vector3(0, 0, 0.073 + 0.01)))).toBeCloseTo(0, 5)
+    expect(pose.p.distanceTo(spawner.clone().add(new THREE.Vector3(0, 0, RACK_WEAPON_MOUNT)))).toBeCloseTo(0, 5)
     // Upright: the muzzle (model X) runs along world up.
     expect(new THREE.Vector3(1, 0, 0).applyQuaternion(pose.q).y).toBeCloseTo(1)
     layer.update(19)
