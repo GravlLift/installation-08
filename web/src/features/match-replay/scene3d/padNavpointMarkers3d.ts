@@ -2,10 +2,9 @@
 /**
  * padNavpointMarkers3d.ts — THE GAME'S PAD NAVPOINTS IN THE 3D SCENE, one marker per pad.
  *
- * The game marks every weapon pad with a small icon. It writes no countdown under it (Jordan,
- * 2026-11-21: the pad's ring fills as the item's return nears, and the navpoint shows no number),
- * although the `nvpt` tag carries a numeric timer element. This layer draws the same markers in
- * the 3D view: one `CSS2DObject` per pad, positioned imperatively each frame.
+ * The game marks every weapon pad with a small icon. An equipment or power-up pad's icon writes no
+ * countdown (Jordan, 2026-11-21: its ring fills as the item's return nears). This layer draws the
+ * same markers in the 3D view: one `CSS2DObject` per pad, positioned imperatively each frame.
  *
  * ON SCREEN: the icon sits ABOVE the item's anchor, with a thin vertical line from the icon
  * down to the item (F2). The icon is raised by `ICON_OFFSET_UI` nvpt UI units (fitted to the
@@ -27,9 +26,12 @@
  * A POWER WEAPON'S PAD shows the navpoint's hex badge, not the weapon's icon, with the weapon's
  * name and its distance stacked above it (the tag's group 2: "name_text" in Industry Demi, the
  * distance number in Normative Pro Bold Italic; Jordan's capture of 2026-11-22: "53.8m" over
- * "SHOCK RIFLE" over the hex). Equipment and power-up pads keep the item's icon. Racks and loose
- * weapons get no navpoint at all: only power weapons, which spawn on pads, carry one (Jordan,
- * 2026-11-22).
+ * "SHOCK RIFLE" over the hex). The name and distance show only while the aim (the reticle, the
+ * screen's center) is within `NAV_FOCUS_DEGREES` of the item, fading in and out; while the weapon
+ * is not up, the hex carries its countdown below ("0:28", the tag's group 4: Industry Demi, size
+ * 38, its capitals' top 45 UI units under the hex), docked or not (Jordan and his Vacancy capture,
+ * 2026-11-22). Equipment and power-up pads keep the item's icon. Racks and loose weapons get no
+ * navpoint at all: only power weapons, which spawn on pads, carry one (Jordan, 2026-11-22).
  */
 import * as THREE from 'three'
 import { CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js'
@@ -40,6 +42,8 @@ import { padIconRefFor, padNameFor } from '../layers/useReplayWeaponPads'
 import { HUD_FONT_FAMILY } from '../ui/hudFonts'
 import { REPLAY_TEXT } from '../i18n/i18n'
 import { ovalAngle, ovalPoint, DOCK_CENTER_X, DOCK_CENTER_Y } from './padNavpointMath3d'
+import { aimDegrees, navpointCountdownText, navpointStateAt, NAV_FOCUS_DEGREES, NAV_FOCUS_FADE_S } from './padNavpoint3d'
+import { frameToMs } from '@/lib/replay/replayLogic'
 
 /**
  * One navpoint UI unit as a share of the view height. The navpoint's units are those of a
@@ -160,6 +164,14 @@ interface Marker {
   /** The distance line of a power weapon's marker, and the text last written to it. */
   distance: HTMLDivElement | null
   distanceText: string
+  /** The name and distance together, faded in while the aim is on the item; and whether it is. */
+  focus: HTMLDivElement | null
+  focused: boolean
+  /** This frame: the item is inside the aim cone. */
+  inCone: boolean
+  /** The countdown under a power weapon's hex while it is not up, and the text last written to it. */
+  countdown: HTMLDivElement | null
+  countdownText: string
   /** Off screen with nowhere to dock (equipment): not drawn this frame. */
   hidden: boolean
   /** The icon's last written scale and line length (cqh), to skip redundant style writes. */
@@ -173,6 +185,8 @@ const _worldPos = new THREE.Vector3()
 const _camPos = new THREE.Vector3()
 const _dockedWorld = new THREE.Vector3()
 const _anchor = new THREE.Vector3()
+const _forward = new THREE.Vector3()
+const _toItem = new THREE.Vector3()
 
 /**
  * The distance (u) inside which a pad icon draws at the navpoint's full size; farther, it shrinks
@@ -200,11 +214,13 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
   private ready = false
   private shown = false
   private style: NavpointStyle | null = null
+  private readonly frameMs: number
 
   constructor(ctx: ActionContext, pickups: Pickups3dLayer) {
     this.ctx = ctx
     this.root = ctx.root
     this.spots = pickups.spots
+    this.frameMs = frameToMs(1, ctx.doc)
     void this.loadStyle()
   }
 
@@ -266,7 +282,7 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     const obj = new CSS2DObject(point)
     obj.visible = false
     this.root.add(obj)
-    return { spot, obj, icon: { url: icon.url, mirrored: icon.mirrored }, box, line, wasDocked: false, dockAngle: null, dockDir: 0, arrow, power: false, distance: null, distanceText: '', hidden: false, scale: 1, lineCqh: -1, lineAngle: 0 }
+    return { spot, obj, icon: { url: icon.url, mirrored: icon.mirrored }, box, line, wasDocked: false, dockAngle: null, dockDir: 0, arrow, power: false, distance: null, distanceText: '', focus: null, focused: false, inCone: false, countdown: null, countdownText: '', hidden: false, scale: 1, lineCqh: -1, lineAngle: 0 }
   }
 
   /**
@@ -285,19 +301,27 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     box.appendChild(hex)
 
     // The text group: its first line (the name) centered `timerOffsetY` above the box's top edge,
-    // the distance one line above it.
+    // the distance one line above it; both in one layer that fades with the aim (`focus`).
+    const focus = document.createElement('div')
+    focus.style.cssText = `position:absolute;left:0;top:0;width:100%;height:100%;opacity:0;transition:opacity ${NAV_FOCUS_FADE_S}s linear;pointer-events:none;`
+    box.appendChild(focus)
     const nameEm = (style.nameTextSize ?? style.timerSize) * NAV_TEXT_EM_PER_SIZE
     const distanceEm = style.timerSize * NAV_TEXT_EM_PER_SIZE
-    const textLine = (font: string, em: number, lift: number): HTMLDivElement => {
+    const textLine = (font: string, em: number, top: string, parent: HTMLDivElement): HTMLDivElement => {
       const el = document.createElement('div')
-      el.style.cssText = `position:absolute;left:50%;top:${cq(style.timerOffsetY - lift)};transform:translate(-50%,-50%);white-space:nowrap;line-height:1;color:#fff;font:${font};font-size:${cq(em)};text-transform:uppercase;pointer-events:none;`
-      box.appendChild(el)
+      el.style.cssText = `position:absolute;left:50%;top:${top};transform:translate(-50%,-50%);white-space:nowrap;line-height:1;color:#fff;font:${font};font-size:${cq(em)};text-transform:uppercase;pointer-events:none;`
+      parent.appendChild(el)
       return el
     }
-    const name = textLine(`600 1em Industry, ${HUD_FONT_FAMILY}`, nameEm, 0)
+    const name = textLine(`600 1em Industry, ${HUD_FONT_FAMILY}`, nameEm, cq(style.timerOffsetY), focus)
     name.textContent = padNameFor(spot.pad.weapon, this.ctx.doc.weaponLabels, REPLAY_TEXT.en, 'en').split(/\s*\/\s*/)[0]
-    const distance = textLine(`italic 700 1em 'Normative Pro', ${HUD_FONT_FAMILY}`, distanceEm, NAV_TEXT_LINE_EM * nameEm)
+    const distance = textLine(`italic 700 1em 'Normative Pro', ${HUD_FONT_FAMILY}`, distanceEm, cq(style.timerOffsetY - NAV_TEXT_LINE_EM * nameEm), focus)
     distance.style.textTransform = 'none'
+    // The countdown: its capitals' top `numericTimerOffsetY` under the box's bottom edge (its
+    // center half a capital lower; capitals are 0.7 em), hidden while the weapon is up.
+    const countEm = style.numericTimerSize * NAV_TEXT_EM_PER_SIZE
+    const countdown = textLine(`600 1em Industry, ${HUD_FONT_FAMILY}`, countEm, `calc(100% + ${cq(style.numericTimerOffsetY + 0.35 * countEm)})`, box)
+    countdown.style.display = 'none'
 
     const line = document.createElement('div')
     line.style.cssText = `position:absolute;left:50%;top:100%;transform:translateX(-50%);transform-origin:50% 0;width:${LINE_WIDTH_PX}px;height:${cq(ICON_OFFSET_UI)};background:var(--replay-hud-weapon,#c7ebfa);opacity:0.7;pointer-events:none;`
@@ -308,7 +332,7 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     const obj = new CSS2DObject(point)
     obj.visible = false
     this.root.add(obj)
-    return { spot, obj, icon: null, box, line, wasDocked: false, dockAngle: null, dockDir: 0, arrow, power: true, distance, distanceText: '', hidden: false, scale: 1, lineCqh: -1, lineAngle: 0 }
+    return { spot, obj, icon: null, box, line, wasDocked: false, dockAngle: null, dockDir: 0, arrow, power: true, distance, distanceText: '', focus, focused: false, inCone: false, countdown, countdownText: '', hidden: false, scale: 1, lineCqh: -1, lineAngle: 0 }
   }
 
   /** arrowEl adds the off-screen arrow to a marker, hidden until the marker docks. */
@@ -342,7 +366,11 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
     for (let i = 0; i < this.markers.length; i++) {
       const m = this.markers[i]
       padItemCenter(m.spot, frame, null, null, null, null, null, _worldPos)
-      if (m.distance) this.writeDistance(m, _worldPos)
+      if (m.power) {
+        this.writeDistance(m, _worldPos)
+        m.inCone = this.inAimCone(_worldPos)
+        this.writeCountdown(m, frame)
+      }
 
       if (!project || !screenToWorld) {
         m.obj.position.copy(_worldPos)
@@ -416,6 +444,12 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
       }
       // The arrow's frame points down (+y on screen): turn it toward the item.
       if (docked && m.arrow) m.arrow.style.transform = `translate(-50%,-50%) rotate(${m.dockDir - Math.PI / 2}rad)`
+      // A power weapon's name and distance: only while the aim is on it (never docked).
+      const focused = m.inCone && !docked
+      if (m.focus && focused !== m.focused) {
+        m.focus.style.opacity = focused ? '1' : '0'
+        m.focused = focused
+      }
       m.obj.visible = true
     }
   }
@@ -473,6 +507,30 @@ export class PadNavpoints3dLayer implements ActionLayer3d {
       m.distance.textContent = text
       m.distanceText = text
     }
+  }
+
+  /**
+   * inAimCone says whether `item` is within `NAV_FOCUS_DEGREES` of the view's axis: the reticle is
+   * the screen's center, so the camera's forward stands in for the player's aim (exact in first
+   * person; in a free camera, the camera's own aim).
+   */
+  private inAimCone(item: THREE.Vector3): boolean {
+    if (!this.ctx.cameraPosition || !this.ctx.screenToWorld) return false
+    this.ctx.cameraPosition(_camPos)
+    this.ctx.screenToWorld(0.5, 0.5, 1, _forward)
+    _forward.sub(_camPos)
+    _toItem.copy(item).sub(_camPos)
+    return aimDegrees([_forward.x, _forward.y, _forward.z], [_toItem.x, _toItem.y, _toItem.z]) <= NAV_FOCUS_DEGREES
+  }
+
+  /** writeCountdown writes a power weapon's countdown under its hex while it is not up, when it changed. */
+  private writeCountdown(m: Marker, frame: number): void {
+    if (!m.countdown) return
+    const text = navpointCountdownText(navpointStateAt(m.spot.pad, frame, this.frameMs).seconds)
+    if (text === m.countdownText) return
+    m.countdown.textContent = text
+    if ((text === '') !== (m.countdownText === '')) m.countdown.style.display = text === '' ? 'none' : ''
+    m.countdownText = text
   }
 
   /** setIconScale sizes the icon box at `scale` times the navpoint's icon size. */
