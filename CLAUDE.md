@@ -17,3 +17,4 @@ Jordan's test build is `dist\installation-08.exe` (gitignored), built from `main
 - Several agents share this PC. Full runs from several of them at once will crash it (Jordan, 2026-11-23: "never full. targeted.").
 - Gamefiles-tagged tests: one named test per process, only inside `P:\software\infinite-library\scripts\gamefiles-slot.ps1 take` / `give`, and one at a time.
 - Run builds and tests with `$env:GOMAXPROCS = '4'` at BelowNormal priority.
+- No before/after A/B timing runs: no build-time comparisons, clean reruns or warm/cold pairs (Jordan, 2026-11-23). Report a speed change from the app's own setup log on a normal launch.
